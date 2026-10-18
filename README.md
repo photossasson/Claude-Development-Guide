@@ -2,7 +2,7 @@
 
 מדריך מקצועי, מקיף ומדורג בעברית (RTL) לפיתוח תוכנה עם Claude Code: 43 פרקים, חמש לומדות אינטראקטיביות, ודוגמאות קוד מלאות שאפשר להריץ.
 
-- **קריאה אונליין:** https://photossasson.github.io/claude-development-guide/
+- **קריאה אונליין:** https://photossasson.github.io/Claude-Development-Guide/
 - **גרסה:** 1.2, מתאריך 16.10.2026
 - **בסיס האימות:** Claude Code בגרסאות 2.1.220 (מחקר מקורי, 28.07.2026), 2.1.300 ו-2.1.301 (עדכוני תחזוקה, אוקטובר 2026). כל עובדה תלוית גרסה מסומנת בפרקים עם מקור ותאריך בדיקה.
 
@@ -15,8 +15,8 @@
 3. **מקומית, עם שרת קטן** (מומלץ אם הדפדפן חוסם קבצים מקומיים):
 
 ```bash
-git clone https://github.com/photossasson/claude-development-guide.git
-cd claude-development-guide
+git clone https://github.com/photossasson/Claude-Development-Guide.git
+cd Claude-Development-Guide
 python3 -m http.server 8000
 # ואז לפתוח http://localhost:8000
 ```
