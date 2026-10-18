@@ -42,7 +42,7 @@ python3 -m http.server 8000
 | `connectors/` | מדריך חיבור, מטריצת זמינות ושמונה תרחישי בדיקה ל-Connectors |
 | `subagents/` | חמש הגדרות Subagents וסקריפט עזר |
 | `plugins/taskflow-toolkit/` | Plugin לדוגמה |
-| `agent-sdk/` | דוגמאות Quickstart ל-Agent SDK ב-Python וב-TypeScript |
+| `agent-sdk/` | דוגמאות Agent SDK ב-Python וב-TypeScript: Quickstart, הסוכן המלא מפרק 32 וסריקת האצווה מפרק 33 |
 | `CHANGELOG.md` | היסטוריית הגרסאות של המדריך |
 
 ## הרצת הדוגמאות
@@ -107,12 +107,26 @@ cd agent-sdk/python && pip install -r requirements.txt
 cd agent-sdk/typescript && npm install && npm run typecheck
 ```
 
+שתי הדוגמאות המלאות מפרקים 32 ו-33:
+
+```bash
+# פרק 32: סוכן שמתכנן, מבקש אישור, מבצע, מריץ בדיקות ומדווח
+cd agent-sdk/python
+python 02_code_reviewer.py --repo ~/projects/taskflow \
+  --task "Add a completed_at timestamp to tasks when they are marked done"
+
+# פרק 33: סריקת אצווה, קריאה בלבד, על כל ה-Repositories בתיקייה
+cd agent-sdk/typescript
+npx tsx 02-automation.ts --root ~/work/repos --out reports
+```
+
+הסוכן של פרק 32 עורך קבצים אמיתיים, לכן הריצו אותו על עותק או על Branch נפרד. סריקת האצווה של פרק 33 קוראת בלבד ומוגבלת בתקציב לכל Repository ובתקציב כולל.
+
 הרצת דוגמאות ה-Agent SDK דורשת `ANTHROPIC_API_KEY` או התחברות דרך `claude`. אל תשמרו מפתחות בקבצים שנכנסים ל-Git.
 
 ## הערות לגבי הגרסה המפורסמת
 
 - קובצי הבקרה הפנימיים של הפרויקט (תיקיית `control/`) ודוחות ה-QA (תיקיית `qa/`) אינם כלולים כאן. במקומות שבהם פרק מזכיר קובץ בקרה, ההפניה היא לתיעוד פנימי של תהליך הכתיבה.
-- פרקים 32 ו-33 מצטטים קטעים מהקבצים `agent-sdk/python/02_code_reviewer.py` ו-`agent-sdk/typescript/02-automation.ts`. שני הקבצים המלאים אינם כלולים בגרסה הזו; הקטעים שבפרקים הם החלקים הרלוונטיים, ודוגמאות ה-Quickstart (`01_*`) מלאות.
 - כל הקישורים בין הדפים יחסיים, ולכן המדריך עובד גם מ-GitHub Pages וגם מהדיסק.
 - הקובץ `.nojekyll` בשורש נחוץ: בלעדיו GitHub Pages מדלג על תיקיות שמתחילות בנקודה (כמו `.claude/` ו-`.claude-plugin/`) שהדוגמאות תלויות בהן.
 

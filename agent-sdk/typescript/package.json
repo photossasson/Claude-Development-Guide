@@ -6,7 +6,8 @@
   "description": "Claude Agent SDK examples for the Hebrew Claude Code guide (chapters 31-33)",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "quickstart": "tsx 01-quickstart.ts"
+    "quickstart": "tsx 01-quickstart.ts",
+    "automation": "tsx 02-automation.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.233"

@@ -184,6 +184,7 @@ class RunState:
             raise
         log.warning("[%s] query ended with an error result: %s", phase, exc)</code></pre>
   </div>
+  <div class="callout warn"><span class="title">חשוב: Prompt כזרם כשיש Callback</span><p>ב-<bdi>Python SDK</bdi>, האפשרות <code>can_use_tool</code> עובדת רק כשה-<bdi>Prompt</bdi> נשלח כזרם (<bdi>AsyncIterable</bdi>) ולא כמחרוזת. עם מחרוזת, <code>query()</code> נכשל מיד בשגיאה <code>can_use_tool callback requires streaming mode</code>. לכן בקובץ המלא <code>run_phase()</code> לא מעביר את הטקסט ישירות, אלא עוטף אותו בפונקציית עזר קטנה, <code>_as_stream()</code>, שמחזירה הודעת משתמש אחת בפורמט <code>{"type": "user", "message": {"role": "user", "content": ...}}</code>. כך כל השלבים, עם Callback ובלעדיו, נשלחים באותה צורה. נבדק מול <code>claude-agent-sdk</code> 0.2.139 ב-18.10.2026.</p></div>
   <p><strong>מדיניות ה-Retry</strong> מבחינה בין שני סוגי כשל, וההבחנה הזאת חשובה:</p>
   <ul>
     <li><strong>כשלים חולפים (Transient):</strong> <code>CLIConnectionError</code>, <code>ProcessError</code> ו-<code>CLIJSONDecodeError</code> הם כשלי תקשורת עם תהליך המשנה של Claude Code. אותם מנסים שוב, עד <code>TRANSIENT_RETRIES</code> פעמים, עם <bdi>Exponential Backoff</bdi> (<code>2**attempt</code> שניות). חשוב לציין שה-SDK עצמו כבר מבצע Retry לשגיאות API (ברירת מחדל מתועדת: עד 10 ניסיונות, נשלט דרך <code>CLAUDE_CODE_MAX_RETRIES</code>), אז השכבה שלנו מטפלת רק במה שנשאר.</li>
@@ -485,6 +486,6 @@ if tests_passed:
   </div>
 </main>
 
-<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.2 | הפרק עודכן: 18.10.2026 | תאריך מחקר: 28.07.2026</footer>
 </body>
 </html>
