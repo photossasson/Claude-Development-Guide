@@ -1,0 +1,5 @@
+[
+  {"id": 1, "title": "Fix login redirect", "status": "doing", "created": "2026-10-12"},
+  {"id": 2, "title": "Write API docs for /tasks", "status": "open", "created": "2026-10-13"},
+  {"id": 3, "title": "Upgrade test runner", "status": "done", "created": "2026-10-10"}
+]

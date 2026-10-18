@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 15: CLAUDE.md</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ג | פרק 15</p>
+  <h1>CLAUDE.md</h1>
+  <p class="lead">קובץ <bdi>CLAUDE.md</bdi> הוא הקובץ החשוב ביותר שתיצרו בפרויקט שעובד עם <bdi>Claude Code</bdi>: ההוראות הקבועות ש-Claude קורא בפתיחת כל <bdi>Session</bdi>. בפרק הזה נכיר את כל רמות ה-<bdi>Scope</bdi> (ארגון, משתמש, פרויקט, מקומי ומקונן), את סדר הטעינה והעדיפות, את מנגנון ה-<bdi>Imports</bdi> ואת תיקיית <code>.claude/rules/</code>, נלמד מה שייך לקובץ ומה לא, נבחן ונשפר את ה-<bdi>CLAUDE.md</bdi> האמיתי של פרויקט <bdi>TaskFlow</bdi>, ונבנה דוגמה מתקדמת מלאה ל-<bdi>Monorepo</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="purpose">מהו CLAUDE.md ואיזו בעיה הוא פותר</h2>
+  <p>כפי שראינו ב<a href="ch14.html">פרק 14</a>, כל <bdi>Session</bdi> מתחיל עם <bdi>Context</bdi> טרי: Claude לא זוכר שום דבר מהשיחות הקודמות. בלי מנגנון קבוע, הייתם צריכים להסביר מחדש בכל בוקר איך מריצים בדיקות, אילו מוסכמות קוד נהוגות בצוות, ולמה אסור לגעת בתיקייה מסוימת. <bdi>CLAUDE.md</bdi> הוא הפתרון: קובץ <bdi>Markdown</bdi> רגיל שאתם כותבים פעם אחת, ו-Claude Code טוען אוטומטית לתוך ה-Context בתחילת כל שיחה.</p>
+  <p>חשוב להבין נקודה מתועדת ולא מובנת מאליה: תוכן הקובץ מוזרק כהודעת משתמש אחרי ה-<bdi>System Prompt</bdi>, לא כחלק ממנו. Claude קורא אותו ומשתדל לציית, אבל אין אכיפה קשיחה, במיוחד מול הוראות מעורפלות או סותרות. לכן ההנחיה הרשמית: הוראות התנהגות שייכות ל-CLAUDE.md; חסימות אמיתיות (למשל "אסור להריץ <code>rm -rf</code>") שייכות ל-<bdi>Permissions</bdi> ול-<bdi>Hooks</bdi>, שאוכפים ברמת הקוד בלי לשאול את המודל (פרקים 18 ו-22).</p>
+  <p>מתי מוסיפים שורה לקובץ? התיעוד נותן ארבעה טריגרים מצוינים: Claude חוזר על אותה טעות פעם שנייה; <bdi>Code Review</bdi> תופס משהו ש-Claude "היה צריך לדעת"; אתם מקלידים בצ'אט תיקון שכבר הקלדתם ב-Session קודם; או שגם מפתח חדש בצוות היה זקוק לאותו הסבר כדי להיות פרודוקטיבי.</p>
+  <h3 id="when-not">מתי להשתמש ומתי לא</h3>
+  <p>השתמשו ב-CLAUDE.md לכל עובדה או כלל ש-Claude צריך להחזיק בכל שיחה, בכל משימה: פקודות, מוסכמות, גבולות. אל תשתמשו בו כשקיים כלי מתאים יותר: הוראה שרלוונטית רק לחלק מהקוד שייכת ל-<bdi>Rule</bdi> ממוקד נתיב או לקובץ מקונן; נוהל רב-שלבי שמופעל מדי פעם שייך ל-<bdi>Skill</bdi>; ידע ש-Claude צובר תוך כדי עבודה שייך ל-<bdi>Auto Memory</bdi>; ופעולה שחייבת לקרות בנקודה קבועה (למשל <bdi>Lint</bdi> אחרי כל עריכה) שייכת ל-<bdi>Hook</bdi>. הבחירה הזאת אינה קוסמטית: כל שורה ב-CLAUDE.md עולה <bdi>Tokens</bdi> בכל Session, וכל שורה במקום הנכון עולה רק כשצריך אותה.</p>
+
+  <h2 id="scopes">רמות ה-Scope: מי, איפה ובשביל מה</h2>
+  <p>קובצי הוראות יכולים לחיות בכמה מקומות, וכל מקום קובע היקף אחר. אלה הרמות המתועדות, מהרחבה לספציפית:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>רמה</th><th>מיקום</th><th>למה משמשת</th><th>משותפת עם</th><th>מתי נטענת</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><bdi>Managed Policy</bdi></td>
+          <td class="ltr">macOS: <code>/Library/Application Support/ClaudeCode/CLAUDE.md</code><br>Linux/WSL: <code>/etc/claude-code/CLAUDE.md</code><br>Windows: <code>C:\Program Files\ClaudeCode\CLAUDE.md</code></td>
+          <td>הוראות ארגוניות שמפיץ צוות IT/DevOps: תקני קוד, מדיניות אבטחה, דרישות רגולציה</td>
+          <td>כל המשתמשים בארגון</td>
+          <td>בפתיחה, תמיד; לא ניתנת לביטול על ידי המשתמש</td>
+        </tr>
+        <tr>
+          <td><bdi>User</bdi></td>
+          <td class="ltr"><code>~/.claude/CLAUDE.md</code></td>
+          <td>העדפות אישיות לכל הפרויקטים: סגנון, קיצורי דרך אישיים</td>
+          <td>רק אתם, בכל הפרויקטים</td>
+          <td>בפתיחה</td>
+        </tr>
+        <tr>
+          <td><bdi>Project</bdi></td>
+          <td class="ltr"><code>./CLAUDE.md</code> או <code>./.claude/CLAUDE.md</code></td>
+          <td>הוראות הפרויקט: ארכיטקטורה, תקנים, פקודות, Workflows</td>
+          <td>הצוות, דרך Git</td>
+          <td>בפתיחה</td>
+        </tr>
+        <tr>
+          <td><bdi>Local</bdi></td>
+          <td class="ltr"><code>./CLAUDE.local.md</code></td>
+          <td>העדפות אישיות לפרויקט הזה: כתובות Sandbox, נתוני בדיקה מועדפים. מוסיפים ל-<code>.gitignore</code></td>
+          <td>רק אתם, בפרויקט הזה</td>
+          <td>בפתיחה</td>
+        </tr>
+        <tr>
+          <td>מקונן (Nested)</td>
+          <td class="ltr"><code>sub/dir/CLAUDE.md</code></td>
+          <td>הוראות ספציפיות לחלק של הפרויקט, למשל חבילה ב-Monorepo</td>
+          <td>הצוות, דרך Git</td>
+          <td>לפי דרישה: כש-Claude קורא קובץ באותה תת-תיקייה</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>שימו לב להבחנת הטעינה: קובצי <bdi>CLAUDE.md</bdi> ו-<bdi>CLAUDE.local.md</bdi> בתיקיית העבודה ובתיקיות שמעליה נטענים במלואם בפתיחה. קבצים בתת-תיקיות מתחת לתיקיית העבודה נטענים רק כש-Claude ניגש לקבצים שם. לארגונים יש גם דרך שנייה להפיץ הוראות: המפתח <code>claudeMd</code> בתוך <code>managed-settings.json</code>, שמכובד רק ברמת ה-Managed.</p>
+  <p>לארגונים חשוב גם לדעת מה CLAUDE.md ארגוני <em>אינו</em>: הוא הנחיה, לא אכיפה. התיעוד מפריד במפורש בין שני הערוצים:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>הצורך</th><th>הכלי הנכון</th></tr></thead>
+      <tbody>
+        <tr><td>חסימת כלים, פקודות או נתיבים</td><td class="ltr">Managed Settings: <code>permissions.deny</code></td></tr>
+        <tr><td>בידוד Sandbox מחייב</td><td class="ltr">Managed Settings: <code>sandbox.enabled</code></td></tr>
+        <tr><td>משתני סביבה וניתוב ספק API</td><td class="ltr">Managed Settings: <code>env</code></td></tr>
+        <tr><td>הנחיות סגנון, איכות, טיפול בנתונים ותאימות</td><td>Managed CLAUDE.md</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure>
+    <img src="../diagrams/memory-hierarchy.svg" alt="תרשים היררכיית ההוראות: Managed, User, Project, Local, מקונן ו-Auto Memory, עם סימון מי משותף ומי אישי">
+    <figcaption>היררכיית ההוראות והזיכרון. הרמות מצטרפות זו לזו לפי סדר הטעינה; הקרוב ביותר לתיקיית העבודה נקרא אחרון. כחול: משותף לצוות דרך Git; כתום: אישי; ירוק: אוטומטי; מקווקו: נטען לפי דרישה.</figcaption>
+  </figure>
+
+  <h2 id="load-order">סדר טעינה, ירושה ועדיפות</h2>
+  <p>המנגנון המתועד פשוט אך חשוב לדייק בו:</p>
+  <ol>
+    <li><strong>טיפוס במעלה העץ.</strong> Claude Code מטפס מתיקיית העבודה כלפי מעלה ואוסף בכל תיקייה את <code>CLAUDE.md</code> ו-<code>CLAUDE.local.md</code>. אם הפעלתם אותו ב-<code>foo/bar/</code>, ייטענו גם <code>foo/CLAUDE.md</code> וגם <code>foo/bar/CLAUDE.md</code>.</li>
+    <li><strong>צירוף, לא דריסה.</strong> כל הקבצים משורשרים לתוך ה-Context זה אחרי זה. אין "קובץ מנצח": Claude רואה את כולם.</li>
+    <li><strong>הסדר קובע בפועל.</strong> התוכן מסודר מהשורש כלפי מטה, כך שההוראות הקרובות ביותר למקום שממנו הפעלתם את Claude נקראות אחרונות. בתוך כל תיקייה, <code>CLAUDE.local.md</code> מצורף אחרי <code>CLAUDE.md</code>. גם ב-<code>Rules</code>: כללי המשתמש נטענים לפני כללי הפרויקט, ולכן לפרויקט יש עדיפות מעשית.</li>
+  </ol>
+  <p>דוגמה מוחשית: אתם מפעילים את Claude ב-<code>company/monorepo/apps/api/</code>. בפתיחה ייטענו, לפי הסדר: הקובץ הארגוני (אם קיים), <code>~/.claude/CLAUDE.md</code>, ואז <code>company/monorepo/CLAUDE.md</code> ולבסוף <code>apps/api/CLAUDE.md</code>, כי שניהם נמצאים על המסלול שבין שורש מערכת הקבצים לתיקיית העבודה. לעומת זאת, <code>apps/web/CLAUDE.md</code> לא ייטען כלל, כי הוא בתיקייה אחות; ו-<code>apps/api/tests/CLAUDE.md</code>, שנמצא מתחת לתיקיית העבודה, ימתין עד ש-Claude יקרא קובץ בתוך <code>tests/</code>.</p>
+  <p>שלוש נקודות משלימות: ב-<bdi>Monorepo</bdi> גדול אפשר להחריג קובצי CLAUDE.md לא רלוונטיים של צוותים אחרים עם ההגדרה <code>claudeMdExcludes</code> (קובץ Managed לעולם אינו ניתן להחרגה); הערות <bdi>HTML</bdi> ברמת בלוק (<code>&lt;!-- ... --&gt;</code>) מוסרות מהתוכן לפני ההזרקה, ולכן הן דרך חינמית להשאיר הערות תחזוקה לבני אדם; ועריכת CLAUDE.md באמצע <bdi>Session</bdi> לא נכנסת לתוקף עד <code>/clear</code>, <code>/compact</code> או הפעלה מחדש, כפי שראינו בפרק 14.</p>
+  <div class="callout note"><span class="title">CLAUDE.md ו-Compaction</span><p>תזכורת מפרק 14: קובץ CLAUDE.md של שורש הפרויקט נטען מחדש מהדיסק אחרי כל Compaction ולכן שורד תמיד. קבצים מקוננים ו-Rules ממוקדי נתיב הולכים לאיבוד עד שקובץ מתאים ייקרא שוב. <a href="ch14.html#what-survives">לטבלה המלאה</a>.</p></div>
+
+  <h2 id="imports">Imports: פיצול הקובץ עם @</h2>
+  <p>קובץ CLAUDE.md יכול לייבא קבצים נוספים בתחביר <code>@path/to/import</code>. הקבצים המיובאים נטענים בפתיחת ה-Session לצד הקובץ שמפנה אליהם. הכללים המתועדים:</p>
+  <ul>
+    <li>נתיב יחסי נפתר יחסית לקובץ שמכיל את ה-Import, לא לתיקיית העבודה. נתיבים מוחלטים ונתיבי בית (<code>@~/...</code>) מותרים.</li>
+    <li>קובץ מיובא יכול לייבא קבצים נוספים, עד עומק מקסימלי של ארבעה דילוגים (Hops).</li>
+    <li>פענוח ה-Imports מדלג על קוד: <code>@</code> בתוך <bdi>Code Span</bdi> או בלוק קוד גדור אינו מייבא. לכן, כדי להזכיר נתיב בלי לייבא אותו, עוטפים אותו ב-<bdi>Backticks</bdi>.</li>
+    <li>Import "חיצוני" (שנפתר מחוץ לתיקיית העבודה) בקובץ ברמת פרויקט מציג בפעם הראשונה חלון אישור, כהגנה מפני קבצים שאנשים אחרים הכניסו לפרויקט משותף. Imports בקבצים האישיים שלכם (<code>~/.claude/</code>) נטענים בלי שאלות.</li>
+    <li>Imports עוזרים לארגון אבל לא חוסכים Context: הכול נטען בפתיחה.</li>
+  </ul>
+  <div class="codeblock">
+    <div class="codehead">CLAUDE.md</div>
+    <pre><code>See @README for project overview and @package.json for available npm commands.
+
+# Additional Instructions
+- git workflow: @docs/git-instructions.md
+
+# Individual Preferences (shared across my worktrees)
+- @~/.claude/my-project-instructions.md</code></pre>
+  </div>
+  <p>תרחיש נפוץ: פרויקט שכבר משתמש בקובץ <bdi>AGENTS.md</bdi> עבור סוכני קוד אחרים. מגרסה <bdi>2.1.277</bdi> Claude Code קורא <bdi>AGENTS.md</bdi> ישירות כשאין <bdi>CLAUDE.md</bdi> או <bdi>CLAUDE.local.md</bdi> בתיקיית העבודה ומעליה (עדכון 15.10.2026; ההגדרה <bdi>Project instructions</bdi> ב-<code>/config</code> קובעת אם לקרוא את שניהם). כשיש גם <bdi>CLAUDE.md</bdi>, הדפוס המתועד הוא קובץ CLAUDE.md שמתחיל ב-<code>@AGENTS.md</code>, ואפשר להוסיף מתחתיו הוראות ייחודיות ל-Claude. חלופה: <bdi>Symlink</bdi> (<code>ln -s AGENTS.md CLAUDE.md</code>); ב-Windows זה דורש הרשאות Administrator או Developer Mode, ולכן שם עדיף ה-Import.</p>
+
+  <h2 id="rules">תיקיית .claude/rules/: הוראות מודולריות</h2>
+  <p>כשקובץ ההוראות גדל, הפתרון המובנה הוא תיקיית <code>.claude/rules/</code>: קובצי <bdi>Markdown</bdi> נפרדים, קובץ לנושא, עם שם תיאורי כמו <code>testing.md</code> או <code>security.md</code>. כל קובצי ה-<code>.md</code> מתגלים רקורסיבית, כולל בתת-תיקיות כמו <code>rules/frontend/</code>. כלל בלי <bdi>Frontmatter</bdi> נטען בפתיחה, באותה עדיפות כמו <code>.claude/CLAUDE.md</code>.</p>
+  <p>הכוח האמיתי הוא ב-<strong>Rules ממוקדי נתיב</strong>: שדה <code>paths</code> ב-<bdi>YAML Frontmatter</bdi> גורם לכלל להיטען רק כש-Claude קורא, כותב או עורך קובץ שמתאים לתבנית, וכך חוסך Context ורעש:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/rules/api-conventions.md</div>
+    <pre><code>---
+paths:
+  - "src/api/**/*.ts"
+---
+
+# API Development Rules
+
+- All API endpoints must include input validation
+- Use the standard error response format
+- Include OpenAPI documentation comments</code></pre>
+  </div>
+  <p>תבניות ה-<bdi>Glob</bdi> המתועדות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תבנית</th><th>מה היא תופסת</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>**/*.ts</code></td><td>כל קובצי TypeScript בכל תיקייה</td></tr>
+        <tr><td class="ltr"><code>src/**/*</code></td><td>כל הקבצים תחת <code>src/</code></td></tr>
+        <tr><td class="ltr"><code>*.md</code></td><td>לפי התיעוד: קובצי Markdown בשורש הפרויקט. בבדיקה שלנו (15.10.2026, גרסה 2.1.300) תבנית בלי <code>/</code> תפסה את השם בכל עומק; לשורש בלבד עבד <code>/*.md</code>. ראו את <a href="../interactive/rules-lomda.html">הלומדה על Rules</a></td></tr>
+        <tr><td class="ltr"><code>src/**/*.{ts,tsx}</code></td><td>הרחבת סוגריים: שתי סיומות בתבנית אחת</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>מגבלות מתועדות ששווה להכיר: רשימת ה-<code>paths</code> של כלל בודד חולקת תקציב של 1,000 תבניות מורחבות ו-4MiB (הרחבות סוגריים מוכפלות זו בזו, ותבנית שחורגת מהתקציב תופעל לא מורחבת ולא תתפוס דבר); תו <code>[</code> שאינו פותח <bdi>Bracket Expression</bdi> תקין הופך את התבנית ללא תקפה, ומסמנים אותו כ-<code>\[</code>. התיקייה תומכת גם ב-<bdi>Symlinks</bdi>, כולל זיהוי מעגלים, וזו הדרך המתועדת לשתף סט כללים בין פרויקטים: <code>ln -s ~/shared-claude-rules .claude/rules/shared</code>. ולבסוף, יש גם רמת משתמש: <code>~/.claude/rules/</code> לכללים אישיים שחלים על כל הפרויקטים במחשב.</p>
+  <div class="callout tip"><span class="title">לומדה אינטראקטיבית</span><p>ל-<code>.claude/rules/</code> יש לומדה משלימה: <a href="../interactive/rules-lomda.html">כותבים Rules ל-Claude Code</a>, עם בודק תבניות <code>paths</code> שמשחזר את ההתנהגות שנבדקה בפועל, סימולטור טעינה ותרגול (עודכנה 15.10.2026).</p></div>
+
+  <h2 id="what-belongs">מה שייך ל-CLAUDE.md</h2>
+  <p>העיקרון המתועד: עובדות ש-Claude צריך להחזיק בכל Session. בפועל, שבע קטגוריות מכסות כמעט הכול:</p>
+  <ul>
+    <li><strong>פקודות Build, בדיקות והרצה</strong>, בדיוק כפי שמקלידים אותן, כולל תיקיית ההרצה.</li>
+    <li><strong>תקני קוד</strong>: כללי סגנון שסוטים מברירת המחדל, מוסכמות שמות, "תמיד X, אף פעם לא Y".</li>
+    <li><strong>כללי ארכיטקטורה</strong>: אילו שכבות קיימות, מי מדבר עם מי, איפה חיים סוגי קבצים.</li>
+    <li><strong>דרישות בדיקה</strong>: מה חייב בדיקות, איזה סוג, ומה מריצים לפני Commit.</li>
+    <li><strong>אילוצי אבטחה</strong>: קבצים שאסור לקרוא, סודות שאסור לכתוב, ולידציה חובה. זכרו שאלה הנחיות בלבד; אכיפה אמיתית עושים ב-Permissions וב-Hooks.</li>
+    <li><strong>Definition of Done</strong>: הרשימה שקובעת מתי משימה באמת נגמרה.</li>
+    <li><strong>מלכודות ידועות</strong>: הדברים הלא אינטואיטיביים שכל מפתח חדש נופל בהם.</li>
+  </ul>
+  <p>ומה לא שייך? כל מה שהוא נוהל רב-שלבי (שייך ל-<bdi>Skill</bdi>), כל מה שרלוונטי רק לחלק מהקוד (שייך ל-Rule ממוקד או לקובץ מקונן), וכל מה ש-Claude יכול לגלות לבד מהקוד. נרחיב באנטי-דפוסים בהמשך.</p>
+
+  <h2 id="init-memory">הפקודות /init ו-/memory</h2>
+  <p><code>/init</code> היא נקודת ההתחלה: Claude מנתח את ה-<bdi>Codebase</bdi> ומחולל קובץ CLAUDE.md התחלתי עם פקודות Build, הוראות בדיקה ומוסכמות שהוא מגלה. אם כבר קיים קובץ, הפקודה מציעה שיפורים במקום לדרוס. היא גם קוראת כללים קיימים של כלים אחרים (<code>.cursor/rules/</code>, <code>.cursorrules</code>, <code>.github/copilot-instructions.md</code>) ומשלבת את הרלוונטי. עם משתנה הסביבה <code>CLAUDE_CODE_NEW_INIT=1</code> מקבלים זרימה אינטראקטיבית רב-שלבית שמציעה גם Skills ו-Hooks ומציגה הצעה לאישור לפני כתיבה.</p>
+  <h3 id="step-by-step">צעד אחר צעד: יצירת CLAUDE.md לפרויקט קיים</h3>
+  <ol>
+    <li><strong>פתחו Session משורש הפרויקט</strong> (התיקייה קובעת מה ייסרק) והריצו <code>/init</code>:</li>
+  </ol>
+  <div class="terminal"><span class="p">$</span> cd ~/projects/my-project
+<span class="p">$</span> claude
+<span class="p">&gt;</span> /init</div>
+  <ol start="2">
+    <li><strong>קראו את הטיוטה בביקורתיות.</strong> Claude מתעד את מה שגילה; הוא לא יודע מה הוא לא יכול לגלות. מחקו תוכן שהוא יכול לראות לבד (מבנה תיקיות, רשימת תלויות).</li>
+    <li><strong>הוסיפו את מה שרק אתם יודעים:</strong> מלכודות, החלטות ארכיטקטוניות ונימוקיהן, כללי "לעולם לא", ו-<bdi>Definition of Done</bdi>.</li>
+    <li><strong>ודאו שהפקודות נכונות.</strong> הריצו בעצמכם כל פקודת Build ובדיקה שנכתבה לקובץ. פקודה שגויה בקובץ הוראות היא באג שמכפיל את עצמו בכל Session.</li>
+    <li><strong>עשו Commit</strong> כדי שהצוות כולו ייהנה, ואז פתחו Session חדש והריצו <code>/context</code> לאימות הטעינה.</li>
+    <li><strong>חזרו לקובץ אחרי שבוע של עבודה.</strong> כל תיקון שהקלדתם לצ'אט פעמיים הוא מועמד לשורה חדשה; כל שורה שלא הועילה אף פעם היא מועמדת למחיקה.</li>
+  </ol>
+  <p><code>/memory</code> היא לוח הבקרה: היא מציגה את כל קובצי ההוראות והזיכרון ברמת המשתמש והפרויקט (כולל כאלה שעוד לא קיימים), מאפשרת לפתוח כל אחד בעורך, ומכילה את מתג ה-<bdi>Auto Memory</bdi>. חשוב: <code>/memory</code> מציגה מיקומים; כדי לוודא מה באמת נטען ל-Session הנוכחי מריצים <code>/context</code> ובודקים את הרשימה תחת קובצי Memory. על Auto Memory עצמו נרחיב ב<a href="ch16.html">פרק 16</a>.</p>
+  <div class="verify">
+    <p><strong>אימות:</strong> אחרי כל שינוי בקובצי הוראות, פתחו Session חדש והריצו <code>/context</code>. כל קובץ שציפיתם לו ולא מופיע ברשימה, פשוט לא נטען, ו-Claude לא רואה אותו.</p>
+  </div>
+
+  <h2 id="basic-example">דוגמה בסיסית: ה-CLAUDE.md של TaskFlow</h2>
+  <p>זה הקובץ האמיתי שנמצא בשורש פרויקט הדוגמה שלנו (<code>examples/taskflow/CLAUDE.md</code>), שליווה אותנו מאז פרק 3:</p>
+  <div class="codeblock">
+    <div class="codehead">examples/taskflow/CLAUDE.md</div>
+    <pre><code># TaskFlow
+
+Small full-stack task manager used as the running example of the guide.
+
+## Structure
+- `backend/`: Python 3.12, FastAPI, SQLite (stdlib sqlite3, no ORM). Entry: `app/main.py`.
+- `frontend/`: React 18 + TypeScript + Vite. Entry: `src/App.tsx`.
+
+## Commands
+- Backend tests: `cd backend &amp;&amp; pytest -q`
+- Backend dev server: `cd backend &amp;&amp; uvicorn app.main:app --reload`
+- Frontend typecheck: `cd frontend &amp;&amp; npm run typecheck`
+
+## Conventions
+- Python: type hints everywhere; no ORM; parameterized SQL only.
+- TypeScript: strict mode; no `any`.
+- Task status values: `todo`, `in_progress`, `done` (single source of truth: backend CHECK constraint + `TaskStatus` type).
+
+## Definition of Done
+- Tests pass, typecheck passes, no secrets in code, README updated when behavior changes.</code></pre>
+  </div>
+  <p><strong>ביקורת: מה טוב כאן.</strong> הקובץ קצר (הרחק מתחת לתקרת 200 השורות המומלצת), כל פקודה מועתקת כלשונה כולל תיקיית ההרצה, המוסכמות קונקרטיות וניתנות לאימות ("no <code>any</code>", "parameterized SQL only"), יש מקור אמת יחיד לערכי הסטטוס, ויש <bdi>Definition of Done</bdi>. אלה בדיוק העקרונות מהתיעוד הרשמי.</p>
+  <p><strong>מה חסר.</strong> שלושה דברים שכל צוות אמיתי היה מוסיף: הנחיית <bdi>Workflow</bdi> (מה מריצים לפני שמסיימים), אילוץ אבטחה מפורש (הקובץ מזכיר סודות רק ב-DoD), ומלכודת ידועה אחת לפחות. גרסה משופרת:</p>
+  <div class="codeblock">
+    <div class="codehead">examples/taskflow/CLAUDE.md (מורחב)</div>
+    <pre><code># TaskFlow
+
+Small full-stack task manager used as the running example of the guide.
+
+## Structure
+- `backend/`: Python 3.12, FastAPI, SQLite (stdlib sqlite3, no ORM). Entry: `app/main.py`.
+- `frontend/`: React 18 + TypeScript + Vite. Entry: `src/App.tsx`.
+
+## Commands
+- Backend tests: `cd backend &amp;&amp; pytest -q`
+- Backend dev server: `cd backend &amp;&amp; uvicorn app.main:app --reload`
+- Frontend typecheck: `cd frontend &amp;&amp; npm run typecheck`
+
+## Conventions
+- Python: type hints everywhere; no ORM; parameterized SQL only.
+- TypeScript: strict mode; no `any`.
+- Task status values: `todo`, `in_progress`, `done` (single source of truth: backend CHECK constraint + `TaskStatus` type).
+
+## Workflow
+- After any backend change: run the backend tests before reporting done.
+- After any frontend change: run the typecheck before reporting done.
+- Never commit unless explicitly asked to.
+
+## Security
+- Never read or write `.env` files. Use `YOUR_API_KEY` style placeholders in examples.
+- All SQL must be parameterized. Flag any string-built query as a bug.
+
+## Gotchas
+- `tasks.db` is created on first run; deleting it resets all data (fine in dev).
+- The frontend dev server proxies `/api` to port 8000; both must run for manual testing.
+
+## Definition of Done
+- Tests pass, typecheck passes, no secrets in code, README updated when behavior changes.</code></pre>
+  </div>
+
+  <h2 id="advanced-example">דוגמה מתקדמת: Monorepo עם קינון, Rules ו-Imports</h2>
+  <p>עכשיו נרכיב את כל המנגנונים יחד. דמיינו את <bdi>TaskFlow</bdi> אחרי שנתיים: הוא גדל ל-<bdi>Monorepo</bdi> עם שתי אפליקציות וחבילה משותפת, ושני צוותים עובדים עליו. מבנה הקבצים:</p>
+  <div class="codeblock">
+    <div class="codehead">taskflow-monorepo/</div>
+    <pre><code>taskflow-monorepo/
+├── CLAUDE.md                  # קצר: מפת הפרויקט + הפניות
+├── CLAUDE.local.md            # אישי, ב-gitignore
+├── .claude/
+│   └── rules/
+│       ├── git-workflow.md    # ללא paths: נטען תמיד
+│       ├── testing.md         # ממוקד: קובצי בדיקות בלבד
+│       └── api-design.md      # ממוקד: קוד ה-API בלבד
+├── docs/
+│   └── architecture.md        # מיובא עם @ מהקובץ הראשי
+├── apps/
+│   ├── api/
+│   │   └── CLAUDE.md          # מקונן: נטען רק בעבודה על ה-API
+│   └── web/
+│       └── CLAUDE.md          # מקונן: נטען רק בעבודה על ה-Web
+└── packages/
+    └── shared-types/</code></pre>
+  </div>
+  <p>הקובץ הראשי נשאר רזה: מפה והפניות, לא אנציקלופדיה. הוא מייבא את מסמך הארכיטקטורה עם <code>@</code>, ומזכיר נתיב אחד בתוך Backticks כדי שלא ייובא:</p>
+  <div class="codeblock">
+    <div class="codehead">taskflow-monorepo/CLAUDE.md</div>
+    <pre><code># TaskFlow Monorepo
+
+Two apps and one shared package. Teams: platform (apps/api), product (apps/web).
+
+## Map
+- `apps/api`: FastAPI service. Own CLAUDE.md loads when you work there.
+- `apps/web`: React app. Own CLAUDE.md loads when you work there.
+- `packages/shared-types`: generated API types. Never edit by hand; see `docs/codegen.md`.
+
+## Architecture
+Full details: @docs/architecture.md
+
+## Global rules
+- pnpm only. Never npm or yarn.
+- All commands run from the repo root unless stated otherwise.
+- Breaking a shared-types contract requires updating BOTH apps in the same PR.
+
+## Compact instructions
+When compacting, always keep: current task state, failing tests, changed file paths.</code></pre>
+  </div>
+  <p>כלל גלובלי שנטען תמיד, כי הוא רלוונטי לכל שינוי קוד:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/rules/git-workflow.md</div>
+    <pre><code># Git Workflow
+
+- Branch names: `feat/...`, `fix/...`, `chore/...`.
+- Conventional Commits for every commit message.
+- Never push directly to `main`. Never force-push shared branches.
+- One logical change per PR; link the issue in the description.</code></pre>
+  </div>
+  <p>שני כללים ממוקדים, שנטענים רק כשנוגעים בקבצים המתאימים:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/rules/testing.md</div>
+    <pre><code>---
+paths:
+  - "**/*.test.{ts,tsx}"
+  - "apps/api/tests/**"
+---
+
+# Testing Conventions
+
+- Arrange / Act / Assert structure with blank lines between phases.
+- No network calls in unit tests; use the fixtures in `tests/fixtures/`.
+- A bug fix must include a regression test that fails without the fix.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">.claude/rules/api-design.md</div>
+    <pre><code>---
+paths:
+  - "apps/api/app/routers/**/*.py"
+---
+
+# API Design Rules
+
+- Every endpoint validates input with a Pydantic model. No raw dict access.
+- Errors use the shared error envelope: `{"error": {"code", "message"}}`.
+- New endpoints require an OpenAPI summary and at least one test.</code></pre>
+  </div>
+  <p>קובץ מקונן לאפליקציית ה-Web, שנטען רק כש-Claude עובד שם:</p>
+  <div class="codeblock">
+    <div class="codehead">apps/web/CLAUDE.md</div>
+    <pre><code># apps/web
+
+React 18 + TypeScript + Vite.
+
+## Commands (run from repo root)
+- Dev: `pnpm --filter web dev`
+- Typecheck: `pnpm --filter web typecheck`
+- Tests: `pnpm --filter web test`
+
+## Conventions
+- Components: function components only, one component per file.
+- State: TanStack Query for server state; no global client-state library.
+- API calls only through `src/api/client.ts`; never `fetch` directly in components.</code></pre>
+  </div>
+  <p>ולבסוף הקובץ האישי, שאינו נכנס ל-Git:</p>
+  <div class="codeblock">
+    <div class="codehead">taskflow-monorepo/CLAUDE.local.md</div>
+    <pre><code># My local setup
+
+- My test database lives at `~/dev/taskflow.local.db`.
+- Staging URL for manual checks: https://staging.example.internal
+- I prefer verbose test output: add `-v` when running pytest for me.</code></pre>
+  </div>
+  <p>שימו לב לחלוקת העבודה: מפתח שעובד רק על <code>apps/web</code> משלם ב-Context רק על הקובץ הראשי, על כללי ה-Git ועל הקובץ המקונן של Web; כללי ה-API והבדיקות מצטרפים רק כשנוגעים בקבצים כאלה. זה בדיוק היתרון של קינון ומיקוד על פני קובץ ענק אחד.</p>
+  <p><strong>תוצאה צפויה:</strong> ב-Session חדש בשורש ה-Monorepo, <code>/context</code> יציג את הקובץ הראשי (כולל התוכן המיובא של <code>architecture.md</code>), את <code>git-workflow.md</code> ואת <code>CLAUDE.local.md</code>. הקבצים המקוננים ושני הכללים הממוקדים יופיעו רק אחרי ש-Claude ייגע בקבצים המתאימים, בליווי שורת "Loaded" בטרמינל. אם ביקשתם שינוי ב-<code>apps/api/app/routers/tasks.py</code> ו-Claude פתאום מקפיד על מעטפת השגיאות האחידה, זה <code>api-design.md</code> שנטען ועובד.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li><strong>כתבו הוראות שניתן לאמת.</strong> ההשוואה מהתיעוד: "Use 2-space indentation" ולא "Format code properly"; "Run <code>npm test</code> before committing" ולא "Test your changes". הוראה שאי אפשר לבדוק אם קוימה, גם Claude מתקשה לקיים.</li>
+    <li><strong>מבנה כמו לקוראים אנושיים.</strong> כותרות <bdi>Markdown</bdi> ותבליטים קצרים; Claude סורק מבנה בדיוק כמו מפתח, וסעיפים מאורגנים גוברים על פסקאות צפופות.</li>
+    <li><strong>שורה אחת לכל כלל, נימוק רק כשהוא מונע טעות.</strong> "No ORM (raw SQL keeps the queries auditable)" עדיף על פסקת הסבר; הנימוק בסוגריים מונע מ-Claude "לתקן" את ההחלטה בחזרה.</li>
+    <li><strong>תחזוקה היא חלק מה-Workflow.</strong> עדכנו את הקובץ באותו Pull Request שמשנה את ההתנהגות שהוא מתאר, וסקרו אותו בכל Code Review כמו קוד לכל דבר.</li>
+    <li><strong>בדקו את ההשפעה, לא רק את הטעינה.</strong> אחרי הוספת כלל, בקשו מ-Claude משימה קטנה שהכלל אמור להשפיע עליה וראו אם הוא מציית. כלל שנכשל שוב ושוב הוא מועמד לניסוח מחודש או ל-Hook.</li>
+  </ul>
+
+  <h2 id="antipatterns">אנטי-דפוסים</h2>
+  <ul>
+    <li><strong>קובץ ארוך מדי.</strong> ההנחיה הרשמית: לשאוף לפחות מ-200 שורות לקובץ. קובץ ארוך צורך Context בכל Session ומקטין את הציות בפועל. הפתרונות, לפי סדר עדיפות: Rules ממוקדי נתיב, קבצים מקוננים, העברת נהלים ל-Skills. הפקודה <code>/doctor</code> (מגרסה 2.1.206) יודעת להציע קיצוץ אוטומטי: היא מזהה תוכן ש-Claude יכול לגלות לבד מהקוד, כמו מבני תיקיות ורשימות תלויות, ומשאירה רק את מה שבאמת ייחודי.</li>
+    <li><strong>הוראות סותרות.</strong> "השתמשו ב-<bdi>Tabs</bdi>" בקובץ המשתמש ו"השתמשו ברווחים" בקובץ הפרויקט: התיעוד מזהיר במפורש ש-Claude עלול לבחור אחת מהן שרירותית. סרקו תקופתית את כל הרמות, כולל rules וקבצים מקוננים, והסירו סתירות והוראות שהתיישנו.</li>
+    <li><strong>מידע זמני.</strong> "כרגע יש באג ב-CI", "השבוע עובדים על גרסה 2.3". הקובץ נטען חודשים אחרי שהמידע התיישן, ומטעה את Claude בכל Session. מידע משימתי שייך לשיחה או לקובץ Handoff (פרק 14), לא ל-CLAUDE.md.</li>
+    <li><strong>נהלים שצריכים להיות Skills.</strong> תסריט של עשרה שלבים להוצאת גרסה אינו "עובדה שצריך להחזיק בכל Session"; הוא נוהל שנטען לפי דרישה. ההמלצה המתועדת: הוראות רב-שלביות או כאלה שרלוונטיות רק לעתים עוברות ל-<bdi>Skill</bdi>, שנטען רק כשמפעילים אותו. ראו <a href="ch21.html">פרק 21: Skills</a>.</li>
+    <li><strong>לתעד את מה ש-Claude רואה לבד.</strong> רשימת כל הקבצים, תוכן <code>package.json</code>, תרשים תיקיות מלא: כל אלה זמינים ל-Claude בקריאה ישירה, ועותק שלהם בקובץ רק מתיישן ומבזבז Tokens.</li>
+    <li><strong>סודות בקובץ.</strong> CLAUDE.md נכנס ל-Git ונטען לכל Session. אסור שיהיו בו מפתחות, סיסמאות או כתובות פנימיות רגישות. העדפות פרטיות עוברות ל-<code>CLAUDE.local.md</code>, וסודות אמיתיים לא נמצאים באף קובץ הוראות.</li>
+    <li><strong>להתייחס אליו כאל אכיפה.</strong> "אסור למחוק קבצים" בקובץ ההוראות אינו מנגנון אבטחה. חסימות אמיתיות מגדירים ב-<code>permissions.deny</code> וב-Hooks.</li>
+  </ul>
+
+  <h2 id="cost">עלות ו-Context</h2>
+  <p>לקובצי ההוראות יש תג מחיר מדויק: הם נטענים לחלון בכל Session, נשלחים מחדש עם כל הודעה, ומעובדים מחדש במלואם אחרי כל שבירת <bdi>Cache</bdi>. החישוב פשוט: קובץ של 2,000 <bdi>Tokens</bdi> ב-50 שיחות בחודש הוא 100 אלף Tokens של "דמי כניסה" עוד לפני שנכתבה שורת קוד, ועם <bdi>Prompt Caching</bdi> רוב הטעינות האלה זולות אך לא חינמיות. לכן ההנחיה הרשמית כפולה: לשמור על הקובץ הראשי מתחת ל-200 שורות, ולהעביר כל מה שאפשר למנגנוני "לפי דרישה" (Rules ממוקדים, קבצים מקוננים, Skills). זכרו גם ש-Imports אינם דיאטה: קובץ שפוצל לחמישה קבצים מיובאים שוקל בדיוק אותו דבר. ואל תשכחו את הצד השני של המשוואה: קובץ הוראות טוב <em>חוסך</em> הרבה יותר משהוא עולה, כי הוא מונע סבבי תיקון, קריאות קבצים מיותרות והסברים חוזרים.</p>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <ul>
+    <li><strong>"Claude מתעלם מההוראות שלי."</strong> סדר האבחון המתועד: הריצו <code>/context</code> וודאו שהקובץ בכלל נטען (אם אינו ברשימה, Claude לא רואה אותו); בדקו שהוא במיקום שנטען עבור ה-Session הזה; חדדו הוראות מעורפלות ("Use 2-space indentation" עובד יותר טוב מ-"format code nicely"); וחפשו סתירות בין רמות. אם ההוראה חייבת לרוץ בנקודה קבועה, הפכו אותה ל-Hook.</li>
+    <li><strong>"ערכתי את הקובץ באמצע Session ולא קרה כלום."</strong> התנהגות מתועדת: הקובץ נקרא פעם אחת בפתיחה. השינוי ייכנס לתוקף ב-<code>/clear</code>, ב-<code>/compact</code> או בהפעלה מחדש.</li>
+    <li><strong>"ההוראות נעלמו אחרי /compact."</strong> אם הן היו בקובץ מקונן או ב-Rule ממוקד, הן יחזרו כש-Claude יקרא שוב קובץ מתאים. כלל שחייב לשרוד Compaction תמיד עובר לקובץ השורש.</li>
+    <li><strong>"הקובץ המקונן לא נטען אף פעם."</strong> ודאו שהוא מתחת לתיקיית העבודה (קבצים בתיקיות אחיות לא יתגלו) ושה-Session אכן נגע בקבצים שם. לאבחון עמוק, ה-Hook מסוג <code>InstructionsLoaded</code> מתעד בדיוק אילו קובצי הוראות נטענו ומתי.</li>
+    <li><strong>"תיקיות שהוספתי עם <code>--add-dir</code> לא מביאות CLAUDE.md."</strong> זו ברירת המחדל המתועדת. אם רוצים לטעון גם משם, מגדירים <code>CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1</code>.</li>
+    <li><strong>"הקובץ תפח ואיבד שליטה."</strong> הריצו <code>/doctor</code>: הבדיקה מציעה קיצוצים ומעבירה הנחיות קבועות מיותרות ל-Skills ולקבצים מקוננים, ותמיד מבקשת אישור לפני שינוי.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 15.1: מדרג הוראות בפעולה</div>
+    <div class="body">
+      <p>בעותק ה-<bdi>TaskFlow</bdi> שלכם:</p>
+      <ol>
+        <li>צרו <code>~/.claude/CLAUDE.md</code> (אם אין) והוסיפו: <code>Always answer in one short paragraph before any code.</code></li>
+        <li>צרו <code>backend/CLAUDE.md</code> מקונן עם הכלל: <code>In this directory, always mention which test covers the code you touch.</code></li>
+        <li>צרו <code>.claude/rules/models.md</code> עם <code>paths: ["backend/app/models.py"]</code> והכלל: <code>Any change to a Pydantic model must list its API impact.</code></li>
+        <li>פתחו Session חדש, הריצו <code>/context</code> ורשמו אילו מהקבצים מופיעים.</li>
+        <li>בקשו מ-Claude לקרוא את <code>backend/app/models.py</code> ושימו לב אילו הוראות "התעוררו" רק עכשיו.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>שלבים 1 עד 3</strong> בונים שלוש רמות שונות: משתמש (נטען תמיד, בכל פרויקט), מקונן (לפי דרישה) ו-Rule ממוקד נתיב (לפי דרישה, ברמת קובץ בודד).</p>
+      <p><strong>שלב 4:</strong> ב-<code>/context</code> תראו את קובץ המשתמש ואת CLAUDE.md של שורש הפרויקט. הקובץ המקונן וה-Rule הממוקד לא יופיעו עדיין, כי Claude לא נגע בקבצים שמפעילים אותם. זו בדיוק ההבחנה בין טעינה בפתיחה לטעינה לפי דרישה.</p>
+      <p><strong>שלב 5:</strong> קריאת <code>models.py</code> מפעילה את שניהם: הקובץ נמצא בתוך <code>backend/</code> (מפעיל את הקובץ המקונן) ומתאים לתבנית ה-Rule. בטרמינל תופיע שורת "Loaded" קצרה, והתשובות של Claude יתחילו לציית לשני הכללים החדשים. הריצו <code>/context</code> רביעי כדי לראות אותם ברשימה. ניקיון: מחקו את שלושת הקבצים בסוף התרגיל, במיוחד את זה שב-<code>~/.claude/</code>, שמשפיע על כל הפרויקטים שלכם.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul class="check">
+    <li>CLAUDE.md נטען בפתיחת כל Session והוא התשובה לשאלה "למה להסביר את אותו דבר פעמיים": פקודות, תקנים, ארכיטקטורה, אבטחה ו-Definition of Done.</li>
+    <li>חמש רמות Scope: Managed (ארגון), User, Project, Local ומקונן; הכול מצטרף לפי סדר טעינה, מהרחב לספציפי, והקרוב לתיקיית העבודה נקרא אחרון.</li>
+    <li>קבצים מעל תיקיית העבודה נטענים בפתיחה; קבצים מקוננים ו-Rules עם <code>paths:</code> נטענים לפי דרישה, וזה ההבדל שחוסך Context.</li>
+    <li>Imports עם <code>@</code> (עד ארבעה דילוגים) מארגנים אבל לא חוסכים; Backticks מונעים ייבוא; Import חיצוני בפרויקט דורש אישור חד-פעמי.</li>
+    <li><code>/init</code> מחולל קובץ התחלתי, <code>/memory</code> פותח את כל קובצי ההוראות, ו-<code>/context</code> הוא האימות היחיד למה שבאמת נטען.</li>
+    <li>אנטי-דפוסים: קובץ מעל 200 שורות, סתירות בין רמות, מידע זמני, נהלים שמקומם ב-Skills, וסודות. CLAUDE.md מנחה; Permissions ו-Hooks אוכפים.</li>
+  </ul>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/memory">How Claude Remembers Your Project (Memory)</a> |
+      <a href="https://code.claude.com/docs/en/context-window">Explore the Context Window</a> |
+      <a href="https://code.claude.com/docs/en/commands">Slash Commands</a> |
+      <a href="https://code.claude.com/docs/en/costs">Manage Costs Effectively</a> |
+      <a href="https://code.claude.com/docs/en/prompt-caching">How Claude Code Uses Prompt Caching</a>
+      <br>נבדק: 28.07.2026. עדכון נקודתי: 15.10.2026, מול Claude Code 2.1.300 (AGENTS.md, טעינת Rules, תבנית <code>*.md</code>).
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch14.html"><span class="lbl">הפרק הקודם</span>פרק 14: Context Window ו-Session Management</a>
+    <a href="ch16.html"><span class="lbl">הפרק הבא</span>פרק 16: Memory ו-Project Knowledge</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.1 | הפרק עודכן: 15.10.2026 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

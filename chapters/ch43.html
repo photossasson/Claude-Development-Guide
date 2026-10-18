@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 43: Final Capstone</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ט | פרק 43</p>
+  <h1>Final Capstone: TaskFlow v1.0</h1>
+  <p class="lead">זהו פרויקט הסיום של המדריך. צוות קטן צריך לשחרר את <bdi>TaskFlow v1.0</bdi>: אימות משתמשים, תגובות על משימות, תזכורות לתאריכי יעד ויומן ביקורת (<bdi>Audit log</bdi>), עם <bdi>CI</bdi> ירוק, תיעוד מעודכן ועמדת אבטחה מוגדרת. הפרק מגדיר את התרחיש, הדרישות, המגבלות ואבני הדרך; מפרט את ה-<bdi>Skills</bdi>, ה-<bdi>CLAUDE.md</bdi>, הבדיקות ודרישות האבטחה; ואז מציג פתרון מלא, אבן דרך אחר אבן דרך, עם ה-<bdi>Prompts</bdi>, ההחלטות המרכזיות, תוצאות להמחשה ופקודות האימות. בסוף: רשימת בדיקה למנחה, שיפורים מוצעים וסיכום המסע של המדריך כולו. כל מה שמופיע כאן משתמש רק ביכולות ובפקודות שאומתו בפרקים הקודמים.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="scenario">התרחיש</h2>
+  <p>אתם צוות של שלושה: מפתחת <bdi>Backend</bdi>, מפתח <bdi>Frontend</bdi> ומוביל טכני שגם אחראי על אבטחה ושחרור. <bdi>TaskFlow</bdi> (<code>examples/taskflow</code>) הוא כרגע אפליקציית משימות בסיסית: <bdi>CRUD</bdi> על משימות עם שלושה סטטוסים, בלי משתמשים, בלי תאריכים, בלי היסטוריה. הלקוח הפנימי מבקש גרסה 1.0 שאפשר להעמיד לצוות של 20 איש: כל אחד נכנס עם שם משתמש וסיסמה, מגיב על משימות, מקבל תזכורת על משימות שמועדן מתקרב, והמנהלים רואים מי עשה מה ומתי. יש לכם שבועיים, ואתם עובדים עם <bdi>Claude Code</bdi> לפי כללי המדריך: תכנון לפני יישום, שינויים קטנים עם ראיות, סקירה בהקשר נקי, בלי <bdi>bypass</bdi>.</p>
+  <p>המטרה הפדגוגית: להפעיל יחד את כל מה שנלמד. לא כל אבן דרך דורשת את כל הכלים, אבל בסוף הפרויקט תהיו חייבים להראות שימוש מושכל ב-<bdi>Plan Mode</bdi>, <bdi>CLAUDE.md</bdi>, <bdi>Settings</bdi> והרשאות, <bdi>Hooks</bdi>, <bdi>Skills</bdi>, <bdi>Subagents</bdi>, <bdi>Git</bdi> ו-<bdi>PRs</bdi>, בדיקות, <bdi>CI</bdi>, סקירת אבטחה, ניהול <bdi>Context</bdi> ועלות, ותיעוד.</p>
+
+  <h2 id="approach">איך ניגשים לפרויקט: ארבעה שערים בכל אבן דרך</h2>
+  <p>לפני הדרישות, ההרגל. כל אבן דרך בפתרון עוברת את אותם ארבעה שערים, וזה מה שהופך את הפרויקט מ"עבודה עם Claude" ל"עבודה מקצועית עם Claude":</p>
+  <ol>
+    <li><strong>שער התכנון.</strong> ה-<bdi>Session</bdi> נפתח ב-<bdi>Plan Mode</bdi> (<code>Shift+Tab</code> או <code>claude --permission-mode plan</code>). Claude קורא, שואל, ומציע תוכנית עם קבצים, סדר ובדיקות. אתם עורכים ומאשרים. אין שורת קוד לפני האישור. הסיבה, לפי התיעוד הרשמי: קפיצה ישירה לקוד פותרת לעיתים קרובות את הבעיה הלא נכונה.</li>
+    <li><strong>שער הצעדים הקטנים.</strong> היישום נעשה בצעדים שכל אחד מסתיים בבדיקה שאפשר להריץ (<code>pytest -q</code>, <code>npm run typecheck</code>). Claude מציג <bdi>Diff</bdi> ומחכה. אם צעד נוגע בקובץ לא צפוי, עוצרים.</li>
+    <li><strong>שער הסקירה בהקשר נקי.</strong> לפני <bdi>PR</bdi>, מישהו שלא כתב את הקוד סוקר אותו: <bdi>Subagent</bdi> עם <bdi>Context Window</bdi> משלו, <code>/code-review</code> המובנה, או <bdi>Session</bdi> שני. אחר כך אדם.</li>
+    <li><strong>שער הראיות.</strong> "גמור" פירושו פלט בדיקות, פלט <bdi>CI</bdi>, ורשומה ב-<bdi>PR</bdi> של מה שנבדק. הצהרה בלי ראיה לא נספרת.</li>
+  </ol>
+  <p>בין אבני דרך: <code>/usage</code> לבדיקת תקציב, <bdi>Handoff</bdi> קצר אם ה-<bdi>Session</bdi> ארוך, ו-<code>/clear</code>. הכלל מהתיעוד: אחרי שני תיקונים כושלים על אותה בעיה, לא מנסים שלישי באותו <bdi>Session</bdi>; פותחים חדש עם <bdi>Prompt</bdi> טוב יותר. הפתרון למטה מציין איפה הכלל הזה הופעל בפועל.</p>
+
+  <h2 id="requirements">דרישות</h2>
+  <h3 id="req-functional">דרישות פונקציונליות</h3>
+  <ol>
+    <li><strong>אימות (Auth).</strong> הרשמה (<code>POST /auth/register</code>), כניסה (<code>POST /auth/login</code>) שמחזירה <bdi>Token</bdi>, יציאה (<code>POST /auth/logout</code>), ו-<code>GET /auth/me</code>. כל <bdi>Endpoint</bdi> של משימות דורש <bdi>Token</bdi> תקף. שני תפקידים: <code>member</code> ו-<code>admin</code>. סיסמאות נשמרות רק כ-<bdi>Hash</bdi>.</li>
+    <li><strong>תגובות (Comments).</strong> <code>POST /tasks/{id}/comments</code>, <code>GET /tasks/{id}/comments</code>, <code>DELETE /comments/{id}</code> (רק המחבר או <code>admin</code>). תגובה: 1 עד 2000 תווים. אזכורים <code>@username</code> נשמרים בטבלת <code>comment_mentions</code> (כמו ב-<a href="ch34.html">פרק 34</a>). לרשימת המשימות מתווסף <code>comment_count</code>.</li>
+    <li><strong>תזכורות (Due-date reminders).</strong> שדה <code>due_date</code> אופציונלי (ISO 8601, UTC) על משימה; דחייה של תאריך בעבר ביצירה; <code>GET /tasks?due_before=</code>; ופקודת <bdi>CLI</bdi> <code>python -m app.reminders --hours 24</code> שמדפיסה את המשימות שמועדן בתוך החלון ורושמת אותן בטבלת <code>reminders_sent</code> כדי לא לשלוח פעמיים. הפעלה מתוזמנת ב-<bdi>GitHub Actions</bdi> (schedule) או <bdi>cron</bdi>.</li>
+    <li><strong>יומן ביקורת (Audit log).</strong> כל יצירה, עדכון ומחיקה של משימה או תגובה, וכל כניסה, נרשמים ב-<code>audit_log</code>: <code>actor</code>, <code>action</code>, <code>entity_type</code>, <code>entity_id</code>, <code>at</code>, <code>details</code> (JSON קצר). <code>GET /audit?limit=&amp;since=</code> ל-<code>admin</code> בלבד. הרשומות אינן ניתנות לעריכה או מחיקה דרך ה-<bdi>API</bdi>.</li>
+    <li><strong>Frontend.</strong> מסך כניסה, רשימת משימות עם <bdi>due_date</bdi> ומונה תגובות, פאנל תגובות למשימה, ומסך <bdi>Audit</bdi> ל-<code>admin</code>. <bdi>TypeScript strict</bdi>, ללא <code>any</code>.</li>
+  </ol>
+  <h3 id="req-nonfunctional">דרישות לא-פונקציונליות</h3>
+  <ul>
+    <li>כל הבדיקות עוברות: <code>cd backend &amp;&amp; pytest -q</code>, <code>cd frontend &amp;&amp; npm run typecheck</code>. כיסוי <bdi>Backend</bdi> על מודולי <code>auth</code>, <code>comments</code>, <code>reminders</code>, <code>audit</code>: לפחות 85% (נמדד עם <code>pytest --cov</code> אם מותקן; אחרת דוח ידני לפי מקרים).</li>
+    <li><bdi>CI</bdi> ירוק על <code>main</code> ועל כל <bdi>PR</bdi>; ה-<bdi>Workflow</bdi> הקיים מורחב, לא מוחלף.</li>
+    <li>אין סודות ב-<bdi>Repository</bdi>; <code>.env</code> ב-<code>.gitignore</code>; משתני סביבה מתועדים ב-<bdi>README</bdi>.</li>
+    <li>כל שינוי בהתנהגות מלווה בעדכון <bdi>README</bdi>; החלטות ארכיטקטוניות ב-<code>docs/adr/</code>.</li>
+    <li>ביצועים: <code>GET /tasks</code> עם <code>comment_count</code> בשאילתה אחת (בלי N+1); כל <bdi>Endpoint</bdi> רשימה עם <code>limit</code> ברירת מחדל 100.</li>
+  </ul>
+
+  <h2 id="constraints">מגבלות</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מגבלה</th><th>פירוט</th></tr></thead>
+      <tbody>
+        <tr><td>Stack קבוע</td><td><bdi>Python 3.12 + FastAPI + SQLite</bdi> (סטנדרטי, ללא ORM), <bdi>React 18 + TypeScript + Vite</bdi>. תלות חדשה רק עם <bdi>ADR</bdi> שמסביר למה הספרייה הסטנדרטית לא מספיקה.</td></tr>
+        <tr><td>תקציב ו-Effort</td><td>עד 25 <bdi>Sessions</bdi> אינטראקטיביים לכל הפרויקט; <bdi>Effort</bdi> ברירת מחדל <code>auto</code>; <bdi>Subagents</bdi> מקבילים עד 3 בו-זמנית; הרצות <code>claude -p</code> עם <code>--max-turns</code> ו-<code>--max-budget-usd</code>. <code>/usage</code> נבדק בסוף כל אבן דרך.</td></tr>
+        <tr><td>מדיניות הרשאות</td><td><bdi>Manual</bdi> או <bdi>acceptEdits</bdi> בלבד לעבודה מקומית; <bdi>Plan Mode</bdi> לכל אבן דרך; <code>deny</code> על <code>.env*</code>, <code>git push --force</code> ו-<code>rm -rf</code>. <strong>אסור</strong> <code>--dangerously-skip-permissions</code> או <code>bypassPermissions</code>, גם ב-<bdi>CI</bdi>.</td></tr>
+        <tr><td>Git</td><td>ענף לכל אבן דרך, <bdi>PR</bdi> עם סקירה אנושית לפני מיזוג, <bdi>Commits</bdi> קטנים. אין <bdi>Commit</bdi> ישיר ל-<code>main</code>.</td></tr>
+        <tr><td>Context</td><td><bdi>Session</bdi> אחד לאבן דרך לכל היותר; <code>/clear</code> ו-<bdi>Handoff</bdi> (<a href="ch40.html#p43">40.43</a>) כשעוברים נושא.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="starter">Repository ההתחלתי</h2>
+  <p>נקודת הפתיחה היא עץ <code>examples/taskflow</code> כפי שהוא במדריך:</p>
+  <div class="codeblock"><div class="codehead">examples/taskflow (before)</div><pre><code>taskflow/
+├── CLAUDE.md
+├── README.md
+├── .github/workflows/ci.yml        # backend: pytest; frontend: typecheck
+├── backend/
+│   ├── requirements.txt            # fastapi, uvicorn, pydantic, pytest, httpx
+│   ├── app/
+│   │   ├── main.py                 # FastAPI app, lifespan -> init_db(), /health
+│   │   ├── database.py             # sqlite3, get_conn(), init_db(), TASKFLOW_DB
+│   │   ├── models.py               # TaskCreate / TaskUpdate / Task, TaskStatus
+│   │   └── routers/tasks.py        # CRUD /tasks
+│   └── tests/test_tasks.py         # 6 API tests, temp DB via TASKFLOW_DB
+└── frontend/
+    ├── package.json                # dev, build, typecheck (tsc --noEmit)
+    ├── tsconfig.json               # strict
+    └── src/App.tsx, api.ts, types.ts</code></pre></div>
+  <p>הקמה: <code>cd backend &amp;&amp; pip install -r requirements.txt &amp;&amp; pytest -q</code> (שש בדיקות ירוקות), ואז <code>cd frontend &amp;&amp; npm install &amp;&amp; npm run typecheck</code>. אתחלו <bdi>Git</bdi> אם עדיין לא (<code>git init</code>, <bdi>Commit</bdi> ראשוני "chore: baseline"), כי כל אבני הדרך מניחות ענפים ו-<bdi>PRs</bdi>. אין עדיין תיקיית <code>.claude/</code>; זו אבן הדרך הראשונה.</p>
+
+  <h2 id="milestones">אבני דרך</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>אבן דרך</th><th>תוצר</th><th>קריטריוני קבלה</th><th>פרקים</th></tr></thead>
+      <tbody>
+        <tr><td>M1 הקמה</td><td><code>.claude/settings.json</code>, <bdi>Hooks</bdi>, <bdi>Skills</bdi>, <bdi>Subagents</bdi>, <bdi>CLAUDE.md</bdi> ל-v1.0, <bdi>CI</bdi> מורחב</td><td><code>claude doctor</code> נקי; <code>/hooks</code>, <code>/skills</code>, <code>/permissions</code> מציגים את ההגדרות; <bdi>PR-1</bdi> ממוזג</td><td><a href="ch15.html">15</a>, <a href="ch17.html">17</a>, <a href="ch18.html">18</a>, <a href="ch21.html">21</a>, <a href="ch22.html">22</a>, <a href="ch25.html">25</a></td></tr>
+        <tr><td>M2 אימות</td><td>טבלאות <code>users</code>, <code>sessions</code>; <code>/auth/*</code>; תלות <bdi>Token</bdi> על <code>/tasks</code>; מסך כניסה</td><td>בדיקות: הרשמה, כניסה, כניסה שגויה, גישה בלי <bdi>Token</bdi> = 401, <code>admin</code> מול <code>member</code>; <bdi>Hash</bdi> בלבד ב-DB</td><td><a href="ch07.html">7</a>, <a href="ch09.html">9</a>, <a href="ch11.html">11</a>, <a href="ch20.html">20</a></td></tr>
+        <tr><td>M3 תגובות</td><td><code>comments</code>, <code>comment_mentions</code>, <bdi>Endpoints</bdi>, <code>comment_count</code>, פאנל תגובות</td><td>בדיקות אורך, הרשאת מחיקה, <bdi>CASCADE</bdi>, <code>comment_count</code> בשאילתה אחת</td><td><a href="ch34.html">34</a>, <a href="ch12.html">12</a></td></tr>
+        <tr><td>M4 תזכורות</td><td><code>due_date</code>, סינון, <code>app/reminders.py</code>, <code>reminders_sent</code>, <bdi>Workflow</bdi> מתוזמן</td><td>תאריך בעבר נדחה; ריצה כפולה לא שולחת פעמיים; <bdi>Workflow</bdi> תקין</td><td><a href="ch28.html">28</a>, <a href="ch33.html">33</a></td></tr>
+        <tr><td>M5 יומן ביקורת</td><td><code>audit_log</code>, <code>audit.record()</code>, <code>GET /audit</code> ל-<code>admin</code>, מסך <bdi>Audit</bdi></td><td>כל פעולה משנה יוצרת רשומה; <code>member</code> מקבל 403; אין <bdi>Endpoint</bdi> מחיקה</td><td><a href="ch34.html">34</a>, <a href="ch37.html">37</a></td></tr>
+        <tr><td>M6 הקשחה</td><td>סקירת אבטחה ב-<bdi>Subagent</bdi> + <code>/security-review</code>, תיקונים, מגבלות קלט, סקירת ביצועים</td><td>אפס ממצאי <bdi>Critical/High</bdi> פתוחים; רשימת <a href="#security">דרישות האבטחה</a> ירוקה</td><td><a href="ch20.html">20</a>, <a href="ch25.html">25</a>, <a href="ch30.html">30</a></td></tr>
+        <tr><td>M7 תיעוד ושחרור</td><td><bdi>README</bdi>, <bdi>ADRs</bdi>, <bdi>Release notes</bdi>, גרסה 1.0.0, תג</td><td><code>/release-check</code> (ה-<bdi>Skill</bdi> החדש) עובר; <bdi>CI</bdi> ירוק; תג <code>v1.0.0</code></td><td><a href="ch13.html">13</a>, <a href="ch16.html">16</a>, <a href="ch40.html">40</a></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="why-order">למה דווקא הסדר הזה</h3>
+  <p>הסדר אינו שרירותי. <bdi>M1</bdi> קודם כי כל מה שאחריו נשען על ההגנות: בלי <code>deny</code> על <code>.env</code> ובלי <bdi>Hook</bdi> על הבדיקות, אבן הדרך הראשונה שנוגעת בסיסמאות היא גם הראשונה שיכולה לדלוף. <bdi>M2</bdi> (אימות) לפני <bdi>M3</bdi> (תגובות) כי תגובה צריכה מחבר, ומחבר מגיע מה-<bdi>Token</bdi>; אם עושים תגובות קודם, כותבים <code>author</code> כשדה חופשי ואז משכתבים. <bdi>M4</bdi> (תזכורות) עצמאית יחסית ויכולה לרוץ במקביל ל-<bdi>M3</bdi> אם יש שני אנשים, ולכן היא אחריה ולא לפניה, כדי לא לחסום את הענף העיקרי. <bdi>M5</bdi> (יומן ביקורת) אחרי כל ה-<bdi>Routes</bdi> המשנים, כי אחרת כל <bdi>Route</bdi> חדש דורש חזרה ליומן; אבל לא מאוחר מדי, כדי שסקירת האבטחה ב-<bdi>M6</bdi> תסקור גם אותו. <bdi>M6</bdi> לפני <bdi>M7</bdi> כי אין טעם לכתוב <bdi>Release notes</bdi> על קוד שעוד ישתנה. ההיגיון הזה, "תלויות קודם, סקירה לפני שחרור", הוא אותו היגיון שמנחה את פירוק העבודה ב-<a href="ch34.html">פרק 34</a> ו-<a href="ch38.html">פרק 38</a>.</p>
+  <p>מה שכן גמיש: גודל הצעדים בתוך כל אבן דרך. צוות מנוסה יעשה את <bdi>M2</bdi> בשלושה צעדים; מי שלומד יעשה שישה. הכלל היחיד הוא שכל צעד מסתיים בבדיקה ירוקה וב-<bdi>Diff</bdi> שאפשר לקרוא בחמש דקות.</p>
+
+  <h3 id="rituals">טקס פתיחה וסגירה של אבן דרך</h3>
+  <p><strong>פתיחה:</strong> <code>git checkout -b m{n}-{name}</code>; <code>claude --permission-mode plan</code>; <code>/context</code> לוודא ש-<bdi>CLAUDE.md</bdi> נטען; <bdi>Prompt</bdi> תכנון (עם <code>/feature-plan</code> או ידני); עריכת התוכנית ב-<code>Ctrl+G</code>; אישור; יציאה מ-<bdi>Plan Mode</bdi>. <strong>סגירה:</strong> חבילת בדיקות מלאה; <code>/code-review</code>; <bdi>Subagent</bdi> ייעודי אם האבן נוגעת באבטחה או בחוזה; <code>/documentation-update</code>; <bdi>Commit</bdi> קטן אחרון; <code>gh pr create</code> עם תיאור שמפרט מה נבדק; <code>/usage</code>; <bdi>Handoff</bdi> קצר לקובץ אם משהו נשאר פתוח; <code>/clear</code>. הטקס נראה ארוך על הנייר ולוקח פחות מעשר דקות בפועל, והוא מה שמונע את רוב הטעויות שבטבלה למטה.</p>
+
+  <h2 id="skills">Skills נדרשים</h2>
+  <p>התקינו את חמשת ה-<bdi>Skills</bdi> של המדריך (<a href="ch21.html">פרק 21</a>) ב-<code>.claude/skills/</code> של הפרויקט, כדי שכל הצוות יקבל אותם דרך <bdi>Git</bdi>:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Skill</th><th>למה בפרויקט הזה</th><th>אבני דרך</th></tr></thead>
+      <tbody>
+        <tr><td><code>feature-plan</code></td><td>תוכנית אחידה לכל אבן דרך: קבצים, סדר, בדיקות, סיכונים</td><td>M2 עד M5</td></tr>
+        <tr><td><code>test-generator</code></td><td>בדיקות בסגנון <code>test_tasks.py</code> (fixture <code>client</code>, DB זמני)</td><td>M2 עד M5</td></tr>
+        <tr><td><code>bug-investigation</code></td><td>בדיקות אדומות ב-<bdi>CI</bdi>: שורש הבעיה, לא ריכוך בדיקה</td><td>כשצריך</td></tr>
+        <tr><td><code>code-review</code></td><td>סקירה לפני כל <bdi>PR</bdi>; משלים את <code>/code-review</code> המובנה</td><td>כל אבן דרך</td></tr>
+        <tr><td><code>documentation-update</code></td><td><bdi>README</bdi> ו-<bdi>ADR</bdi> אחרי כל שינוי התנהגות</td><td>M2 עד M7</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>בנוסף, כתבו <bdi>Skill</bdi> חדש אחד, <code>release-check</code>, שמריץ את רשימת המוכנות של M7 ומחזיר טבלת pass/fail עם ראיות. הוא מופעל ידנית בלבד:</p>
+  <div class="codeblock"><div class="codehead">.claude/skills/release-check/SKILL.md</div><pre><code>---
+name: release-check
+description: Run the TaskFlow release readiness checklist and report pass/fail with evidence. Use before tagging a release.
+disable-model-invocation: true
+allowed-tools: Bash(cd backend &amp;&amp; pytest *), Bash(cd frontend &amp;&amp; npm run typecheck), Bash(git *), Bash(grep *), Read, Glob, Grep
+---
+Run the release readiness check for version $ARGUMENTS and report a table with pass/fail and evidence for each item:
+
+1. Backend tests: run `cd backend &amp;&amp; pytest -q` and paste the last line.
+2. Frontend typecheck: run `cd frontend &amp;&amp; npm run typecheck` and paste the result.
+3. No TODO or FIXME in backend/app or frontend/src (grep, list any).
+4. No tracked secrets: `git ls-files | grep -E '\.env'` returns nothing; grep for "sk-", "password=", "secret=" in tracked files.
+5. README documents every environment variable used in backend/app (compare with `grep -rn "os.environ" backend/app`).
+6. CHANGELOG.md has an entry for $ARGUMENTS.
+7. docs/adr contains at least one ADR per architectural decision listed in CLAUDE.md.
+8. `git status` is clean and the current branch is main.
+
+Do not fix anything. End with: READY or NOT READY, and the list of failing items.</code></pre></div>
+
+  <h2 id="claudemd">CLAUDE.md נדרש</h2>
+  <p>זו הגרסה המלאה ל-v1.0. היא קצרה בכוונה: רק מה שמונע טעויות ומה ש-Claude לא יכול להסיק מהקוד. השורות שהתווספו לעומת ה-<bdi>Baseline</bdi> מסומנות בהערה.</p>
+  <div class="codeblock"><div class="codehead">CLAUDE.md (v1.0)</div><pre><code># TaskFlow
+
+Small full-stack task manager. Version 1.0 adds auth, comments, due-date reminders and an audit log.
+
+## Structure
+- `backend/`: Python 3.12, FastAPI, SQLite (stdlib sqlite3, no ORM). Entry: `app/main.py`.
+  - `app/routers/`: `tasks.py`, `auth.py`, `comments.py`, `audit.py`
+  - `app/auth.py`: password hashing (hashlib.scrypt) and session tokens (secrets)
+  - `app/audit.py`: `record(actor, action, entity_type, entity_id, details)`; call it in every mutating route
+  - `app/reminders.py`: CLI `python -m app.reminders --hours N`
+- `frontend/`: React 18 + TypeScript + Vite. Entry: `src/App.tsx`. API client: `src/api.ts`. Types: `src/types.ts`.
+- `docs/adr/`: architecture decision records. Add one for every dependency or schema decision.
+
+## Commands
+- Backend tests: `cd backend &amp;&amp; pytest -q`
+- Backend dev server: `cd backend &amp;&amp; uvicorn app.main:app --reload`
+- Frontend typecheck: `cd frontend &amp;&amp; npm run typecheck`
+- Reminders (dry run): `cd backend &amp;&amp; TASKFLOW_DB=taskflow.db python -m app.reminders --hours 24 --dry-run`
+
+## Conventions
+- Python: type hints everywhere; no ORM; parameterized SQL only (never f-strings with user input).
+- TypeScript: strict mode; no `any`.
+- Task status values: `todo`, `in_progress`, `done` (single source of truth: backend CHECK constraint + `TaskStatus` type).
+- Dates are ISO 8601 strings in UTC. `due_date` is optional and must not be in the past on create.
+- Auth: every route except `/health` and `/auth/register|login` requires `Authorization: Bearer &lt;token&gt;`. Roles: `member`, `admin`.
+- Audit: every create/update/delete of a task or comment and every login calls `audit.record(...)`. Audit rows are append-only.
+- Errors: FastAPI HTTPException with `{"detail": "..."}`; 401 unauthenticated, 403 forbidden, 404 not found, 422 validation.
+- Never weaken or delete a failing test to make it pass; report it instead.
+
+## Environment variables
+- `TASKFLOW_DB`: SQLite path (tests set a temp file).
+- `TASKFLOW_TOKEN_TTL_HOURS`: session token lifetime, default 24.
+
+## Workflow rules
+- Plan first for anything touching more than one file; small steps with diffs; run tests after each step.
+- New dependency = ADR first.
+- Do not edit `.env*`, `.github/workflows/*` or `backend/tests/*` without saying so explicitly in the response.
+- When compacting, always preserve the list of modified files, the current test status and open decisions.
+
+## Definition of Done
+- Tests pass, typecheck passes, no secrets in code, README updated when behavior changes, ADR added for architectural decisions.</code></pre></div>
+
+  <h2 id="tests">בדיקות נדרשות</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>שכבה</th><th>בדיקות מינימום</th><th>איפה</th></tr></thead>
+      <tbody>
+        <tr><td>Unit (Backend)</td><td><code>hash_password</code>/<code>verify_password</code>; יצירת <bdi>Token</bdi> ופקיעה; <code>audit.record</code> כותב שורה; חילוץ אזכורים מטקסט; חישוב חלון תזכורות</td><td><code>backend/tests/test_auth_unit.py</code>, <code>test_audit.py</code>, <code>test_reminders.py</code></td></tr>
+        <tr><td>API (Backend)</td><td>הרשמה/כניסה/יציאה/me; 401 בלי <bdi>Token</bdi>; 403 ל-<code>member</code> על <code>/audit</code>; תגובות: יצירה, אורך, מחיקה ע"י זר = 403, <bdi>CASCADE</bdi> במחיקת משימה; <code>due_date</code> בעבר = 422; <code>?due_before</code>; <code>comment_count</code> נכון</td><td><code>test_auth_api.py</code>, <code>test_comments.py</code>, <code>test_tasks.py</code> (מורחב)</td></tr>
+        <tr><td>Integration</td><td>זרימה מלאה: הרשמה ← כניסה ← יצירת משימה עם <code>due_date</code> ← תגובה עם אזכור ← <code>reminders</code> מוצא אותה ← <code>audit</code> מכיל 4 רשומות</td><td><code>test_flow_v1.py</code></td></tr>
+        <tr><td>Frontend</td><td><code>npm run typecheck</code> ירוק; טיפוסי <code>types.ts</code> תואמים לחוזה ה-<bdi>API</bdi> (בדיקה ידנית עם <a href="ch40.html#p25">40.25</a>)</td><td><code>frontend/</code></td></tr>
+        <tr><td>Reminders CLI</td><td>ריצה כפולה לא כותבת פעמיים ל-<code>reminders_sent</code>; <code>--dry-run</code> לא כותב כלל</td><td><code>test_reminders.py</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>ציפיית כיסוי: 85% על ארבעת המודולים החדשים; 100% על ענפי ההרשאה (401/403). כל בדיקה חדשה משתמשת ב-<bdi>fixture</bdi> ה-<code>client</code> הקיים ובמסד זמני, כדי לא ליצור מצב משותף.</p>
+
+  <h2 id="security">דרישות אבטחה (רשימת פרק 20 בהתאמה)</h2>
+  <ul class="check">
+    <li>סיסמאות: <code>hashlib.scrypt</code> עם <bdi>salt</bdi> אקראי לכל משתמש; השוואה ב-<code>hmac.compare_digest</code>; אף פעם לא <bdi>Plaintext</bdi> בלוגים או ב-<bdi>Audit</bdi>.</li>
+    <li><bdi>Tokens</bdi>: <code>secrets.token_urlsafe(32)</code>; נשמרים כ-<bdi>Hash</bdi> בטבלת <code>sessions</code> עם פקיעה; <code>logout</code> מוחק.</li>
+    <li>הרשאות: בדיקת בעלות בכל מחיקת תגובה; <code>/audit</code> רק <code>admin</code>; 404 מול 403 לפי מדיניות אחת מתועדת.</li>
+    <li>קלט: מגבלות אורך ב-<bdi>Pydantic</bdi> לכל שדה טקסט; <code>due_date</code> מאומת כתאריך; <code>limit</code> חסום ל-500.</li>
+    <li><bdi>SQL</bdi>: פרמטרים בלבד; <code>update_task</code> בונה <code>SET</code> רק משמות שדות של המודל.</li>
+    <li>סודות: אין <code>.env</code> ב-<bdi>Git</bdi>; <code>deny</code> על <code>Read(.env*)</code> ו-<code>Edit(.env*)</code> ב-<code>settings.json</code>; <bdi>Secrets</bdi> של <bdi>CI</bdi> ב-<bdi>GitHub Secrets</bdi> בלבד.</li>
+    <li>הרשאות <bdi>Claude Code</bdi>: אין <bdi>bypass</bdi>; <bdi>Subagent</bdi> הסקירה קריאה בלבד; <bdi>Hook</bdi> שחוסם <code>rm -rf</code> ו-<code>git push --force</code>.</li>
+    <li>יומן ביקורת: <bdi>append-only</bdi>; אין <bdi>Endpoint</bdi> מחיקה או עדכון; <code>details</code> לא מכיל סיסמאות או <bdi>Tokens</bdi>.</li>
+    <li>שגיאות: גוף אחיד <code>{"detail": ...}</code> בלי <bdi>Stack traces</bdi>.</li>
+    <li>סקירה: <bdi>Subagent</bdi> אבטחה + <code>/security-review</code> על ענף M6; אפס <bdi>Critical/High</bdi> פתוחים.</li>
+  </ul>
+
+  <h2 id="acceptance">קריטריוני קבלה גלובליים</h2>
+  <ul class="check">
+    <li>כל שבע אבני הדרך ממוזגות ל-<code>main</code> דרך <bdi>PRs</bdi> נפרדים עם סקירה.</li>
+    <li><code>cd backend &amp;&amp; pytest -q</code> ו-<code>cd frontend &amp;&amp; npm run typecheck</code> ירוקים מקומית וב-<bdi>CI</bdi>.</li>
+    <li>בדיקת האינטגרציה <code>test_flow_v1.py</code> עוברת.</li>
+    <li><code>/release-check 1.0.0</code> מחזיר READY.</li>
+    <li>תג <code>v1.0.0</code> קיים; <code>CHANGELOG.md</code> ו-<bdi>Release notes</bdi> מתאימים ל-<code>git log</code>.</li>
+    <li><code>/usage</code> מראה שהפרויקט עמד בתקציב שהוגדר; לא נעשה שימוש ב-<bdi>bypass</bdi>.</li>
+    <li>קיימים: <code>.claude/settings.json</code>, לפחות שני <bdi>Hooks</bdi>, שישה <bdi>Skills</bdi>, שלושה <bdi>Subagents</bdi>, <bdi>CLAUDE.md</bdi> v1.0, שלושה <bdi>ADRs</bdi>.</li>
+  </ul>
+
+  <h2 id="deliverables">תוצרים צפויים</h2>
+  <ul>
+    <li><strong>מצב Repository:</strong> <code>main</code> עם התג <code>v1.0.0</code>; עץ מורחב (למטה); היסטוריית <bdi>Commits</bdi> קטנים.</li>
+    <li><strong>PRs:</strong> שבעה, אחד לאבן דרך (רשימה ב-<a href="#solution-prs">הפתרון</a>).</li>
+    <li><strong>מסמכים:</strong> <bdi>README</bdi> מעודכן, <code>CHANGELOG.md</code>, <code>docs/adr/0001-auth-stdlib.md</code>, <code>0002-audit-append-only.md</code>, <code>0003-reminders-cli.md</code>, <code>docs/release-notes-1.0.0.md</code>.</li>
+    <li><strong>דוחות:</strong> דוח סקירת אבטחה (<code>docs/security-review-1.0.md</code>) עם ממצאים וסטטוס; דוח <code>/release-check</code>; סיכום שימוש (<code>/usage</code>) בסוף כל אבן דרך.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">examples/taskflow (after v1.0)</div><pre><code>taskflow/
+├── CLAUDE.md                        # v1.0
+├── README.md, CHANGELOG.md
+├── .claude/
+│   ├── settings.json                # permissions + hooks
+│   ├── skills/{code-review,bug-investigation,feature-plan,test-generator,documentation-update,release-check}/SKILL.md
+│   ├── agents/{security-reviewer,api-contract-checker,test-writer}.md
+│   └── hooks/{protect-files.sh,run-backend-tests.sh}
+├── .github/workflows/{ci.yml,reminders.yml}
+├── docs/adr/0001-auth-stdlib.md 0002-audit-append-only.md 0003-reminders-cli.md
+├── docs/security-review-1.0.md, docs/release-notes-1.0.0.md
+├── backend/app/{main.py,database.py,models.py,auth.py,audit.py,reminders.py}
+├── backend/app/routers/{tasks.py,auth.py,comments.py,audit.py}
+├── backend/tests/{test_tasks.py,test_auth_unit.py,test_auth_api.py,test_comments.py,test_reminders.py,test_audit.py,test_flow_v1.py}
+└── frontend/src/{App.tsx,api.ts,types.ts,Login.tsx,Comments.tsx,AuditView.tsx}</code></pre></div>
+
+  <h2 id="solution">פתרון מלא</h2>
+  <p>להלן מהלך אחד שעובד. אינו היחיד. כל התוצאות מסומנות "המחשה": הן מייצגות פלט סביר של <bdi>Claude Code</bdi> על הפרויקט הזה, לא תמליל מוקלט, וההרצה שלכם תיראה שונה בפרטים. מה שחייב להיות זהה הוא סדר השערים: תוכנית, יישום קטן, בדיקות, סקירה, <bdi>PR</bdi>.</p>
+
+  <h3 id="sol-m1">M1: הקמה, CLAUDE.md, Settings, Hooks</h3>
+  <p><strong>Prompt פתיחה (Plan Mode):</strong></p>
+  <div class="codeblock"><div class="codehead">claude --permission-mode plan</div><pre><code>Read CLAUDE.md, README.md, backend/app and frontend/src. We are starting TaskFlow v1.0 (auth, comments, due-date reminders, audit log).
+Objective for this session: set up the project for safe work with Claude Code. Propose, do not implement:
+1. A .claude/settings.json with permission allow rules for our test/typecheck/git read commands and deny rules for .env*, rm -rf and git push --force.
+2. Two hooks: a PreToolUse guard for protected files (.env*, .github/workflows/*, backend/tests/*) that blocks with a clear message, and a Stop hook that runs backend tests and blocks the turn from ending while they fail.
+3. The updated CLAUDE.md for v1.0 (I will paste our required content).
+4. The CI change: keep the two existing jobs, add a job that runs `claude plugin validate`? No: keep CI product-neutral. Instead add pip cache and npm cache.
+List files and content outline. Wait for approval.</code></pre></div>
+  <p><strong>החלטות מרכזיות:</strong> <bdi>Hook</bdi> ההגנה משתמש ב-<code>exit 2</code> (חוסם) ולא ב-<bdi>JSON</bdi>, כי כל מה שצריך הוא חסימה עם הודעה; ה-<bdi>Stop hook</bdi> רץ רק על ה-<bdi>Backend</bdi> (מהיר), עם <code>timeout</code> של 120 שניות; ה-<bdi>CI</bdi> נשאר ניטרלי למוצר. <bdi>Subagents</bdi> ו-<bdi>Skills</bdi> מועתקים מהמדריך (<a href="ch21.html">פרק 21</a>, <a href="ch25.html">פרק 25</a>).</p>
+  <div class="codeblock"><div class="codehead">.claude/settings.json (final)</div><pre><code>{
+  "permissions": {
+    "allow": [
+      "Bash(cd backend &amp;&amp; pytest *)",
+      "Bash(pytest *)",
+      "Bash(cd frontend &amp;&amp; npm run typecheck)",
+      "Bash(npm run typecheck)",
+      "Bash(git status *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git branch *)",
+      "Bash(git add *)", "Bash(git commit *)",
+      "Bash(gh pr view *)", "Bash(gh pr list *)", "Bash(gh run view *)"
+    ],
+    "deny": [
+      "Read(.env*)", "Edit(.env*)", "Write(.env*)",
+      "Bash(rm -rf *)", "Bash(git push --force *)", "Bash(git push -f *)",
+      "Bash(curl * | sh)", "Bash(curl * | bash)"
+    ],
+    "defaultMode": "default"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-files.sh", "timeout": 10 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/run-backend-tests.sh", "timeout": 120, "statusMessage": "Running backend tests" }
+        ]
+      }
+    ]
+  }
+}</code></pre></div>
+  <div class="codeblock"><div class="codehead">.claude/hooks/protect-files.sh</div><pre><code>#!/bin/bash
+# Block edits to protected paths. Exit 2 = block, message on stderr goes back to Claude.
+INPUT=$(cat)
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+FILE_PATH="${FILE_PATH//\\//}"
+for pattern in ".env" ".github/workflows/" "backend/tests/"; do
+  if [[ "$FILE_PATH" == *"$pattern"* ]]; then
+    echo "Blocked: $FILE_PATH is protected ($pattern). Ask the human to edit it, or explain why it must change." &gt;&amp;2
+    exit 2
+  fi
+done
+exit 0</code></pre></div>
+  <div class="codeblock"><div class="codehead">.claude/hooks/run-backend-tests.sh</div><pre><code>#!/bin/bash
+# Stop hook: block ending the turn while backend tests fail.
+cd "$CLAUDE_PROJECT_DIR/backend" || exit 0
+OUT=$(pytest -q 2&gt;&amp;1)
+STATUS=$?
+if [ $STATUS -ne 0 ]; then
+  echo "Backend tests are failing. Fix them before finishing:" &gt;&amp;2
+  echo "$OUT" | tail -20 &gt;&amp;2
+  exit 2
+fi
+exit 0</code></pre></div>
+  <p>שימו לב: ה-<bdi>Hook</bdi> על <code>backend/tests/</code> חוסם גם את Claude מלכתוב בדיקות חדשות. זו החלטה מכוונת ל-M1: באבני הדרך הבאות משנים את הדפוס ל-<code>backend/tests/test_tasks.py</code> בלבד (הבדיקות הקיימות מוגנות; חדשות מותרות), או מבקשים מפורשות. התיעוד הרשמי מזכיר: <bdi>Hook</bdi> הוא ערובה, <bdi>CLAUDE.md</bdi> הוא הנחיה; כאן רצינו ערובה על מה שקיים.</p>
+  <div class="codeblock"><div class="codehead">.claude/agents/security-reviewer.md</div><pre><code>---
+name: security-reviewer
+description: Reviews code for security vulnerabilities. Use proactively before merging any change that touches auth, permissions, user input or secrets.
+tools: Read, Grep, Glob, Bash
+permissionMode: plan
+---
+You are a senior security engineer reviewing TaskFlow (FastAPI + SQLite, React). Review for:
+injection (SQL, command, XSS), authentication and authorization flaws, secrets in code, insecure data handling,
+missing input limits, and audit gaps. Report file and line, severity, attack scenario in one sentence, and a fix.
+Report only findings that affect correctness or the stated requirements. Do not modify files.</code></pre></div>
+  <p>שני הסוכנים הנוספים: <code>api-contract-checker</code> (משווה <code>routers/*.py</code> ל-<code>src/api.ts</code> ו-<code>types.ts</code>, קריאה בלבד) ו-<code>test-writer</code> (<code>tools: Read, Grep, Glob, Bash, Write, Edit</code>, מוגבל ב-<bdi>Prompt</bdi> לכתוב רק תחת <code>backend/tests/</code> חדשים).</p>
+  <div class="terminal"><span class="p">$</span> claude doctor
+<span class="out">Settings: OK (project .claude/settings.json valid)   # המחשה</span>
+<span class="p">$</span> claude
+<span class="out">&gt; /hooks
+PreToolUse (1)  Edit|Write  [command] Project Settings
+Stop (1)                    [command] Project Settings
+&gt; /skills
+code-review, bug-investigation, feature-plan, test-generator, documentation-update, release-check (user-only)   # המחשה</span></div>
+  <p><strong>מה השתבש בדרך (המחשה):</strong> בניסיון הראשון ה-<bdi>Hook</bdi> לא רץ בכלל. <code>/hooks</code> הציג אותו, אבל בלוג של <code>claude --debug-file /tmp/claude.log</code> הופיע <code>Permission denied</code>: הסקריפט לא היה ניתן להרצה. <code>chmod +x .claude/hooks/*.sh</code> פתר. הלקח החוזר מ-<a href="ch39.html#hooks">פרק 39</a>: אחרי כל <bdi>Hook</bdi> חדש, בדיקה מיידית עם לוג, לא הנחה. הבעיה השנייה הייתה שה-<bdi>Stop hook</bdi> רץ גם כשביקשנו רק שאלה על הקוד ("מה עושה <code>get_conn</code>?") והאט כל תור בכמה שניות. ההחלטה: להשאיר אותו, כי המחיר קטן והערובה שווה, אבל לתעד ב-<bdi>CLAUDE.md</bdi> ש-<code>/btw</code> מתאים לשאלות צד (הוא לא מפעיל תור מלא).</p>
+  <p><strong>אימות M1:</strong> בקשו מ-Claude לערוך <code>.env</code> ובדקו שהוא נחסם עם ההודעה; שברו בדיקה בכוונה וראו שה-<bdi>Stop hook</bdi> לא נותן לסיים; <code>/permissions</code> מציג את שתי הרשימות; <code>/context</code> מראה ש-<bdi>CLAUDE.md</bdi> החדש נטען וששת ה-<bdi>Skills</bdi> מופיעים. <bdi>PR-1</bdi>: "chore: Claude Code setup, CLAUDE.md v1.0, CI cache".</p>
+
+  <h3 id="sol-m2">M2: אימות</h3>
+  <p><strong>Prompt (Plan Mode, עם ה-Skill):</strong> <code>/feature-plan authentication for TaskFlow: users table, sessions table, /auth endpoints, token dependency on /tasks, roles member/admin, stdlib only (hashlib.scrypt, secrets)</code>. אחרי אישור התוכנית, יציאה מ-<bdi>Plan Mode</bdi> ו:</p>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Implement step 1 of the approved plan only: app/auth.py with hash_password, verify_password, new_token, hash_token, and the users/sessions tables in database.init_db.
+Then use the test-writer subagent to add backend/tests/test_auth_unit.py covering hashing round trip, wrong password, token uniqueness and expiry.
+Run cd backend &amp;&amp; pytest -q and show the output. Do not touch routers yet.</code></pre></div>
+  <p><strong>החלטה מרכזית (ADR-0001):</strong> אימות ב-<bdi>stdlib</bdi> בלבד. <bdi>Tokens</bdi> אטומים שנשמרים כ-<bdi>Hash</bdi> ב-<code>sessions</code> במקום <bdi>JWT</bdi>: אין תלות חדשה, יש ביטול מיידי ב-<code>logout</code>, והמחיר (שאילתה לכל בקשה) זניח בקנה המידה של הפרויקט. Claude הציע <bdi>JWT</bdi> תחילה; הבקשה "stdlib only" ב-<bdi>Prompt</bdi> וההוראה ב-<bdi>CLAUDE.md</bdi> ("New dependency = ADR first") הכריעו.</p>
+  <div class="codeblock"><div class="codehead">המחשה: backend/app/auth.py (קטע)</div><pre><code>import hashlib, hmac, os, secrets
+from datetime import datetime, timedelta, timezone
+
+def hash_password(password: str) -&gt; str:
+    salt = os.urandom(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
+    return salt.hex() + "$" + digest.hex()
+
+def verify_password(password: str, stored: str) -&gt; bool:
+    salt_hex, digest_hex = stored.split("$", 1)
+    digest = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt_hex), n=2**14, r=8, p=1)
+    return hmac.compare_digest(digest.hex(), digest_hex)
+
+def new_token() -&gt; str:
+    return secrets.token_urlsafe(32)
+
+def hash_token(token: str) -&gt; str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+def expiry(hours: int) -&gt; str:
+    return (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat()</code></pre></div>
+  <p>צעדים 2 ו-3: <code>routers/auth.py</code> ותלות <code>current_user</code> (<code>Depends</code>) על כל <bdi>Router</bdi> של משימות; <code>test_auth_api.py</code>; ואז מסך <code>Login.tsx</code> ושמירת ה-<bdi>Token</bdi> בזיכרון (לא ב-<code>localStorage</code>, החלטה מתועדת ב-<bdi>PR</bdi>). כל צעד: <code>pytest -q</code>, <code>git diff --stat</code>, אישור.</p>
+  <div class="terminal"><span class="p">$</span> cd backend &amp;&amp; pytest -q
+<span class="out">................                                          [100%]
+16 passed in 1.42s      # המחשה: 6 קיימות + 4 unit + 6 API</span></div>
+  <p><strong>מה השתבש בדרך (המחשה):</strong> שלוש נקודות. ראשית, כשהוספנו את התלות <code>current_user</code> לכל ה-<bdi>Routes</bdi>, שש הבדיקות המקוריות ב-<code>test_tasks.py</code> נפלו על 401. Claude הציע "לעדכן את הבדיקות"; ה-<bdi>Hook</bdi> חסם עריכה ב-<code>backend/tests/</code>, וזה בדיוק הרגע שבו רצינו עצירה. הפתרון המוסכם: <bdi>fixture</bdi> חדש <code>auth_client</code> בקובץ חדש <code>conftest.py</code> שנרשם ומתחבר, ושינוי מינימלי ב-<code>test_tasks.py</code> להשתמש בו, מאושר במפורש על ידי אדם. שנית, Claude שמר את ה-<bdi>Token</bdi> ב-<code>localStorage</code> ב-<code>Login.tsx</code>; ביקשנו זיכרון בלבד ל-v1.0 (מתועד ב-<bdi>PR</bdi> כפשרה: רענון דף מנתק). שלישית, אחרי שני ניסיונות לתקן שגיאת טיפוסים ב-<code>api.ts</code> באותו <bdi>Session</bdi>, הפעלנו את הכלל: <bdi>Handoff</bdi> קצר, <code>/clear</code>, ו-<bdi>Prompt</bdi> חדש שכלל את חוזה ה-<bdi>API</bdi> המדויק. הניסיון השלישי, ב-<bdi>Session</bdi> נקי, הצליח בסבב אחד.</p>
+  <p><strong>אימות M2:</strong> <code>curl -s -X POST localhost:8000/tasks -d '{"title":"x"}' -H 'content-type: application/json'</code> מחזיר 401; אחרי כניסה עם <bdi>Token</bdi>, 201. <code>sqlite3 taskflow.db "select password_hash from users limit 1"</code> מציג <bdi>Hash</bdi> ולא סיסמה. סקירה: <code>/code-review</code>, ואז <bdi>PR-2</bdi> "feat(auth): register, login, logout, me; token dependency; roles".</p>
+
+  <h3 id="sol-m3">M3: תגובות</h3>
+  <p>אבן הדרך הזאת היא חזרה על <a href="ch34.html">פרק 34</a> בגרסה מקוצרת, כי הסכימה כבר תוכננה שם. ההבדל: עכשיו יש משתמשים, ולכן <code>author</code> מגיע מה-<bdi>Token</bdi> ולא מהגוף, ומחיקה מותרת רק למחבר או ל-<code>admin</code>.</p>
+  <div class="codeblock"><div class="codehead">prompt (plan mode)</div><pre><code>/feature-plan comments on tasks: reuse the schema from docs (comments + comment_mentions with ON DELETE CASCADE, indexes),
+author from the authenticated user, DELETE only by author or admin, comment_count on GET /tasks computed in a single query with LEFT JOIN + GROUP BY (no N+1),
+mentions parsed from @username and stored. Frontend: Comments.tsx panel and comment_count badge. Tests by layer.</code></pre></div>
+  <p><strong>החלטה מרכזית:</strong> <code>comment_count</code> בשאילתה אחת. Claude הציע תחילה לולאה על משימות; ה-<bdi>Constraint</bdi> "no N+1" ב-<bdi>Prompt</bdi> ובדרישות הלא-פונקציונליות הכריע, וה-<bdi>test-writer</bdi> כתב בדיקה שמאשרת את התוצאה על 3 משימות עם 0, 1 ו-5 תגובות.</p>
+  <div class="codeblock"><div class="codehead">המחשה: routers/tasks.py, list_tasks (קטע)</div><pre><code>rows = conn.execute(
+    """
+    SELECT t.*, COUNT(c.id) AS comment_count
+    FROM tasks t LEFT JOIN comments c ON c.task_id = t.id
+    WHERE (? IS NULL OR t.due_date &lt;= ?)
+    GROUP BY t.id ORDER BY t.id LIMIT ?
+    """,
+    (due_before, due_before, limit),
+).fetchall()</code></pre></div>
+  <p><strong>מה השתבש בדרך (המחשה):</strong> הבדיקה של מחיקה בשרשרת (<bdi>CASCADE</bdi>) נכשלה: התגובות נשארו אחרי מחיקת המשימה. הסיבה: <bdi>SQLite</bdi> לא אוכף מפתחות זרים אלא אם מריצים <code>PRAGMA foreign_keys = ON</code> בכל חיבור. Claude ידע את זה כששאלנו, אבל לא יישם בסבב הראשון; הבדיקה תפסה. התיקון ב-<code>get_conn()</code>, ושורה ב-<bdi>CLAUDE.md</bdi> תחת מוסכמות. זו דוגמה טובה למה "בדיקה קודם" חשוב יותר מ"Claude יודע". נקודה שנייה: ה-<bdi>Subagent</bdi> <code>api-contract-checker</code> מצא ש-<code>types.ts</code> הגדיר <code>comment_count?: number</code> (אופציונלי) בעוד ה-<bdi>Backend</bdi> תמיד מחזיר אותו; תוקן ל-<code>number</code>. פרט קטן, אבל בדיוק סוג הפער שסוכן חוזה תופס ואדם מפספס.</p>
+  <p><strong>אימות M3:</strong> <code>pytest -q</code> (המחשה: 27 עוברות); מחיקת משימה עם תגובות מוחקת אותן; <code>npm run typecheck</code>; <bdi>Subagent</bdi> <code>api-contract-checker</code> מדווח אפס אי-התאמות. <bdi>PR-3</bdi> "feat(comments): comments, mentions, comment_count".</p>
+
+  <h3 id="sol-m4">M4: תזכורות</h3>
+  <div class="codeblock"><div class="codehead">prompt (plan mode)</div><pre><code>/feature-plan due-date reminders: nullable due_date on tasks (ISO 8601 UTC, reject past dates on create, allow on update only if explicitly cleared or moved forward),
+GET /tasks?due_before=, a CLI module app/reminders.py with --hours N and --dry-run that prints tasks due within the window and records them in reminders_sent(task_id, sent_at) so a second run does not repeat,
+and a scheduled GitHub Actions workflow reminders.yml that runs it daily. No email provider in v1.0: print to stdout, document the extension point in an ADR.</code></pre></div>
+  <p><strong>החלטה מרכזית (ADR-0003):</strong> התזכורת ב-v1.0 היא פלט <bdi>CLI</bdi> ורשומת <code>reminders_sent</code>, לא שליחת מייל. הסיבה: אין תלות חיצונית ואין סוד ב-<bdi>CI</bdi>; נקודת ההרחבה (פונקציה <code>deliver(task)</code>) מתועדת. הצוות דחה הצעה של Claude להוסיף ספריית <bdi>SMTP</bdi> כי אין <bdi>ADR</bdi> ואין דרישה.</p>
+  <div class="codeblock"><div class="codehead">.github/workflows/reminders.yml</div><pre><code>name: Reminders
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: TASKFLOW_DB=/tmp/taskflow.db python -m app.reminders --hours 24 --dry-run</code></pre></div>
+  <p><strong>מה השתבש בדרך (המחשה):</strong> בדיקת "תאריך בעבר נדחה" הייתה לא יציבה: עברה מקומית ונכשלה ב-<bdi>CI</bdi>. הסיבה: Claude השווה <code>due_date</code> ל-<code>datetime.now()</code> נאיבי (בלי אזור זמן), וה-<bdi>Runner</bdi> ב-UTC התנהג אחרת מהמחשב המקומי. הפעלנו את <code>/bug-investigation</code> על הכישלון, שהצביע על ההשוואה הנאיבית והציע <code>datetime.now(timezone.utc)</code> וקלט <bdi>ISO</bdi> עם <code>Z</code> או <bdi>Offset</bdi> חובה. הבדיקה עצמה לא שונתה. הכלל מ-<bdi>CLAUDE.md</bdi> ("Dates are ISO 8601 strings in UTC") היה קיים; מה שחסר היה בדיקה שאוכפת אותו, ועכשיו יש.</p>
+  <p>הערה כנה: ב-<bdi>CI</bdi> אין מסד ייצור, ולכן ה-<bdi>Workflow</bdi> מדגים את המנגנון עם <code>--dry-run</code> על מסד ריק. בפריסה אמיתית הוא ירוץ על השרת ב-<bdi>cron</bdi>. זה מתועד ב-<bdi>README</bdi> וב-<bdi>ADR</bdi>. <strong>אימות M4:</strong> <code>test_reminders.py</code>: יצירת משימה עם <code>due_date</code> בעוד שעתיים, ריצה ראשונה מדפיסה אותה, ריצה שנייה לא; <code>due_date</code> בעבר = 422. <bdi>PR-4</bdi>.</p>
+
+  <h3 id="sol-m5">M5: יומן ביקורת</h3>
+  <div class="codeblock"><div class="codehead">prompt (plan mode)</div><pre><code>/feature-plan audit log: table audit_log(id, actor, action, entity_type, entity_id, at, details TEXT JSON) append-only;
+app/audit.py with record(conn, actor, action, entity_type, entity_id, details=None) called inside the same transaction as the mutation;
+calls in every create/update/delete of tasks and comments and in login; GET /audit?limit=&amp;since= for admin only (403 for member);
+frontend AuditView.tsx for admin. Tests: every mutating route produces exactly one row; details never contains password or token; member gets 403.
+Constraint: no delete or update endpoint for audit rows, and document why in an ADR.</code></pre></div>
+  <p><strong>החלטה מרכזית (ADR-0002):</strong> הרשומה נכתבת באותה <bdi>Transaction</bdi> של השינוי (אותו <code>conn</code>), כדי שלא יהיה מצב של שינוי בלי רשומה או להפך. Claude הציע <bdi>Middleware</bdi> גלובלי; נדחה כי <bdi>Middleware</bdi> לא יודע איזה <code>entity_id</code> נוצר. במקום זה, קריאה מפורשת בכל <bdi>Route</bdi>, ובדיקה שסופרת רשומות לכל פעולה כדי שאף <bdi>Route</bdi> לא יישכח.</p>
+  <div class="codeblock"><div class="codehead">המחשה: backend/app/audit.py</div><pre><code>import json, sqlite3
+from typing import Any, Optional
+
+REDACT = {"password", "token", "authorization"}
+
+def record(conn: sqlite3.Connection, actor: str, action: str,
+           entity_type: str, entity_id: Optional[int],
+           details: Optional[dict[str, Any]] = None) -&gt; None:
+    safe = {k: v for k, v in (details or {}).items() if k.lower() not in REDACT}
+    conn.execute(
+        "INSERT INTO audit_log (actor, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)",
+        (actor, action, entity_type, entity_id, json.dumps(safe)),
+    )</code></pre></div>
+  <p><strong>מה השתבש בדרך (המחשה):</strong> הבדיקה שסופרת רשומות לכל פעולה גילתה ש-<code>DELETE /comments/{id}</code> לא רשם ליומן. Claude פשוט שכח <bdi>Route</bdi> אחד מתוך תשעה. בלי הבדיקה, זה היה מתגלה בביקורת אמיתית. נקודה שנייה: בגרסה הראשונה של <code>record()</code> ה-<code>details</code> של <code>login</code> כלל את כל גוף הבקשה, כולל הסיסמה. סוכן האבטחה בסקירת ה-<bdi>PR</bdi> סימן זאת כ-<bdi>Critical</bdi>; מכאן ה-<code>REDACT</code> והבדיקה "details never contains password or token". שתי הנקודות מחזקות את אותו לקח: כל דרישה שאפשר לנסח כבדיקה, מנסחים כבדיקה.</p>
+  <p><strong>אימות M5:</strong> בדיקת האינטגרציה <code>test_flow_v1.py</code> (הרשמה, כניסה, משימה, תגובה) מוצאת ארבע רשומות עם ה-<code>actor</code> הנכון; <code>member</code> על <code>/audit</code> = 403; <code>grep -rn "audit.record" backend/app/routers | wc -l</code> שווה למספר ה-<bdi>Routes</bdi> המשנים. <bdi>PR-5</bdi>.</p>
+
+  <h3 id="sol-m6">M6: הקשחה וסקירת אבטחה</h3>
+  <p><bdi>Session</bdi> חדש, <bdi>Context</bdi> נקי. שני מסלולי סקירה במקביל, ואז השוואה:</p>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Use the security-reviewer subagent to review the diff between the tag v0.1.0-baseline and HEAD for security issues, and write its findings to docs/security-review-1.0.md.
+In parallel, I will run /security-review. Do not fix anything in this turn.</code></pre></div>
+  <p><strong>המחשה: ממצאים שהתקבלו ומה נעשה איתם.</strong></p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>ממצא</th><th>חומרה</th><th>מקור</th><th>טיפול</th></tr></thead>
+      <tbody>
+        <tr><td><code>limit</code> ב-<code>GET /audit</code> לא חסום; ניתן לבקש מיליון שורות</td><td>Medium</td><td>Subagent</td><td>חסימה ל-500 ב-<bdi>Pydantic</bdi> <code>Query(le=500)</code>; בדיקה</td></tr>
+        <tr><td>הודעת שגיאה בכניסה שונה בין "user not found" ל-"wrong password" (מאפשרת מניית משתמשים)</td><td>Medium</td><td>שניהם</td><td>הודעה אחידה "invalid credentials"</td></tr>
+        <tr><td><code>Bearer</code> נבדק ב-<code>startswith</code> בלי <bdi>Case-insensitive</bdi>; לא סיכון אמיתי</td><td>Low</td><td>/security-review</td><td>תוקן, דקה</td></tr>
+        <tr><td><code>details</code> ב-<bdi>Audit</bdi> של <code>register</code> כלל את שם המשתמש בלבד; תקין</td><td>Info</td><td>Subagent</td><td>ללא שינוי</td></tr>
+        <tr><td>אין הגבלת קצב על <code>/auth/login</code></td><td>Medium</td><td>Subagent</td><td>מחוץ ל-v1.0 (דורש רכיב חיצוני); נרשם ב-<a href="#stretch">שיפורים</a> וב-<bdi>README</bdi> תחת "Known limitations"</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>מה השתבש בדרך (המחשה):</strong> הסוקר ה-<bdi>Subagent</bdi> החזיר בסבב הראשון 14 ממצאים, רובם סגנון ("consider a constant for 500", "add docstring"). זה בדיוק מה שהתיעוד מזהיר ממנו: סוקר שמתבקש למצוא פערים ימצא פערים. הפעלנו אותו שוב עם ההוראה "Report only findings that affect correctness or the stated requirements" (שכבר הייתה בקובץ הסוכן, אבל ה-<bdi>Prompt</bdi> ההאצלה שלנו דיבר על "everything you find" ודרס אותה בפועל). הסבב השני החזיר חמישה ממצאים, בטבלה למעלה. לקח: ה-<bdi>Prompt</bdi> שאתם שולחים לסוכן חשוב לא פחות מהגדרת הסוכן.</p>
+  <p>התיקונים בוצעו ב-<bdi>Prompt</bdi> נפרד עם "small steps with diffs", וסקירה חוזרת של ה-<bdi>Subagent</bdi> על ה-<bdi>Diff</bdi> בלבד. סקירת ביצועים קצרה (<a href="ch40.html#p21">40.21</a>) אישרה שאין N+1 ושכל הרשימות מוגבלות. <strong>אימות M6:</strong> אפס <bdi>Critical/High</bdi>; רשימת <a href="#security">דרישות האבטחה</a> ירוקה; <bdi>PR-6</bdi> "fix(security): limits, uniform login error, header parsing".</p>
+
+  <h3 id="sol-m7">M7: תיעוד ושחרור</h3>
+  <div class="codeblock"><div class="codehead">prompts (בסדר)</div><pre><code>/documentation-update compare README.md against the code since v0.1.0-baseline: setup, env vars (TASKFLOW_DB, TASKFLOW_TOKEN_TTL_HOURS), auth flow, reminders CLI, audit endpoint, known limitations. Show diff first.
+
+Compare v0.1.0-baseline to HEAD and draft release notes grouped by feature, fix, and breaking change into docs/release-notes-1.0.0.md. Breaking: all /tasks routes now require a token.
+
+/release-check 1.0.0</code></pre></div>
+  <div class="terminal"><span class="out">&gt; /release-check 1.0.0        # המחשה
+| Item | Result | Evidence |
+| Backend tests | pass | 41 passed in 3.9s |
+| Frontend typecheck | pass | tsc exit 0 |
+| TODO/FIXME | pass | none |
+| Tracked secrets | pass | git ls-files: no .env; grep: none |
+| Env vars documented | pass | TASKFLOW_DB, TASKFLOW_TOKEN_TTL_HOURS in README |
+| CHANGELOG entry | pass | 1.0.0 |
+| ADRs | pass | 0001, 0002, 0003 |
+| Clean main | pass | |
+READY</span></div>
+  <p><strong>מה השתבש בדרך (המחשה):</strong> טיוטת ה-<bdi>Release notes</bdi> הראשונה כללה גם <bdi>Commits</bdi> פנימיים ("chore: fix hook permissions", "wip") ולא ציינה את השינוי השובר. ביקשנו: "group only user-visible changes; list internal chores in one line; breaking changes first". בנוסף, <code>/release-check</code> החזיר NOT READY בפעם הראשונה: <bdi>README</bdi> לא תיעד את <code>TASKFLOW_TOKEN_TTL_HOURS</code>. זה בדיוק התפקיד של ה-<bdi>Skill</bdi>: לתפוס את מה שכולם היו בטוחים שנעשה. תיקון של שתי שורות, ריצה חוזרת, READY.</p>
+  <p>ואז: <bdi>Prompt</bdi> <a href="ch40.html#p48">40.48</a> להעלאת גרסה ב-<code>package.json</code>, ב-<code>main.py</code> (<code>version="1.0.0"</code>) וב-<code>CHANGELOG.md</code>, <bdi>Commit</bdi> "chore(release): 1.0.0" ותג <code>v1.0.0</code> מקומי. הדחיפה של התג נעשית על ידי אדם. <bdi>PR-7</bdi>.</p>
+
+  <h3 id="solution-prs">רשימת ה-PRs</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>PR</th><th>ענף</th><th>כותרת</th><th>סקירה</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>m1-setup</code></td><td>chore: Claude Code setup, CLAUDE.md v1.0, CI cache</td><td>אנושית + <code>/code-review</code></td></tr>
+        <tr><td>2</td><td><code>m2-auth</code></td><td>feat(auth): register, login, logout, me; token dependency; roles</td><td>אנושית + <code>security-reviewer</code></td></tr>
+        <tr><td>3</td><td><code>m3-comments</code></td><td>feat(comments): comments, mentions, comment_count</td><td>אנושית + <code>api-contract-checker</code></td></tr>
+        <tr><td>4</td><td><code>m4-reminders</code></td><td>feat(reminders): due_date, filter, CLI, scheduled workflow</td><td>אנושית</td></tr>
+        <tr><td>5</td><td><code>m5-audit</code></td><td>feat(audit): append-only audit log, admin endpoint, view</td><td>אנושית + <code>security-reviewer</code></td></tr>
+        <tr><td>6</td><td><code>m6-hardening</code></td><td>fix(security): limits, uniform login error, header parsing</td><td>אנושית + <code>/security-review</code></td></tr>
+        <tr><td>7</td><td><code>m7-release</code></td><td>docs: README, ADRs, release notes; chore(release): 1.0.0</td><td>אנושית + <code>/release-check</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>עלות ו-Context (המחשה):</strong> 19 <bdi>Sessions</bdi> אינטראקטיביים; <code>/clear</code> בין אבני דרך; שני <bdi>Handoffs</bdi> כתובים (M3 ו-M6); <bdi>Subagents</bdi> מקבילים לכל היותר 2. <code>/usage</code> בסוף M7 מראה שרוב ה-<bdi>Tokens</bdi> הלכו ל-M2 ו-M6, כצפוי.</p>
+
+  <h2 id="mistakes">טעויות נפוצות ב-Capstone</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>טעות</th><th>איך היא נראית</th><th>מה לעשות במקום</th></tr></thead>
+      <tbody>
+        <tr><td>לדלג על M1 "כי זה רק הגדרות"</td><td>עובדים בלי <code>deny</code>, בלי <bdi>Hooks</bdi>, בלי <bdi>CLAUDE.md</bdi> מעודכן; ב-M2 Claude עורך בדיקות ומנחש מוסכמות</td><td>M1 קודם. הוא לוקח <bdi>Session</bdi> אחד וחוסך שלושה</td></tr>
+        <tr><td><bdi>Session</bdi> אחד לכל הפרויקט</td><td><bdi>Context</bdi> מלא ב-M3, תשובות מתדרדרות, <bdi>Auto-compact</bdi> חוזר</td><td><bdi>Session</bdi> לאבן דרך, <bdi>Handoff</bdi> ו-<code>/clear</code> ביניהן</td></tr>
+        <tr><td>"תממש את כל האימות" בפקודה אחת</td><td><bdi>Diff</bdi> של 600 שורות ב-12 קבצים, בלתי אפשרי לסקור</td><td>צעדים: <bdi>hashing</bdi> ובדיקות; טבלאות; <bdi>Routes</bdi>; תלות; <bdi>Frontend</bdi></td></tr>
+        <tr><td>לתת ל-Claude "לתקן" את <code>test_tasks.py</code></td><td>שש בדיקות משתנות כדי לעבור; שינוי התנהגות מוסווה</td><td><bdi>fixture</bdi> חדש; שינוי מינימלי מאושר ידנית</td></tr>
+        <tr><td>הוספת תלות בלי <bdi>ADR</bdi></td><td><bdi>JWT</bdi>, <bdi>ORM</bdi> או ספריית מייל "כי זה נוח"</td><td>שאלה: מה ה-<bdi>stdlib</bdi> לא נותן? אם יש תשובה, <bdi>ADR</bdi>; אם אין, בלי תלות</td></tr>
+        <tr><td>סקירה עצמית בלבד</td><td>אותו <bdi>Session</bdi> שכתב את האימות מאשר שהוא בטוח</td><td><bdi>Subagent</bdi> קריאה בלבד + <code>/security-review</code> + אדם</td></tr>
+        <tr><td><bdi>bypass</bdi> "רק ל-CI"</td><td><code>--dangerously-skip-permissions</code> ב-<bdi>Workflow</bdi></td><td><code>--allowedTools</code> מצומצם, <code>--max-turns</code>, סקירה אנושית לפני מיזוג</td></tr>
+        <tr><td>תיעוד בסוף</td><td>M7 הופך לחפירה ארכיאולוגית של מה השתנה</td><td><code>/documentation-update</code> בכל <bdi>PR</bdi>; <bdi>ADR</bdi> ברגע ההחלטה</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="troubleshooting">Troubleshooting במהלך ה-Capstone</h2>
+  <ul>
+    <li><bdi>Hook</bdi> לא רץ או לא חוסם: <a href="ch39.html#hooks">פרק 39, כשל Hook</a>. הבדיקה הראשונה תמיד <code>chmod +x</code> ולוג <code>--debug-file</code>.</li>
+    <li>Claude לא משתמש ב-<code>feature-plan</code> או ב-<code>test-writer</code>: קראו להם בשם (<code>/feature-plan ...</code>, "use the test-writer subagent"), ובדקו <code>/skills</code> ו-<code>/context</code>. <a href="ch39.html#skills">פרק 39, Skill לא מופעל</a> ו-<a href="ch39.html#subagents">Subagents</a>.</li>
+    <li>יותר מדי בקשות אישור על <code>pytest</code>: החוקים ב-<code>allow</code> חייבים להתאים למחרוזת המדויקת; <code>Bash(cd backend &amp;&amp; pytest *)</code> שונה מ-<code>Bash(pytest *)</code>. <code>/permissions</code> מראה מה נטען. <a href="ch39.html#permissions">פרק 39, הרשאות</a>.</li>
+    <li>בדיקה עוברת מקומית ונכשלת ב-<bdi>CI</bdi>: כמעט תמיד אזור זמן, מסד משותף או משתנה סביבה. <a href="ch39.html#tests">פרק 39, בדיקות</a>.</li>
+    <li>ה-<bdi>Context</bdi> מתמלא באמצע M2: <code>/context</code>, ואז <bdi>Handoff</bdi> (<a href="ch40.html#p43">40.43</a>) ו-<code>/clear</code>. אל תמשיכו לדחוס.</li>
+    <li><code>/release-check</code> "לא קיים": ה-<bdi>Skill</bdi> חייב להיות ב-<code>.claude/skills/release-check/SKILL.md</code> (תיקייה, לא קובץ), ואז <code>/reload-skills</code>.</li>
+  </ul>
+
+  <h2 id="cost">עלות ו-Context</h2>
+  <p>ה-<bdi>Capstone</bdi> הוא המקום שבו רואים את ההבדל בין עבודה ממושמעת ללא ממושמעת בכסף. שלושה כללים שמרו את הפרויקט בתקציב: (1) <bdi>Session</bdi> לאבן דרך, כך שכל תור שולח <bdi>Context</bdi> קטן; (2) <bdi>Subagents</bdi> לסקירה ולכתיבת בדיקות, כי הם קוראים הרבה קבצים ב-<bdi>Context Window</bdi> משלהם ומחזירים סיכום; (3) <code>/usage</code> בסוף כל אבן דרך, כדי לתפוס חריגה מוקדם. בהמחשה שלנו, M2 (אימות) ו-M6 (הקשחה) היו היקרות: הראשונה בגלל שלושה סבבי תיקון על ה-<bdi>Frontend</bdi> לפני שהפעלנו את כלל ה-<code>/clear</code>, והשנייה בגלל שני סוכני סקירה מלאים על כל ה-<bdi>Diff</bdi>. שתיהן היו זולות יותר בסבב שני עם <bdi>Prompt</bdi> ממוקד. <bdi>Effort</bdi> נשאר <code>auto</code> לאורך כל הפרויקט; לא היה צורך ב-<code>max</code>. הרצות <code>claude -p</code> (למשל בדיקות רוחביות ב-M6) קיבלו <code>--max-turns 15 --max-budget-usd 2.00</code>. פירוט נוסף על מדידה ואופטימיזציה ב-<a href="ch30.html">פרק 30</a>.</p>
+
+  <h2 id="exercise">תרגיל: גרסאות של ה-Capstone</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 43.1</div>
+    <div class="body"><p><strong>סולו (שבוע):</strong> בצעו M1, M2 ו-M5 בלבד (הקמה, אימות, יומן ביקורת), עם כל השערים. הגישו את ה-<bdi>Repository</bdi>, את שלושת ה-<bdi>PRs</bdi> ואת דוח <code>/usage</code>. <strong>צוות (שבועיים):</strong> כל שבע אבני הדרך, כאשר M3 ו-M4 מפותחות במקביל בשני <bdi>Worktrees</bdi> על ידי שני אנשים, עם חוזה <bdi>API</bdi> משותף שנקבע מראש (<a href="ch38.html">פרק 38</a>). תעדו: כמה זמן חסך המקבול, ומה עלה יותר.</p></div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body"><p>בגרסת הסולו, M5 בלי M3 פשוט יותר (אין תגובות ליומן), אבל בדיקת האינטגרציה צריכה להתאים: הרשמה, כניסה, משימה, עדכון, מחיקה = חמש רשומות. הרווח העיקרי הוא לחוות את השערים על אבן דרך רגישה (אימות) ועל אבן דרך שכולה משמעת (יומן ביקורת: כל <bdi>Route</bdi> קורא ל-<code>record</code>). בגרסת הצוות, החוזה המשותף חייב לכלול את שדה <code>due_date</code> ב-<code>Task</code> ואת <code>comment_count</code>, אחרת מי שממזג שני יגלה התנגשות ב-<code>types.ts</code> וב-<code>models.py</code>. הניסיון החוזר של צוותים: המקבול חוסך זמן קיר ב-M3/M4 בכ-40%, ועולה יותר ב-<bdi>Tokens</bdi> בגלל שני <bdi>Sessions</bdi> שקוראים את אותו <bdi>Codebase</bdi>; המיזוג עצמו לוקח פחות מחצי שעה אם החוזה נשמר.</p></div>
+  </details>
+
+  <h2 id="review-checklist">רשימת בדיקה למנחה</h2>
+  <p>לבודק שמעריך <bdi>Capstone</bdi>. כל פריט הוא כן/לא עם ראיה.</p>
+  <ul class="check">
+    <li><code>.claude/settings.json</code> קיים, תקין (<code>claude doctor</code>), ואין בו <code>bypassPermissions</code> או <code>skipDangerousModePermissionPrompt</code>.</li>
+    <li>חוקי <code>deny</code> מכסים <code>.env*</code>, <code>rm -rf</code> ו-<code>git push --force</code>.</li>
+    <li>לפחות שני <bdi>Hooks</bdi> מוגדרים תחת מפתח <code>hooks</code>, עם <code>matcher</code> כמחרוזת ו-<code>timeout</code>.</li>
+    <li>ה-<bdi>Hook</bdi> החוסם משתמש ב-<code>exit 2</code> והודעה ב-<bdi>stderr</bdi>; נבדק ידנית.</li>
+    <li>שישה <bdi>Skills</bdi> ב-<code>.claude/skills/*/SKILL.md</code>, ו-<code>release-check</code> מסומן <code>disable-model-invocation: true</code>.</li>
+    <li>שלושה <bdi>Subagents</bdi> ב-<code>.claude/agents/</code>; סוכן האבטחה קריאה בלבד.</li>
+    <li><bdi>CLAUDE.md</bdi> קצר, כולל פקודות, מוסכמות, משתני סביבה, כללי עבודה ו-<bdi>DoD</bdi>; אין בו תיאור קובץ-קובץ.</li>
+    <li>שבעה <bdi>PRs</bdi> ממוזגים, כל אחד עם סקירה אנושית; אין <bdi>Commit</bdi> ישיר ל-<code>main</code>.</li>
+    <li>לכל אבן דרך יש תוכנית מאושרת לפני קוד (ראיה: תמליל, <code>SPEC</code>/<code>PLAN</code> או תיאור ה-<bdi>PR</bdi>).</li>
+    <li>סיסמאות נשמרות רק כ-<bdi>Hash</bdi> עם <bdi>salt</bdi>; אימות ב-<code>compare_digest</code>.</li>
+    <li><bdi>Tokens</bdi> נשמרים כ-<bdi>Hash</bdi>, עם פקיעה, ומבוטלים ב-<code>logout</code>.</li>
+    <li>כל <bdi>Endpoint</bdi> של משימות ותגובות מחזיר 401 בלי <bdi>Token</bdi>; <code>/audit</code> מחזיר 403 ל-<code>member</code>.</li>
+    <li>מחיקת תגובה מותרת רק למחבר או <code>admin</code>, ויש בדיקה.</li>
+    <li><code>comment_count</code> מחושב בשאילתה אחת; אין N+1 (ראיה: הקוד + בדיקה).</li>
+    <li><code>due_date</code> בעבר נדחה ביצירה; <code>reminders</code> לא שולח פעמיים; <code>--dry-run</code> לא כותב.</li>
+    <li>כל <bdi>Route</bdi> משנה קורא ל-<code>audit.record</code> באותה <bdi>Transaction</bdi>; אין <bdi>Endpoint</bdi> מחיקה ליומן.</li>
+    <li><code>details</code> ביומן לא מכיל סיסמאות או <bdi>Tokens</bdi> (ראיה: <bdi>REDACT</bdi> + בדיקה).</li>
+    <li>כל <bdi>SQL</bdi> עם פרמטרים; אין <bdi>f-string</bdi> עם קלט משתמש.</li>
+    <li>בדיקות: <code>pytest -q</code> ירוק, לפחות 35 בדיקות, כולל <code>test_flow_v1.py</code>; <code>npm run typecheck</code> ירוק.</li>
+    <li>אף בדיקה קיימת לא רוככה או נמחקה (השוואה ל-<code>test_tasks.py</code> המקורי).</li>
+    <li><bdi>CI</bdi> ירוק על <code>main</code>; ה-<bdi>Workflow</bdi> המקורי נשמר; <code>reminders.yml</code> עם הרשאות מינימליות.</li>
+    <li>שלושה <bdi>ADRs</bdi> עם סעיף תוצאות שליליות; <bdi>README</bdi> מתעד את כל משתני הסביבה; <code>CHANGELOG.md</code> ו-<bdi>Release notes</bdi> תואמים ל-<code>git log</code>.</li>
+    <li>דוח סקירת אבטחה קיים; אין ממצאי <bdi>Critical/High</bdi> פתוחים; מגבלות ידועות מתועדות.</li>
+    <li>תג <code>v1.0.0</code>; <code>/release-check 1.0.0</code> מחזיר READY.</li>
+    <li>ראיות לניהול <bdi>Context</bdi>: <code>/clear</code> בין אבני דרך, לפחות <bdi>Handoff</bdi> אחד כתוב, <code>/usage</code> בתוך התקציב.</li>
+  </ul>
+
+  <h2 id="stretch">שיפורים מוצעים (Stretch goals)</h2>
+  <ul>
+    <li><strong>הגבלת קצב על כניסה</strong> עם טבלת ניסיונות ב-<bdi>SQLite</bdi> (בלי תלות חיצונית) + <bdi>ADR</bdi>.</li>
+    <li><strong>מסירת תזכורות אמיתית</strong> דרך <bdi>Webhook</bdi> או מייל, כ-<code>deliver()</code> ניתן להחלפה, עם <bdi>Secret</bdi> ב-<bdi>GitHub Secrets</bdi>.</li>
+    <li><strong>Plugin צוותי:</strong> אריזת ששת ה-<bdi>Skills</bdi>, שלושת ה-<bdi>Subagents</bdi> וה-<bdi>Hooks</bdi> ל-<bdi>Plugin</bdi> ב-<bdi>Marketplace</bdi> פנימי (<a href="ch26.html">פרק 26</a>), עם <code>claude plugin validate</code> ב-<bdi>CI</bdi>.</li>
+    <li><strong>סקירה אוטומטית ב-PR:</strong> <bdi>Workflow</bdi> עם <code>anthropics/claude-code-action@v1</code> שמריץ את <code>/code-review</code> על כל <bdi>PR</bdi> (<a href="ch28.html">פרק 28</a>), עם <code>--max-turns</code>.</li>
+    <li><strong>ריצה מקבילה מבוקרת:</strong> M3 ו-M4 עצמאיות; לנסות אותן במקביל ב-<bdi>Worktrees</bdi> עם חוזה משותף (<a href="ch38.html">פרק 38</a>), ולמדוד את ההבדל בזמן ובעלות.</li>
+    <li><strong>MCP:</strong> חיבור <bdi>GitHub MCP</bdi> או <bdi>Connector</bdi> ל-<bdi>Issue tracker</bdi> כדי ש-Claude יקרא את הדרישות ישירות (<a href="ch23.html">פרק 23</a>, <a href="ch24.html">פרק 24</a>).</li>
+    <li><strong>Agent SDK:</strong> סקריפט לילי ב-<bdi>Python</bdi> שמריץ את <code>/release-check</code> ומדווח, בסגנון <a href="ch32.html">פרק 32</a>.</li>
+  </ul>
+
+  <h2 id="summary">סיכום: המסע של המדריך</h2>
+  <p>התחלנו ב<a href="ch01.html">פרק 1</a> בשאלה מהו <bdi>Claude Code</bdi> ובמה הוא שונה מצ'אט, ועברנו דרך התקנה, ה-<bdi>Session</bdi> הראשון והפקודות הבסיסיות (<a href="ch02.html">2</a> עד <a href="ch04.html">4</a>). למדנו לדבר איתו במבנה שמייצר תוצאות (<a href="ch05.html">5</a>), לקרוא <bdi>Codebase</bdi> ולתכנן לפני שכותבים (<a href="ch06.html">6</a>, <a href="ch07.html">7</a>), לבחור <bdi>Model</bdi> ו-<bdi>Effort</bdi> (<a href="ch08.html">8</a>), ולבצע את מחזור הפיתוח היומיומי: שינוי מבוקר, <bdi>Debugging</bdi>, בדיקות, <bdi>Refactoring</bdi> ו-<bdi>Git</bdi> (<a href="ch09.html">9</a> עד <a href="ch13.html">13</a>). בחלק על ניהול והתאמה הבנו את ה-<bdi>Context Window</bdi> כמשאב המרכזי (<a href="ch14.html">14</a>), את <bdi>CLAUDE.md</bdi> והזיכרון (<a href="ch15.html">15</a>, <a href="ch16.html">16</a>), את ההגדרות, ההרשאות, ה-<bdi>Checkpoints</bdi> והאבטחה (<a href="ch17.html">17</a> עד <a href="ch20.html">20</a>). בחלק ההרחבה בנינו <bdi>Skills</bdi>, <bdi>Hooks</bdi>, <bdi>MCP</bdi>, <bdi>Connectors</bdi>, <bdi>Subagents</bdi> ו-<bdi>Plugins</bdi> (<a href="ch21.html">21</a> עד <a href="ch26.html">26</a>), חיברנו את הכול ל-<bdi>IDE</bdi>, ל-<bdi>GitHub</bdi>, לצוות ולתקציב (<a href="ch27.html">27</a> עד <a href="ch30.html">30</a>), ויצאנו מהטרמינל אל ה-<bdi>Agent SDK</bdi> והאוטומציה (<a href="ch31.html">31</a> עד <a href="ch33.html">33</a>). התרחישים המתקדמים (<a href="ch34.html">34</a> עד <a href="ch38.html">38</a>) הראו איך זה נראה על <bdi>Feature</bdi> שלם, <bdi>Migration</bdi>, <bdi>Legacy</bdi>, סקירת ארכיטקטורה ועבודה מרובת סוכנים, וחלק ט נתן את כלי העבודה: <bdi>Troubleshooting</bdi>, ספריית <bdi>Prompts</bdi>, <bdi>Cheat Sheet</bdi>, מילון מונחים, והפרויקט הזה.</p>
+  <p>אם יש משפט אחד לקחת מהמדריך, הוא זה: <bdi>Claude Code</bdi> הוא סוכן שעובד הכי טוב כשנותנים לו הקשר מדויק, גבולות ברורים ודרך לבדוק את עצמו, וכשאתם נשארים בעמדת הבקרה: מתכננים לפני, סוקרים בהקשר נקי אחרי, ומודדים תמיד. <bdi>TaskFlow v1.0</bdi> הוא ההוכחה שאפשר לעשות את זה בשבועיים, בלי לוותר על אבטחה, על בדיקות או על תיעוד. עכשיו תורכם, על הפרויקט שלכם.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (verify, plan, CLAUDE.md, subagents, common failure patterns)</a> |
+      <a href="https://code.claude.com/docs/en/memory">CLAUDE.md and memory</a> |
+      <a href="https://code.claude.com/docs/en/settings">Settings (permissions, hooks, precedence)</a> |
+      <a href="https://code.claude.com/docs/en/permissions">Permissions and rules</a> |
+      <a href="https://code.claude.com/docs/en/hooks">Hooks reference (exit codes, Stop hook)</a> |
+      <a href="https://code.claude.com/docs/en/hooks-guide">Hooks guide (protect files example)</a> |
+      <a href="https://code.claude.com/docs/en/skills">Skills (frontmatter, disable-model-invocation, allowed-tools)</a> |
+      <a href="https://code.claude.com/docs/en/sub-agents">Subagents (tools, permissionMode, delegation)</a> |
+      <a href="https://code.claude.com/docs/en/security">Security</a> |
+      <a href="https://code.claude.com/docs/en/github-actions">GitHub Actions</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands (/security-review, /code-review, /usage, /clear)</a> |
+      <a href="https://code.claude.com/docs/en/costs">Manage costs</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch42.html"><span class="lbl">הפרק הקודם</span>Glossary</a>
+    <a href="../index.html"><span class="lbl">הפרק הבא</span>תוכן עניינים</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

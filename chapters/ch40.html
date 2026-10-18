@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 40: Prompt Library</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ט | פרק 40</p>
+  <h1>Prompt Library</h1>
+  <p class="lead">ספרייה אצורה של <bdi>Prompts</bdi> מוכנים להעתקה, מסודרים לפי שלב בעבודה: <bdi>Onboarding</bdi> ל-<bdi>Repository</bdi>, תכנון <bdi>Feature</bdi>, חקירת <bdi>Bug</bdi>, כתיבת בדיקות, <bdi>Refactoring</bdi>, סקירות אבטחה, ביצועים, <bdi>Database</bdi>, <bdi>API</bdi> ו-<bdi>Frontend</bdi>, תיעוד, <bdi>Migration</bdi>, סקירת <bdi>Pull Request</bdi>, ניתוח כשלי <bdi>CI</bdi>, <bdi>Handoff</bdi> ומוכנות לשחרור. כל <bdi>Prompt</bdi> מגיע עם מטרה, מתי להשתמש בו, למה לצפות, טיפ אימות והפניה לפרק המעמיק. כולם בנויים לפי המבנה שלמדנו ב-<a href="ch05.html">פרק 5</a>: <bdi>Context</bdi>, <bdi>Objective</bdi>, <bdi>Scope</bdi>, <bdi>Constraints</bdi>, <bdi>Acceptance Criteria</bdi>, <bdi>Verification</bdi> ו-<bdi>Out of Scope</bdi>. הדוגמאות בסוגריים מסולסלים מוחלפות בערכים שלכם.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="how-to-use">איך להשתמש בספרייה</h2>
+  <p>ה-<bdi>Prompts</bdi> כאן הם נקודת פתיחה, לא נוסחה קסומה. הם עובדים כי הם מכניסים ל-<bdi>Context</bdi> של Claude את מה שהוא לא יכול לנחש: מה בדיוק צריך להיות נכון בסוף, מה מותר לגעת, מה אסור, ואיך הוא יכול לבדוק את עצמו. התיעוד הרשמי מנסח את זה כך: ככל שההוראה מדויקת יותר, כך פחות תיקונים תצטרכו; ותנו ל-Claude דרך לאמת את עבודתו, כי אחרת אתם לולאת האימות.</p>
+  <p>כל <bdi>Prompt</bdi> באנגלית (Claude מגיב היטב לעברית, אבל מונחי הקוד, שמות הקבצים והפקודות ממילא באנגלית, ואחידות שפה מפחיתה בלבול). ה-<bdi>Placeholders</bdi> כתובים כ-<code>{name}</code>. החליפו את כולם לפני שליחה; <bdi>Placeholder</bdi> שנשאר גורם ל-Claude לנחש או לשאול.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מרכיב בכל Prompt</th><th>למה הוא שם</th></tr></thead>
+      <tbody>
+        <tr><td>Context</td><td>קבצים, <bdi>Stack</bdi>, החלטות קודמות, לוגים. הפניה עם <code>@path</code> טוענת את הקובץ בפועל.</td></tr>
+        <tr><td>Objective</td><td>משפט אחד: מה צריך להיות נכון בסוף.</td></tr>
+        <tr><td>Scope / Out of scope</td><td>מה מותר ומה אסור לשנות. זה מה שמונע "שיפורים" לא מבוקשים.</td></tr>
+        <tr><td>Constraints</td><td>מדיניות תלויות, סגנון, "plan first", "small steps with diffs".</td></tr>
+        <tr><td>Acceptance criteria</td><td>טענות ניתנות לבדיקה. הרכיב שמשפר תוצאות יותר מכל אחר.</td></tr>
+        <tr><td>Verification</td><td>הפקודות המדויקות ומה נחשב הצלחה. סוגר את הלולאה בלעדיכם.</td></tr>
+        <tr><td>Required output</td><td>מה להחזיר: הסבר, <bdi>Diff</bdi>, פלט בדיקות, שאלות פתוחות. דרשו ראיות, לא הצהרות.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout tip"><span class="title">Best Practice</span><p>ל-<bdi>Prompts</bdi> ארוכים, הקלידו <code>\</code> ואז <bdi>Enter</bdi> לשורה חדשה (בכל <bdi>Terminal</bdi>), או פתחו עורך חיצוני עם <code>Ctrl+G</code>. אפשר גם לשמור את ה-<bdi>Prompt</bdi> בקובץ ולשלוח <code>cat prompt.md | claude</code> להרצה לא-אינטראקטיבית (<a href="ch33.html">פרק 33</a>).</p></div>
+
+  <h2 id="adapting">להתאים Prompt לפרויקט שלכם</h2>
+  <h3 id="adapt-vars">משתנים והקשר</h3>
+  <p>שלוש שאלות לפני כל שליחה: (1) האם כל <code>{placeholder}</code> הוחלף בערך אמיתי? (2) האם הוספתי את הקבצים הרלוונטיים עם <code>@</code> במקום לתאר אותם במילים? (3) האם קריטריון הקבלה שלי ניתן לבדיקה בפקודה, ולא רק "שיעבוד"? כשה-<bdi>Prompt</bdi> מפנה ל"פקודת הבדיקה של הפרויקט", העדיפו לכתוב את הפקודה במפורש (<code>cd backend &amp;&amp; pytest -q</code> ב-<bdi>TaskFlow</bdi>) גם אם היא כבר ב-<bdi>CLAUDE.md</bdi>; כפילות קטנה עדיפה על ניחוש.</p>
+  <h3 id="adapt-claudemd">מה שייך ל-CLAUDE.md ולא ל-Prompt</h3>
+  <p>אם אתם מוצאים את עצמכם מעתיקים את אותם משפטים לכל <bdi>Prompt</bdi> ("no ORM, parameterized SQL only", "TypeScript strict, no any", "tests pass and typecheck passes before done"), הם שייכים ל-<bdi>CLAUDE.md</bdi> (<a href="ch15.html">פרק 15</a>). ה-<bdi>Prompt</bdi> צריך להכיל את מה שייחודי למשימה הזאת. התיעוד הרשמי מזהיר: <bdi>CLAUDE.md</bdi> ארוך מדי גורם ל-Claude להתעלם מחצי ממנו, ולכן גם שם, רק מה שמונע טעויות.</p>
+  <h3 id="adapt-skill">מתי Skill במקום Prompt</h3>
+  <p><bdi>Prompt</bdi> חוזר, עם צעדים קבועים, שיותר מאדם אחד בצוות צריך, הוא מועמד להפוך ל-<bdi>Skill</bdi> (<a href="ch21.html">פרק 21</a>). היתרונות: הוא נטען לפי דרישה בלי לנפח את ה-<bdi>Context</bdi>, הוא מנוהל ב-<bdi>Git</bdi>, אפשר להעביר לו ארגומנטים (<code>$ARGUMENTS</code>), ואפשר לסמן <code>disable-model-invocation: true</code> לזרימות עם תופעות לוואי. חמישה מה-<bdi>Prompts</bdi> בפרק הזה כבר קיימים כ-<bdi>Skills</bdi> של המדריך: <code>code-review</code>, <code>bug-investigation</code>, <code>feature-plan</code>, <code>test-generator</code> ו-<code>documentation-update</code>. כלל אצבע: פעם אחת = <bdi>Prompt</bdi>; שלוש פעמים = <bdi>Skill</bdi>; "חייב לקרות תמיד" = <bdi>Hook</bdi> (<a href="ch22.html">פרק 22</a>).</p>
+
+  <h2 id="index">אינדקס מהיר</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>קטגוריה</th><th>Prompts</th><th>פרק מעמיק</th></tr></thead>
+      <tbody>
+        <tr><td><a href="#onboarding">Repository onboarding</a></td><td>40.1 מפת Codebase, 40.2 מעקב זרימה, 40.3 ניתוח השפעה</td><td><a href="ch06.html">6</a></td></tr>
+        <tr><td><a href="#planning">Feature planning</a></td><td>40.4 ראיון ל-SPEC, 40.5 תוכנית ב-Plan Mode, 40.6 פירוק ל-PRs</td><td><a href="ch07.html">7</a>, <a href="ch34.html">34</a></td></tr>
+        <tr><td><a href="#bugs">Bug investigation</a></td><td>40.7 חקירת תסמין, 40.8 בדיקה נכשלת, 40.9 Incident מלוגים</td><td><a href="ch10.html">10</a></td></tr>
+        <tr><td><a href="#tests">Test creation</a></td><td>40.10 בדיקות למודול, 40.11 TDD, 40.12 העלאת כיסוי</td><td><a href="ch11.html">11</a></td></tr>
+        <tr><td><a href="#refactoring">Refactoring</a></td><td>40.13 תוכנית בלי לגעת, 40.14 צעדים קטנים, 40.15 חילוץ מודול</td><td><a href="ch12.html">12</a></td></tr>
+        <tr><td><a href="#security">Security review</a></td><td>40.16 Subagent אבטחה, 40.17 סריקת סודות, 40.18 סקירת Endpoint</td><td><a href="ch20.html">20</a></td></tr>
+        <tr><td><a href="#performance">Performance review</a></td><td>40.19 נתיב חם, 40.20 יעד מדיד, 40.21 N+1 ושאילתות</td><td><a href="ch30.html">30</a>, <a href="ch34.html">34</a></td></tr>
+        <tr><td><a href="#database">Database review</a></td><td>40.22 סקירת סכימה, 40.23 בטיחות Migration, 40.24 שאילתות</td><td><a href="ch34.html">34</a>, <a href="ch35.html">35</a></td></tr>
+        <tr><td><a href="#api">API review</a></td><td>40.25 חוזה Endpoint, 40.26 עקביות שגיאות, 40.27 שינוי שובר</td><td><a href="ch34.html">34</a>, <a href="ch37.html">37</a></td></tr>
+        <tr><td><a href="#frontend">Frontend review</a></td><td>40.28 קומפוננטה, 40.29 מצב ונתונים, 40.30 נגישות</td><td><a href="ch34.html">34</a></td></tr>
+        <tr><td><a href="#docs">Documentation</a></td><td>40.31 README, 40.32 Docstrings, 40.33 ADR</td><td><a href="ch16.html">16</a>, <a href="ch34.html">34</a></td></tr>
+        <tr><td><a href="#migration">Migration</a></td><td>40.34 מ-X ל-Y, 40.35 Porting, 40.36 שדרוג תלות</td><td><a href="ch35.html">35</a></td></tr>
+        <tr><td><a href="#pr">Pull Request review</a></td><td>40.37 לפני Commit, 40.38 סקירת PR, 40.39 סוקר יריב</td><td><a href="ch13.html">13</a>, <a href="ch28.html">28</a></td></tr>
+        <tr><td><a href="#ci">CI failure analysis</a></td><td>40.40 ניתוח ריצה, 40.41 זיהוי Flaky, 40.42 תיקון Workflow</td><td><a href="ch28.html">28</a>, <a href="ch39.html">39</a></td></tr>
+        <tr><td><a href="#handoff">Handoff summary</a></td><td>40.43 Handoff ל-Session חדש, 40.44 סיכום ל-CLAUDE.md, 40.45 Handoff לעמית</td><td><a href="ch14.html">14</a></td></tr>
+        <tr><td><a href="#release">Release readiness</a></td><td>40.46 Release notes, 40.47 בדיקת מוכנות, 40.48 גרסה ו-Changelog</td><td><a href="ch13.html">13</a>, <a href="ch28.html">28</a></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="onboarding">Repository onboarding</h2>
+
+  <h3 id="p1">40.1 מפת Codebase</h3>
+  <ul>
+    <li><strong>מטרה:</strong> תמונה ראשונה של <bdi>Repository</bdi> לא מוכר: ארכיטקטורה, תיקיות מפתח, איך החלקים מתחברים.</li>
+    <li><strong>מתי:</strong> יום ראשון בפרויקט, או לפני שינוי באזור שלא נגעתם בו. עדיף ב-<bdi>Plan Mode</bdi>.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>## Context
+I am new to this repository. Stack: {stack}. Entry points I know of: {entry_points}.
+
+## Objective
+Give me an overview of this codebase: architecture, key directories, and how the pieces connect.
+
+## Constraints
+Read-only. Do not modify files. Prefer reading configuration, entry points and tests over guessing.
+
+## Required output
+1. A one-paragraph summary of what the system does.
+2. A directory map with one line per top-level directory.
+3. The main runtime flow (request in, response out) as numbered steps with file references.
+4. Three things that surprised you or look risky.
+5. The commands you found for build, test and run.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> סיכום מובנה עם הפניות לקבצים אמיתיים; ב-<bdi>TaskFlow</bdi> תראו את <code>app/main.py</code>, ה-<bdi>Router</bdi>, שכבת ה-<bdi>SQLite</bdi> ואת <code>App.tsx</code>.</li>
+    <li><strong>טיפ אימות:</strong> בחרו טענה אחת (למשל "הסטטוסים נאכפים ב-<bdi>CHECK constraint</bdi>") ופתחו את הקובץ שהוא ציטט.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch06.html">פרק 6</a>.</li>
+  </ul>
+
+  <h3 id="p2">40.2 מעקב אחרי זרימה מקצה לקצה</h3>
+  <ul>
+    <li><strong>מטרה:</strong> להבין מה קורה כשמשתמש מבצע פעולה, מה-<bdi>UI</bdi> ועד ה-<bdi>Database</bdi>.</li>
+    <li><strong>מתי:</strong> לפני שינוי בזרימה קיימת או כשמצטרפים כמפתחי <bdi>Frontend</bdi> ל-<bdi>Backend</bdi> ולהפך.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>I am a {role}. Walk me through what happens when a user {action}, from the UI down to the persisted result.
+For each step name the file and function, the data shape passed along, and where validation happens.
+End with: where would a bug most likely hide in this flow, and which test currently covers each step.
+Read-only, do not change files.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רצף ממוספר: <code>App.tsx</code> ← <code>api.ts</code> ← <code>routers/tasks.py</code> ← <code>database.py</code>, עם ציון בדיקות קיימות.</li>
+    <li><strong>טיפ אימות:</strong> בקשו "show me the exact line where {value} is validated" ובדקו שהשורה קיימת.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch06.html">פרק 6</a>.</li>
+  </ul>
+
+  <h3 id="p3">40.3 ניתוח השפעה לפני מחיקה או שינוי</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לדעת מה יישבר אם תשנו או תמחקו רכיב.</li>
+    <li><strong>מתי:</strong> לפני <bdi>Refactoring</bdi>, הסרת קוד מת או שינוי חתימה.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>What would break if I {changed_or_deleted} {target}?
+List every caller and every test that references it, grouped by directory.
+Classify each as: must change / probably fine / unclear, and say why.
+Do not make any changes yet.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימת תלויות מסווגת. Claude ישתמש בחיפוש (<bdi>Grep</bdi>) ולא בזיכרון.</li>
+    <li><strong>טיפ אימות:</strong> הריצו בעצמכם <code>grep -rn "{target}" --include=*.py --include=*.ts .</code> והשוו את המספר.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch06.html">פרק 6</a>, <a href="ch12.html">פרק 12</a>.</li>
+  </ul>
+
+  <h2 id="planning">Feature planning</h2>
+
+  <h3 id="p4">40.4 ראיון שמסתיים ב-SPEC.md</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לתת ל-Claude לחלץ מכם את הדרישות, כולל מקרי קצה שלא חשבתם עליהם, ולכתוב מפרט.</li>
+    <li><strong>מתי:</strong> <bdi>Feature</bdi> גדול, לפני שנוגעים בקוד. אחרי המפרט, פתחו <bdi>Session</bdi> חדש ליישום.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>I want to build {brief_description}. Interview me in detail using the AskUserQuestion tool.
+Ask about technical implementation, UI/UX, edge cases, concerns, and tradeoffs.
+Don't ask obvious questions, dig into the hard parts I might not have considered.
+Keep interviewing until we've covered everything, then write a complete spec to SPEC.md with:
+files and interfaces involved, what is out of scope, and an end-to-end verification step.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> סבב שאלות (בדרך כלל 5 עד 12), ואז קובץ <code>SPEC.md</code> עם סעיף אימות.</li>
+    <li><strong>טיפ אימות:</strong> קראו את סעיף <bdi>Out of scope</bdi>; אם הוא ריק, הראיון לא היה מספיק קשה.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch07.html">פרק 7</a>, <a href="ch34.html">פרק 34</a>.</li>
+  </ul>
+
+  <h3 id="p5">40.5 תוכנית יישום ב-Plan Mode</h3>
+  <ul>
+    <li><strong>מטרה:</strong> תוכנית מפורטת עם קבצים, סדר, סיכונים ובדיקות, לפני שורת קוד אחת.</li>
+    <li><strong>מתי:</strong> כל שינוי שנוגע ביותר מקובץ אחד או באזור לא מוכר. הפעילו <code>Shift+Tab</code> עד <bdi>plan mode</bdi>, או <code>claude --permission-mode plan</code>.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt (plan mode)</div><pre><code>## Context
+Feature: {feature}. Spec: @SPEC.md. Relevant code: @{dir_or_files}.
+
+## Objective
+Produce an implementation plan I can approve before any code changes.
+
+## Required output
+1. Files to add or change, one line each, with the reason.
+2. Order of work, smallest safe increments first, each ending in a runnable check.
+3. Data model or interface changes, with the exact new types or schema.
+4. Tests to write, by layer.
+5. Risks and open questions. Do not implement.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> תוכנית שאפשר לערוך (<code>Ctrl+G</code>) ולאשר. אחרי האישור, יציאה מ-<bdi>Plan Mode</bdi> ויישום לפי הסדר.</li>
+    <li><strong>טיפ אימות:</strong> ודאו שכל צעד בתוכנית מסתיים בבדיקה שאפשר להריץ; צעד בלי בדיקה הוא צעד שקשה לאשר.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch07.html">פרק 7</a>.</li>
+  </ul>
+
+  <h3 id="p6">40.6 פירוק Feature ל-PRs עצמאיים</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לחלק עבודה גדולה ליחידות שאפשר לסקור ולמזג בנפרד, ואם צריך, להקביל.</li>
+    <li><strong>מתי:</strong> אחרי התוכנית, לפני שמחליטים על סוכן אחד או כמה.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Take the plan in @{plan_file} and split it into independent pull requests.
+For each PR: title, files it owns, the shared contract it depends on (types, schema, endpoints),
+its acceptance criteria, and the exact verification command.
+Flag any two PRs that would touch the same file; propose how to remove the overlap.
+Recommend a merge order. Do not implement.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימת <bdi>PRs</bdi> עם מטריצת בעלות. זה הבסיס ל-<a href="ch38.html">פרק 38</a>.</li>
+    <li><strong>טיפ אימות:</strong> אם שני <bdi>PRs</bdi> חולקים קובץ, אל תמשיכו לפני שהחפיפה נפתרה.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch34.html">פרק 34</a>, <a href="ch38.html">פרק 38</a>.</li>
+  </ul>
+
+  <h2 id="bugs">Bug investigation</h2>
+
+  <h3 id="p7">40.7 חקירת תסמין עד שורש הבעיה</h3>
+  <ul>
+    <li><strong>מטרה:</strong> למצוא ולתקן את הסיבה, לא את התסמין, עם בדיקה שמשחזרת.</li>
+    <li><strong>מתי:</strong> דיווח משתמש או תקלה שאתם יכולים לתאר, גם בלי לדעת איפה היא.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>## Context
+Users report that {symptom} when {conditions}. Likely area: @{suspect_dir}. Logs or error: {paste}.
+
+## Objective
+Find and fix the root cause.
+
+## Constraints
+First write a failing test that reproduces the issue, then fix, then run the full suite.
+Do not modify existing tests. Do not suppress the error or add a workaround at the call site.
+If you find more than one plausible cause, list them with evidence and ask before changing code.
+
+## Verification
+{test_command}, all tests pass including the new one.
+
+## Required output
+The root cause in two sentences, the diff, and the test output.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> בדיקה חדשה שנכשלת, תיקון ממוקד, פלט חבילה ירוק.</li>
+    <li><strong>טיפ אימות:</strong> <code>git diff -- {tests_dir}</code> חייב להכיל רק את הבדיקה החדשה.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch10.html">פרק 10</a>.</li>
+  </ul>
+
+  <h3 id="p8">40.8 בדיקה נכשלת: תקנו את הקוד, לא את הבדיקה</h3>
+  <ul>
+    <li><strong>מטרה:</strong> טיפול בבדיקה אדומה בלי הפיתוי לרכך <bdi>Assertion</bdi>.</li>
+    <li><strong>מתי:</strong> אחרי שינוי שלכם או של Claude, או כשה-<bdi>CI</bdi> אדום.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>The {test_name} test in @{test_file} is failing. Find out why and fix the root cause in the application code.
+Do not modify files under {tests_dir}. If you believe the test itself is wrong, stop and explain why before changing anything.
+Run {test_command} and show me the full output, not a summary.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> הסבר קצר, תיקון בקוד היעד, פלט מלא.</li>
+    <li><strong>טיפ אימות:</strong> אם Claude טוען שהבדיקה שגויה, קראו את נימוקו לפני שאתם מאשרים שינוי בה.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch10.html">פרק 10</a>, <a href="ch11.html">פרק 11</a>.</li>
+  </ul>
+
+  <h3 id="p9">40.9 Incident: מלוגים לסיבה סבירה</h3>
+  <ul>
+    <li><strong>מטרה:</strong> אבחון מהיר בזמן תקלה בייצור, מבוסס ראיות.</li>
+    <li><strong>מתי:</strong> יש לוגים, פריסות אחרונות ושינויי הגדרות; צריך השערה מדורגת.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>{symptom} started at {time}. Here are the logs: @{log_file}. Recent deploys: {deploys}. Config changes: {changes}.
+Check the logs, the recent deploys, and the config changes, then tell me the most likely cause,
+ranked with the evidence for each. Propose the smallest safe mitigation and the command or change to apply it.
+Do not apply anything without my confirmation.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימת השערות מדורגת עם ציטוטים מהלוג והצעת <bdi>Mitigation</bdi> קטנה.</li>
+    <li><strong>טיפ אימות:</strong> דרשו לכל השערה שורת לוג או <bdi>Commit</bdi> תומך; השערה בלי ראיה יורדת בדירוג.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch10.html">פרק 10</a>, <a href="ch36.html">פרק 36</a>.</li>
+  </ul>
+
+  <h2 id="tests">Test creation</h2>
+
+  <h3 id="p10">40.10 בדיקות למודול קיים</h3>
+  <ul>
+    <li><strong>מטרה:</strong> כיסוי ממוקד למודול, כולל מקרי קצה, בסגנון הקיים.</li>
+    <li><strong>מתי:</strong> קוד בלי בדיקות, או לפני <bdi>Refactoring</bdi>.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Write tests for @{path} covering: the happy path, {edge_case_1}, {edge_case_2}, and error handling.
+Follow the structure and fixtures already used in @{existing_test_file}. Avoid mocks unless the dependency is external.
+Run {test_command}, fix any failures in the tests you wrote (not in the code under test), and show the output.
+Do not change files outside {tests_dir}.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> קובץ בדיקות חדש או מורחב, שעובר, בסגנון הפרויקט (ב-<bdi>TaskFlow</bdi>: <bdi>fixture</bdi> ה-<code>client</code> ו-<code>TASKFLOW_DB</code> זמני).</li>
+    <li><strong>טיפ אימות:</strong> הכניסו <bdi>Bug</bdi> קטן ידנית לקוד היעד ובדקו שבדיקה אחת לפחות נופלת.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch11.html">פרק 11</a>.</li>
+  </ul>
+
+  <h3 id="p11">40.11 TDD: בדיקות קודם</h3>
+  <ul>
+    <li><strong>מטרה:</strong> להגדיר התנהגות בבדיקות ורק אז לממש.</li>
+    <li><strong>מתי:</strong> <bdi>Feature</bdi> עם התנהגות ברורה שאפשר לתאר כ-<bdi>Test Cases</bdi>.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Write tests for {feature} first, based on these cases: {cases}. Run them and confirm they fail for the right reason.
+Then implement {feature} in {scope} until they pass, without weakening any test.
+Run the full suite with {test_command} at the end and show the output.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> שני שלבים מובחנים: אדום, ואז ירוק. Claude יראה שהבדיקות נכשלות לפני היישום.</li>
+    <li><strong>טיפ אימות:</strong> ודאו שהכישלון הראשוני הוא מהסיבה הנכונה (פונקציה חסרה), לא משגיאת <bdi>Import</bdi>.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch11.html">פרק 11</a>.</li>
+  </ul>
+
+  <h3 id="p12">40.12 העלאת כיסוי לפי דוח</h3>
+  <ul>
+    <li><strong>מטרה:</strong> להשקיע בבדיקות איפה שהכי חסר.</li>
+    <li><strong>מתי:</strong> יש דוח כיסוי; רוצים להעלות אותו בצורה מסודרת.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Read the coverage report at @{report} and add tests for the lowest-covered files until each is above {target}%.
+Prioritize branches that handle errors and input validation over trivial getters.
+Regenerate the report with {coverage_command} after each file and show the before/after numbers.
+Stop after {n} files and summarize what remains.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> טבלת לפני/אחרי לכל קובץ, ובדיקות שמכוונות לענפי שגיאה.</li>
+    <li><strong>טיפ אימות:</strong> הריצו את פקודת הכיסוי בעצמכם והשוו למספרים שדווחו.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch11.html">פרק 11</a>.</li>
+  </ul>
+
+  <h2 id="refactoring">Refactoring</h2>
+
+  <h3 id="p13">40.13 תוכנית Refactoring בלי לגעת בקוד</h3>
+  <ul>
+    <li><strong>מטרה:</strong> להבין מה ישתנה ובאיזה סדר לפני שמתחילים.</li>
+    <li><strong>מתי:</strong> <bdi>Refactoring</bdi> שחוצה כמה קבצים.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt (plan mode)</div><pre><code>Plan how to refactor {target} to {goal}. List the files you would change and what would change in each,
+the tests that currently pin the behavior, and any behavior that is not covered by tests today.
+Propose the smallest sequence of steps where each step leaves the suite green.
+Don't make any changes yet.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> תוכנית מדורגת עם זיהוי של פערי כיסוי. אם יש פערים, הצעד הראשון הוא בדיקות מקבעות.</li>
+    <li><strong>טיפ אימות:</strong> כל צעד חייב להסתיים ב"suite green"; אם לא, בקשו לפרק אותו.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch12.html">פרק 12</a>.</li>
+  </ul>
+
+  <h3 id="p14">40.14 Refactoring בצעדים קטנים עם Diff ביניהם</h3>
+  <ul>
+    <li><strong>מטרה:</strong> שינוי מבנה בלי שינוי התנהגות, תחת בקרה.</li>
+    <li><strong>מתי:</strong> אחרי התוכנית מ-40.13.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Refactor {target} to {goal} following @{plan_file}. Work in small steps: after each step run {test_command},
+show me the diff, and wait for my confirmation before the next step.
+Acceptance criteria: all existing tests pass unchanged; no public interface changes unless listed in the plan.
+Out of scope: formatting-only changes in files you did not need to touch, and any new features.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> סבבים קצרים: <bdi>Diff</bdi>, פלט בדיקות, המתנה. אתם שולטים בקצב.</li>
+    <li><strong>טיפ אימות:</strong> <code>git diff --stat</code> אחרי כל צעד; קובץ לא צפוי ברשימה הוא סימן עצירה.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch12.html">פרק 12</a>, <a href="ch09.html">פרק 9</a>.</li>
+  </ul>
+
+  <h3 id="p15">40.15 חילוץ מודול או שכבה</h3>
+  <ul>
+    <li><strong>מטרה:</strong> להוציא אחריות משותפת למודול משלה בלי לשבור מפעילים.</li>
+    <li><strong>מתי:</strong> קובץ שגדל, לוגיקה כפולה, או הכנה ל-<bdi>Feature</bdi> חדש.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Extract {responsibility} from @{source_file} into a new module at {new_path}.
+Keep the public behavior identical; update all callers; keep the old import path working with a thin re-export if anything outside {scope} imports it.
+Add unit tests for the new module. Run {test_command} and {typecheck_command}. Show the diff and the outputs.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> מודול חדש, מפעילים מעודכנים, בדיקות ירוקות. ב-<bdi>TaskFlow</bdi>, למשל, חילוץ שכבת <bdi>Repository</bdi> מ-<code>routers/tasks.py</code>.</li>
+    <li><strong>טיפ אימות:</strong> חפשו שאריות: <code>grep -rn "{old_symbol}" .</code> חוץ מה-<bdi>re-export</bdi>.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch12.html">פרק 12</a>, <a href="ch36.html">פרק 36</a>.</li>
+  </ul>
+
+  <h2 id="security">Security review</h2>
+
+  <h3 id="p16">40.16 סקירת אבטחה ב-Subagent</h3>
+  <ul>
+    <li><strong>מטרה:</strong> סקירה בהקשר נקי, בלי הטיה של מי שכתב את הקוד.</li>
+    <li><strong>מתי:</strong> לפני מיזוג של קוד שנוגע בקלט משתמש, אימות, הרשאות או סודות.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Use a subagent to review {path_or_diff} for security issues: injection (SQL, command, XSS), authentication and authorization flaws,
+secrets or credentials in code, insecure data handling, and missing input validation.
+Report each finding with file and line, severity (Critical/High/Medium/Low), the attack scenario in one sentence, and a suggested fix.
+Report only findings that affect correctness or the stated requirements; do not report style preferences.
+Do not change any code.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימת ממצאים מדורגת. הסוכן רץ ב-<bdi>Context Window</bdi> נפרד ומחזיר סיכום.</li>
+    <li><strong>טיפ אימות:</strong> הריצו גם <code>/security-review</code> על הענף והשוו; חפיפה מחזקת, פער דורש בדיקה ידנית.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch20.html">פרק 20</a>, <a href="ch25.html">פרק 25</a>.</li>
+  </ul>
+
+  <h3 id="p17">40.17 סריקת סודות והגדרות מסוכנות</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לוודא שאין מפתחות, סיסמאות או הגדרות פיתוח שדלפו.</li>
+    <li><strong>מתי:</strong> לפני <bdi>Commit</bdi> ראשון בפרויקט, לפני שחרור, אחרי <bdi>Onboarding</bdi>.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Scan the repository for secrets and unsafe defaults: API keys, tokens, passwords, private keys, connection strings,
+debug flags enabled for production, permissive CORS, and .env files that are tracked by git.
+Check git history for the last {n} commits too. List each finding with path and line, and whether it is already in .gitignore.
+Do not print the secret values themselves; mask them. Do not modify files.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימה ממוסכת, כולל היסטוריה. אם נמצא סוד אמיתי בהיסטוריה, צריך גם לבטל אותו בצד השירות.</li>
+    <li><strong>טיפ אימות:</strong> הריצו <code>git ls-files | grep -E '\.env'</code> בעצמכם.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch20.html">פרק 20</a>.</li>
+  </ul>
+
+  <h3 id="p18">40.18 סקירת Endpoint מול רשימת איומים</h3>
+  <ul>
+    <li><strong>מטרה:</strong> סקירה ממוקדת ל-<bdi>Endpoint</bdi> חדש או משתנה.</li>
+    <li><strong>מתי:</strong> אחרי מימוש <bdi>Endpoint</bdi>, לפני בדיקות אינטגרציה.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Review the {method} {route} endpoint in @{file} against this checklist:
+authentication required, authorization checks the resource owner, all inputs validated with explicit limits,
+SQL is parameterized, errors do not leak internals, rate limiting or abuse considerations noted, audit-worthy actions logged.
+For each item answer pass/fail with the line reference, then propose fixes for the failures as a diff. Do not apply them.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> טבלת pass/fail והצעות תיקון. ב-<bdi>TaskFlow</bdi> תראו שה-<bdi>SQL</bdi> מפורמט עם <code>?</code> אבל אין עדיין אימות.</li>
+    <li><strong>טיפ אימות:</strong> כתבו בדיקה שלילית אחת (למשל קלט ארוך מהמגבלה) והריצו.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch20.html">פרק 20</a>, <a href="ch34.html">פרק 34</a>.</li>
+  </ul>
+
+  <h2 id="performance">Performance review</h2>
+
+  <h3 id="p19">40.19 סקירת נתיב חם</h3>
+  <ul>
+    <li><strong>מטרה:</strong> למצוא עלויות מיותרות בנתיב שנקרא הרבה.</li>
+    <li><strong>מתי:</strong> לפני שחרור, או כשיש תלונות על איטיות בלי מדידה עדיין.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Review the hot path {description} starting at @{entry} for performance issues: repeated database calls in loops,
+missing indexes, unnecessary serialization, blocking I/O, and work done per request that could be cached or precomputed.
+For each issue: location, estimated impact (high/medium/low), and the fix. Suggest how to measure it before and after. Do not change code.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימת ממצאים עם הצעת מדידה. בלי מדידה, זו רק השערה.</li>
+    <li><strong>טיפ אימות:</strong> בקשו סקריפט מדידה קטן (למשל 100 בקשות עם <code>time</code>) והריצו לפני ואחרי.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch34.html">פרק 34</a>, <a href="ch30.html">פרק 30</a>.</li>
+  </ul>
+
+  <h3 id="p20">40.20 אופטימיזציה ליעד מדיד</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לשפר מדד ספציפי לערך יעד, עם ראיות.</li>
+    <li><strong>מתי:</strong> יש מדד נוכחי ויעד; רוצים לולאה סגורה.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Optimize {target} to bring {metric} from {current} down to under {goal}.
+Measure first with {measure_command} and record the baseline. Make one change at a time, re-measure after each, and keep only changes that help.
+Constraints: no behavior changes (the suite {test_command} must stay green), no new dependencies without asking.
+Report a table of change / metric before / metric after.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> טבלת שינויים ומדידות; שינויים שלא עזרו מבוטלים.</li>
+    <li><strong>טיפ אימות:</strong> הריצו את פקודת המדידה בעצמכם על התוצאה הסופית.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch34.html">פרק 34</a>.</li>
+  </ul>
+
+  <h3 id="p21">40.21 N+1 ושאילתות כבדות</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לזהות דפוסי גישה ל-<bdi>Database</bdi> שיתפוצצו עם הנתונים.</li>
+    <li><strong>מתי:</strong> אחרי הוספת יחסים (למשל תגובות למשימות) או רשימות.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Find N+1 query patterns and unbounded queries in @{dir}: loops that issue a query per item, list endpoints without pagination or limits,
+and queries without a supporting index. For each: file and line, why it scales badly, and the fix (join, batch, index, pagination).
+Write one test that would catch the worst case (for example, asserting the number of queries or the presence of a limit). Do not change production code yet.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> ממצאים + בדיקה אחת שמקבעת את הציפייה.</li>
+    <li><strong>טיפ אימות:</strong> הריצו את הבדיקה החדשה; היא אמורה להיכשל לפני התיקון.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch34.html">פרק 34</a>.</li>
+  </ul>
+
+  <h2 id="database">Database review</h2>
+
+  <h3 id="p22">40.22 סקירת סכימה</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לבדוק שהסכימה מבטאת את החוקים העסקיים ולא רק "מאחסנת".</li>
+    <li><strong>מתי:</strong> לפני <bdi>Migration</bdi> חדשה או בסקירת ארכיטקטורה.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Review the schema in @{schema_file_or_dir}: constraints (NOT NULL, CHECK, UNIQUE, foreign keys with ON DELETE behavior),
+types and lengths, indexes for the queries in @{queries_dir}, timestamps and their timezone handling, and naming consistency.
+List gaps as: table.column, problem, proposed DDL. Note anything that is enforced only in application code and should also be enforced in the database. Read-only.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימת פערים עם <bdi>DDL</bdi> מוצע. ב-<bdi>TaskFlow</bdi>: <code>status</code> נאכף ב-<bdi>CHECK</bdi>, אבל אין <bdi>updated_at</bdi>.</li>
+    <li><strong>טיפ אימות:</strong> נסו להכניס ערך לא חוקי ישירות ב-<code>sqlite3</code> ובדקו שהוא נדחה.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch34.html">פרק 34</a>, <a href="ch37.html">פרק 37</a>.</li>
+  </ul>
+
+  <h3 id="p23">40.23 בטיחות Migration</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לוודא ש-<bdi>Migration</bdi> ניתנת להרצה, לחזרה, ולא נועלת נתונים בייצור.</li>
+    <li><strong>מתי:</strong> כל <bdi>Migration</bdi>, במיוחד על טבלאות גדולות.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Review the migration in @{migration_file}. Answer: is it idempotent; is there a rollback; does it lock the table or rewrite it;
+what happens to existing rows (defaults, backfill); is it safe to deploy before the code that uses it (expand/contract)?
+Then write a test that applies the migration to a database seeded with {n} representative rows and asserts the outcome.
+Run {test_command}. Do not run the migration against any non-test database.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> תשובות מפורשות לחמש השאלות ובדיקה שמריצה את ה-<bdi>Migration</bdi> על מסד זמני.</li>
+    <li><strong>טיפ אימות:</strong> הריצו את ה-<bdi>Migration</bdi> פעמיים על מסד הבדיקה; הריצה השנייה חייבת להצליח בלי שינוי.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch35.html">פרק 35</a>, <a href="ch34.html">פרק 34</a>.</li>
+  </ul>
+
+  <h3 id="p24">40.24 סקירת שאילתות</h3>
+  <ul>
+    <li><strong>מטרה:</strong> נכונות ובטיחות של ה-<bdi>SQL</bdi> עצמו.</li>
+    <li><strong>מתי:</strong> אחרי הוספת שאילתות חדשות או שינוי בקיימות.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Review every SQL statement in @{dir}: parameterization (no string formatting of user input), correct handling of NULLs,
+ORDER BY on list endpoints, LIMIT where results can grow, and transactions around multi-statement writes.
+Show each problematic statement with the fixed version side by side. Do not apply changes; I will review first.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> זוגות לפני/אחרי. ב-<bdi>TaskFlow</bdi>, <code>update_task</code> בונה <code>SET</code> דינמי משמות שדות שמגיעים מ-<bdi>Pydantic</bdi>, ולכן בטוח, אבל שווה הערה.</li>
+    <li><strong>טיפ אימות:</strong> <code>grep -rn 'f"' backend/app | grep -i 'select\|update\|insert'</code> כבדיקה עצמאית.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch20.html">פרק 20</a>, <a href="ch34.html">פרק 34</a>.</li>
+  </ul>
+
+  <h2 id="api">API review</h2>
+
+  <h3 id="p25">40.25 חוזה Endpoint</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לוודא שה-<bdi>API</bdi> מוגדר, עקבי ומתועד לפני שה-<bdi>Frontend</bdi> תלוי בו.</li>
+    <li><strong>מתי:</strong> אחרי מימוש <bdi>Endpoints</bdi> חדשים, לפני עבודה מקבילה על ה-<bdi>Frontend</bdi>.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Document the contract of the endpoints in @{router_file}: method, path, request schema, response schema, status codes, and error body shape.
+Compare against the frontend client in @{client_file} and list every mismatch (field names, optionality, types, status handling).
+Write the result to {output_file} as a table. Do not change code.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> טבלת חוזה + רשימת אי-התאמות בין <code>routers/tasks.py</code> ל-<code>api.ts</code>.</li>
+    <li><strong>טיפ אימות:</strong> הריצו <code>npm run typecheck</code> ב-<bdi>Frontend</bdi> אחרי שתתקנו את הטיפוסים.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch34.html">פרק 34</a>, <a href="ch38.html">פרק 38</a>.</li>
+  </ul>
+
+  <h3 id="p26">40.26 עקביות טיפול בשגיאות</h3>
+  <ul>
+    <li><strong>מטרה:</strong> שכל השגיאות נראות אותו דבר ומחזירות את הקוד הנכון.</li>
+    <li><strong>מתי:</strong> אחרי כמה <bdi>Endpoints</bdi> שנכתבו בזמנים שונים.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Audit error handling across @{api_dir}: which exceptions map to which status codes, whether the error body shape is consistent,
+whether 404 vs 403 is used correctly for resources the caller may not see, and whether validation errors expose internals.
+Propose a single error format and the minimal change to reach it. Show the diff, do not apply.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> מיפוי שגיאות ← קודים והצעה לפורמט אחיד.</li>
+    <li><strong>טיפ אימות:</strong> בקשו בדיקה שמאשרת את הפורמט על שני <bdi>Endpoints</bdi> שונים.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch34.html">פרק 34</a>, <a href="ch37.html">פרק 37</a>.</li>
+  </ul>
+
+  <h3 id="p27">40.27 זיהוי שינוי שובר</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לדעת לפני מיזוג אם לקוחות קיימים יישברו.</li>
+    <li><strong>מתי:</strong> כל <bdi>PR</bdi> שנוגע בסכימות בקשה או תשובה.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Compare the API surface between {base_ref} and {head_ref}. List every change to routes, request or response fields, types, defaults, and status codes,
+and classify each as breaking / additive / internal. For each breaking change propose a backward-compatible alternative or a versioning strategy.
+Read-only.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימה מסווגת. "שדה הפך לחובה" הוא שינוי שובר גם אם נראה קטן.</li>
+    <li><strong>טיפ אימות:</strong> הריצו את בדיקות ה-<bdi>Frontend</bdi> הקיימות מול ה-<bdi>Backend</bdi> החדש.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch13.html">פרק 13</a>, <a href="ch35.html">פרק 35</a>.</li>
+  </ul>
+
+  <h2 id="frontend">Frontend review</h2>
+
+  <h3 id="p28">40.28 סקירת קומפוננטה</h3>
+  <ul>
+    <li><strong>מטרה:</strong> נכונות, טיפוסים ומצבי קצה של קומפוננטת <bdi>React</bdi>.</li>
+    <li><strong>מתי:</strong> אחרי מימוש או שינוי של קומפוננטה.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Review @{component_file}: props typing (no any), loading / empty / error states, effects and their dependencies, event handler correctness,
+and consistency with the patterns in @{reference_component}. List issues with line references and a fix for each.
+Then run {typecheck_command} and report. Do not change code without my confirmation.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימת ממצאים ופלט <code>tsc --noEmit</code>.</li>
+    <li><strong>טיפ אימות:</strong> בדקו את מצב ה-<bdi>Error</bdi> ידנית: כבו את ה-<bdi>Backend</bdi> וטענו את הדף.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch34.html">פרק 34</a>.</li>
+  </ul>
+
+  <h3 id="p29">40.29 מצב, נתונים ותקשורת עם ה-API</h3>
+  <ul>
+    <li><strong>מטרה:</strong> למנוע מצב כפול, בקשות מיותרות ותשובות שלא מטופלות.</li>
+    <li><strong>מתי:</strong> קומפוננטה שמדברת עם ה-<bdi>API</bdi>, במיוחד עם עדכונים אופטימיים.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Review how @{file} manages state and talks to the API via @{client_file}: duplicated state, stale closures, missing error handling on requests,
+race conditions when the user acts twice quickly, and refetch behavior after mutations.
+Propose the minimal changes, ranked by risk. Do not implement.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימה מדורגת לפי סיכון; לרוב מקרה כפילות לחיצה יעלה ראשון.</li>
+    <li><strong>טיפ אימות:</strong> שחזרו לחיצה כפולה מהירה על "Delete" ב-<bdi>TaskFlow</bdi> ובדקו את ההתנהגות.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch34.html">פרק 34</a>.</li>
+  </ul>
+
+  <h3 id="p30">40.30 נגישות ומצבי UI</h3>
+  <ul>
+    <li><strong>מטרה:</strong> נגישות בסיסית ומצבי ממשק שלא נשכחו.</li>
+    <li><strong>מתי:</strong> לפני שחרור מסך חדש.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Review @{component_or_page} for accessibility and UI states: semantic elements, labels for form controls, keyboard operability, focus management after actions,
+color-only signals, and the presence of loading, empty, error and success states.
+List the error states, empty states, and edge cases that the design still needs to cover. Suggest concrete fixes; do not apply them.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימת פערים קונקרטית ורשימת מצבים חסרים.</li>
+    <li><strong>טיפ אימות:</strong> נווטו במסך עם מקלדת בלבד.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch34.html">פרק 34</a>.</li>
+  </ul>
+
+  <h2 id="docs">Documentation</h2>
+
+  <h3 id="p31">40.31 עדכון README אחרי שינוי התנהגות</h3>
+  <ul>
+    <li><strong>מטרה:</strong> תיעוד שמשקף את הקוד, לא את הזיכרון.</li>
+    <li><strong>מתי:</strong> אחרי כל שינוי שמשנה פקודות, הגדרות או התנהגות למשתמש. זה חלק מ-<bdi>Definition of Done</bdi> ב-<bdi>TaskFlow</bdi>.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Compare @README.md against the current code and the changes in {commit_range}. Update only the sections that are now wrong or missing:
+setup commands, environment variables, run and test commands, and user-visible behavior.
+Keep the existing tone and structure. Do not add marketing text. Show me the diff before writing.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> <bdi>Diff</bdi> ממוקד ל-<bdi>README</bdi>.</li>
+    <li><strong>טיפ אימות:</strong> הריצו את פקודות ההתקנה מה-<bdi>README</bdi> המעודכן בתיקייה נקייה.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch34.html">פרק 34</a>, <a href="ch16.html">פרק 16</a>.</li>
+  </ul>
+
+  <h3 id="p32">40.32 Docstrings בסגנון הקיים</h3>
+  <ul>
+    <li><strong>מטרה:</strong> להשלים תיעוד פנימי בלי לשנות קוד.</li>
+    <li><strong>מתי:</strong> קוד ציבורי בלי תיעוד, לפני שמישהו אחר צריך להשתמש בו.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Find {scope} without {docstring_style} docstrings and add them, matching the style already used in the file.
+Document parameters, return values, raised errors and one example where it helps. Do not change any logic or signatures.
+Run {lint_or_typecheck_command} at the end.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> <bdi>Diff</bdi> שכולו הערות ותיעוד.</li>
+    <li><strong>טיפ אימות:</strong> <code>git diff</code> לא אמור להכיל שורות קוד שאינן תיעוד.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch12.html">פרק 12</a>.</li>
+  </ul>
+
+  <h3 id="p33">40.33 ADR: תיעוד החלטה ארכיטקטונית</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לתעד למה החלטתם כפי שהחלטתם, כדי שלא תדונו בזה שוב.</li>
+    <li><strong>מתי:</strong> אחרי בחירה בין חלופות (למשל <bdi>JWT</bdi> מול <bdi>Sessions</bdi>).</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Write an Architecture Decision Record for {decision} at docs/adr/{nnnn}-{slug}.md with: context, options considered (at least {n}),
+decision, consequences (positive and negative), and how we would revisit it.
+Base the context on the actual code in @{relevant_dir} and on our conversation. Keep it under one page.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> קובץ <bdi>ADR</bdi> קצר וממוקד.</li>
+    <li><strong>טיפ אימות:</strong> קראו את סעיף התוצאות השליליות; אם אין, זה לא <bdi>ADR</bdi> כן.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch37.html">פרק 37</a>, <a href="ch16.html">פרק 16</a>.</li>
+  </ul>
+
+  <h2 id="migration">Migration</h2>
+
+  <h3 id="p34">40.34 העברה מ-X ל-Y</h3>
+  <ul>
+    <li><strong>מטרה:</strong> החלפת ספרייה, <bdi>API</bdi> או דפוס בכל הפרויקט, בצורה מבוקרת.</li>
+    <li><strong>מתי:</strong> <bdi>Migration</bdi> רוחבית עם הרבה מופעים.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Migrate everything from {from} to {to}. First, identify every place that needs to change and write the list to {list_file} with a one-line note per item.
+Do not change anything yet. Then propose the order (leaf files first), the shared helper if one is needed, and the verification command per batch.
+I will approve the plan before you start.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> קובץ רשימה + סדר עבודה. הרשימה היא גם הבסיס ל-<bdi>Fan-out</bdi> עם <code>claude -p</code> אם המספר גדול.</li>
+    <li><strong>טיפ אימות:</strong> ספרו מופעים ב-<code>grep -rn "{from}" . | wc -l</code> והשוו לאורך הרשימה.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch35.html">פרק 35</a>, <a href="ch38.html">פרק 38</a>.</li>
+  </ul>
+
+  <h3 id="p35">40.35 Porting בין שפות או Frameworks</h3>
+  <ul>
+    <li><strong>מטרה:</strong> להעביר מודול תוך שמירה על התנהגות וממשק.</li>
+    <li><strong>מתי:</strong> העברה בין <bdi>Frameworks</bdi>, שפות או גרסאות מז'וריות.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Port {source} to {target}, keeping the same {keep} (public interface, error behavior, data formats).
+Start by porting the tests so they run against the new implementation, then port the code until they pass.
+Keep a table of every behavior you could not preserve exactly and why. Run {test_command} and show the output.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> בדיקות קודם, קוד אחר כך, וטבלת פערים כנה.</li>
+    <li><strong>טיפ אימות:</strong> הריצו את שתי הגרסאות על אותו קלט והשוו פלט.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch35.html">פרק 35</a>.</li>
+  </ul>
+
+  <h3 id="p36">40.36 שדרוג תלות מז'ורי</h3>
+  <ul>
+    <li><strong>מטרה:</strong> שדרוג עם קריאת <bdi>Changelog</bdi> ותיקון שינויים שוברים.</li>
+    <li><strong>מתי:</strong> קפיצת גרסה מז'ורית של תלות מרכזית.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Upgrade {dependency} from {current} to {target}. First read the official changelog or migration guide for breaking changes between these versions
+and list the ones that affect this codebase, with the files involved. Then apply the upgrade in a branch, fix each breaking change, and run {test_command} and {typecheck_command}.
+Do not upgrade unrelated dependencies. Report what changed and anything you could not resolve.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימת שינויים שוברים רלוונטיים, שדרוג, בדיקות ירוקות.</li>
+    <li><strong>טיפ אימות:</strong> <code>git diff -- requirements.txt package.json</code> מכיל רק את התלות שביקשתם.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch35.html">פרק 35</a>, <a href="ch05.html">פרק 5</a>.</li>
+  </ul>
+
+  <h2 id="pr">Pull Request review</h2>
+
+  <h3 id="p37">40.37 סקירה לפני Commit</h3>
+  <ul>
+    <li><strong>מטרה:</strong> תפיסת סיכונים בשינויים שלכם לפני שהם נכנסים להיסטוריה.</li>
+    <li><strong>מתי:</strong> תמיד, לפני <code>git commit</code> משמעותי.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Review my uncommitted changes and flag anything that looks risky before I commit: logic errors, missing tests for new behavior,
+leftover debug code, secrets, and changes outside the intended scope of "{intended_change}".
+Do not fix anything; give me a short list ordered by severity.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימה קצרה. אפשר גם <code>/code-review</code> המובנה לסקירת נכונות ב-<bdi>Subagent</bdi>.</li>
+    <li><strong>טיפ אימות:</strong> <code>/diff</code> להצגה אינטראקטיבית של השינויים לצד הרשימה.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch13.html">פרק 13</a>.</li>
+  </ul>
+
+  <h3 id="p38">40.38 סקירת PR של עמית</h3>
+  <ul>
+    <li><strong>מטרה:</strong> סקירה מובנית שאפשר להדביק כתגובה.</li>
+    <li><strong>מתי:</strong> אתם הסוקר. דורש <code>gh</code> מותקן ומאומת.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Review PR #{pr} using gh. Summarize what changed in three sentences, then list concerns grouped as: correctness, tests, security, API compatibility, and readability.
+For each concern give file and line and a suggested change. Distinguish blocking from non-blocking. Do not post the review; print it so I can edit it first.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> סקירה מוכנה להדבקה, עם הבחנה בין חוסם ללא-חוסם. לחלופין, <code>/review {PR}</code> המובנה לסקירה מהירה לקריאה בלבד.</li>
+    <li><strong>טיפ אימות:</strong> משכו את הענף מקומית והריצו את הבדיקות בעצמכם לפני שאתם מאשרים.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch13.html">פרק 13</a>, <a href="ch28.html">פרק 28</a>.</li>
+  </ul>
+
+  <h3 id="p39">40.39 סוקר יריב מול התוכנית</h3>
+  <ul>
+    <li><strong>מטרה:</strong> בדיקה עצמאית שהיישום תואם למה שתוכנן, ולא רק "עובד".</li>
+    <li><strong>מתי:</strong> אחרי ריצה ארוכה או אוטונומית, לפני שמסמנים "גמור".</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Use a subagent to review the {feature} diff against @{plan_file}. Check that every requirement is implemented, the listed edge cases have tests,
+and nothing outside the task's scope changed. Report gaps, not style preferences.
+Flag only gaps that affect correctness or the stated requirements; treat the rest as optional.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> רשימת פערים. סוקר שהתבקש למצוא פערים ימצא כמה גם כשהעבודה טובה; סננו לפי השפעה.</li>
+    <li><strong>טיפ אימות:</strong> לכל פער "אמיתי", בקשו את התיקון באותו <bdi>Session</bdi> וסקירה חוזרת.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch25.html">פרק 25</a>, <a href="ch34.html">פרק 34</a>.</li>
+  </ul>
+
+  <h2 id="ci">CI failure analysis</h2>
+
+  <h3 id="p40">40.40 ניתוח ריצת CI שנכשלה</h3>
+  <ul>
+    <li><strong>מטרה:</strong> להבין מהר אם הכשל הוא בקוד, בסביבה או ב-<bdi>Workflow</bdi>.</li>
+    <li><strong>מתי:</strong> ה-<bdi>CI</bdi> אדום. דורש <code>gh</code>.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>The CI run {run_id_or_url} failed. Use gh to fetch the logs of the failed jobs. Identify the first real error (not the cascade after it),
+classify the cause as: code / test / environment / workflow config / secrets, and explain the evidence.
+Reproduce locally with the same command if possible. Propose the fix; do not push anything.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> השגיאה הראשונה האמיתית, סיווג, ניסיון שחזור מקומי.</li>
+    <li><strong>טיפ אימות:</strong> <code>gh run view {run_id} --log-failed</code> בעצמכם והשוו את השורה שזוהתה.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch28.html">פרק 28</a>, <a href="ch39.html#ci">פרק 39</a>.</li>
+  </ul>
+
+  <h3 id="p41">40.41 זיהוי בדיקות Flaky</h3>
+  <ul>
+    <li><strong>מטרה:</strong> להפריד כשל אמיתי מכשל אקראי, ולתקן את מקור האקראיות.</li>
+    <li><strong>מתי:</strong> בדיקה שנכשלת "לפעמים".</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>The test {test_name} fails intermittently in CI but passes locally. Run it {n} times in a row with {test_command_single} and record the results.
+Look for shared state between tests, time or ordering dependence, network calls, and unseeded randomness.
+Fix the root cause of the flakiness without weakening the assertion, and prove it with {n} consecutive green runs.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> טבלת הרצות, אבחון, תיקון (למשל <bdi>fixture</bdi> שמאתחל מסד נקי) והוכחה.</li>
+    <li><strong>טיפ אימות:</strong> הריצו את החבילה המלאה, לא רק את הבדיקה הבודדת.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch11.html">פרק 11</a>, <a href="ch39.html#tests">פרק 39</a>.</li>
+  </ul>
+
+  <h3 id="p42">40.42 תיקון או כתיבת Workflow</h3>
+  <ul>
+    <li><strong>מטרה:</strong> <bdi>Workflow</bdi> נכון עם הרשאות מינימליות וגרסאות מוצמדות.</li>
+    <li><strong>מתי:</strong> הוספת <bdi>Job</bdi>, או כשה-<bdi>Workflow</bdi> נכשל בהגדרות.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Write (or fix) a GitHub Actions workflow at .github/workflows/{name}.yml that {steps} on every {trigger}.
+Use pinned major versions of official actions, least-privilege permissions, and cache for {package_manager}.
+Explain each permission you request. Validate the YAML. Do not add secrets to the file; reference them as ${{ secrets.NAME }} and tell me which ones I must create.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> קובץ <bdi>Workflow</bdi> עם הסבר לכל הרשאה ורשימת <bdi>Secrets</bdi> נדרשים.</li>
+    <li><strong>טיפ אימות:</strong> פתחו <bdi>PR</bdi> קטן וצפו בריצה; קראו את לשונית ההרשאות ב-<bdi>GitHub</bdi>.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch28.html">פרק 28</a>.</li>
+  </ul>
+
+  <h2 id="handoff">Handoff summary</h2>
+
+  <h3 id="p43">40.43 Handoff ל-Session חדש</h3>
+  <ul>
+    <li><strong>מטרה:</strong> לסגור <bdi>Session</bdi> ארוך בלי לאבד את מה שהושג, ולהתחיל נקי.</li>
+    <li><strong>מתי:</strong> <bdi>Context</bdi> מלא, או אחרי שני תיקונים כושלים על אותה בעיה.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Write a handoff document to {handoff_file} for a fresh session that has no memory of this conversation. Include:
+1. Goal and current status in three sentences.
+2. What is done, with the files touched.
+3. What remains, as an ordered checklist.
+4. Decisions made and why, including approaches that failed and must not be retried.
+5. Exact commands to run tests and the app, and the current test status.
+6. Open questions for the human.
+Keep it factual; no narrative.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> מסמך שאפשר לפתוח איתו <bdi>Session</bdi> חדש: <code>/clear</code>, ואז <code>@{handoff_file}</code> והמשימה הבאה.</li>
+    <li><strong>טיפ אימות:</strong> קראו את סעיף 4; אם הוא ריק אחרי <bdi>Session</bdi> קשה, משהו חסר.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch14.html">פרק 14</a>, <a href="ch39.html#context">פרק 39</a>.</li>
+  </ul>
+
+  <h3 id="p44">40.44 מה ללמוד מה-Session ל-CLAUDE.md</h3>
+  <ul>
+    <li><strong>מטרה:</strong> להפוך חיכוך חוזר להוראה קבועה.</li>
+    <li><strong>מתי:</strong> סוף <bdi>Session</bdi> שבו תיקנתם את Claude יותר מפעם.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Summarize what we did this session and suggest what to add to CLAUDE.md: only rules that would have prevented a mistake you made here,
+commands you had to discover, or conventions you had to be told. For each suggestion give the exact line to add and the reason.
+Do not edit CLAUDE.md; I will decide.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> שלוש עד חמש שורות מוצעות. אל תוסיפו יותר; <bdi>CLAUDE.md</bdi> ארוך מאבד תוקף.</li>
+    <li><strong>טיפ אימות:</strong> לכל שורה שאלו: האם הסרתה תגרום לטעות? אם לא, לא להוסיף.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch15.html">פרק 15</a>, <a href="ch16.html">פרק 16</a>.</li>
+  </ul>
+
+  <h3 id="p45">40.45 Handoff לעמית אנושי</h3>
+  <ul>
+    <li><strong>מטרה:</strong> תקציר למי שממשיך את העבודה בלי Claude.</li>
+    <li><strong>מתי:</strong> סוף יום, חופשה, העברת בעלות על <bdi>Feature</bdi>.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Write a short handoff note for {colleague_role} who will continue {feature}: where the branch is, what works, what is half done,
+how to run and test it, the two riskiest areas, and links to the PR, plan and ADRs. Under 300 words, plain language, no internal jargon.
+Save to {file}.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> הודעה קצרה וקריאה. אפשר להדביק ב-<bdi>PR</bdi> או בערוץ הצוות.</li>
+    <li><strong>טיפ אימות:</strong> תנו לעמית לעקוב אחרי ההוראות בלי לשאול אתכם; כל שאלה = שורה חסרה.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch29.html">פרק 29</a>.</li>
+  </ul>
+
+  <h2 id="release">Release readiness</h2>
+
+  <h3 id="p46">40.46 Release notes מ-Git</h3>
+  <ul>
+    <li><strong>מטרה:</strong> הערות שחרור מקובצות, מבוססות היסטוריה אמיתית.</li>
+    <li><strong>מתי:</strong> לפני תיוג גרסה.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Compare {from_tag} to {to_ref} and draft release notes grouped by feature, fix, and breaking change.
+Use the commit messages and merged PR titles; link PR numbers. Call out any migration steps users must run.
+Write to {file}; do not commit.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> קובץ הערות מקובץ עם קישורי <bdi>PR</bdi>.</li>
+    <li><strong>טיפ אימות:</strong> <code>git log {from_tag}..{to_ref} --oneline | wc -l</code> והשוו לכמות הפריטים.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch13.html">פרק 13</a>.</li>
+  </ul>
+
+  <h3 id="p47">40.47 בדיקת מוכנות לשחרור</h3>
+  <ul>
+    <li><strong>מטרה:</strong> רשימת בדיקה אחת שמרכזת: בדיקות, אבטחה, תיעוד, הגדרות.</li>
+    <li><strong>מתי:</strong> יום לפני שחרור.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Run a release readiness check for {version} and report pass/fail per item with evidence:
+tests ({test_command}), typecheck ({typecheck_command}), no TODO/FIXME in {critical_dirs}, no tracked secrets, README and CHANGELOG updated,
+migrations have rollbacks, environment variables documented, CI green on {branch}, and open PRs targeting this release.
+Do not fix anything; produce the checklist so we can decide.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> טבלת pass/fail עם ראיות (פלט פקודות), לא הצהרות.</li>
+    <li><strong>טיפ אימות:</strong> הריצו את שתי הפקודות הראשונות בעצמכם.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch28.html">פרק 28</a>, <a href="ch43.html">פרק 43</a>.</li>
+  </ul>
+
+  <h3 id="p48">40.48 עדכון גרסה ו-Changelog</h3>
+  <ul>
+    <li><strong>מטרה:</strong> העלאת גרסה עקבית בכל הקבצים ו-<bdi>Changelog</bdi> תואם.</li>
+    <li><strong>מתי:</strong> אחרי אישור המוכנות.</li>
+  </ul>
+  <div class="codeblock"><div class="codehead">prompt</div><pre><code>Bump the version to {version} everywhere it appears ({version_files}) and add a CHANGELOG entry from @{release_notes_file}.
+Show the diff. Then commit with the message "chore(release): {version}" and create the tag {version} locally. Do not push.</code></pre></div>
+  <ul>
+    <li><strong>מה לצפות:</strong> <bdi>Diff</bdi> קטן, <bdi>Commit</bdi> אחד, תג מקומי. הדחיפה נשארת אצלכם.</li>
+    <li><strong>טיפ אימות:</strong> <code>grep -rn "{old_version}" .</code> אמור להחזיר רק היסטוריה ב-<bdi>Changelog</bdi>.</li>
+    <li><strong>פרק קשור:</strong> <a href="ch13.html">פרק 13</a>.</li>
+  </ul>
+
+  <h2 id="mistakes">טעויות נפוצות</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>טעות</th><th>מה קורה</th><th>תיקון</th></tr></thead>
+      <tbody>
+        <tr><td>Prompt "מטבח" (kitchen sink)</td><td>בקשה אחת שמכילה תיקון <bdi>Bug</bdi>, <bdi>Refactoring</bdi>, תיעוד ושדרוג תלות. Claude מנסה הכול, ה-<bdi>Context</bdi> מתמלא, ואי אפשר לסקור.</td><td>משימה אחת ל-<bdi>Prompt</bdi>; <code>/clear</code> בין משימות לא קשורות; שרשור <bdi>Prompts</bdi> מהספרייה בסדר.</td></tr>
+        <tr><td>Placeholder שנשאר</td><td>Claude מנחש או שואל; לפעמים ממציא ערך.</td><td>בדקו שאין <code>{</code> לפני שליחה.</td></tr>
+        <tr><td>קריטריון קבלה "שיעבוד"</td><td>אין דרך לסגור לולאה; Claude עוצר כש"נראה גמור".</td><td>פקודה + פלט צפוי, תמיד.</td></tr>
+        <tr><td>תיאור במקום הפניה</td><td>Claude מנחש איפה הקוד ולעיתים קורא קבצים לא נכונים.</td><td><code>@path</code>.</td></tr>
+        <tr><td>סקירה עצמית</td><td>אותו <bdi>Context</bdi> שכתב את הקוד סוקר אותו, עם אותן נקודות עיוורות.</td><td><bdi>Subagent</bdi>, <code>/code-review</code>, או <bdi>Session</bdi> שני (Writer/Reviewer).</td></tr>
+        <tr><td>"תעשה הכול אוטומטית"</td><td>שינויים רחבים בלי נקודות עצירה; קשה ל-<bdi>Rewind</bdi>.</td><td>"small steps with diffs", "do not implement yet", "ask before".</td></tr>
+        <tr><td>תיקון שלישי לאותה בעיה</td><td><bdi>Context</bdi> מזוהם בגישות שנכשלו.</td><td>40.43, <code>/clear</code>, <bdi>Prompt</bdi> חדש שמשלב את מה שלמדתם.</td></tr>
+        <tr><td>Prompt כתחליף ל-Skill או Hook</td><td>מעתיקים אותו טקסט עשר פעמים, ולפעמים שוכחים.</td><td>שלוש פעמים = <bdi>Skill</bdi>; "חייב תמיד" = <bdi>Hook</bdi>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 40.1: משרשור להתאמה</div>
+    <div class="body"><p>על <bdi>TaskFlow</bdi>: הריצו 40.1 (מפה), ואז 40.5 (תוכנית) ל-<bdi>Feature</bdi> "due date למשימה", ואז 40.11 (TDD) ליישום, ואז 40.37 (סקירה לפני <bdi>Commit</bdi>). בסוף, הריצו 40.44 ובחרו שורה אחת להוסיף ל-<bdi>CLAUDE.md</bdi>. תעדו: אילו <bdi>Placeholders</bdi> החלפתם, ואיזה <bdi>Prompt</bdi> דרש התאמה נוספת.</p></div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body"><p>ההתאמה השכיחה ביותר היא ב-40.5: הוספת "the status values are a single source of truth in the CHECK constraint and TaskStatus type" ל-<bdi>Context</bdi>, אחרת התוכנית עלולה להציע <bdi>Enum</bdi> נפרד. ב-40.11 ה-<bdi>Placeholder</bdi> <code>{cases}</code> צריך להיות קונקרטי: "due_date optional ISO date, rejected if in the past on create, returned in GET, filterable by ?due_before=". ההוספה ל-<bdi>CLAUDE.md</bdi> תהיה לרוב "Dates are stored as ISO 8601 UTC strings", אם Claude שאל על זה. שימו לב איך כל <bdi>Prompt</bdi> מסתיים בבדיקה שהבא בתור יכול להסתמך עליה.</p></div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>ספריית ה-<bdi>Prompts</bdi> אינה תחליף לחשיבה, אלא קיצור דרך למבנה שכבר הוכיח את עצמו: הקשר מדויק, מטרה אחת, גבולות ברורים, קריטריונים ניתנים לבדיקה ופקודת אימות. ארבעים ושמונה ה-<bdi>Prompts</bdi> כאן מכסים את מחזור החיים המלא, מ-<bdi>Onboarding</bdi> ועד שחרור, וכולם מניחים ש-Claude מחזיר ראיות ולא הצהרות. כשה-<bdi>Prompt</bdi> חוזר על עצמו, הפכו אותו ל-<bdi>Skill</bdi>; כשהוא צריך לקרות תמיד, הפכו אותו ל-<bdi>Hook</bdi>; כשהוא נכשל פעמיים, אל תתקנו אותו בפעם השלישית באותו <bdi>Session</bdi>. בפרק הבא נרכז את כל הפקודות וההגדרות ל-<bdi>Cheat Sheet</bdi> אחד.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (verification, specific context, interview, common failure patterns)</a> |
+      <a href="https://code.claude.com/docs/en/prompt-library">Prompt library (official copy-paste prompts)</a> |
+      <a href="https://code.claude.com/docs/en/common-workflows">Common workflows</a> |
+      <a href="https://code.claude.com/docs/en/skills">Skills (when to convert a prompt into a skill)</a> |
+      <a href="https://code.claude.com/docs/en/sub-agents">Subagents (review in a fresh context)</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands (/code-review, /review, /security-review, /diff)</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch39.html"><span class="lbl">הפרק הקודם</span>Troubleshooting מקיף</a>
+    <a href="ch41.html"><span class="lbl">הפרק הבא</span>Command and Configuration Cheat Sheet</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 22: Hooks</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ה | פרק 22</p>
+  <h1>Hooks</h1>
+  <p class="lead"><bdi>Hooks</bdi> הם הדרך להפוך "בדרך כלל Claude עושה את זה" ל"זה קורה תמיד, בלי יוצא מן הכלל": פקודות שאתם מגדירים, ו-<bdi>Claude Code</bdi> מריץ אוטומטית בנקודות מוגדרות במחזור החיים של ה-<bdi>Session</bdi>. בפרק הזה נבין את המנגנון לעומק: כל אירועי ה-<bdi>Lifecycle</bdi>, תחביר ההגדרה וה-<bdi>Matchers</bdi>, סכמת הקלט והפלט, סמנטיקת קודי היציאה, ואבטחה. לאורך הדרך נבנה ונבחן שבעה <bdi>Hooks</bdi> מוכנים לעבודה, הכלולים בחבילת המדריך בתיקייה <code>hooks/</code>.</p>
+  <div class="callout tip"><span class="title">לומדה אינטראקטיבית</span><p>לפרק יש לומדה משלימה: <a href="../interactive/hooks-lomda.html">Hooks ב-Claude Code</a>, עם שני Hooks שנבדקו בפועל ב-Claude Code 2.1.300, בודק Matchers, סימולטור קודי יציאה וכל 33 האירועים (עודכנה 15.10.2026).</p></div>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what">מה זה Hook ואיזו בעיה הוא פותר</h2>
+  <p><bdi>Hook</bdi> הוא מטפל (Handler) שאתם רושמים על אירוע במחזור החיים של <bdi>Claude Code</bdi>: לפני הפעלת כלי, אחרי עריכת קובץ, בפתיחת <bdi>Session</bdi>, כשהמודל מסיים תור, ועוד. ברוב המקרים המטפל הוא פקודת <bdi>Shell</bdi> או סקריפט, שמקבל את פרטי האירוע כ-<bdi>JSON</bdi> על <bdi>stdin</bdi> ומחזיר החלטה דרך קוד היציאה או דרך <bdi>JSON</bdi> על <bdi>stdout</bdi>.</p>
+  <p>הבעיה שהמנגנון פותר היא פער היסודי בין הנחיה לאכיפה. הוראה ב-<bdi>CLAUDE.md</bdi> כמו "הרץ Formatter אחרי כל עריכה" היא בקשה מהמודל: לרוב הוא יציית, לפעמים ישכח, ובשיחה ארוכה עם <bdi>Context</bdi> עמוס הסיכוי לשכחה עולה. <bdi>Hook</bdi>, לעומת זאת, הוא קוד שרץ מחוץ למודל: הוא לא תלוי בשיקול הדעת של Claude, לא נשחק עם ה-<bdi>Context</bdi>, ולא ניתן לשכנוע. התיעוד הרשמי מנסח זאת כך: <bdi>Hooks</bdi> מספקים שליטה דטרמיניסטית בהתנהגות, ומבטיחים שפעולות מסוימות תמיד יקרו, במקום לסמוך על המודל שיבחר להריץ אותן.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מנגנון</th><th>אופי</th><th>מתאים ל...</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>CLAUDE.md</bdi> / <bdi>Skills</bdi></td><td>הנחיה למודל, תלוית שיקול דעת</td><td>סגנון, ידע, נהלים שמותר לסטות מהם</td></tr>
+        <tr><td><bdi>Permissions</bdi> (<a href="ch07.html">פרק 7</a>)</td><td>חוקי Allow/Ask/Deny סטטיים על כלים</td><td>הרשאות גורפות: מה מותר ומה אסור</td></tr>
+        <tr><td><bdi>Hooks</bdi></td><td>קוד דטרמיניסטי שרץ על אירועים</td><td>אכיפה תלוית תוכן, אוטומציה, אינטגרציה</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>שלושת המנגנונים משלימים זה את זה: חוק <bdi>Deny</bdi> ב-<bdi>Permissions</bdi> יודע לחסום את הכלי <code>Edit</code> על <code>.env</code>, אבל רק <bdi>Hook</bdi> יודע לחסום כתיבה לפי מה שיש בתוכן (למשל מפתח <bdi>API</bdi>), כי הוא קוד שרץ ובודק את הקלט בפועל.</p>
+
+  <h2 id="when">מתי להשתמש ומתי לא</h2>
+  <p><strong>השתמשו ב-Hooks כאשר:</strong> הכלל חייב לקרות תמיד (פירמוט, <bdi>Lint</bdi>, רישום ל-Audit Log); ההחלטה תלויה בתוכן הפעולה (סריקת סודות, זיהוי פקודות מסוכנות); אתם רוצים להזרים הקשר עדכני בתחילת <bdi>Session</bdi>; או שאתם מחברים את Claude Code למערכת חיצונית (התראות, שירות רישום ארגוני).</p>
+  <p><strong>אל תשתמשו ב-Hooks כאשר:</strong> מספיקה הוראה רכה (העדפת סגנון: <bdi>CLAUDE.md</bdi>); מדובר בחסימה גורפת של כלי או נתיב שחוקי <bdi>Permissions</bdi> מכסים; ההחלטה דורשת שיקול דעת אנושי (השאירו את דיאלוג האישור); או שהסקריפט איטי ורץ על כל פעולה, כי אז כל תור ייתקע עליו. שימו לב גם שהתיעוד ממליץ: כשההחלטה דורשת שיפוט ולא כלל דטרמיניסטי, אפשר להשתמש ב-<bdi>Prompt Hooks</bdi> או <bdi>Agent Hooks</bdi> (בהמשך הפרק) במקום סקריפט.</p>
+
+  <h2 id="how-it-works">איך זה עובד מושגית ודרישות מוקדמות</h2>
+  <p>שווה לעצור רגע על מחזור החיים המלא של הפעלת Hook, כי הוא מסביר את כל מה שנראה בהמשך. (1) קורה אירוע: Claude עומד להפעיל כלי, סיים תור, נפתח Session. (2) Claude Code עובר על כל קבוצות ה-Hooks הרשומות לאירוע הזה, מכל מקורות ההגדרה יחד, ובודק לכל קבוצה את ה-<bdi>Matcher</bdi>. (3) כל המטפלים התואמים מופעלים במקביל: כל אחד מקבל את נתוני האירוע כ-JSON על stdin. (4) כל מטפל מסיים עם קוד יציאה ואולי פלט. (5) Claude Code ממזג את התוצאות לפי כללי ההכרעה של האירוע ומחיל את האפקט: חסימה, הזרקת הקשר, שכתוב קלט, או כלום. הסקריפט שלכם הוא תהליך רגיל במערכת ההפעלה: הוא רץ עם המשתמש שלכם, יורש את משתני הסביבה (בתוספת <code>CLAUDE_PROJECT_DIR</code> ודומיו), ואין לו שום גישה מיוחדת ל-Claude מעבר לחוזה ה-stdin/stdout/exit-code.</p>
+  <p><strong>דרישות מוקדמות לפרק:</strong> היכרות עם קובצי ההגדרות והיררכיית ה-Scopes מ-<a href="ch06.html">פרק 6</a>, ועם מערכת ה-Permissions מ-<a href="ch07.html">פרק 7</a>. בצד הכלים: <bdi>jq</bdi> מותקן (לסקריפטי Shell שמנתחים JSON) או <bdi>Python 3</bdi>, והרשאות הרצה לסקריפטים (<code>chmod +x</code>). את הדוגמאות נריץ על פרויקט TaskFlow מ-<a href="ch03.html">פרק 3</a>, אבל הן עובדות בכל פרויקט.</p>
+
+  <h2 id="lifecycle">כל אירועי ה-Lifecycle</h2>
+  <p>נכון למועד המחקר (28.07.2026, גרסה <bdi>2.1.220</bdi>), התיעוד הרשמי מגדיר שלושים אירועי <bdi>Hook</bdi>. הטבלה מציגה את כולם: מתי כל אירוע נורה, שימוש טיפוסי, והאם יציאה עם קוד 2 חוסמת את הפעולה.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>אירוע</th><th>מתי נורה</th><th>שימוש טיפוסי</th><th>חסימה?</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>SessionStart</code></td><td>פתיחת Session או חזרה אליו</td><td>הזרקת הקשר (Git, משימות פתוחות)</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>Setup</code></td><td>הפעלה עם <code>--init-only</code>, או <code>--init</code>/<code>--maintenance</code> במצב <code>-p</code></td><td>הכנה חד-פעמית ב-CI</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>UserPromptSubmit</code></td><td>שליחת Prompt, לפני שהוא מגיע למודל</td><td>ולידציה או העשרה של Prompts</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>UserPromptExpansion</code></td><td>הרחבת פקודה שהוקלדה ל-Prompt, לפני המודל</td><td>בקרה על הרחבת Skills ופקודות</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>PreToolUse</code></td><td>לפני הפעלת כלי</td><td>חסימת פעולות, שכתוב קלט</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>PermissionRequest</code></td><td>כשעומד להופיע דיאלוג הרשאה</td><td>אישור או דחייה אוטומטיים</td><td>לא בקוד 2; דחייה דרך <code>decision</code> ב-JSON</td></tr>
+        <tr><td class="ltr"><code>PermissionDenied</code></td><td>כשקריאת כלי נדחתה על ידי המסווג האוטומטי</td><td>החזרת <code>retry</code> לניסיון חוזר</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>PostToolUse</code></td><td>אחרי שכלי רץ בהצלחה</td><td>פירמוט, Lint, רישום</td><td>לא (משוב בלבד)</td></tr>
+        <tr><td class="ltr"><code>PostToolUseFailure</code></td><td>אחרי שכלי נכשל</td><td>רישום כשלים, ניתוח שגיאות</td><td>לא (משוב בלבד)</td></tr>
+        <tr><td class="ltr"><code>PostToolBatch</code></td><td>אחרי סיום אצווה של קריאות כלים מקביליות</td><td>בקרת איכות לפני הקריאה הבאה למודל</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>Notification</code></td><td>כש-Claude Code שולח התראה</td><td>התראות שולחן עבודה</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>MessageDisplay</code></td><td>בזמן הצגת טקסט של המודל</td><td>סינון או עיבוד תצוגה</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>SubagentStart</code></td><td>כש-Subagent נוצר</td><td>רישום, הכנת סביבה</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>SubagentStop</code></td><td>כש-Subagent מסיים</td><td>ולידציה של תוצרי Subagent</td><td>כן (מונע סיום)</td></tr>
+        <tr><td class="ltr"><code>TaskCreated</code></td><td>כשנוצרת משימה (TaskCreate)</td><td>סנכרון עם מערכת משימות</td><td>כן (ביטול יצירה)</td></tr>
+        <tr><td class="ltr"><code>TaskCompleted</code></td><td>כשמשימה מסומנת כהושלמה</td><td>אימות לפני סימון השלמה</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>Stop</code></td><td>כש-Claude מסיים לענות</td><td>בדיקת "האם באמת סיימת" (בדיקות עוברות?)</td><td>כן (ממשיך לעבוד)</td></tr>
+        <tr><td class="ltr"><code>StopFailure</code></td><td>כשהתור נגמר בשגיאת API</td><td>רישום והתראה</td><td>לא (הפלט מתעלם)</td></tr>
+        <tr><td class="ltr"><code>TeammateIdle</code></td><td>כשחבר צוות ב-Agent Team עומד להתפנות</td><td>הקצאת עבודה נוספת</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>InstructionsLoaded</code></td><td>כשקובץ CLAUDE.md או <code>.claude/rules/*.md</code> נטען</td><td>רישום ובקרת תצורה</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>ConfigChange</code></td><td>כשקובץ תצורה משתנה במהלך Session</td><td>Audit של שינויי הגדרות, חסימתם</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>CwdChanged</code></td><td>כשתיקיית העבודה משתנה</td><td>טעינת סביבה מחדש (direnv)</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>FileChanged</code></td><td>כשקובץ במעקב משתנה על הדיסק</td><td>רענון משתני סביבה</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>WorktreeCreate</code></td><td>כשנוצר Worktree</td><td>החלפת התנהגות ברירת המחדל של Git</td><td>כן (כשל ביצירה)</td></tr>
+        <tr><td class="ltr"><code>WorktreeRemove</code></td><td>כש-Worktree מוסר</td><td>ניקוי משאבים</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>PreCompact</code></td><td>לפני דחיסת Context</td><td>גיבוי הקשר, חסימת דחיסה</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>PostCompact</code></td><td>אחרי שדחיסה הושלמה</td><td>הזרקת הקשר קריטי מחדש</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>Elicitation</code></td><td>כששרת MCP מבקש קלט מהמשתמש</td><td>מענה אוטומטי לטפסים</td><td>כן (דחייה)</td></tr>
+        <tr><td class="ltr"><code>ElicitationResult</code></td><td>אחרי שהמשתמש ענה ל-Elicitation, לפני שליחה לשרת</td><td>ולידציה של התשובה</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>SessionEnd</code></td><td>סיום Session</td><td>ניקוי, סיכום, ארכוב</td><td>לא</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout note"><span class="title">עדכון 15.10.2026</span><p>בתיעוד הנוכחי (גרסה 2.1.300) יש 33 אירועים: נוספו <code>PreModelSwitch</code> (קוד 2 חוסם את החלפת המודל), <code>PostModelSwitch</code> ו-<code>DirectoryAdded</code>. טבלה אינטראקטיבית מעודכנת של כל האירועים נמצאת ב<a href="../interactive/hooks-lomda.html">לומדה על Hooks</a>.</p></div>
+  <div class="callout note"><span class="title">הערה</span><p>רשימת האירועים מתרחבת עם הזמן (אירועים כמו <code>TeammateIdle</code> ו-<code>WorktreeCreate</code> נוספו בגרסאות 2.1.x). לפני שאתם מסתמכים על אירוע, אמתו מול ה-<a href="https://code.claude.com/docs/en/hooks">Hooks Reference</a> העדכני.</p></div>
+
+  <h2 id="types">חמישה סוגי Hooks</h2>
+  <p>לכל מטפל יש שדה <code>type</code> שקובע איך הוא רץ. <code>command</code> הוא הנפוץ, אך מתועדים חמישה סוגים:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>סוג</th><th>מה הוא עושה</th><th>Timeout ברירת מחדל</th><th>סטטוס</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>command</code></td><td>מריץ פקודת Shell או סקריפט; קלט ב-stdin, פלט ב-stdout/stderr</td><td>600 שניות</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>http</code></td><td>שולח את ה-JSON של האירוע כ-POST ל-URL; התשובה באותו פורמט פלט</td><td>600 שניות</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>mcp_tool</code></td><td>קורא לכלי על שרת MCP שכבר מחובר (שדות <code>server</code> ו-<code>tool</code>)</td><td>600 שניות</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>prompt</code></td><td>הערכה חד-סיבובית של מודל (Haiku כברירת מחדל); מחזיר <code>{"ok": true/false, "reason": "..."}</code></td><td>30 שניות</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>agent</code></td><td>Subagent מאמת עם גישה לכלים (עד 50 סיבובי כלים); אותו פורמט <code>ok</code>/<code>reason</code></td><td>60 שניות</td><td><span class="badge exp">Experimental</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>ב-<code>prompt</code> וב-<code>agent</code>, ה-Placeholder <code>$ARGUMENTS</code> בתוך ה-<bdi>Prompt</bdi> מוחלף ב-JSON של קלט האירוע. כלל אצבע מהתיעוד: <code>prompt</code> כשנתוני הקלט מספיקים להחלטה, <code>agent</code> כשצריך לבדוק את מצב ה-<bdi>Codebase</bdi> בפועל (למשל להריץ בדיקות לפני שמרשים ל-Claude לעצור). <code>agent</code> מסומן כניסיוני; לתהליכי עבודה בייצור העדיפו <code>command</code>.</p>
+
+  <h2 id="config">איפה ואיך מגדירים</h2>
+  <p>Hooks מוגדרים תחת המפתח <code>hooks</code> בקובצי ההגדרות שהכרתם ב-<a href="ch06.html">פרק 6</a>, וגם בשתי דרכים נוספות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מיקום</th><th>תחולה</th><th>משותף לצוות?</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>~/.claude/settings.json</code></td><td>כל הפרויקטים שלכם</td><td>לא</td></tr>
+        <tr><td class="ltr"><code>.claude/settings.json</code></td><td>הפרויקט הנוכחי</td><td>כן (ב-Repository)</td></tr>
+        <tr><td class="ltr"><code>.claude/settings.local.json</code></td><td>הפרויקט הנוכחי, אישי</td><td>לא (מוחרג מ-Git)</td></tr>
+        <tr><td>Managed Settings ארגוניים</td><td>כל הארגון</td><td>כן, בשליטת Admin</td></tr>
+        <tr><td class="ltr">Plugin: <code>hooks/hooks.json</code></td><td>כשה-Plugin פעיל</td><td>כן (ראו <a href="ch26.html">פרק 26</a>)</td></tr>
+        <tr><td>Frontmatter של Skill או Agent</td><td>כשהרכיב פעיל</td><td>כן</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>המבנה: אובייקט <code>hooks</code>, בתוכו מפתח לכל שם אירוע, ולכל אירוע מערך של קבוצות. כל קבוצה מכילה <code>matcher</code> (מסנן) ומערך <code>hooks</code> של מטפלים:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/settings.json</div>
+    <pre><code>{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/my-check.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}</code></pre>
+  </div>
+  <p>הסבר כל שדה: <code>matcher</code> קובע מתי הקבוצה נורית (בהמשך); <code>type</code> הוא סוג המטפל; <code>command</code> היא הפקודה שתרוץ (השתמשו ב-<code>$CLAUDE_PROJECT_DIR</code> לנתיב יציב לשורש הפרויקט); <code>timeout</code> בשניות דורס את ברירת המחדל. שדות אופציונליים נוספים: <code>args</code> (מעבר ל-Exec Form שמריץ את הסקריפט ישירות בלי Shell, מומלץ כשיש בעיות Quoting), <code>async</code> ו-<code>asyncRewake</code> (ריצה ברקע), <code>statusMessage</code> (הודעת Spinner מותאמת), ו-<code>if</code> (סינון בתחביר חוקי Permissions, למשל <code>"Bash(git *)"</code>, שרלוונטי רק לאירועי כלים).</p>
+
+  <h3 id="matchers">תחביר Matchers</h3>
+  <p>כללי הפירוש של שדה ה-<code>matcher</code>, כפי שמתועדים:</p>
+  <ul>
+    <li><code>"*"</code>, מחרוזת ריקה, או השמטה: התאמה לכל המופעים של האירוע.</li>
+    <li>מחרוזת עם אותיות, ספרות, <code>_</code>, <code>-</code>, פסיק, רווח או <code>|</code> בלבד: התאמה מדויקת. <code>"Edit|Write"</code> תופס את שני הכלים; מגרסה 2.1.191 גם <code>"Edit, Write"</code> שקול.</li>
+    <li>כל תו אחר הופך את הביטוי ל-<bdi>Regex</bdi> של JavaScript, לא מעוגן: <code>"mcp__.*__write.*"</code>.</li>
+  </ul>
+  <p>על מה ה-Matcher פועל תלוי באירוע: באירועי כלים (<code>PreToolUse</code>, <code>PostToolUse</code> וכדומה) הוא מסנן לפי שם הכלי; ב-<code>SessionStart</code> לפי אופן הפתיחה (<code>startup</code>, <code>resume</code>, <code>clear</code>, <code>compact</code>, <code>fork</code>); ב-<code>Notification</code> לפי סוג ההתראה (<code>permission_prompt</code>, <code>idle_prompt</code> ועוד); ב-<code>SessionEnd</code> לפי סיבת הסיום; ב-<code>PreCompact</code>/<code>PostCompact</code> לפי <code>manual</code> או <code>auto</code>; ב-<code>SubagentStart</code>/<code>SubagentStop</code> לפי סוג ה-Agent; ב-<code>FileChanged</code> זו רשימת שמות קבצים מילולית מופרדת ב-<code>|</code>. חלק מהאירועים, בהם <code>UserPromptSubmit</code>, <code>Stop</code> ו-<code>PostToolBatch</code>, לא תומכים ב-Matcher ותמיד נורים. כלי MCP ממוענים בתבנית <code>mcp__&lt;server&gt;__&lt;tool&gt;</code>, למשל <code>mcp__github__.*</code>.</p>
+  <div class="callout warn"><span class="title">אזהרה</span><p>ה-Matchers רגישים לאותיות גדולות/קטנות: <code>bash</code> לא יתפוס את הכלי <code>Bash</code>. ושדה <code>if</code> על פקודות Bash הוא Best-Effort בלבד (נכשל לכיוון הרצה כשהפקודה לא ניתנת לניתוח); לאכיפה קשיחה השתמשו במערכת ה-Permissions או בבדיקה בתוך הסקריפט עצמו.</p></div>
+
+  <h2 id="input">סכמת הקלט: מה הסקריפט מקבל ב-stdin</h2>
+  <p>בכל הפעלה, Claude Code כותב ל-stdin של המטפל אובייקט JSON. שדות משותפים לכל האירועים: <code>session_id</code>, <code>prompt_id</code>, <code>transcript_path</code> (נתיב קובץ התמליל), <code>cwd</code>, <code>permission_mode</code> ו-<code>hook_event_name</code>. כל אירוע מוסיף שדות משלו. כך נראה קלט טיפוסי של <code>PreToolUse</code> על הכלי <code>Bash</code>:</p>
+  <div class="codeblock">
+    <div class="codehead">stdin (PreToolUse)</div>
+    <pre><code>{
+  "session_id": "abc123",
+  "cwd": "/home/dev/taskflow",
+  "hook_event_name": "PreToolUse",
+  "permission_mode": "default",
+  "tool_name": "Bash",
+  "tool_use_id": "toolu_01ABC...",
+  "tool_input": {
+    "command": "pytest -q",
+    "description": "Run test suite"
+  }
+}</code></pre>
+  </div>
+  <p>באירועי עריכה, <code>tool_input</code> מכיל <code>file_path</code> ואת התוכן (<code>content</code> ב-<code>Write</code>, <code>old_string</code>/<code>new_string</code> ב-<code>Edit</code>). ב-<code>PostToolUse</code> מתווסף <code>tool_response</code>. ב-<code>UserPromptSubmit</code> יש את טקסט ה-Prompt, ב-<code>SessionStart</code> את <code>source</code> ו-<code>model</code>, וב-<code>Stop</code> את <code>stop_hook_active</code> (חשוב למניעת לולאות, ראו בהמשך). לחילוץ שדות בסקריפט Shell נהוג להשתמש ב-<code>jq</code>; ב-Python פשוט <code>json.load(sys.stdin)</code>.</p>
+
+  <h2 id="output">שליטה בפלט: קודי יציאה ו-JSON</h2>
+  <p>לסקריפט יש שתי דרכים לדבר חזרה עם Claude Code, ואסור לערבב ביניהן:</p>
+  <ul>
+    <li><strong>קוד יציאה 0:</strong> אין התנגדות. ה-stdout מנותח כ-JSON מובנה אם הוא כזה. חשוב: ב-<code>PreToolUse</code>, יציאה 0 בלי JSON לא מאשרת את הפעולה, אלא רק לא מתנגדת; זרימת ההרשאות הרגילה ממשיכה. באירועים <code>UserPromptSubmit</code>, <code>UserPromptExpansion</code> ו-<code>SessionStart</code>, כל מה שנכתב ל-stdout מוזרק ל-Context של Claude.</li>
+    <li><strong>קוד יציאה 2:</strong> חסימה. ה-stdout מתעלם, וה-stderr מוזן ל-Claude כהסבר. המשמעות תלויה באירוע: ב-<code>PreToolUse</code> הכלי נחסם; ב-<code>UserPromptSubmit</code> ה-Prompt נמחק; ב-<code>Stop</code> החסימה מונעת מ-Claude לעצור והוא ממשיך לעבוד; ב-<code>PostToolUse</code> אי אפשר לבטל (הכלי כבר רץ) אבל ה-stderr מוצג ל-Claude כמשוב.</li>
+    <li><strong>כל קוד אחר:</strong> שגיאה לא חוסמת. הפעולה ממשיכה, ובתמליל מופיעה הודעת <code>hook error</code> עם השורה הראשונה של ה-stderr.</li>
+  </ul>
+  <p>לשליטה עדינה יותר, צאו עם קוד 0 והדפיסו JSON ל-stdout. שדות אוניברסליים: <code>continue</code> (כ-<code>false</code> עוצר את העיבוד כולו, עם <code>stopReason</code>), <code>suppressOutput</code>, <code>systemMessage</code> (אזהרה שמוצגת למשתמש). שדות החלטה תלויי אירוע:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>אירוע</th><th>מבנה ההחלטה ב-JSON</th><th>אפשרויות</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>PreToolUse</code></td><td class="ltr"><code>hookSpecificOutput.permissionDecision</code></td><td><code>allow</code> (דילוג על הדיאלוג; חוקי Deny עדיין גוברים), <code>deny</code> (חסימה עם <code>permissionDecisionReason</code>), <code>ask</code>, <code>defer</code> (למצב <code>-p</code> עם Agent SDK). בנוסף: <code>updatedInput</code> לשכתוב הקלט ו-<code>additionalContext</code> להוספת הקשר</td></tr>
+        <tr><td class="ltr"><code>PermissionRequest</code></td><td class="ltr"><code>hookSpecificOutput.decision.behavior</code></td><td><code>allow</code>/<code>deny</code>, עם <code>updatedInput</code> ו-<code>updatedPermissions</code></td></tr>
+        <tr><td class="ltr"><code>PostToolUse</code>, <code>Stop</code>, <code>UserPromptSubmit</code> ואחרים</td><td class="ltr"><code>decision: "block"</code> + <code>reason</code></td><td>ה-<code>reason</code> מוזן ל-Claude; ב-PostToolUse יש גם <code>updatedToolOutput</code></td></tr>
+        <tr><td class="ltr"><code>UserPromptSubmit</code></td><td class="ltr"><code>hookSpecificOutput.additionalContext</code></td><td>הזרקת טקסט ל-Context (חייב להיות בתוך <code>hookSpecificOutput</code>)</td></tr>
+        <tr><td class="ltr"><code>SessionStart</code></td><td class="ltr"><code>hookSpecificOutput.additionalContext</code></td><td>וגם <code>sessionTitle</code>, <code>watchPaths</code>, <code>initialUserMessage</code>, <code>reloadSkills</code></td></tr>
+        <tr><td class="ltr"><code>PermissionDenied</code></td><td class="ltr"><code>hookSpecificOutput.retry</code></td><td><code>true</code> מתיר למודל לנסות שוב</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout tip"><span class="title">Best Practice</span><p>אל תערבבו: או קוד יציאה 2 עם נימוק ב-stderr, או קוד 0 עם JSON מובנה. כשיוצאים עם קוד 2, Claude Code מתעלם מכל JSON שהודפס.</p></div>
+
+  <h3 id="async">ריצה מקבילית, Async ו-Timeouts</h3>
+  <p>כשאירוע נורה, כל המטפלים התואמים רצים במקביל, ומטפלים זהים עוברים דה-דופליקציה אוטומטית. אחרי שכולם מסיימים, התוצאות ממוזגות: בהחלטות הרשאה של <code>PreToolUse</code> גוברת התשובה המחמירה ביותר, בסדר <code>deny</code>, <code>defer</code>, <code>ask</code>, <code>allow</code>; טקסט <code>additionalContext</code> נשמר מכל המטפלים. חשוב: <code>deny</code> של מטפל אחד לא מונע ממטפל אחר לרוץ ולבצע תופעות לוואי. עוד מלכודת מתועדת: כשכמה מטפלי <code>PreToolUse</code> מחזירים <code>updatedInput</code> על אותו כלי, האחרון שמסיים מנצח, והסדר לא דטרמיניסטי; הימנעו מזה.</p>
+  <p>ברירות מחדל של Timeout: 600 שניות ל-<code>command</code>/<code>http</code>/<code>mcp_tool</code> (באירוע <code>UserPromptSubmit</code> יורד ל-30 שניות וב-<code>MessageDisplay</code> ל-10), 30 שניות ל-<code>prompt</code>, 60 ל-<code>agent</code>. מטפל <code>command</code> יכול לרוץ ברקע עם <code>"async": true</code>, ועם <code>"asyncRewake": true</code> הוא גם מעיר את Claude כשהוא מסיים עם קוד 2 (ה-stderr מוצג כתזכורת מערכת). זה שימושי ל-Builds ארוכים שלא רוצים לחסום עליהם את התור.</p>
+
+  <h3 id="headless">Hooks במצב לא אינטראקטיבי וב-CI</h3>
+  <p>שלוש עובדות מתועדות שחשוב להכיר כשמריצים את Claude Code במצב <bdi>Headless</bdi> (<code>-p</code>, ראו <a href="ch17.html">פרק 17</a>): Hooks מסוג <code>PermissionRequest</code> רצים גם שם, חוץ ממצב <code>dontAsk</code>, וקריאה שאף Hook לא החליט עליה ושאין מי שיענה עליה נדחית (עדכון 15.10.2026; במחקר המקורי התיעוד תיאר שהאירוע לא נורה במצב הזה); הדגל <code>--include-hook-events</code> (יחד עם <code>--output-format stream-json</code>) מזרים את אירועי ה-Hooks לפלט, שימושי לניטור; והאירוע <code>Setup</code> עם הדגלים <code>--init-only</code>, <code>--init</code> ו-<code>--maintenance</code> נועד בדיוק להכנות חד-פעמיות של סביבת CI: התקנת תלויות, חימום Cache, בדיקות תקינות. בנוסף, ערך ה-<code>permissionDecision</code> הרביעי, <code>defer</code>, קיים רק במצב הזה ומיועד לעטיפות <bdi>Agent SDK</bdi> שאוספות קלט וממשיכות.</p>
+
+  <h2 id="seven-hooks">שבעה Hooks מוכנים לעבודה</h2>
+  <p>חבילת המדריך כוללת שבעה Hooks בתיקייה <code>hooks/</code>. כל אחד יושב בתיקייה משלו עם שלושה קבצים: <code>hooks.json</code> (קטע ההגדרה למיזוג ב-<code>settings.json</code>), הסקריפט עצמו, ו-<code>README.md</code>. כך נראה הפרויקט לפני ואחרי התקנת כולם:</p>
+  <div class="codeblock">
+    <div class="codehead">מבנה הפרויקט: לפני / אחרי</div>
+    <pre><code># לפני                          # אחרי
+taskflow/                        taskflow/
+├── .claude/                     ├── .claude/
+│   └── settings.json            │   ├── settings.json      # + מפתח hooks
+├── backend/                     │   ├── audit.log          # נוצר בריצה
+└── frontend/                    │   └── hooks/
+                                 │       ├── format-on-edit.sh
+                                 │       ├── lint-gate.sh
+                                 │       ├── protect-sensitive-files.sh
+                                 │       ├── block_dangerous_commands.py
+                                 │       ├── secrets_scan.py
+                                 │       ├── audit_log.py
+                                 │       └── session-context.sh
+                                 ├── backend/
+                                 └── frontend/</code></pre>
+  </div>
+  <p>ההתקנה זהה לכולם:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash (מתוך שורש הפרויקט)</div>
+    <pre><code>mkdir -p .claude/hooks
+cp /path/to/guide/hooks/&lt;hook-name&gt;/&lt;script&gt; .claude/hooks/
+chmod +x .claude/hooks/&lt;script&gt;
+# מיזוג תוכן hooks.json לתוך .claude/settings.json
+# אימות: בתוך Claude Code הריצו /hooks</code></pre>
+  </div>
+  <p>כל הסקריפטים אומתו בסביבת המחקר: <code>bash -n</code> לכל סקריפט Shell, <code>python3 -m py_compile</code> לכל סקריפט Python, ניתוח <code>jq</code> לכל <code>hooks.json</code>, והרצות מבחן עם קלט stdin לדוגמה. פלטי הבדיקה מופיעים ליד כל Hook.</p>
+
+  <h3 id="hook-format">1. format-on-edit: פירמוט אוטומטי אחרי עריכה</h3>
+  <p><bdi>PostToolUse</bdi> על <code>Edit|Write</code>: מפרמט כל קובץ שנערך, עם <bdi>black</bdi> ל-Python ו-<bdi>prettier</bdi> לקבצי Web (דרך <code>npx --no-install</code>, כלומר רק אם prettier מותקן בפרויקט; ה-Hook לעולם לא מוריד חבילות).</p>
+  <div class="codeblock">
+    <div class="codehead">hooks/format-on-edit/hooks.json</div>
+    <pre><code>{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-on-edit.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">hooks/format-on-edit/format-on-edit.sh</div>
+    <pre><code>#!/usr/bin/env bash
+set -u
+
+INPUT=$(cat)
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2&gt;/dev/null)
+
+[ -z "$FILE_PATH" ] &amp;&amp; exit 0
+[ -f "$FILE_PATH" ] || exit 0
+
+case "$FILE_PATH" in
+  *.py)
+    if command -v black &gt;/dev/null 2&gt;&amp;1; then
+      black --quiet "$FILE_PATH" 2&gt;/dev/null || true
+    fi
+    ;;
+  *.js|*.jsx|*.ts|*.tsx|*.json|*.css|*.scss|*.md|*.html|*.yaml|*.yml)
+    if command -v npx &gt;/dev/null 2&gt;&amp;1; then
+      npx --no-install prettier --write "$FILE_PATH" &gt;/dev/null 2&gt;&amp;1 || true
+    fi
+    ;;
+esac
+
+exit 0</code></pre>
+  </div>
+  <p><strong>הסבר:</strong> הסקריפט שולף את <code>tool_input.file_path</code> ובוחר Formatter לפי סיומת. הוא תמיד יוצא עם 0: כשל פירמוט לא צריך להפריע ל-Session. <strong>בדיקה:</strong> בקשו מ-Claude לערוך קובץ Python עם רווחים לא עקביים וצפו ב-Diff מתיישר. ידנית: <code>echo '{"tool_input":{"file_path":"app.py"}}' | .claude/hooks/format-on-edit.sh</code>. <strong>סיכונים:</strong> הסקריפט משנה קבצים; ודאו שתצורת ה-Formatter תואמת לצוות. עריכות דרך Bash לא נתפסות.</p>
+
+  <h3 id="hook-lint">2. lint-gate: משוב Lint מיידי</h3>
+  <p><bdi>PostToolUse</bdi> על <code>Edit|Write</code>: מריץ <bdi>ruff</bdi> על Python ו-<bdi>eslint</bdi> על JS/TS. כשיש ממצאים, יוצא עם קוד 2 וכותב אותם ל-stderr. ב-PostToolUse זה לא מבטל דבר (הכלי כבר רץ), אבל הממצאים מוזנים ל-Claude, שמתקן אותם באותו תור. זה יישום מדויק של סמנטיקת "משוב בלבד" של האירוע.</p>
+  <div class="codeblock">
+    <div class="codehead">hooks/lint-gate/lint-gate.sh (הליבה)</div>
+    <pre><code>report_and_block() {
+  {
+    echo "lint-gate: $1 reported issues in $FILE_PATH:"
+    echo "$2" | head -40
+    echo "Fix these lint issues before continuing."
+  } &gt;&amp;2
+  exit 2
+}
+
+case "$FILE_PATH" in
+  *.py)
+    command -v ruff &gt;/dev/null 2&gt;&amp;1 || exit 0
+    OUTPUT=$(ruff check --output-format=concise "$FILE_PATH" 2&gt;&amp;1) \
+      || report_and_block "ruff" "$OUTPUT"
+    ;;
+  *.js|*.jsx|*.ts|*.tsx)
+    command -v npx &gt;/dev/null 2&gt;&amp;1 || exit 0
+    npx --no-install eslint --version &gt;/dev/null 2&gt;&amp;1 || exit 0
+    OUTPUT=$(npx --no-install eslint --no-color "$FILE_PATH" 2&gt;&amp;1) \
+      || report_and_block "eslint" "$OUTPUT"
+    ;;
+esac</code></pre>
+  </div>
+  <p><strong>בדיקה:</strong> בקשו מ-Claude להוסיף לקובץ Python משתנה שלא בשימוש; ב-Transcript (<code>Ctrl+O</code>) תראו את ממצא ה-ruff מוזן חזרה, ו-Claude מתקן. <strong>סיכונים:</strong> חוקי Lint נוקשים מדי עלולים ליצור לולאת תיקונים; הפלט נחתך ל-40 שורות לחיסכון ב-Context.</p>
+
+  <h3 id="hook-protect">3. protect-sensitive-files: חסימת קבצים רגישים</h3>
+  <p><bdi>PreToolUse</bdi> על <code>Edit|Write|NotebookEdit</code>: חוסם עריכת <code>.env</code> וכל <code>.env.*</code>, כל דבר תחת <code>secrets/</code>, וקבצים תחת <code>migrations/</code> (מיגרציות הן Append-Only). זו הדגמה של דפוס החסימה הפשוט: קוד יציאה 2 עם נימוק ב-stderr.</p>
+  <div class="codeblock">
+    <div class="codehead">hooks/protect-sensitive-files/protect-sensitive-files.sh</div>
+    <pre><code>#!/usr/bin/env bash
+set -u
+
+INPUT=$(cat)
+FILE_PATH=$(printf '%s' "$INPUT" \
+  | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' 2&gt;/dev/null)
+
+[ -z "$FILE_PATH" ] &amp;&amp; exit 0
+
+deny() {
+  echo "protect-sensitive-files: editing '$FILE_PATH' is blocked ($1). Ask the user to change this file manually." &gt;&amp;2
+  exit 2
+}
+
+BASENAME=$(basename "$FILE_PATH")
+
+case "$BASENAME" in
+  .env|.env.*) deny "environment file with credentials" ;;
+esac
+
+case "$FILE_PATH" in
+  secrets/*|*/secrets/*) deny "secrets directory" ;;
+esac
+
+case "$FILE_PATH" in
+  migrations/*|*/migrations/*) deny "database migrations are append-only; create a new migration instead" ;;
+esac
+
+exit 0</code></pre>
+  </div>
+  <div class="verify"><p><strong>אימות שבוצע (28.07.2026):</strong> קלט עם <code>file_path: "/x/proj/.env"</code> החזיר קוד 2 עם הנימוק ב-stderr; קלט עם <code>backend/migrations/0002_add.py</code> נחסם; קלט עם <code>backend/app/main.py</code> עבר עם קוד 0 ובלי פלט.</p></div>
+  <p><strong>סיכונים:</strong> ההגנה מכסה רק את כלי העריכה. Claude יכול לכתוב ל-<code>.env</code> גם דרך <code>Bash</code> (<code>echo ... &gt; .env</code>); לכן שלבו אותה עם חוקי Deny ב-Permissions (<a href="ch07.html">פרק 7</a>) להגנה בשכבות.</p>
+
+  <h3 id="hook-danger">4. block-dangerous-commands: בולם הפקודות המסוכנות</h3>
+  <p><bdi>PreToolUse</bdi> על <code>Bash</code>, בסקריפט Python: חוסם שלושה דפוסים הרסניים לפני שהם רצים: מחיקה רקורסיבית כפויה של השורש או תיקיית הבית (<code>rm -rf /</code>, <code>rm -rf ~</code> וכדומה), <bdi>Force Push</bdi> ל-<code>main</code>/<code>master</code> (כולל <code>-f</code> ו-Refspec עם <code>+</code>), והזרמת הורדה ישירות ל-Shell (<code>curl ... | bash</code>). כאן הדגמת דפוס החסימה המובנה: קוד יציאה 0 עם JSON של <code>permissionDecision: "deny"</code>.</p>
+  <div class="codeblock">
+    <div class="codehead">hooks/block-dangerous-commands/block_dangerous_commands.py (הליבה)</div>
+    <pre><code>PIPE_TO_SHELL = re.compile(
+    r"\b(curl|wget)\b[^|;&amp;]*\|\s*(sudo\s+)?(env\s+\S+\s+)?(ba|z|da|k)?sh\b"
+)
+
+def deny(reason: str) -&gt; None:
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }))
+    sys.exit(0)
+
+def is_dangerous_rm(segment: str) -&gt; bool:
+    tokens = segment.split()
+    if tokens and tokens[0] == "sudo":
+        tokens = tokens[1:]
+    if not tokens or tokens[0] != "rm":
+        return False
+    flag_text = "".join(t for t in tokens[1:]
+                        if t.startswith("-") and not t.startswith("--"))
+    recursive = "r" in flag_text or "R" in flag_text or "--recursive" in tokens
+    force = "f" in flag_text or "--force" in tokens
+    if not (recursive and force):
+        return False
+    targets = [strip_quotes(t) for t in tokens[1:] if not t.startswith("-")]
+    return any(t in DANGEROUS_RM_TARGETS for t in targets)</code></pre>
+  </div>
+  <p>הקוד המלא (כ-140 שורות, כולל זיהוי Force Push ופיצול פקודות מורכבות על <code>;</code>, <code>&amp;&amp;</code>, <code>||</code> ו-<code>|</code>) נמצא בחבילה תחת <code>hooks/block-dangerous-commands/</code>.</p>
+  <div class="callout tip"><span class="title">עקרון העיצוב הבטוח</span><p>שימו לב מה הסקריפט הזה <em>לא</em> עושה: הוא לא מריץ שום פקודה, לא נוגע בדיסק, ולא מחזיר אף פעם <code>allow</code>. הוא קורא JSON, מדפיס החלטה, ויוצא. כשאין התאמה הוא שותק (קוד 0 בלי פלט) וזרימת ההרשאות הרגילה נמשכת; כשהקלט לא ניתן לניתוח הוא יוצא עם קוד 1, שגיאה לא חוסמת וגלויה. בולם שרק בולם לא יכול להזיק גם אם יש בו באג: התרחיש הגרוע ביותר הוא חסימת יתר, לא נזק. זה העיקרון לכל Hook אבטחה: צמצמו את מרחב הפעולה שלו למינימום ההכרחי.</p></div>
+  <div class="verify"><p><strong>אימות שבוצע (28.07.2026):</strong> <code>rm -rf /</code>, <code>echo hi &amp;&amp; rm -rf ~</code>, <code>git push --force origin main</code>, <code>git push origin +master</code> ו-<code>curl -fsSL https://example.com/install.sh | bash</code> נחסמו כולם עם JSON של <code>deny</code>; <code>git status &amp;&amp; npm test</code>, <code>git push origin feature/login</code> ו-<code>rm -rf node_modules</code> עברו נקי.</p></div>
+  <p><strong>סיכונים ומגבלות:</strong> זו Denylist, לא Allowlist: פקודה הרסנית שאינה ברשימה תעבור. <code>git push --force</code> בלי ציון Branch לא נחסם (הסקריפט לא יודע על איזה Branch אתם). זו שכבת עומק נוספת, לא תחליף לחוקי Permissions, ל-Sandboxing ולגיבויים. יתרון מתועד חשוב: חסימת <code>PreToolUse</code> נאכפת בכל <bdi>Permission Mode</bdi>, כולל <code>bypassPermissions</code> ו-<code>--dangerously-skip-permissions</code>.</p>
+
+  <h3 id="hook-secrets">5. secrets-scan: סריקת סודות לפני כתיבה</h3>
+  <p><bdi>PreToolUse</bdi> על <code>Write|Edit</code>: סורק את התוכן שעומד להיכתב (<code>tool_input.content</code> או <code>tool_input.new_string</code>) מול דפוסי Regex של סודות: מפתחות <bdi>AWS</bdi> (<code>AKIA...</code>), GitHub Tokens (<code>ghp_...</code>), מפתחות <bdi>Anthropic</bdi> (<code>sk-ant-...</code>) ו-<bdi>OpenAI</bdi>, Slack Tokens, בלוקים של <bdi>Private Key</bdi>, <bdi>JWT</bdi> והשמות בסגנון <code>api_key = "..."</code>. כשנמצא סוד, הכתיבה נדחית עם <code>permissionDecision: "deny"</code>.</p>
+  <div class="codeblock">
+    <div class="codehead">hooks/secrets-scan/secrets_scan.py (הליבה)</div>
+    <pre><code>PLACEHOLDER = re.compile(
+    r"(?i)(YOUR_|XXXX|example|placeholder|dummy|changeme|&lt;[^&gt;]+&gt;|\$\{|%s|REDACTED|test[_-]?key)"
+)
+
+def deny(findings) -&gt; None:
+    lines = ", ".join(f"{name} (line {line})" for name, line in findings)
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": (
+                "secrets-scan blocked this write. Likely secrets detected: "
+                f"{lines}. Move secrets to environment variables or a secrets "
+                "manager and reference them by name."
+            ),
+        }
+    }))
+    sys.exit(0)</code></pre>
+  </div>
+  <p>שימו לב לפרט עיצוב קריטי: הנימוק מציין את <em>שם הדפוס ומספר השורה</em> בלבד, לעולם לא את הערך שנתפס. אחרת הסוד היה מהדהד חזרה לשיחה, לתמליל ולכל לוג. זו דוגמה חיה לעקרון "נטרול נתונים רגישים בלוגים" מהנחיות האבטחה של התיעוד.</p>
+  <div class="verify"><p><strong>אימות שבוצע (28.07.2026):</strong> תוכן עם <code>AKIAQWERTYUIOPASDFGH</code> ועם GitHub Token נדחה עם JSON של deny (שם הדפוס בלבד בנימוק); <code>API_KEY = os.environ["API_KEY"]</code> ו-<code>ANTHROPIC_API_KEY=YOUR_API_KEY_HERE</code> (Placeholder) עברו נקי, קוד יציאה 0 בלי פלט.</p></div>
+  <p><strong>סיכונים:</strong> Regex מייצר גם False Positives וגם False Negatives; זו שכבת הגנה, לא ערובה. לסריקה היסטורית של Repository השתמשו בכלי ייעודי (למשל <bdi>gitleaks</bdi>) ב-CI, כפי שנראה ב-<a href="ch20.html">פרק 20</a>.</p>
+
+  <h3 id="hook-audit">6. audit-log: יומן פעולות</h3>
+  <p><bdi>PostToolUse</bdi> עם Matcher <code>*</code>: אחרי כל הפעלת כלי מוצלחת, נכתבת שורת JSON אחת ל-<code>.claude/audit.log</code> בפרויקט. עיצוב לפי עקרון מזעור נתונים: לפקודות <code>Bash</code> נשמרת הפקודה חתוכה ל-300 תווים; לעריכות רק נתיב הקובץ; לכל כלי אחר רק שמות מפתחות הקלט. <code>tool_response</code> ותוכן קבצים לא נרשמים לעולם.</p>
+  <div class="codeblock">
+    <div class="codehead">hooks/audit-log/audit_log.py (הליבה)</div>
+    <pre><code>def summarize(tool_name: str, tool_input: dict):
+    if tool_name == "Bash":
+        command = str(tool_input.get("command", ""))[:MAX_COMMAND_CHARS]
+        return {"command": command}
+    if tool_name in ("Edit", "Write", "NotebookEdit", "Read"):
+        return {"file_path": tool_input.get("file_path")
+                or tool_input.get("notebook_path")}
+    return {"input_keys": sorted(tool_input.keys())}
+
+entry = {
+    "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    "event": data.get("hook_event_name", "PostToolUse"),
+    "session_id": data.get("session_id"),
+    "cwd": data.get("cwd"),
+    "tool_name": tool_name,
+    "summary": summarize(tool_name, tool_input),
+}</code></pre>
+  </div>
+  <div class="verify"><p><strong>אימות שבוצע (28.07.2026):</strong> שני אירועי דוגמה (Bash ו-Edit) יצרו את השורות הבאות ב-<code>audit.log</code>, קוד יציאה 0:</p>
+  <div class="codeblock"><div class="codehead">.claude/audit.log</div><pre><code>{"ts": "2026-07-29T06:40:37+00:00", "event": "PostToolUse", "session_id": "test123", "cwd": "/tmp/hooktest", "tool_name": "Bash", "summary": {"command": "pytest backend/tests -q"}}
+{"ts": "2026-07-29T06:40:37+00:00", "event": "PostToolUse", "session_id": "test123", "cwd": null, "tool_name": "Edit", "summary": {"file_path": "backend/app/main.py"}}</code></pre></div></div>
+  <p><strong>סיכונים:</strong> הוסיפו את הלוג ל-<code>.gitignore</code>; דאגו ל-Rotation; זכרו ש-PostToolUse לא נורה על כשלים (הוסיפו את אותו מטפל ל-<code>PostToolUseFailure</code> לתיעוד מלא). לרישום מרכזי לצוות שלם, המירו את הדפוס ל-<bdi>HTTP Hook</bdi> ששולח לשירות רישום פנימי.</p>
+
+  <h3 id="hook-session">7. session-context: הזרקת הקשר בפתיחת Session</h3>
+  <p><bdi>SessionStart</bdi> עם Matcher <code>startup|resume</code>: מדפיס ל-stdout תמונת מצב של ה-Repository: ה-Branch הנוכחי, <code>git status --short</code> (עד 30 שורות), חמשת ה-Commits האחרונים, ורשימת Pull Requests פתוחים דרך <code>gh</code> אם הוא מותקן ומחובר. ב-SessionStart, פלט stdout עם קוד יציאה 0 מוזרק ישירות ל-Context, כך ש-Claude מתחיל כל Session כשהוא כבר מעודכן.</p>
+  <div class="codeblock">
+    <div class="codehead">hooks/session-context/session-context.sh (הליבה)</div>
+    <pre><code>git rev-parse --is-inside-work-tree &gt;/dev/null 2&gt;&amp;1 || exit 0
+
+echo "## Repository snapshot (injected by session-context hook)"
+echo "Branch: $(git branch --show-current 2&gt;/dev/null || echo unknown)"
+echo "### Working tree (git status --short, first 30 lines)"
+git status --short 2&gt;/dev/null | head -30
+echo "### Last 5 commits"
+git log --oneline -5 2&gt;/dev/null || echo "(no commits yet)"
+
+if command -v gh &gt;/dev/null 2&gt;&amp;1; then
+  echo "### Open Pull Requests (gh pr list)"
+  gh pr list --state open --limit 5 2&gt;/dev/null
+fi
+
+exit 0</code></pre>
+  </div>
+  <div class="verify"><p><strong>אימות שבוצע (28.07.2026):</strong> הרצה בתוך Repository זמני החזירה קוד 0 עם התקציר המלא (Branch, קבצים ב-Staging, הודעת "no commits yet"); הרצה מחוץ ל-Repository החזירה קוד 0 בלי פלט.</p></div>
+  <p><strong>בדיקה בתוך Claude Code:</strong> פתחו Session חדש ושאלו "על איזה Branch אנחנו ומה השתנה?"; Claude אמור לענות בלי להריץ אף פקודה. <strong>סיכונים ועלות:</strong> ההזרקה עולה Tokens בכל Session, ולכן הפלט קצוץ; כותרות PR עלולות להכיל מידע רגיש. להזרקה גם אחרי דחיסת Context, הוסיפו קבוצה עם Matcher בערך <code>compact</code>.</p>
+
+  <h2 id="debug">דיבוג Hooks</h2>
+  <p>ארבעה כלים עומדים לרשותכם:</p>
+  <ol>
+    <li><strong><code>/hooks</code>:</strong> תפריט לקריאה בלבד שמציג את כל ה-Hooks המוגדרים לפי אירוע, כולל ה-Matcher, הסוג, הפקודה והמקור (User / Project / Local / Plugin / Session / Built-in). עריכה נעשית רק בקובצי ההגדרות; מחיקה מקובץ ההגדרות נקלטת אוטומטית דרך ה-File Watcher.</li>
+    <li><strong>Transcript (<code>Ctrl+O</code>):</strong> שורת סיכום לכל Hook שנורה: הצלחה שקטה, חסימה עם ה-stderr, או הודעת <code>hook error</code> לשגיאה לא חוסמת.</li>
+    <li><strong>לוג דיבוג:</strong> <code>claude --debug</code> או, נוח יותר, <code>claude --debug-file /tmp/claude.log</code> ואז <code>tail -f /tmp/claude.log</code> בטרמינל שני. הלוג מכיל אילו Hooks תאמו, קודי יציאה, stdout ו-stderr מלאים. באמצע Session אפשר להפעיל עם <code>/debug</code>.</li>
+    <li><strong>בדיקה ידנית:</strong> הריצו את הסקריפט ישירות עם קלט מדומה, בדיוק כפי שעשינו באימותים לעיל:
+      <div class="terminal"><span class="p">$</span> echo '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | .claude/hooks/block_dangerous_commands.py
+<span class="out">{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", ...}}</span>
+<span class="p">$</span> echo $?
+<span class="out">0</span></div></li>
+  </ol>
+
+  <h2 id="failures">טיפול בכשלים ושגיאות נפוצות</h2>
+  <ul>
+    <li><strong>ה-Hook לא נורה:</strong> בדקו ב-<code>/hooks</code> שהוא רשום תחת האירוע הנכון; ה-Matcher רגיש לרישיות; ודאו שאתם על האירוע הנכון (Pre לעומת Post). במצב לא אינטראקטיבי (<code>-p</code>), <code>PermissionRequest</code> רץ חוץ ממצב <code>dontAsk</code>, וקוד יציאה 2 לא נחשב באירוע הזה: דוחים דרך <code>decision</code> ב-JSON. להחלטה לפני כל כלי, <code>PreToolUse</code> אמין יותר.</li>
+    <li><strong>"command not found" או שקט מוחלט:</strong> השתמשו בנתיבים מוחלטים או ב-<code>$CLAUDE_PROJECT_DIR</code>, ודאו <code>chmod +x</code>, ובדקו שהשורה הראשונה היא Shebang תקין (<code>#!/usr/bin/env bash</code> או <code>python3</code>).</li>
+    <li><strong>"jq: command not found":</strong> התקינו jq (<code>brew install jq</code> / <code>apt-get install jq</code>) או כתבו את המטפל ב-Python.</li>
+    <li><strong>JSON validation failed:</strong> אם פרופיל ה-Shell שלכם מדפיס טקסט (למשל <code>echo</code> ב-<code>.bashrc</code>), הוא מזהם את ה-stdout של המטפל. עטפו הדפסות בפרופיל בתנאי אינטראקטיביות (<code>[[ $- == *i* ]]</code>), או עברו ל-Exec Form עם <code>"args": []</code>.</li>
+    <li><strong>Stop Hook שלא מרפה:</strong> Claude Code עוקף Stop Hook שחסם שמונה פעמים רצופות בלי התקדמות. סקריפט Stop חייב לבדוק את השדה <code>stop_hook_active</code> בקלט ולצאת 0 אם הוא <code>true</code>, אחרת תיווצר לולאה עד המכסה.</li>
+    <li><strong>Timeout:</strong> מטפל איטי נקטע בברירת המחדל של סוגו; העלו <code>timeout</code> נקודתית או העבירו עבודה כבדה ל-<code>async</code>.</li>
+    <li><strong>כיבוי זמני:</strong> <code>"disableAllHooks": true</code> בקובץ ההגדרות מכבה את כל ה-Hooks שלכם (אך לא Hooks מ-Managed Settings ארגוניים).</li>
+  </ul>
+
+  <h2 id="security">אבטחה</h2>
+  <div class="callout danger"><span class="title">סכנה: Hooks מריצים קוד שרירותי</span><p>Hook רץ עם ההרשאות המלאות של המשתמש שלכם, בלי Sandbox, אוטומטית, שוב ושוב. Hook זדוני או רשלני יכול למחוק קבצים, לגנוב סודות או לשתול קוד. לעולם אל תתקינו Hooks ממקור שאינכם בוטחים בו, כולל Hooks שמגיעים בתוך Plugins ו-Hooks שנמצאים ב-<code>.claude/settings.json</code> של Repository שזה עתה שכפלתם. קראו את הסקריפט לפני שהוא רץ. התיעוד הרשמי מדגיש: אתם האחראים הבלעדיים לפקודות שאתם מגדירים.</p></div>
+  <ul>
+    <li><strong>ולידציה של קלט:</strong> אל תניחו שהקלט תקין; בדקו קיום שדות והתגוננו מנתיבים עם <code>..</code> (Path Traversal).</li>
+    <li><strong>ציטוט משתנים:</strong> תמיד <code>"$VAR"</code> ולא <code>$VAR</code> בסקריפטי Shell, ונתיבים מוחלטים דרך <code>"$CLAUDE_PROJECT_DIR"</code>.</li>
+    <li><strong>נטרול נתונים בלוגים:</strong> אל תרשמו תוכן קבצים או תגובות כלים; ראו את העיצוב של audit-log ו-secrets-scan לעיל.</li>
+    <li><strong>דילוג על קבצים רגישים:</strong> סקריפטים שנוגעים בקבצים צריכים להחריג <code>.env</code>, מפתחות ו-<code>.git/</code>.</li>
+    <li><strong>Hooks מחמירים אבל לא מקלים:</strong> <code>deny</code> של Hook נאכף גם ב-<code>bypassPermissions</code>, אבל <code>allow</code> של Hook לא עוקף חוקי Deny מ-Settings, כולל Managed Settings. הכיוון תמיד לכיוון ההחמרה.</li>
+    <li><strong>בקרה ארגונית:</strong> Admin יכול לקבוע <code>allowManagedHooksOnly</code> ב-Managed Settings, שחוסם Hooks של משתמש, פרויקט ו-Plugins. ל-HTTP Hooks יש Allowlist של כתובות (<code>allowedHttpHookUrls</code>) ושל משתני סביבה בכותרות.</li>
+    <li><strong>אמון Workspace:</strong> Hooks ב-Frontmatter של Subagents בפרויקט רצים רק אחרי אישור דיאלוג ה-Trust (מגרסה 2.1.218). לעומת זאת, Hooks בקובצי ההגדרות של הפרויקט רצים גם ב-<code>claude -p</code> בתיקייה שמעולם לא אושרה; לפני הרצה כזו ב-Repository לא מוכר, השתמשו ב-<code>--setting-sources user</code>, ב-<code>--bare</code> או ב-<code>--settings '{"disableAllHooks": true}'</code> (עדכון 15.10.2026).</li>
+  </ul>
+
+  <h2 id="cost">עלות ו-Context</h2>
+  <p>Hooks עצמם רצים מחוץ למודל ולא עולים Tokens, אבל כל טקסט שהם מזריקים כן: <code>additionalContext</code>, נימוקי חסימה, ופלטי stdout ב-SessionStart נכנסים ל-Context ומתומחרים ככל קלט אחר. לכן קצצו פלטים (כמו ה-<code>head -30</code> ב-session-context וה-<code>head -40</code> ב-lint-gate). Hooks סינכרוניים גם מוסיפים זמן המתנה לכל תור; העבירו עבודה איטית ל-<code>async</code>, וזכרו שב-<code>UserPromptSubmit</code> ה-Timeout מקוצר ל-30 שניות בדיוק כדי שלא תאטו כל הודעה.</p>
+
+  <h2 id="best-practices">Best Practices ו-Anti-Patterns</h2>
+  <ul class="check">
+    <li>סקריפט לכל Hook בקובץ נפרד תחת <code>.claude/hooks/</code>, לא פקודות ארוכות בתוך ה-JSON.</li>
+    <li>Fail-Safe מתוכנן: החליטו במודע מה קורה כשהסקריפט נכשל (בולם אבטחה שנכשל צריך להישאר שקט או גלוי? תעדו את הבחירה).</li>
+    <li>בדקו כל Hook ידנית עם קלט מדומה לפני הרישום, ושמרו את פקודות הבדיקה ב-README שלו.</li>
+    <li>Matcher צר ככל האפשר: <code>Edit|Write</code> ולא <code>*</code>, אלא כשבאמת צריך הכול (כמו audit-log).</li>
+    <li>החזיקו Hooks של צוות ב-<code>.claude/settings.json</code> בתוך ה-Repository, עם Code Review על כל שינוי.</li>
+  </ul>
+  <p><strong>Anti-Patterns:</strong> Hook שמריץ את כל חבילת הבדיקות אחרי כל עריכה (איטי; העדיפו Stop או async); PermissionRequest עם Matcher ריק שמאשר הכול אוטומטית (ביטול בפועל של מערכת ההרשאות); שני Hooks שמחזירים <code>updatedInput</code> על אותו כלי (סדר לא דטרמיניסטי); Hook שמדפיס סודות בנימוקי חסימה; ושימוש ב-Hook כתחליף יחיד לגיבויים ול-Permissions.</p>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 22.1: חסימת Commits שמכילים console.log</div>
+    <div class="body"><p>כתבו Hook מסוג <bdi>PreToolUse</bdi> על <code>Bash</code> שמזהה פקודות <code>git commit</code>, בודק את ה-Diff שנמצא ב-Staging, וחוסם את ה-Commit אם נוספו בו שורות עם <code>console.log</code>. דרישות: (1) הפקודה נבדקת רק אם היא באמת <code>git commit</code>; (2) נבדקות רק שורות שנוספו (מתחילות ב-<code>+</code>), לא שורות הקשר; (3) הנימוק שמוזן ל-Claude כולל את שמות הקבצים הבעייתיים; (4) כשל בסקריפט לא חוסם עבודה תקינה. בדקו ידנית עם קלט מדומה לפני הרישום.</p></div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <div class="codeblock">
+        <div class="codehead">.claude/hooks/block-console-log-commits.sh</div>
+        <pre><code>#!/usr/bin/env bash
+# PreToolUse hook (matcher: Bash): blocks git commit when the staged
+# diff adds console.log lines.
+set -u
+
+INPUT=$(cat)
+COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2&gt;/dev/null)
+
+# Only act on real git commit commands.
+case "$COMMAND" in
+  *"git commit"*) ;;
+  *) exit 0 ;;
+esac
+
+# Added lines only: start with '+' but not the '+++' file header.
+OFFENDERS=$(git diff --cached --unified=0 2&gt;/dev/null \
+  | awk '/^\+\+\+ b\// { file=substr($0,7) }
+         /^\+/ &amp;&amp; !/^\+\+\+/ &amp;&amp; /console\.log/ { print file }' \
+  | sort -u)
+
+if [ -n "$OFFENDERS" ]; then
+  {
+    echo "Commit blocked: staged changes add console.log in:"
+    echo "$OFFENDERS"
+    echo "Remove the console.log lines (or use a proper logger), restage, and commit again."
+  } &gt;&amp;2
+  exit 2
+fi
+
+exit 0</code></pre>
+      </div>
+      <div class="codeblock">
+        <div class="codehead">.claude/settings.json (קטע)</div>
+        <pre><code>{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-console-log-commits.sh",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}</code></pre>
+      </div>
+      <p>נקודות המפתח: (1) הסינון על <code>git commit</code> נעשה בתוך הסקריפט; אפשר לחדד עם <code>"if": "Bash(git commit *)"</code> על המטפל, אך זכרו שהשדה הוא Best-Effort. (2) <code>git diff --cached --unified=0</code> מציג רק שורות שהשתנו ב-Staging, וה-<bdi>awk</bdi> עוקב אחרי כותרות <code>+++ b/</code> כדי לשייך כל שורה שנוספה לקובץ שלה, תוך דילוג על כותרות הקובץ עצמן. (3) קוד יציאה 2 עם הרשימה ב-stderr נותן ל-Claude נימוק קונקרטי, והוא בדרך כלל יסיר את השורות ויבצע Commit מחדש לבד. (4) כל כשל אחר (למשל מחוץ ל-Repository) מסתיים ב-<code>exit 0</code> דרך ה-<code>2&gt;/dev/null</code> וברירות המחדל, כך שעבודה תקינה לא נחסמת. בדיקה ידנית: העבירו ל-stdin קלט <code>{"tool_input":{"command":"git commit -m test"}}</code> בתיקייה עם <code>console.log</code> ב-Staging וודאו קוד יציאה 2; עם Staging נקי ודאו קוד 0. שדרוג אפשרי: להוסיף גם <code>debugger</code> ו-<code>print(</code> לרשימה, כפי שעושה ה-Skill <code>pr-ready</code> שנארוז ב-<a href="ch26.html">פרק 26</a>.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>Hooks הם שכבת הדטרמיניזם של Claude Code: קוד שלכם, שרץ בנקודות מוגדרות, בלי תלות בשיקול הדעת של המודל. למדנו את שלושים אירועי ה-Lifecycle וחמשת סוגי המטפלים; את מבנה ההגדרה ב-<code>settings.json</code> ותחביר ה-Matchers; את סכמת הקלט ב-stdin ואת שפת הפלט: קוד יציאה 2 עם stderr לחסימה פשוטה, או JSON מובנה עם <code>permissionDecision</code>, <code>decision</code>, <code>updatedInput</code> ו-<code>additionalContext</code> לשליטה עדינה. בנינו ואימתנו שבעה Hooks מעשיים, מהפירמוט האוטומטי ועד בולם הפקודות המסוכנות עם עקרון העיצוב הבטוח שלו. וקבענו את כלל האבטחה: Hook רץ עם ההרשאות שלכם, לכן מתקינים רק ממקור אמין וקוראים כל שורה. בפרק הבא נצא מגבולות המכונה המקומית אל <bdi>MCP</bdi> בעבודה מעשית מקצה לקצה, ובפרק 26 נראה איך Hooks נארזים ומופצים לצוות שלם בתוך <bdi>Plugin</bdi>.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/hooks">Hooks reference</a> |
+      <a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks (guide)</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">CLI reference (--debug, --debug-file, --init-only, --include-hook-events)</a> |
+      <a href="https://code.claude.com/docs/en/plugins-reference">Plugins reference (plugin hooks)</a> |
+      <a href="https://code.claude.com/docs/en/permissions">Permissions</a> |
+      <a href="https://github.com/anthropics/claude-code/blob/main/examples/hooks/bash_command_validator_example.py">Bash command validator example (anthropics/claude-code)</a>
+      | נבדק: 28.07.2026. עדכון נקודתי: 15.10.2026, מול Claude Code 2.1.300 (<code>PermissionRequest</code>, אירועים חדשים, אמון Workspace).
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch21.html"><span class="lbl">הפרק הקודם</span>Skills</a>
+    <a href="ch23.html"><span class="lbl">הפרק הבא</span>MCP מעשי מקצה לקצה</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.1 | הפרק עודכן: 15.10.2026 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

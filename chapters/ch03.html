@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 3: ה-Session הראשון</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק א | פרק 3</p>
+  <h1>ה-Session הראשון</h1>
+  <p class="lead">בפרק הזה נעבור יחד, צעד אחר צעד, את ה-<bdi>Session</bdi> הראשון שלכם ב-<bdi>Claude Code</bdi>: מפתיחת הטרמינל ועד יציאה וחזרה לשיחה. נעבוד על פרויקט הדוגמה <bdi>TaskFlow</bdi>, נשאל שאלות על הקוד, נאתר <bdi>Bug</bdi> אמיתי, נבצע תיקון מבוקר, נריץ בדיקות, ונלמד לאשר, לדחות ולבטל שינויים בביטחון.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-is-session">מה זה Session ומה נעשה בפרק</h2>
+  <p><bdi>Session</bdi> הוא שיחה אחת רציפה עם <bdi>Claude Code</bdi> בתוך תיקיית פרויקט: כל מה שאתם כותבים, כל מה ש-Claude קורא ומשנה, וכל פלט של פקודות, נשמרים כהקשר אחד. הפרק בנוי כתרגול מודרך של אחד עשר שלבים. בכל שלב תראו את הפקודה או ה-<bdi>Prompt</bdi> המדויקים, מה קורה מאחורי הקלעים, מה צפוי להופיע על המסך, ומה יכול להשתבש.</p>
+  <h3 id="how-it-works">איך זה עובד מושגית</h3>
+  <p>כדי שהשלבים הבאים יהיו מובנים ולא ירגישו כמו קסם, הנה המנגנון בקצרה. כשאתם שולחים <bdi>Prompt</bdi>, Claude לא רק "עונה": הוא פועל בלולאה. הוא מחליט אילו כלים להפעיל (קריאת קובץ, חיפוש בקוד, הרצת פקודה, עריכה), מפעיל אותם, קורא את התוצאות, ומחליט על הצעד הבא, עד שהמשימה הושלמה. שלושה עקרונות נובעים מזה:</p>
+  <ul>
+    <li><strong>אתם לא צריכים להדביק קוד.</strong> Claude קורא את הקבצים בעצמו, לפי הצורך, מתוך תיקיית העבודה.</li>
+    <li><strong>פעולות קריאה שקטות, פעולות כתיבה מבוקרות.</strong> קריאת קבצים לא דורשת אישור; עריכת קבצים והרצת פקודות דורשות, במצב ברירת המחדל.</li>
+    <li><strong>הכול שקוף.</strong> כל צעד בלולאה מוצג על המסך בזמן אמת, ומציג ה-<bdi>Transcript</bdi> (<code>Ctrl+O</code>) חושף את הפירוט המלא.</li>
+  </ul>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>נדרשת התקנה עובדת ומחוברת של <bdi>Claude Code</bdi>. אם עוד לא התקנתם והתחברתם, חזרו ל<a href="ch02.html">פרק 2: הכנת סביבת העבודה</a>. כדאי גם <bdi>Python 3.10+</bdi> ו-<bdi>Node.js</bdi> מותקנים כדי להריץ את הבדיקות של פרויקט הדוגמה, אבל אפשר להשלים את רוב הפרק גם בלעדיהם.</p></div>
+
+  <h2 id="taskflow-setup">הכנת פרויקט התרגול: TaskFlow</h2>
+  <p><bdi>TaskFlow</bdi> הוא פרויקט הדוגמה הקבוע של המדריך: אפליקציית ניהול משימות קטנה עם <bdi>Backend</bdi> ב-<bdi>Python</bdi> ו-<bdi>FastAPI</bdi> (עם <bdi>SQLite</bdi>), ו-<bdi>Frontend</bdi> ב-<bdi>React</bdi> עם <bdi>TypeScript</bdi>. הוא נמצא בחבילת המדריך בתיקייה <code>examples/taskflow</code>. העתיקו אותו לתיקיית עבודה משלכם, כדי שתוכלו לשנות בו דברים בחופשיות:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash (macOS / Linux / WSL)</div>
+    <pre><code>cp -r /path/to/guide/examples/taskflow ~/projects/taskflow
+cd ~/projects/taskflow
+git init &amp;&amp; git add -A &amp;&amp; git commit -m "TaskFlow baseline"</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">PowerShell (Windows)</div>
+    <pre><code>Copy-Item -Recurse C:\path\to\guide\examples\taskflow $env:USERPROFILE\projects\taskflow
+cd $env:USERPROFILE\projects\taskflow
+git init; git add -A; git commit -m "TaskFlow baseline"</code></pre>
+  </div>
+  <p>יצירת ה-<bdi>Commit</bdi> הראשוני אינה חובה, אבל מומלצת: כך תמיד תוכלו להשוות למצב ההתחלה. אין לכם את חבילת המדריך ביד? אפשר לבצע את כל הפרק על כל פרויקט קטן שאתם מכירים; פשוט התאימו את שמות הקבצים ב-<bdi>Prompts</bdi>.</p>
+  <p>מבנה הפרויקט שנעבוד איתו:</p>
+  <div class="codeblock">
+    <div class="codehead">examples/taskflow</div>
+    <pre><code>taskflow/
+├── CLAUDE.md              # הוראות פרויקט ל-Claude
+├── README.md
+├── backend/
+│   ├── app/
+│   │   ├── main.py        # נקודת הכניסה של ה-API
+│   │   ├── database.py
+│   │   ├── models.py      # מודלים של Pydantic
+│   │   └── routers/tasks.py
+│   ├── tests/test_tasks.py
+│   └── requirements.txt
+└── frontend/
+    └── src/ (App.tsx, api.ts, types.ts)</code></pre>
+  </div>
+
+  <h2 id="survival-kit">ערכת הישרדות: שישה קיצורים שחייבים להכיר</h2>
+  <p>לפני שמתחילים, שננו את הטבלה הקצרה הזאת. אלה הקיצורים שיחלצו אתכם מכל מצב ב-<bdi>Session</bdi> הראשון (הרשימה המלאה בפרק על מצב אינטראקטיבי):</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>קיצור / פקודה</th><th>מה הוא עושה</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>Shift+Tab</code></td><td>מחליף בין מצבי הרשאות (Permission Modes): מצב ברירת המחדל שבו Claude מבקש אישור, מצב <bdi>acceptEdits</bdi> שמאשר עריכות קבצים אוטומטית, ומצב <bdi>plan</bdi> שבו Claude רק מתכנן בלי לגעת בקבצים</td></tr>
+        <tr><td class="ltr"><code>Esc</code></td><td>עוצר את Claude באמצע פעולה. העבודה שכבר נעשתה נשמרת ואפשר לכוון מחדש. כשחלון דו-שיח פתוח (למשל בקשת הרשאה), <code>Esc</code> סוגר את החלון</td></tr>
+        <tr><td class="ltr"><code>Esc Esc</code></td><td>כששורת הקלט ריקה: פותח את תפריט ה-<bdi>Rewind</bdi> לשחזור מצב קודם. כשיש טקסט בשורת הקלט: מנקה אותו (הטיוטה נשמרת בהיסטוריה)</td></tr>
+        <tr><td class="ltr"><code>/help</code></td><td>מציג את הפקודות הזמינות</td></tr>
+        <tr><td class="ltr"><code>/clear</code></td><td>פותח שיחה חדשה עם הקשר ריק (השיחה הקודמת נגישה דרך <code>/resume</code>)</td></tr>
+        <tr><td class="ltr"><code>Ctrl+O</code></td><td>פותח וסוגר את מציג ה-<bdi>Transcript</bdi>: תצוגה מפורטת של כל קריאות הכלים והפעולות שמאחורי כל תשובה</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>למה דווקא השישה האלה? כי הם מכסים את שלושת הצרכים הדחופים של מתחיל: שליטה במה ש-Claude מורשה לעשות (<code>Shift+Tab</code>), עצירה וביטול כשמשהו לא מסתדר (<code>Esc</code> ו-<code>Esc Esc</code>), והתמצאות כשלא ברור מה קורה (<code>/help</code>, <code>Ctrl+O</code>) או כשההקשר התלכלך (<code>/clear</code>). כל השאר יכול לחכות לפרקים הבאים.</p>
+  <div class="callout tip"><span class="title">Best Practice</span><p>יציאה: <code>/exit</code>, או <code>Ctrl+D</code> פעמיים. גם <code>Ctrl+C</code> פעמיים על שורת קלט ריקה יוצא. הקלדת <code>?</code> על שורת קלט ריקה פותחת פאנל עזרה לקיצורים, בלי לשלוח שום דבר למודל.</p></div>
+
+  <h2 id="step1">שלב 1: פתיחת הטרמינל</h2>
+  <p>ב-<bdi>macOS</bdi> פתחו את <bdi>Terminal</bdi> (או <bdi>iTerm2</bdi>) דרך <bdi>Spotlight</bdi>. ב-<bdi>Windows</bdi> פתחו <bdi>Windows Terminal</bdi> או <bdi>PowerShell</bdi>, ואם התקנתם בתוך <bdi>WSL2</bdi> פתחו את טרמינל ההפצה (למשל <bdi>Ubuntu</bdi>). ב-<bdi>Linux</bdi> כל אמולטור טרמינל יעבוד. אפשר גם להשתמש בטרמינל המשולב של <bdi>VS Code</bdi> או <bdi>JetBrains</bdi>; היתרון שם הוא שתצוגות ה-<bdi>Diff</bdi> ייפתחו בתוך ה-<bdi>IDE</bdi>.</p>
+  <p><strong>מה יכול להשתבש:</strong> אם <code>claude --version</code> לא עובד בטרמינל שפתחתם, חזרו לסעיף ה-<bdi>Troubleshooting</bdi> של <a href="ch02.html#troubleshooting">פרק 2</a> (כמעט תמיד זו בעיית <bdi>PATH</bdi> או טרמינל שלא נפתח מחדש אחרי ההתקנה).</p>
+
+  <h2 id="step2">שלב 2: מעבר לתיקיית הפרויקט</h2>
+  <p>נווטו לתיקיית ה-<bdi>TaskFlow</bdi> שהעתקתם:</p>
+  <div class="terminal"><span class="p">$</span> cd ~/projects/taskflow
+<span class="p">$</span> ls
+<span class="out">CLAUDE.md  README.md  backend  frontend</span></div>
+  <p>ב-<bdi>PowerShell</bdi> הפקודה זהה בשם אך הנתיב שונה: <code>cd $env:USERPROFILE\projects\taskflow</code>. חשוב להפעיל את <bdi>Claude Code</bdi> משורש הפרויקט: תיקיית העבודה קובעת אילו קבצים Claude רואה כברירת מחדל, ואיפה הוא יחפש את קובץ ה-<bdi>CLAUDE.md</bdi> עם הוראות הפרויקט.</p>
+  <p><strong>מה יכול להשתבש:</strong> הפעלה מתיקיית הבית (<code>~</code>) במקום מתיקיית הפרויקט תגרום ל-Claude לראות את כל הקבצים האישיים שלכם, ואישור ה-<bdi>Trust</bdi> שם נשמר לאותו <bdi>Session</bdi> בלבד. תמיד עדיף להפעיל מתיקיית פרויקט ספציפית.</p>
+
+  <h2 id="step3">שלב 3: הפעלת claude ואישור ה-Trust</h2>
+  <div class="terminal"><span class="p">$</span> claude</div>
+  <p><strong>מה קורה:</strong> נפתח ממשק אינטראקטיבי בתוך הטרמינל. מעל שורת הקלט מוצגים הגרסה, המודל הנוכחי ותיקיית העבודה, ובשורת הקלט מחכה סמן. משם והלאה הכול שיחה: מקלידים טקסט חופשי ולוחצים <bdi>Enter</bdi>, או מקלידים <code>/</code> כדי לפתוח את תפריט הפקודות. אם זו ההרצה הראשונה אי פעם, תתבקשו קודם להתחבר לחשבון ולעבור תהליך הגדרה ראשוני קצר (כפי שראינו בפרק 2; ערכת הצבעים ניתנת לשינוי בכל שלב עם <code>/theme</code>). הערה כנה: פרטי המסך המדויקים משתנים מגרסה לגרסה, ולכן אנחנו מתארים כאן את ההתנהגות המתועדת ולא צילום מסך מילולי; אל תיבהלו אם אצלכם הניסוח מעט שונה.</p>
+  <p><strong>אישור ה-Trust:</strong> בהרצה הראשונה בתיקיית קוד חדשה, <bdi>Claude Code</bdi> מבקש אימות אמון (Trust Verification) לפני שהוא מתחיל לעבוד עם הקבצים. זהו מנגנון אבטחה מתועד: תיקייה זרה עלולה להכיל הגדרות והרשאות שמישהו אחר כתב, ולכן החלון מציג לאישורכם גם את חוקי ההרשאות שהתיקייה מבקשת להעניק (אם קיים בה קובץ <code>.claude/settings.json</code>). בחרו באפשרות שמאשרת את האמון בתיקייה (בנוסח "Yes, I trust this folder") רק אם אתם יודעים מה מקור הקוד. האישור נשמר פר תיקייה, כך שהוא לא יופיע שוב בהרצות הבאות באותו פרויקט.</p>
+  <p><strong>מה יכול להשתבש:</strong> אם החלון חוזר בכל הפעלה, בדקו אם אתם מפעילים את <code>claude</code> ישירות בתיקיית הבית: שם האישור נשמר ל-<bdi>Session</bdi> הנוכחי בלבד ואינו נכתב לדיסק, בכוונה. פתרון: עברו לתיקיית פרויקט.</p>
+
+  <h2 id="step4">שלב 4: שאלה ראשונה על ה-Repository</h2>
+  <p>הקלידו את ה-<bdi>Prompt</bdi> הראשון ולחצו <bdi>Enter</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>what does this project do? give me a short overview of the structure</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude קורא בעצמו את הקבצים הדרושים: בדרך כלל יתחיל מ-<code>README.md</code> ו-<code>CLAUDE.md</code>, יציץ ב-<code>backend/app/main.py</code> וב-<code>package.json</code>, ויחזיר סיכום. אין צורך "להאכיל" אותו בקבצים; הוא קורא לפי הצורך. תראו על המסך את שורות הפעולה (אילו קבצים נקראו) ואז תשובה מסכמת: אפליקציית ניהול משימות עם <bdi>API</bdi> ב-<bdi>FastAPI</bdi> ו-<bdi>Frontend</bdi> ב-<bdi>React</bdi>.</p>
+  <p><strong>תוצאה צפויה:</strong> הניסוח המדויק של התשובה משתנה מהרצה להרצה; זה טבעו של מודל שפה. מה שחשוב הוא שהתשובה תזהה נכון את הרכיבים: <bdi>Backend</bdi>, <bdi>Frontend</bdi>, <bdi>SQLite</bdi>, ומבנה התיקיות. קריאת קבצים היא פעולת קריאה בלבד ולכן אינה דורשת אישור.</p>
+  <p>המשיכו לתרגל עם עוד כמה שאלות חקירה מהסוג שהתיעוד הרשמי ממליץ עליו למתחילים. כל אחת מהן מלמדת אתכם משהו על הפרויקט ומדגימה סגנון <bdi>Prompt</bdi> שימושי:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompts לתרגול</div>
+    <pre><code>what technologies does this project use?
+where is the main entry point?
+explain the folder structure
+how do the frontend and backend talk to each other?</code></pre>
+  </div>
+  <p><strong>מה יכול להשתבש:</strong> אם Claude עונה באופן כללי מדי בלי לקרוא קבצים, ודאו שהפעלתם אותו בתיקייה הנכונה (השורה מעל שורת הקלט מציגה את תיקיית העבודה). ואם תרצו לראות בדיוק אילו קבצים נקראו ובאיזה סדר, לחצו <code>Ctrl+O</code> לפתיחת מציג ה-<bdi>Transcript</bdi> ושוב <code>Ctrl+O</code> לסגירתו.</p>
+
+  <h2 id="step5">שלב 5: בקשת הסבר על קובץ מסוים</h2>
+  <p>עכשיו נצלול לקובץ אחד. הקלידו <code>@</code> כדי לקבל השלמה אוטומטית של נתיבי קבצים, ובחרו את קובץ ה-<bdi>Router</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>explain @backend/app/routers/tasks.py: what does each endpoint do, and how does it talk to the database?</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> האזכור עם <code>@</code> מצרף את הקובץ להקשר באופן מפורש. Claude יסביר שהקובץ מגדיר חמישה <bdi>Endpoints</bdi> של <bdi>CRUD</bdi> (רשימה, יצירה, שליפה, עדכון ומחיקה של משימות), שכולם עובדים מול <bdi>SQLite</bdi> בשאילתות עם פרמטרים דרך הפונקציה <code>get_conn</code>. ייתכן שיעיר גם על פרטים כמו קוד הסטטוס 201 ביצירה ו-404 כשמשימה לא נמצאת.</p>
+  <p><strong>תוצאה צפויה:</strong> הסבר קריא, פסקה או שתיים לכל <bdi>Endpoint</bdi>. זו דרך מצוינת ללמוד <bdi>Codebase</bdi> חדש: במקום לקרוא קוד זר לבד, מבקשים סיור מודרך.</p>
+
+  <h2 id="step6">שלב 6: איתור Bug</h2>
+  <p>בואו נבקש מ-Claude לחפש בעיה אמיתית שקיימת בקוד:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>I think the API accepts tasks with a whitespace-only title like "   ".
+Look at the validation in the backend, tell me if that's true and where the bug is.
+Don't change any code yet.</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude יקרא את <code>backend/app/models.py</code> ויאשר את האבחנה: המודל <code>TaskCreate</code> דורש <code>min_length=1</code> לשדה <code>title</code>, אבל מחרוזת של רווחים בלבד עוברת את הבדיקה הזאת, כך שאפשר ליצור משימה עם כותרת "ריקה" למראה. שימו לב לניסוח ה-<bdi>Prompt</bdi>: ביקשנו במפורש לא לשנות קוד עדיין. הרגל טוב: קודם מבינים, אחר כך משנים.</p>
+  <p><strong>מה יכול להשתבש:</strong> אם Claude מציע מיד תיקון מלא, זה בסדר; פשוט אל תאשרו עריכות בשלב הזה. אתם תמיד שולטים במה שנכתב לדיסק. חלופה מסודרת: לחצו <code>Shift+Tab</code> עד מצב <bdi>plan</bdi>, שבו Claude חוקר ומתכנן בלי לערוך כלל.</p>
+
+  <h2 id="step7">שלב 7: ביצוע שינוי קטן</h2>
+  <p>עכשיו נבקש את התיקון עצמו:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>fix it: reject titles that are empty after trimming whitespace,
+in both TaskCreate and TaskUpdate. keep the change minimal.</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude יציע עריכה של <code>backend/app/models.py</code>, למשל הוספת <bdi>Validator</bdi> של <bdi>Pydantic</bdi> שמסיר רווחים ודוחה כותרת ריקה. במצב ברירת המחדל, לפני כתיבת השינוי לדיסק תופיע בקשת הרשאה: תצוגת השינוי המוצע ולצדה אפשרויות לאשר, לדחות, או להנחות את Claude לעשות משהו אחר. עברו בין האפשרויות עם מקשי החצים.</p>
+  <p><strong>תוצאה צפויה:</strong> אחרי האישור, הקובץ נערך והשינוי מדווח בשיחה. אם תאשרו עם האפשרות שמאשרת גם עריכות עתידיות (או תעברו למצב <bdi>acceptEdits</bdi> עם <code>Shift+Tab</code>), עריכות הקבצים הבאות באותו <bdi>Session</bdi> לא יבקשו אישור מחדש.</p>
+  <p><strong>מה יכול להשתבש:</strong> אם ה-<bdi>Diff</bdi> המוצע גדול או נוגע בקבצים שלא ציפיתם להם, אל תאשרו. דחו, וכתבו הנחיה מדויקת יותר, למשל "only touch models.py, do not modify the routers". דחייה היא חלק רגיל מהעבודה, לא כישלון: אתם עורכים ראשיים, ו-Claude הוא המבצע.</p>
+  <div class="callout note"><span class="title">שיקול עלות והקשר</span><p>כל פעולה ב-<bdi>Session</bdi> צורכת <bdi>Tokens</bdi> מתוך מכסת השימוש של התוכנית שלכם (או מהקרדיטים, בחיוב API). שיחה ממוקדת בנושא אחד היא גם זולה יותר וגם מדויקת יותר, כי ההקשר נשאר רלוונטי. הפקודה <code>/usage</code> מציגה את מצב המכסה בתוכניות המנוי, ועל ניהול הקשר מתקדם נדבר בפרקים הבאים.</p></div>
+  <div class="callout warn"><span class="title">אזהרה</span><p>אל תעברו למצבים אוטומטיים מתוך הרגל ביום הראשון. מצב ברירת המחדל, שבו רואים כל שינוי לפני שהוא נכתב, הוא כלי הלמידה הטוב ביותר שיש למתחילים. על מצבי הרשאות מתקדמים נרחיב בפרק על מערכת ההרשאות.</p></div>
+
+  <h2 id="step8">שלב 8: צפייה ב-Diff</h2>
+  <p>כדי לראות את כל מה שהשתנה עד עכשיו, הריצו:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>/diff</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> נפתח מציג <bdi>Diff</bdi> אינטראקטיבי בתוך הטרמינל, שמציג את השינויים הלא מקומטים (Uncommitted) בגרסת <bdi>Git</bdi>, וגם <bdi>Diff</bdi> לכל תור של Claude בנפרד. הניווט: חצים ימינה ושמאלה מחליפים בין תצוגת ה-<bdi>Git Diff</bdi> הנוכחי לבין תורות בודדים, חצים למעלה ולמטה עוברים בין קבצים, <bdi>Enter</bdi> פותח את ה-<bdi>Diff</bdi> של הקובץ שנבחר, ו-<code>Esc</code> חוזר לרשימה.</p>
+  <p>אם אתם עובדים בתוך <bdi>VS Code</bdi> עם התוסף, השינויים מוצגים ממילא בתצוגת השוואה זו לצד זו בתוך העורך. ב-<bdi>JetBrains</bdi>, כשהתוסף מחובר, אפשר להגדיר ב-<code>/config</code> את <bdi>Diff tool</bdi> ל-<code>auto</code> כדי שה-<bdi>Diffs</bdi> ייפתחו במציג של ה-<bdi>IDE</bdi>.</p>
+  <p><strong>מה יכול להשתבש:</strong> אם לא יצרתם <bdi>Repository</bdi> של <bdi>Git</bdi> בשלב ההכנה, חלק מתצוגת ה-<bdi>Diff</bdi> שמבוססת על <bdi>Git</bdi> לא יהיה זמין. זו סיבה טובה נוספת להתחיל כל פרויקט עם <code>git init</code>.</p>
+
+  <h2 id="step9">שלב 9: הרצת הבדיקות</h2>
+  <p>תיקון בלי בדיקה אינו תיקון. בקשו מ-Claude להריץ את חבילת הבדיקות של ה-<bdi>Backend</bdi> ולהוסיף בדיקה לתרחיש שתיקנו:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>run the backend tests. then add a test that POST /tasks with a whitespace-only title returns 422, and run the tests again.</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> הרצת פקודת <bdi>Shell</bdi> כמו <code>pytest -q</code> היא פעולה שמשנה את המערכת, ולכן במצב ברירת המחדל תופיע בקשת הרשאה שמציגה את הפקודה המדויקת לפני הרצתה, עם אפשרות לאשר פעם אחת או לאשר גם להבא. אחרי האישור, Claude מריץ את הבדיקות, קורא את הפלט בעצמו, מוסיף בדיקה חדשה ל-<code>backend/tests/test_tasks.py</code> (עריכה שתדרוש אישור משלה), ומריץ שוב. אם תרצו להריץ פקודה בעצמכם בלי לצאת מה-<bdi>Session</bdi>, הקלידו <code>!</code> בתחילת השורה ואז את הפקודה: היא תרוץ ישירות והפלט שלה יצטרף לשיחה, כך ש-Claude יוכל להתייחס אליו.</p>
+  <p><strong>תוצאה צפויה:</strong> בסוף התהליך כל הבדיקות עוברות, כולל החדשה. אם בדיקה נכשלת, Claude רואה את השגיאה ומציע תיקון; זה בדיוק מחזור העבודה הטבעי שלו: שינוי, הרצה, קריאת פלט, תיקון.</p>
+  <p><strong>מה יכול להשתבש:</strong> אם <code>pytest</code> אינו מותקן, ההרצה תיכשל עם שגיאה ברורה. בקשו מ-Claude להתקין את התלויות (<code>pip install -r requirements.txt</code>, רצוי בתוך <bdi>Virtual Environment</bdi>), או עשו זאת בעצמכם בטרמינל אחר.</p>
+
+  <h2 id="step10">שלב 10: אישור, דחייה וחרטה</h2>
+  <p>נעצור לרגע ונסכם את כלי השליטה שראינו, ועוד אחד חשוב:</p>
+  <ul>
+    <li><strong>בקשות הרשאה:</strong> כל עריכת קובץ ורוב פקודות ה-<bdi>Shell</bdi> דורשות אישור במצב ברירת המחדל. דחייה אינה מפילה את השיחה; Claude ישאל איך תרצו להמשיך אחרת.</li>
+    <li><strong>עצירה באמצע:</strong> <code>Esc</code> קוטע את Claude מיד, תוך שמירת מה שכבר נעשה. שימושי כשאתם רואים שהוא הולך לכיוון לא נכון.</li>
+    <li><strong>Rewind (ביטול):</strong> לחצו <code>Esc</code> פעמיים על שורת קלט ריקה, או הריצו <code>/rewind</code>. ייפתח תפריט שמציג את כל ה-<bdi>Prompts</bdi> ששלחתם ב-<bdi>Session</bdi>; לפני כל <bdi>Prompt</bdi> נשמר <bdi>Checkpoint</bdi> אוטומטי של הקבצים. בחרו נקודה, ואז בחרו אם לשחזר גם קוד וגם שיחה, רק שיחה, או רק קוד.</li>
+  </ul>
+  <p>תפריט ה-<bdi>Rewind</bdi> מציע, לפי התיעוד, את הפעולות הבאות על הנקודה שבחרתם: "Restore code and conversation" משחזר גם את הקבצים וגם את השיחה לאותה נקודה; "Restore conversation" מחזיר את השיחה אחורה אבל משאיר את הקוד הנוכחי; "Restore code" משחזר רק את הקבצים ומשאיר את השיחה; שתי אפשרויות "Summarize" מכווצות חלק מהשיחה לסיכום כדי לפנות מקום בהקשר (נרחיב עליהן בפרק על ניהול <bdi>Context</bdi>); ו-"Never mind" יוצא בלי לשנות דבר. שימו לב שאפשרויות שחזור הקוד מופיעות רק כשיש לנקודה שינויי קבצים מתועדים לשחזור.</p>
+  <p>נסו את זה עכשיו באופן בטוח: הריצו <code>/rewind</code>, הסתכלו על רשימת הנקודות, וצאו עם "Never mind" בלי לשחזר כלום. עצם הידיעה שהתפריט קיים משנה את אופי העבודה: אפשר לתת ל-Claude לנסות מהלך גדול, ולדעת שהדרך חזרה קצרה.</p>
+  <div class="callout warn"><span class="title">אזהרה: מה Rewind לא מבטל</span><p>ה-<bdi>Checkpoints</bdi> עוקבים רק אחרי עריכות שנעשו בכלי העריכה של Claude. קבצים ששונו על ידי פקודות <bdi>Shell</bdi> (למשל <code>rm</code> או <code>mv</code>), עריכות ידניות שלכם, ועריכות של <bdi>Subagents</bdi>, אינם משוחזרים דרך <bdi>Rewind</bdi>. לכן <bdi>Checkpoints</bdi> הם "ביטול מקומי" נוח, ו-<bdi>Git</bdi> נשאר ההיסטוריה האמיתית. אל תוותרו על <bdi>Commits</bdi>.</p></div>
+
+  <h2 id="step11">שלב 11: יציאה וחזרה ל-Session</h2>
+  <p>סיימנו את סבב העבודה הראשון. צאו מה-<bdi>Session</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>/exit</code></pre>
+  </div>
+  <p>חלופה: <code>Ctrl+D</code> (הלחיצה הראשונה מציגה רמז אישור, ולחיצה שנייה מיד אחריה יוצאת). היציאה אינה מוחקת דבר: השיחה נשמרת מקומית. עכשיו נחזור אליה. מהטרמינל, באותה תיקייה:</p>
+  <div class="terminal"><span class="p">$</span> claude -c
+<span class="out">(נטענת השיחה האחרונה בתיקייה הנוכחית, עם כל ההקשר)</span></div>
+  <p>הדגל <code>-c</code> (או <code>--continue</code>) ממשיך את השיחה האחרונה בתיקייה הנוכחית. כדי לבחור מתוך כל השיחות הקודמות השתמשו ב-<code>-r</code> (או <code>--resume</code>), שפותח בורר אינטראקטיבי, או מקבל מזהה או שם של <bdi>Session</bdi> ישירות:</p>
+  <div class="terminal"><span class="p">$</span> claude -r
+<span class="out">(נפתחת רשימת Sessions לבחירה: תאריך, תקציר ותיקייה לכל שיחה)</span></div>
+  <p>אותה יכולת קיימת גם מבפנים: בתוך <bdi>Session</bdi> פעיל, הפקודה <code>/resume</code> מציגה את אותו בורר ומאפשרת לקפוץ לשיחה קודמת בלי לצאת. בדקו שההמשכיות אמיתית: אחרי <code>claude -c</code>, שאלו <code>what did we change in the last session?</code> וקבלו סיכום נכון של תיקון ה-<bdi>Validation</bdi>.</p>
+  <p>שלוש הבחנות שיעשו לכם סדר בין הפקודות הדומות:</p>
+  <ul>
+    <li><code>claude -c</code> ממשיך את השיחה האחרונה בתיקייה הנוכחית, בלי שאלות. מהיר ומתאים ל"איפה הייתי הבוקר".</li>
+    <li><code>claude -r</code> נותן בחירה מכל השיחות של הפרויקט, כולל לפי שם אם נתתם שם ל-<bdi>Session</bdi> (עם הדגל <code>-n</code> או הפקודה <code>/rename</code>).</li>
+    <li><code>/clear</code> הוא ההפך: פתיחת דף חדש ונקי בלי לצאת מהתוכנית, כשהשיחה הקודמת נשארת זמינה דרך <code>/resume</code>.</li>
+  </ul>
+  <p>ההיסטוריה נשמרת מקומית על המחשב שלכם, וכברירת מחדל <bdi>Sessions</bdi> ישנים מנוקים אחרי 30 יום (אפשר לשנות זאת בהגדרה <code>cleanupPeriodDays</code>). גם ה-<bdi>Checkpoints</bdi> של <bdi>Rewind</bdi> נשמרים יחד עם השיחה, כך ששיחה שחזרתם אליה עם <code>claude -c</code> עדיין יכולה להריץ <code>/rewind</code> לנקודות מהסבב הקודם.</p>
+
+  <h2 id="mistakes">טעויות נפוצות של מתחילים</h2>
+  <ul>
+    <li><strong>הפעלה מהתיקייה הלא נכונה:</strong> <code>claude</code> בתיקיית הבית או בתיקיית האב רואה יותר מדי או לא רואה את הפרויקט. תמיד <code>cd</code> לשורש הפרויקט קודם.</li>
+    <li><strong>Prompts כלליים מדי:</strong> "fix the bug" עובד פחות טוב מתיאור ממוקד עם שם קובץ, תסמין והתנהגות רצויה, כמו שעשינו בשלב 6.</li>
+    <li><strong>אישור אוטומטי של כל דבר:</strong> לחיצת אישור בלי לקרוא את ה-<bdi>Diff</bdi> מוותרת בדיוק על שכבת הבקרה שהמצב הזה נותן. קראו לפני שאתם מאשרים.</li>
+    <li><strong>לתת ל-Session להתנפח:</strong> כשעוברים למשימה חדשה שאינה קשורה, פתחו דף חדש עם <code>/clear</code>. הקשר ארוך ולא רלוונטי פוגע באיכות ועולה ב-<bdi>Tokens</bdi>.</li>
+    <li><strong>להסתמך על Rewind במקום על Git:</strong> ראינו למעלה מה הוא לא מכסה. עשו <bdi>Commit</bdi> אחרי כל שלב עבודה שהושלם.</li>
+    <li><strong>לחכות בסבלנות כש-Claude טועה כיוון:</strong> אין צורך לחכות שיסיים. <code>Esc</code>, הנחיה מתקנת קצרה, והמשך.</li>
+    <li><strong>לשכוח שהשיחה נשמרת:</strong> מתחילים רבים סוגרים את הטרמינל באמצע עבודה ומתחילים מחדש מאפס, ומאבדים הקשר יקר. זכרו: <code>claude -c</code> מחזיר אתכם בדיוק לאותה נקודה, כולל ה-<bdi>Checkpoints</bdi>.</li>
+  </ul>
+
+  <h2 id="verify">רשימת אימות: מה אתם אמורים לדעת עכשיו</h2>
+  <ul class="check">
+    <li>פתחתם <bdi>Session</bdi> בתיקיית פרויקט ואישרתם את חלון ה-<bdi>Trust</bdi> ביודעין.</li>
+    <li>שאלתם שאלה על ה-<bdi>Repository</bdi> וקיבלתם סקירה נכונה בלי לצרף קבצים ידנית.</li>
+    <li>השתמשתם ב-<code>@</code> לאזכור קובץ ספציפי.</li>
+    <li>איתרתם <bdi>Bug</bdi>, אישרתם תיקון דרך בקשת הרשאה, וראיתם אותו ב-<code>/diff</code>.</li>
+    <li>הרצתם בדיקות דרך Claude וראיתם אותו מגיב לפלט שלהן.</li>
+    <li>פתחתם את תפריט ה-<bdi>Rewind</bdi> ואתם יודעים מה הוא משחזר ומה לא.</li>
+    <li>יצאתם וחזרתם לאותה שיחה עם <code>claude -c</code>, ואתם מכירים גם את <code>claude -r</code> ו-<code>/resume</code>.</li>
+    <li>אתם זוכרים את ערכת ההישרדות: <code>Shift+Tab</code>, <code>Esc</code>, <code>Esc Esc</code>, <code>/help</code>, <code>/clear</code>, <code>Ctrl+O</code>.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 3.1: אותו מסלול, על פרויקט שלכם</div>
+    <div class="body">
+      <p>בחרו פרויקט אמיתי קטן שלכם (או כל <bdi>Repository</bdi> ציבורי קטן שתשכפלו), ובצעו עליו את המסלול המלא:</p>
+      <ol>
+        <li>היכנסו לתיקייה, הפעילו <code>claude</code>, ואשרו את ה-<bdi>Trust</bdi>.</li>
+        <li>בקשו סקירה של הפרויקט, ואז הסבר מעמיק על הקובץ המרכזי ביותר בעזרת <code>@</code>.</li>
+        <li>בקשו מ-Claude להצביע על בעיה אחת פוטנציאלית (באגים, <bdi>Validation</bdi> חסר, קוד כפול), בלי לשנות קוד.</li>
+        <li>בחרו את הממצא הכי קטן ובטוח, ובקשו תיקון מינימלי. קראו את ה-<bdi>Diff</bdi> לפני האישור.</li>
+        <li>הריצו את הבדיקות אם קיימות (או בקשו בדיקה חדשה קטנה), צפו ב-<code>/diff</code>, וצאו.</li>
+        <li>חזרו עם <code>claude -c</code> ובקשו סיכום של מה שנעשה.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>אין כאן פלט אחד "נכון", אבל יש מבנה נכון: (1) ה-<bdi>Trust</bdi> מופיע רק בפעם הראשונה בתיקייה. (2) סקירה טובה מזהה את מטרת הפרויקט, הטכנולוגיות ונקודת הכניסה; אם היא שטחית, שאלו שאלות המשך ממוקדות. (3) הגבלת הבקשה ל"בלי לשנות קוד" (או מצב <bdi>plan</bdi> דרך <code>Shift+Tab</code>) שומרת את שלב האבחון נקי. (4) תיקון מינימלי טוב נוגע בקובץ אחד או שניים; אם ה-<bdi>Diff</bdi> גדול מהצפוי, דחו את השינוי ובקשו צמצום, זו פעולה לגיטימית ושכיחה. (5) אם אין בדיקות, בקשה כמו "add one small test for the function you changed and run it" נותנת רשת ביטחון מיידית. (6) אחרי <code>claude -c</code>, שאלה כמו "summarize what we changed and why" צריכה להחזיר תיאור מדויק של סבב העבודה; זו ההוכחה שההקשר באמת נשמר בין הפעלות.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>עברתם <bdi>Session</bdi> ראשון שלם ומציאותי: הפעלה נכונה מתוך תיקיית הפרויקט, אישור <bdi>Trust</bdi> מודע, חקירת <bdi>Codebase</bdi> בשאלות חופשיות וב-<code>@</code>, איתור <bdi>Bug</bdi> אמיתי ותיקונו דרך מנגנון ההרשאות, צפייה בשינויים ב-<code>/diff</code>, הרצת בדיקות כחלק מהמחזור, שליטה עם <code>Esc</code> ו-<bdi>Rewind</bdi>, ויציאה וחזרה עם <code>claude -c</code> ו-<code>claude -r</code>. אלו אבני היסוד של כל עבודה ב-<bdi>Claude Code</bdi>. בפרק הבא נעשה סדר שיטתי בארגז הכלים: הפקודות הבסיסיות ו-<bdi>Slash Commands</bdi>.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/quickstart">Claude Code: Quickstart</a> |
+      <a href="https://code.claude.com/docs/en/interactive-mode">Interactive mode</a> |
+      <a href="https://code.claude.com/docs/en/checkpointing">Checkpointing</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">CLI reference</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands reference (/diff, /exit, /clear, /resume)</a> |
+      <a href="https://code.claude.com/docs/en/security">Security (Trust verification)</a> |
+      <a href="https://code.claude.com/docs/en/permissions">Permissions and workspace trust</a>
+      | נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch02.html"><span class="lbl">הפרק הקודם</span>הכנת סביבת העבודה</a>
+    <a href="ch04.html"><span class="lbl">הפרק הבא</span>פקודות בסיסיות ו-Slash Commands</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

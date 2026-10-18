@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 39: Troubleshooting מקיף</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ט | פרק 39</p>
+  <h1>Troubleshooting מקיף</h1>
+  <p class="lead">הפרק הזה הוא מדריך העזרה הראשונה של כל המדריך. הוא אוסף, לפי תחומים, את התקלות שנתקלים בהן בעבודה יומיומית עם <bdi>Claude Code</bdi>: התקנה, אימות, זמינות <bdi>Models</bdi>, הרשאות, <bdi>Context</bdi>, איטיות, פקודות, <bdi>Skills</bdi>, <bdi>Hooks</bdi>, <bdi>MCP</bdi>, <bdi>Connectors</bdi>, <bdi>Subagents</bdi>, <bdi>Plugins</bdi>, <bdi>IDE</bdi>, <bdi>Git</bdi>, בדיקות, <bdi>CI</bdi>, עלות ורשת ארגונית. כל תקלה מוצגת באותו מבנה אחיד: תסמינים, סיבות אפשריות, פקודות אבחון, תיקון צעד אחר צעד, אימות ומניעה. אפשר לקרוא אותו ברצף, אבל הוא בנוי כך שתפתחו אותו כשמשהו נשבר, תמצאו את הבלוק הרלוונטי תוך דקה, ותחזרו לעבודה. כל הפקודות אומתו מול התיעוד הרשמי בתאריך 29.07.2026.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="how-to-use">איך להשתמש בפרק הזה</h2>
+  <p>ב-<bdi>Claude Code</bdi> יש שכבות רבות שיכולות להשתבש: הבינארי המותקן, פרטי ההתחברות, הרשת, ה-<bdi>Model</bdi> שנבחר, קובצי ההגדרות (בארבע רמות), <bdi>CLAUDE.md</bdi>, <bdi>Skills</bdi>, <bdi>Hooks</bdi>, שרתי <bdi>MCP</bdi>, <bdi>Plugins</bdi> וה-<bdi>IDE</bdi>. העיקרון שמנחה את כל הפרק הוא בידוד: לפני שמנסים לתקן, מזהים באיזו שכבה הבעיה, ורק אז מטפלים. לכן הפרק נפתח ברשימת <bdi>Triage</bdi> אוניברסלית של חמש דקות, ממשיך בטבלת החלטה שמפנה מכל תסמין לבלוק המתאים ולפרק הרלוונטי במדריך, ורק אחר כך יורד לפרטים לפי תחום.</p>
+  <p>המונחים בפרק מניחים שקראתם את הפרקים הרלוונטיים (למשל, <a href="ch17.html">פרק 17</a> על <bdi>Settings</bdi> ו-<a href="ch18.html">פרק 18</a> על <bdi>Permission Modes</bdi>). כשבלוק מסתמך על ידע מפרק אחר, יש קישור. הפרק אינו מחליף את דף התיעוד הרשמי של שגיאות (<bdi>Error reference</bdi>) שמפרט מאות מחרוזות שגיאה מדויקות; הוא מרכז את המקרים השכיחים ומסביר את הדרך לחשוב עליהם.</p>
+  <div class="callout note"><span class="title">הערה על מבנה הבלוקים</span><p>כל תקלה מופיעה כטבלה בעלת שש שורות קבועות: <strong>תסמינים</strong> (מה רואים), <strong>סיבות אפשריות</strong> (מהסבירה לפחות סבירה), <strong>פקודות אבחון</strong> (מה מריצים כדי לאשר את הסיבה), <strong>תיקון צעד אחר צעד</strong>, <strong>אימות</strong> (איך יודעים שהתקלה נפתרה) ו-<strong>מניעה</strong> (איך לא לחזור לשם). פקודות שמתחילות ב-<code>/</code> רצות בתוך <bdi>Session</bdi> פעיל; פקודות שמתחילות ב-<code>claude</code> רצות ב-<bdi>Terminal</bdi> מחוץ ל-<bdi>Session</bdi>.</p></div>
+
+  <h2 id="triage">חמש הדקות הראשונות: Triage אוניברסלי</h2>
+  <p>לפני שצוללים לתחום מסוים, עברו על הרשימה הבאה לפי הסדר. ברוב המקרים היא מבודדת את השכבה הבעייתית או פותרת את התקלה ישירות. כל צעד לוקח שניות.</p>
+  <ul class="check">
+    <li>הריצו <code>claude --version</code>. אם הפקודה לא נמצאת, הבעיה היא התקנה או <bdi>PATH</bdi> (ראו <a href="#install">התקנה</a>). אם הגרסה ישנה מהצפוי, הריצו <code>claude update</code>.</li>
+    <li>הריצו <code>claude doctor</code> מה-<bdi>Terminal</bdi>. זו בדיקה לקריאה בלבד: תקינות התקנה, שגיאות בקובצי <bdi>Settings</bdi>, התקנות כפולות, ו-<bdi>Search</bdi> (ripgrep). קראו כל שורה שאינה <bdi>OK</bdi>.</li>
+    <li>בתוך <bdi>Session</bdi>, הריצו <code>/status</code>: אילו מקורות הגדרות פעילים, האם יש <bdi>Managed Settings</bdi>, איזו שיטת אימות פעילה, איזה <bdi>Model</bdi>, ואילו <bdi>Proxy</bdi> ותעודות נטענו.</li>
+    <li>הריצו <code>/doctor</code> בתוך ה-<bdi>Session</bdi>: בניגוד ל-<code>claude doctor</code>, זה גם מציע תיקונים ומחיל אותם רק אחרי אישורכם.</li>
+    <li>הריצו <code>/context</code>: האם <bdi>CLAUDE.md</bdi>, <bdi>Skills</bdi>, <bdi>MCP tools</bdi> ו-<bdi>Subagents</bdi> נטענו בכלל, וכמה מה-<bdi>Context Window</bdi> תפוס.</li>
+    <li>לפי התחום, הריצו את פקודת התצפית הייעודית: <code>/permissions</code>, <code>/hooks</code>, <code>/mcp</code>, <code>/skills</code>, <code>/memory</code>, <code>/usage</code>.</li>
+    <li>אם עדיין לא ברור, הפעילו <bdi>Session</bdi> נקי מהתאמות אישיות: <code>claude --safe-mode</code>. אם הבעיה נעלמת, האשם הוא <bdi>CLAUDE.md</bdi>, <bdi>Skill</bdi>, <bdi>Plugin</bdi>, <bdi>Hook</bdi> או שרת <bdi>MCP</bdi>. אם לא, הבעיה בהתקנה, באימות, ברשת או ב-<bdi>Managed Settings</bdi>.</li>
+    <li>לבידוד מוחלט: <code>cd /tmp &amp;&amp; CLAUDE_CONFIG_DIR=/tmp/claude-clean claude</code>. אתם אמורים לראות את מסכי ההגדרה הראשונית. אם התקלה נמשכת גם כאן, היא מחוץ להגדרות שלכם.</li>
+    <li>לתיעוד מלא: <code>claude --debug-file /tmp/claude.log</code> ואז <code>tail -f /tmp/claude.log</code> ב-<bdi>Terminal</bdi> שני. בתוך <bdi>Session</bdi> קיים, <code>/debug</code> מדליק רישום ומבקש מ-Claude לאבחן לפי הלוג.</li>
+    <li>בדקו את <a href="https://status.claude.com">status.claude.com</a> אם השגיאה היא <bdi>5xx</bdi>, <bdi>529 Overloaded</bdi> או ניתוקים חוזרים.</li>
+  </ul>
+  <div class="terminal"><span class="p">$</span> claude --version
+<span class="out">2.1.220 (Claude Code)</span>
+<span class="p">$</span> claude doctor
+<span class="out">Installation: OK (native, ~/.local/bin/claude)
+Settings: OK
+Search: OK (bundled)</span>
+<span class="p">$</span> claude auth status --text
+<span class="out">Logged in (claude.ai subscription)</span></div>
+  <p>הפלט המדויק של <code>claude doctor</code> משתנה בין גרסאות; מה שחשוב הוא לקרוא כל שורה שאינה תקינה. <code>claude auth status</code> מחזיר קוד יציאה 0 כשמחוברים ו-1 כשלא, ולכן הוא מתאים גם לסקריפטים.</p>
+
+  <h2 id="decision-table">טבלת החלטה: מתסמין לבלוק ולפרק</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מה רואים</th><th>בלוק בפרק זה</th><th>פרק להעמקה</th></tr></thead>
+      <tbody>
+        <tr><td><code>command not found: claude</code>, ההתקנה נכשלת, <bdi>PATH</bdi></td><td><a href="#install">התקנה</a></td><td><a href="ch02.html">פרק 2</a></td></tr>
+        <tr><td>לולאת התחברות, <code>403 Forbidden</code>, "organization has been disabled"</td><td><a href="#auth">אימות</a></td><td><a href="ch02.html">פרק 2</a>, <a href="ch29.html">פרק 29</a></td></tr>
+        <tr><td>"model not found", "not available with the Claude Pro plan", <code>529 Overloaded</code></td><td><a href="#models">זמינות Models</a></td><td><a href="ch08.html">פרק 8</a></td></tr>
+        <tr><td>יותר מדי בקשות אישור, או פעולה שרצה בלי בקשה</td><td><a href="#permissions">הרשאות</a></td><td><a href="ch18.html">פרק 18</a>, <a href="ch20.html">פרק 20</a></td></tr>
+        <tr><td>"Autocompact is thrashing", "Prompt is too long", תשובות שמתדרדרות</td><td><a href="#context">מיצוי Context</a></td><td><a href="ch14.html">פרק 14</a></td></tr>
+        <tr><td>תשובות איטיות, "Request timed out", מעבד או זיכרון גבוהים</td><td><a href="#slow">איטיות</a></td><td><a href="ch30.html">פרק 30</a></td></tr>
+        <tr><td>פקודת <code>/</code> לא קיימת או לא עושה מה שציפיתם</td><td><a href="#commands">פקודה לא נמצאת</a></td><td><a href="ch04.html">פרק 4</a>, <a href="ch41.html">פרק 41</a></td></tr>
+        <tr><td>Claude לא מפעיל <bdi>Skill</bdi> שכתבתם</td><td><a href="#skills">Skill לא מופעל</a></td><td><a href="ch21.html">פרק 21</a></td></tr>
+        <tr><td><bdi>Hook</bdi> לא רץ, או רץ ולא חוסם</td><td><a href="#hooks">כשל Hook</a></td><td><a href="ch22.html">פרק 22</a></td></tr>
+        <tr><td><code>Failed to connect</code>, <code>Needs authentication</code>, <code>Pending approval</code></td><td><a href="#mcp">חיבור MCP</a></td><td><a href="ch23.html">פרק 23</a></td></tr>
+        <tr><td><bdi>Connector</bdi> מ-<bdi>claude.ai</bdi> לא מופיע ב-<code>/mcp</code></td><td><a href="#connectors">Connectors</a></td><td><a href="ch24.html">פרק 24</a></td></tr>
+        <tr><td>Claude לא מאציל ל-<bdi>Subagent</bdi>, או שה-<bdi>Subagent</bdi> "נעלם"</td><td><a href="#subagents">Subagents</a></td><td><a href="ch25.html">פרק 25</a></td></tr>
+        <tr><td><bdi>Plugin</bdi> לא נטען, <bdi>Marketplace</bdi> לא נוסף</td><td><a href="#plugins">Plugins</a></td><td><a href="ch26.html">פרק 26</a></td></tr>
+        <tr><td>התוסף ב-<bdi>VS Code</bdi> לא מזהה את ה-<bdi>CLI</bdi>, <code>/ide</code> לא מתחבר</td><td><a href="#ide">IDE</a></td><td><a href="ch27.html">פרק 27</a></td></tr>
+        <tr><td>בלבול בין <bdi>Worktrees</bdi>, <bdi>Rewind</bdi> לא החזיר קובץ</td><td><a href="#git">Git</a></td><td><a href="ch13.html">פרק 13</a>, <a href="ch19.html">פרק 19</a></td></tr>
+        <tr><td>בדיקות נכשלות באופן לא עקבי, Claude "מתקן" בדיקה במקום קוד</td><td><a href="#tests">בדיקות</a></td><td><a href="ch11.html">פרק 11</a></td></tr>
+        <tr><td><bdi>GitHub Actions</bdi> נכשל: <bdi>Secrets</bdi>, הרשאות, גרסת <bdi>Action</bdi></td><td><a href="#ci">CI</a></td><td><a href="ch28.html">פרק 28</a></td></tr>
+        <tr><td>העלות או השימוש קפצו פתאום</td><td><a href="#cost">קפיצת עלות</a></td><td><a href="ch30.html">פרק 30</a></td></tr>
+        <tr><td>שגיאות <bdi>TLS</bdi>, <bdi>Proxy</bdi>, "Unable to connect", תכונה חסומה בארגון</td><td><a href="#network">רשת ומדיניות ארגונית</a></td><td><a href="ch29.html">פרק 29</a></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="tools">ארגז כלי האבחון</h2>
+  <p>לפני התחומים, ריכוז קצר של כלי האבחון שחוזרים לאורך הפרק. הכירו אותם היטב; רוב הבלוקים מסתמכים עליהם.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>כלי</th><th>איפה רץ</th><th>מה מראה</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>claude doctor</code></td><td>Terminal</td><td>אבחון התקנה והגדרות לקריאה בלבד, בלי לפתוח Session</td></tr>
+        <tr><td class="ltr"><code>/doctor</code></td><td>Session</td><td>בדיקת הגדרות עם הצעות תיקון שמוחלות רק אחרי אישור; מזהה קובצי Settings לא תקינים, Subagents כפולים, ותוכן CLAUDE.md מיותר</td></tr>
+        <tr><td class="ltr"><code>/status</code></td><td>Session</td><td>מקורות הגדרות פעילים, Managed Settings, שיטת אימות, Model, Proxy, תעודות mTLS ו-CA</td></tr>
+        <tr><td class="ltr"><code>/context</code></td><td>Session</td><td>מה תופס את ה-Context Window: System Prompt, כלים, MCP, Subagents, קובצי זיכרון, Skills, הודעות</td></tr>
+        <tr><td class="ltr"><code>/permissions</code>, <code>/hooks</code>, <code>/mcp</code>, <code>/skills</code>, <code>/memory</code></td><td>Session</td><td>מה באמת נטען בכל תחום, ומאיזה קובץ</td></tr>
+        <tr><td class="ltr"><code>/debug [תיאור]</code></td><td>Session</td><td>מדליק רישום Debug ומבקש מ-Claude לאבחן לפי הלוג ונתיבי ההגדרות</td></tr>
+        <tr><td class="ltr"><code>claude --debug</code>, <code>claude --debug=mcp</code>, <code>claude --debug-file &lt;path&gt;</code></td><td>Terminal</td><td>לוג מפורט (ברירת מחדל: <code>~/.claude/debug/&lt;session-id&gt;.txt</code>); סינון לפי קטגוריה בצורת <code>=</code></td></tr>
+        <tr><td class="ltr"><code>claude --safe-mode</code></td><td>Terminal</td><td>Session בלי CLAUDE.md, Skills, Plugins, Hooks, MCP, סוכנים ופקודות מותאמות; אימות והרשאות עובדים כרגיל</td></tr>
+        <tr><td class="ltr"><code>CLAUDE_CONFIG_DIR=/tmp/claude-clean claude</code></td><td>Terminal</td><td>Session עם תיקיית הגדרות ריקה; מבודד גם את <code>~/.claude</code></td></tr>
+        <tr><td class="ltr"><code>claude auth status --text</code></td><td>Terminal</td><td>מצב התחברות; קוד יציאה 0 מחובר, 1 לא</td></tr>
+        <tr><td class="ltr"><code>claude mcp list</code>, <code>claude mcp get &lt;name&gt;</code></td><td>Terminal</td><td>סטטוס חיבור של כל שרת MCP, כולל שורת <code>Issue:</code> בכשל</td></tr>
+        <tr><td class="ltr"><code>/usage</code> (גם <code>/cost</code>)</td><td>Session</td><td>עלות Session, מגבלות תוכנית, פירוט לפי Skill, Subagent, Plugin ו-MCP בתוכניות בתשלום</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn"><span class="title">אזהרה: <code>--safe-mode</code> אינו <code>--bare</code></span><p><code>--safe-mode</code> מכבה התאמות אישיות אבל שומר על אימות, בחירת <bdi>Model</bdi>, כלים מובנים והרשאות. <code>--bare</code> (<a href="ch33.html">פרק 33</a>) הוא מצב מינימלי להרצה לא-אינטראקטיבית. לאבחון תקלות השתמשו ב-<code>--safe-mode</code>. שימו לב ש-<bdi>Managed Settings</bdi> של הארגון (כולל <bdi>Hooks</bdi> מנוהלים) ממשיכים לחול גם ב-<code>--safe-mode</code>.</p></div>
+
+  <h2 id="install">התקנה</h2>
+
+  <h3 id="install-fails">ההתקנה נכשלת (npm או ההתקנה הטבעית)</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>syntax error near unexpected token '&lt;'</code> (הסקריפט החזיר <bdi>HTML</bdi>); <code>curl: (22) ... 403</code>; <code>curl: (56)</code>; <code>Killed</code> או <code>exit code 137</code>; <code>Error: claude native binary not installed</code>; <code>npm error code ENOTEMPTY</code>; <code>TLS connect error</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>רשת או <bdi>Proxy</bdi> חוסמים את <code>downloads.claude.ai</code>; אזור לא נתמך; זיכרון נמוך בשרת (ההתקנה צריכה כ-512MB פנויים); התקנת <bdi>npm</bdi> עם <code>--ignore-scripts</code> או <code>--omit=optional</code>; שאריות התקנה קודמת; תעודת <bdi>CA</bdi> ארגונית שלא מוכרת.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>curl -sI https://downloads.claude.ai/claude-code-releases/latest</code><br><code>free -h</code><br><code>ldd --version 2&gt;&amp;1 | head -1</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>אם <code>curl -sI</code> לא מחזיר 200: הגדירו <code>HTTPS_PROXY</code> ו-<code>HTTP_PROXY</code> לפני ההתקנה, או בדקו חסימה ארגונית. 403 בלי גוף יכול להיות גם אזור לא נתמך.</li>
+      <li>נסו מתקין חלופי: ב-macOS <code>brew install --cask claude-code</code>; ב-Windows <code>winget install Anthropic.ClaudeCode</code>.</li>
+      <li>אם קיבלתם <code>Killed</code>: הוסיפו <bdi>swap</bdi> או סגרו תהליכים ונסו שוב. ב-<bdi>Docker</bdi>, הגדירו <code>WORKDIR</code> לפני ההתקנה כדי שהמתקין לא יסרוק את כל מערכת הקבצים.</li>
+      <li>אם קיבלתם <code>native binary not installed</code>: התקינו מחדש בלי <code>--ignore-scripts</code> ו-<code>--omit=optional</code>, או הריצו <code>node node_modules/@anthropic-ai/claude-code/install.cjs</code>.</li>
+      <li>אם קיבלתם <code>ENOTEMPTY</code>: מחקו את התיקייה ששורת <code>npm error path</code> מציינת (<code>rm -rf "$(npm root -g)/@anthropic-ai/claude-code"</code>) והתקינו מחדש.</li>
+      <li>בשגיאות <bdi>TLS</bdi>: עדכנו תעודות מערכת (<code>sudo apt-get install ca-certificates</code>) או העבירו למתקין את תעודת ה-<bdi>Proxy</bdi>: <code>curl --cacert /path/to/corporate-ca.pem -fsSL https://claude.ai/install.sh | bash</code>.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>פתחו <bdi>Terminal</bdi> חדש והריצו <code>claude --version</code>; אמור להודפס מספר גרסה כמו <code>2.1.220 (Claude Code)</code>.</td></tr>
+    <tr><th>מניעה</th><td>העדיפו את המתקין הטבעי על פני <bdi>npm</bdi>; בסביבה ארגונית תעדו את כתובת ה-<bdi>Proxy</bdi> ואת נתיב תעודת ה-<bdi>CA</bdi> במסמך <bdi>Onboarding</bdi>; ב-<bdi>CI</bdi> קבעו זיכרון מספיק.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="install-path">הפקודה <code>claude</code> לא נמצאת אחרי התקנה מוצלחת</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>zsh: command not found: claude</code>, <code>bash: claude: command not found</code>, ב-Windows <code>'claude' is not recognized</code>; או שהתוסף ב-<bdi>VS Code</bdi> עובד אבל ב-<bdi>Terminal</bdi> אין <code>claude</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>תיקיית ההתקנה (<code>~/.local/bin</code> או <code>%USERPROFILE%\.local\bin</code>) לא ב-<bdi>PATH</bdi>; ה-<bdi>Terminal</bdi> שממנו התקנתם עדיין מחזיק <bdi>PATH</bdi> ישן; הותקן רק תוסף <bdi>VS Code</bdi>, שמביא עותק פרטי של ה-<bdi>CLI</bdi> ואינו מוסיף אותו ל-<bdi>PATH</bdi>; ב-Windows, <bdi>Claude Desktop</bdi> ישן רשם <code>Claude.exe</code> שגובר על ה-<bdi>CLI</bdi>.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>echo $PATH | tr ':' '\n' | grep -Fx "$HOME/.local/bin"</code><br><code>which -a claude</code><br>PowerShell: <code>$env:PATH -split ';' | Select-String '\.local\\bin'</code><br><code>where.exe claude</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>Zsh: <code>echo 'export PATH="$HOME/.local/bin:$PATH"' &gt;&gt; ~/.zshrc &amp;&amp; source ~/.zshrc</code>. Bash: אותו דבר עם <code>~/.bashrc</code>.</li>
+      <li>PowerShell: הוסיפו את <code>$env:USERPROFILE\.local\bin</code> ל-<bdi>User PATH</bdi> באמצעות <code>[Environment]::SetEnvironmentVariable</code> ופתחו <bdi>Terminal</bdi> חדש.</li>
+      <li>אם הותקן רק התוסף: הריצו את ההתקנה העצמאית (<a href="ch02.html">פרק 2</a>).</li>
+      <li>אם <code>claude</code> פותח את אפליקציית <bdi>Desktop</bdi> ב-Windows: עדכנו את <bdi>Claude Desktop</bdi> לגרסה העדכנית.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>claude --version</code> ב-<bdi>Terminal</bdi> חדש.</td></tr>
+    <tr><th>מניעה</th><td>אחרי כל התקנה פתחו <bdi>Terminal</bdi> חדש לפני שמסיקים שמשהו נשבר.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="install-windows">Windows ו-WSL: מקרים ייחודיים</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>'irm' is not recognized</code>, <code>The token '&amp;&amp;' is not valid</code>, <code>A parameter cannot be found that matches parameter name 'fsSL'</code>; <code>running scripts is disabled on this system</code>; <code>Claude Code on Windows requires either Git for Windows (for bash) or PowerShell</code>; ב-WSL: <code>cannot execute binary file: Exec format error</code> או <code>exec: node: not found</code>; חיפוש איטי או חלקי.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>הרצת פקודת התקנה של מערכת אחרת (CMD מול PowerShell מול Bash); מדיניות הרצת סקריפטים של PowerShell חוסמת את מעטפות ה-<code>.ps1</code> של <bdi>npm</bdi>; אף <bdi>Shell</bdi> לא נמצא; WSL1 (רגרסיה ידועה בבינארי הטבעי); WSL משתמש ב-<bdi>Node</bdi> של Windows מ-<code>/mnt/c/</code>; פרויקט יושב על מערכת הקבצים של Windows.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>[Environment]::Is64BitOperatingSystem</code><br><code>where.exe git</code><br>WSL: <code>which npm</code>, <code>which node</code><br><code>wsl --list --verbose</code> (מ-PowerShell)</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>ב-PowerShell: <code>irm https://claude.ai/install.ps1 | iex</code>. ב-CMD: <code>curl -fsSL https://claude.ai/install.cmd -o install.cmd &amp;&amp; install.cmd &amp;&amp; del install.cmd</code>. אל תערבבו.</li>
+      <li>אם סקריפטים חסומים: <code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code>, או השתמשו במתקין ה-PowerShell שאינו יוצר <code>.ps1</code>.</li>
+      <li>אם <bdi>Git Bash</bdi> מותקן במיקום לא סטנדרטי: הגדירו ב-<code>settings.json</code> את <code>"env": {"CLAUDE_CODE_GIT_BASH_PATH": "C:\\Program Files\\Git\\bin\\bash.exe"}</code>. הקובץ חייב להיקרא <code>bash.exe</code> או <code>sh.exe</code>, לא <code>git-bash.exe</code>.</li>
+      <li>WSL1: המירו ל-WSL2 עם <code>wsl --set-version &lt;DistroName&gt; 2</code>.</li>
+      <li>אם <code>which node</code> מצביע על <code>/mnt/c/</code>: התקינו <bdi>Node</bdi> בתוך <bdi>Linux</bdi> (מנהל החבילות או <bdi>nvm</bdi>) וטענו את <bdi>nvm</bdi> ב-<code>~/.bashrc</code>.</li>
+      <li>לביצועי חיפוש: העבירו את הפרויקט ל-<code>/home/</code> במקום <code>/mnt/c/</code>, או הריצו את <bdi>Claude Code</bdi> ישירות ב-Windows.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>claude --version</code> ואז <code>claude doctor</code>; ב-WSL בדקו ששורת <bdi>Search</bdi> תקינה, וזכרו ש-<code>claude doctor</code> מדווח OK גם כשחיפוש חוצה מערכות קבצים איטי.</td></tr>
+    <tr><th>מניעה</th><td>ב-Windows העדיפו את המתקין הטבעי או <bdi>WinGet</bdi>; ב-WSL השתמשו תמיד ב-WSL2 ובמערכת הקבצים של Linux.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="install-version">אי-התאמת גרסאות והתקנות כפולות</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>claude --version</code> מציג גרסה שונה מזו שהתקנתם; תכונה שמתועדת "מגרסה X" לא קיימת; <code>claude update</code> נתקע אחרי <code>Checking for updates</code>; <code>claude doctor</code> נתקע ללא פלט.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>שתי התקנות (טבעית + <bdi>npm</bdi> גלובלי + <code>~/.claude/local</code> ישן + <bdi>Homebrew</bdi>) וה-<bdi>PATH</bdi> בוחר את הישנה; <bdi>Homebrew</bdi> עם אינדקס ישן (ה-<bdi>cask</bdi> היציב מפגר בכשבוע); תיקייה במקום קובץ באחד מנתיבי הגדרות ה-<bdi>Shell</bdi> (תוקן ב-v2.1.214).</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>which -a claude</code><br><code>ls -la ~/.local/bin/claude</code><br><code>ls -la ~/.claude/local/</code><br><code>npm -g ls @anthropic-ai/claude-code 2&gt;/dev/null</code><br><code>ls -ld ~/.zshrc ~/.bashrc ~/.profile</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>השאירו התקנה אחת בלבד (ההמלצה: הטבעית ב-<code>~/.local/bin/claude</code>).</li>
+      <li>הסירו עודפים: <code>npm uninstall -g @anthropic-ai/claude-code</code>; <code>rm -rf ~/.claude/local</code>; <code>brew uninstall --cask claude-code</code>; <code>winget uninstall Anthropic.ClaudeCode</code>.</li>
+      <li>לעדכון: <code>claude update</code>. ב-<bdi>Homebrew</bdi>: <code>brew update</code> ואז התקנה מחדש; לגרסה העדכנית ביותר <code>brew install --cask claude-code@latest</code>.</li>
+      <li>אם <code>claude update</code> נתקע: בדקו האם אחד מקובצי ההגדרות של ה-<bdi>Shell</bdi> הוא תיקייה, הזיזו אותה, או התקינו מחדש דרך סקריפט ההתקנה.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>which -a claude</code> מחזיר נתיב אחד; <code>claude --version</code> תואם לצפוי; <code>claude doctor</code> לא מדווח על התקנות כפולות.</td></tr>
+    <tr><th>מניעה</th><td>בחרו שיטת התקנה אחת לצוות ותעדו אותה ב-<bdi>README</bdi>; הפעילו עדכונים אוטומטיים אלא אם המדיניות הארגונית קובעת גרסה נעולה.</td></tr>
+  </tbody></table></div>
+
+  <h2 id="auth">אימות</h2>
+
+  <h3 id="auth-loop">לולאת התחברות, קוד OAuth לא תקין או Token שפג</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>Claude מבקש להתחבר שוב ושוב; <code>OAuth error: Invalid code</code>; <code>Not logged in · Please run /login</code>; <code>OAuth token has expired</code>; הדפדפן לא נפתח (WSL2, SSH, מכולה).</td></tr>
+    <tr><th>סיבות אפשריות</th><td>הקוד פג או הועתק חלקית; הדפדפן נפתח על מכונה אחרת (SSH); שעון מערכת לא מדויק (אימות ה-<bdi>Token</bdi> תלוי בזמן); ב-macOS ה-<bdi>Keychain</bdi> נעול או לא מסונכרן; שני <bdi>Sessions</bdi> ריעננו יחד את אותו <bdi>Token</bdi> (תוקן ב-v2.1.211).</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>claude auth status --text</code><br><code>/status</code><br><code>date</code> (השוו לשעון אמיתי)<br>macOS: <code>claude doctor</code> (בודק גישת Keychain)</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>איפוס נקי: <code>/logout</code>, סגירת <bdi>Claude Code</bdi>, הרצת <code>claude</code> מחדש והשלמת ההתחברות.</li>
+      <li>אם הדפדפן לא נפתח: לחצו <code>c</code> להעתקת כתובת ה-<bdi>OAuth</bdi>, פתחו אותה בדפדפן מקומי, והדביקו את הקוד ב-<code>Paste code here if prompted</code>. ב-WSL2 אפשר להגדיר <code>export BROWSER="/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"</code>.</li>
+      <li>אם הדבקה בשורת הפקודה האינטראקטיבית לא עובדת: <code>claude auth login</code>, שקורא את הקוד מ-<bdi>stdin</bdi>.</li>
+      <li>סנכרנו את שעון המערכת. ב-macOS: <code>security unlock-keychain ~/Library/Keychains/login.keychain-db</code>.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>claude auth status</code> מחזיר קוד יציאה 0; <code>/status</code> מציג את שיטת האימות הרצויה.</td></tr>
+    <tr><th>מניעה</th><td>ל-<bdi>CI</bdi> ולסביבות ללא דפדפן צרו <bdi>Token</bdi> ארוך-טווח עם <code>claude setup-token</code> (מנוי) או השתמשו ב-<bdi>API key</bdi>; ראו <a href="ch33.html">פרק 33</a>.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="auth-key-vs-sub">התנגשות בין API key למנוי</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>API Error: 400 ... This organization has been disabled</code> למרות מנוי פעיל; <code>Your ANTHROPIC_API_KEY belongs to a disabled organization</code>; <code>Invalid API key · Fix external API key</code>; חיוב על ה-<bdi>API</bdi> במקום על המנוי; <bdi>Connectors</bdi> מ-<bdi>claude.ai</bdi> לא מופיעים.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>משתנה <code>ANTHROPIC_API_KEY</code> ישן (ממעסיק או פרויקט קודם) בפרופיל ה-<bdi>Shell</bdi> או בקובץ <code>.env</code>; <code>apiKeyHelper</code> מוגדר ב-<bdi>Settings</bdi>; <code>CLAUDE_CODE_OAUTH_TOKEN</code> מוגדר. סדר העדיפות: כשמפתח קיים ואושר, הוא גובר על ה-<bdi>OAuth</bdi> של המנוי; ב-<code>-p</code> המפתח תמיד משמש.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>env | grep ANTHROPIC</code><br><code>/status</code> (שורת Authentication)<br><code>grep -n ANTHROPIC ~/.zshrc ~/.bashrc ~/.profile</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li><code>unset ANTHROPIC_API_KEY</code> (PowerShell: <code>Remove-Item Env:ANTHROPIC_API_KEY</code>) ואז <code>claude</code>.</li>
+      <li>הסירו את שורת ה-<code>export</code> מקובצי הפרופיל ומ-<code>.env</code>; ב-Windows בדקו את <code>$PROFILE</code> ואת משתני הסביבה של המשתמש.</li>
+      <li>הסירו <code>apiKeyHelper</code> מ-<code>settings.json</code> אם אינכם צריכים אותו.</li>
+      <li><code>/login</code> ובחירת חשבון <bdi>claude.ai</bdi>.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>/status</code> מציג אימות מנוי; <code>/mcp</code> מציג את ה-<bdi>Connectors</bdi> אם הם רלוונטיים.</td></tr>
+    <tr><th>מניעה</th><td>אל תשמרו מפתחות <bdi>API</bdi> בפרופיל ה-<bdi>Shell</bdi> הגלובלי; השתמשו בהם רק בסקריפטים ייעודיים או ב-<bdi>CI</bdi> (<a href="ch20.html">פרק 20</a>).</td></tr>
+  </tbody></table></div>
+
+  <h3 id="auth-org">ארגון, SSO וספקי ענן</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>API Error: 403 {"error":{"type":"forbidden","message":"Request not allowed"}}</code>; <code>Your organization has disabled API key authentication</code>; <code>Your organization has disabled Claude subscription access for Claude Code</code>; <code>Model ... is restricted by your organization's settings</code>; <code>Could not load credentials from any providers</code> (Bedrock), <code>Could not load the default credentials</code> (Agent Platform), <code>ChainedTokenCredential authentication failed</code> (Foundry).</td></tr>
+    <tr><th>סיבות אפשריות</th><td>למשתמש <bdi>Console</bdi> אין תפקיד "Claude Code" או "Developer"; מנהל הארגון כיבה אימות ב-<bdi>API key</bdi> או גישת מנוי ל-<bdi>Claude Code</bdi>; <bdi>Proxy</bdi> ארגוני מפריע; ה-<bdi>CLI</bdi> של ספק הענן לא מאומת ב-<bdi>Shell</bdi> הנוכחי; ה-<bdi>IDE</bdi> לא ירש את משתני הסביבה.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/status</code><br>Bedrock: <code>aws sts get-caller-identity</code><br>Agent Platform: <code>echo $ANTHROPIC_VERTEX_PROJECT_ID $CLOUD_ML_REGION</code><br>Foundry: <code>echo $ANTHROPIC_FOUNDRY_API_KEY</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>403 במנוי: ודאו שהמנוי פעיל ב-<bdi>claude.ai/settings</bdi>. 403 ב-<bdi>Console</bdi>: בקשו מהמנהל להקצות תפקיד תחת <bdi>Settings → Members</bdi>.</li>
+      <li>אם הארגון כיבה <bdi>API key</bdi>: הסירו את המשתנה או את <code>apiKeyHelper</code> והתחברו עם <code>/login</code>. אם הארגון כיבה גישת מנוי: בקשו מהמנהל להפעיל <bdi>Claude Code</bdi> ב-<bdi>Console</bdi>, או השתמשו במפתח.</li>
+      <li>ספקי ענן: <code>aws sts get-caller-identity</code>, <code>gcloud auth application-default login</code>, או <code>az login</code>, ואז הפעילו מחדש. ב-<bdi>IDE</bdi>: הגדירו את המשתנים בהגדרות ה-<bdi>IDE</bdi> או הפעילו את ה-<bdi>IDE</bdi> מ-<bdi>Terminal</bdi> שבו הם מיוצאים.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>שאילתה פשוטה ב-<code>claude -p "say ok"</code> מצליחה; <code>/status</code> מציג את הספק הנכון.</td></tr>
+    <tr><th>מניעה</th><td>תעדו בצוות איזו שיטת אימות מאושרת (<a href="ch29.html">פרק 29</a>); ב-<bdi>Managed Settings</bdi> קבעו את המדיניות במקום להסתמך על משמעת אישית.</td></tr>
+  </tbody></table></div>
+
+  <h2 id="models">זמינות Models</h2>
+
+  <h3 id="model-plan">ה-Model לא זמין בתוכנית, בפלטפורמה או בארגון</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>Claude Opus is not available with the Claude Pro plan</code>; <code>Model ... is not a recognized model id</code>; <code>Model ... is restricted by your organization's settings</code>; <code>There's an issue with the selected model</code>; <code>API Error: Usage credits required for 1M context</code>; <code>You've hit your Opus limit</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>התוכנית לא כוללת את ה-<bdi>Model</bdi>; שגיאת כתיב במזהה ב-<code>settings.json</code> (<code>model</code>) או ב-<code>ANTHROPIC_MODEL</code>; מנהל הארגון הגביל <bdi>Models</bdi>; ה-<bdi>Model</bdi> לא זמין אצל ספק הענן או באזור; נבחרה גרסת <code>[1m]</code> שדורשת <bdi>Usage credits</bdi>; מגבלת שימוש מתגלגלת.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/model</code> (רשימת ה-Models הזמינים לכם)<br><code>/status</code><br><code>/usage</code><br><code>grep -n '"model"' .claude/settings.json ~/.claude/settings.json</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>הריצו <code>/model</code> ובחרו <bdi>Model</bdi> מהרשימה שמוצגת. מה שלא מופיע שם אינו זמין לכם, נקודה.</li>
+      <li>הסירו מזהה שגוי מ-<code>settings.json</code> וממשתני סביבה; השתמשו ב-<bdi>Aliases</bdi> המתועדים (<a href="ch08.html">פרק 8</a>).</li>
+      <li>למגבלת 1M: <code>/model</code> לגרסה בלי <code>[1m]</code>, או <code>/usage-credits</code>, או <code>CLAUDE_CODE_DISABLE_1M_CONTEXT=1</code> כדי להסתיר את הווריאנטים.</li>
+      <li>למגבלת שימוש: <code>/usage</code> מציג את זמן האיפוס; <code>/model</code> ל-<bdi>Model</bdi> אחר.</li>
+      <li>אם ההגבלה ארגונית: פנו למנהל; אין עקיפה מקומית.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>/status</code> מציג את ה-<bdi>Model</bdi> הרצוי; הודעה קצרה מקבלת תשובה.</td></tr>
+    <tr><th>מניעה</th><td>קבעו <bdi>Model</bdi> ברירת מחדל ברמת הפרויקט רק אם כל חברי הצוות יכולים להשתמש בו; אחרת השאירו את הבחירה למשתמש.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="model-fallback">עומס, 529 ו-Fallback</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>API Error: Repeated 529 Overloaded errors</code>; <code>API Error: 500</code>; <code>Request timed out</code>; ה-<bdi>Session</bdi> "נתקע" ב-<code>Waiting for API response · will retry in</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>עומס זמני על ה-<bdi>Model</bdi> (הקיבולת נמדדת לכל <bdi>Model</bdi> בנפרד); תקלה בצד השרת; רשת איטית.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr">status.claude.com<br><code>/model</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>המתינו דקה ושלחו שוב; <bdi>Claude Code</bdi> מנסה שוב אוטומטית (<code>CLAUDE_CODE_MAX_RETRIES</code>, ברירת מחדל 10).</li>
+      <li>אם ה-529 חוזר: <code>/model</code> ל-<bdi>Model</bdi> אחר.</li>
+      <li>להרצות אוטומטיות: <code>claude -p --fallback-model sonnet,haiku "..."</code>. הדגל מקבל רשימה מופרדת בפסיקים שנוסים לפי הסדר; לשימור בין <bdi>Sessions</bdi> הגדירו <code>fallbackModel</code> ב-<code>settings.json</code>.</li>
+      <li>ברשת איטית: הגדילו <code>API_TIMEOUT_MS</code> (ברירת מחדל 600000).</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>הבקשה הבאה מצליחה; ב-<code>/status</code> רואים איזה <bdi>Model</bdi> ענה בפועל.</td></tr>
+    <tr><th>מניעה</th><td>ב-<bdi>CI</bdi> קבעו <bdi>Fallback</bdi> וגם <code>--max-turns</code>, כדי שעומס לא יהפוך לריצה אין-סופית; ראו <a href="ch33.html">פרק 33</a>.</td></tr>
+  </tbody></table></div>
+
+  <h2 id="permissions">הרשאות</h2>
+
+  <h3 id="perm-too-many">יותר מדי בקשות אישור</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>כל <code>git status</code>, <code>pytest</code> או קריאת קובץ מבקשים אישור; חוקי <code>allow</code> שהוספתם "לא עובדים".</td></tr>
+    <tr><th>סיבות אפשריות</th><td>אתם ב-<bdi>Manual (default)</bdi> בלי חוקי <code>allow</code>; החוקים נכתבו ל-<code>~/.claude.json</code> במקום ל-<code>~/.claude/settings.json</code>; תיקיית העבודה לא אושרה כ-<bdi>Trusted</bdi> (אז חוקי <code>permissions.allow</code> של הפרויקט מתעלמים, עם אזהרה <code>Ignoring N permissions.allow entries</code>); כלל <bdi>Connector</bdi> ארגוני שמוגדר <code>ask</code> ומתעלם מ-<code>allow</code>.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/permissions</code><br><code>/status</code> (Trust, Managed)<br><code>cat .claude/settings.json .claude/settings.local.json</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>הריצו <code>/fewer-permission-prompts</code>: ה-<bdi>Skill</bdi> המובנה סורק את התמלילים ומציע <bdi>allowlist</bdi> לפעולות קריאה בלבד ב-<code>.claude/settings.json</code>.</li>
+      <li>הוסיפו חוקים ממוקדים כמו <code>"Bash(pytest *)"</code> ו-<code>"Bash(git diff *)"</code> (<a href="ch18.html">פרק 18</a>).</li>
+      <li>למשימה מוגדרת: <code>Shift+Tab</code> ל-<bdi>acceptEdits</bdi>, או <code>--permission-mode auto</code> שבו מסווג בודק את הפעולות.</li>
+      <li>אם החוקים ב-<code>~/.claude.json</code>: העבירו ל-<code>~/.claude/settings.json</code>. אלה שני קבצים שונים.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>/permissions</code> מציג את החוקים; פעולה שנכללה ב-<code>allow</code> רצה בלי בקשה.</td></tr>
+    <tr><th>מניעה</th><td>שמרו <bdi>allowlist</bdi> פרויקטלי ב-<bdi>Git</bdi>; לעולם אל תפתרו עייפות אישורים עם <code>--dangerously-skip-permissions</code> מחוץ למכולה מבודדת (<a href="ch20.html">פרק 20</a>).</td></tr>
+  </tbody></table></div>
+
+  <h3 id="perm-missing">פעולה רצה בלי בקשת אישור, או נחסמת בלי סיבה נראית</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>Claude ערך קובץ או הריץ פקודה בלי לשאול; או להפך: <code>File is covered by a Read deny rule in your permission settings</code>, פקודה נדחית מיד, או שכלל <code>Bash(rm *)</code> "לא חוסם" <code>/bin/rm</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>ה-<bdi>Session</bdi> ב-<bdi>acceptEdits</bdi>, <bdi>auto</bdi> או <bdi>bypassPermissions</bdi> (למשל דרך <code>defaultMode</code> ב-<code>settings.json</code> או דגל בהפעלה); חוק <code>deny</code> ברמה גבוהה יותר (<bdi>Managed</bdi> גובר על הכול); כללי <bdi>Prefix</bdi> תואמים מחרוזת פקודה מילולית ולא את הבינארי; <bdi>Subagent</bdi> ירש <bdi>bypassPermissions</bdi> מההורה.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/permissions</code> (allow, ask, deny המפוענחים)<br><code>/status</code> (מצב ההרשאה הנוכחי, Managed Settings)<br><code>claude --debug</code> ואז חיפוש permission בלוג</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>בדקו את שורת המצב: <code>Shift+Tab</code> מחזיר ל-<bdi>Manual</bdi>.</li>
+      <li>אם המצב "מתאפס" בכל הפעלה: חפשו <code>defaultMode</code> ב-<code>settings.json</code> (פרויקט, מקומי, משתמש) וב-<bdi>Managed Settings</bdi>, ואת <code>--permission-mode</code> ב-<bdi>Alias</bdi> של ה-<bdi>Shell</bdi>.</li>
+      <li>לחוק <code>deny</code> שחוסם בטעות: מצאו את הקובץ שבו הוא מוגדר (<code>/permissions</code> מציין מקור) ותקנו שם; אם המקור <bdi>Managed</bdi>, זו החלטה ארגונית.</li>
+      <li>לחסימה מובטחת של פקודה מסוכנת: אל תסתמכו על <code>deny</code> טקסטואלי בלבד; הוסיפו <bdi>PreToolUse Hook</bdi> (<a href="ch22.html">פרק 22</a>) או <bdi>Sandbox</bdi> (<a href="ch20.html">פרק 20</a>).</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>נסו פעולה מייצגת וראו שהתנהגות ההרשאה תואמת את המצב שבחרתם.</td></tr>
+    <tr><th>מניעה</th><td>קבעו את <code>defaultMode</code> במקום אחד בלבד; ב-<bdi>Subagents</bdi> הגדירו <code>permissionMode</code> מפורש (<a href="ch25.html">פרק 25</a>).</td></tr>
+  </tbody></table></div>
+
+  <h2 id="context">מיצוי Context</h2>
+
+  <h3 id="ctx-thrash">Auto-compact "מתנדנד" (thrashing) או נכשל</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>Autocompact is thrashing: the context refilled to the limit...</code>; <code>Prompt is too long · automatic compaction failed</code>; <code>Error during compaction: Conversation too long</code>; <code>Not enough messages to compact.</code>; Claude "שוכח" הוראות מוקדמות.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>קובץ ענק או פלט כלי (לוג, <bdi>JSON</bdi>, פלט <bdi>MCP</bdi>) שממלא מחדש את ה-<bdi>Context</bdi> מיד אחרי דחיסה; הדבקה יחידה ענקית; <bdi>Session</bdi> "מטבח" שערבב משימות לא קשורות.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/context</code> (מי תופס מה)<br><code>/context all</code> (פירוט מורחב)</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>בקשו מ-Claude לקרוא את הקובץ הגדול בחלקים (טווח שורות או פונקציה) במקום בשלמותו.</li>
+      <li><code>/compact keep only the plan and the diff</code>: דחיסה עם מיקוד שמשמיט את הפלט הגדול.</li>
+      <li>העבירו עבודה על קבצים גדולים ל-<bdi>Subagent</bdi> עם <bdi>Context Window</bdi> נפרד (<a href="ch25.html">פרק 25</a>).</li>
+      <li>אם השיחה הקודמת אינה נחוצה: <code>/clear</code>. אפשר גם <code>Esc Esc</code> או <code>/rewind</code> ולבחור "Summarize from here" או "Summarize up to here" כדי לדחוס רק חלק.</li>
+      <li>אם גם זה לא עוזר: <code>/model</code> ל-<bdi>Model</bdi> עם <bdi>Context</bdi> גדול יותר, או <bdi>Session</bdi> חדש עם מסמך <bdi>Handoff</bdi> (הבלוק הבא).</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>/context</code> מציג ניצול סביר; התשובה הבאה מתקבלת בלי אזהרות דחיסה.</td></tr>
+    <tr><th>מניעה</th><td>הוסיפו ל-<bdi>CLAUDE.md</bdi> הוראת דחיסה כמו "When compacting, always preserve the full list of modified files and any test commands"; הפעילו <code>/clear</code> בין משימות לא קשורות; שאלות צד דרך <code>/btw</code> כדי שלא ייכנסו להיסטוריה (<a href="ch14.html">פרק 14</a>).</td></tr>
+  </tbody></table></div>
+
+  <h3 id="ctx-handoff">התחלת Session חדש עם Handoff מסודר</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>אחרי שתי תיקונים ויותר לאותה בעיה Claude ממשיך לטעות; ה-<bdi>Session</bdi> ארוך, איטי ומבולבל; אתם חוששים לאבד את מה שכבר הושג.</td></tr>
+    <tr><th>סיבות אפשריות</th><td><bdi>Context</bdi> מזוהם בגישות שנכשלו; התיעוד הרשמי ממליץ מפורשות: אחרי שתי תיקונים כושלים, <code>/clear</code> ו-<bdi>Prompt</bdi> חדש טוב יותר.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/context</code><br><code>/recap</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>בקשו סיכום <bdi>Handoff</bdi> (יש <bdi>Prompt</bdi> מוכן ב-<a href="ch40.html#handoff">פרק 40</a>): מה הושג, מה נותר, קבצים שנגעו בהם, פקודות בדיקה, החלטות פתוחות.</li>
+      <li>שמרו אותו לקובץ (למשל <code>docs/handoff.md</code>) או השתמשו ב-<code>/export</code>.</li>
+      <li><code>/clear</code>, ואז פתחו את ה-<bdi>Session</bdi> החדש ב-<code>@docs/handoff.md</code> ובהוראה ממוקדת.</li>
+      <li>אם תרצו לשמור את הישן לעיון: <code>/rename</code> לפני ה-<code>/clear</code>, ו-<code>/resume</code> כשצריך.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>ה-<bdi>Session</bdi> החדש מתחיל עם <code>/context</code> קטן ומצליח במשימה שבה הישן נתקע.</td></tr>
+    <tr><th>מניעה</th><td>שמרו על <bdi>Sessions</bdi> ממוקדי משימה; קבעו לעצמכם כלל: תיקון שלישי לאותה בעיה = <bdi>Session</bdi> חדש.</td></tr>
+  </tbody></table></div>
+
+  <h2 id="slow">תשובות איטיות</h2>
+
+  <h3 id="slow-net">רשת, Proxy ו-Timeouts</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>Request timed out</code>; <code>Waiting for API response · will retry in</code> בכל ניסיון; <code>Unable to connect to API</code>; <code>Couldn't connect through your proxy</code>; <code>Socket is closed</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>DNS או <bdi>Proxy</bdi> חוסמים את <code>api.anthropic.com</code>; <bdi>Proxy</bdi> עם <bdi>TLS inspection</bdi> בלי תעודה שנטענה; <code>ANTHROPIC_BASE_URL</code> מצביע ל-<bdi>Gateway</bdi> לא נגיש; חיבור לא יציב.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>nslookup api.anthropic.com</code><br><code>curl -sI https://api.anthropic.com</code><br><code>/status</code> (שורות Proxy, Additional CA cert(s))<br><code>claude --debug</code> וחיפוש <code>CA certs:</code> בלוג</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>ודאו ש-<code>HTTPS_PROXY</code> נכון וכולל <code>http://</code>; ערך לא תקין עוצר את ההפעלה עם שם המשתנה.</li>
+      <li>לתעודה ארגונית: <code>export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem</code>.</li>
+      <li>ברשת איטית: <code>export API_TIMEOUT_MS=1200000</code>.</li>
+      <li>אם <code>ANTHROPIC_BASE_URL</code> מוגדר: ודאו שה-<bdi>Gateway</bdi> נגיש, או בטלו אותו לבדיקה.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>claude -p "say ok"</code> חוזר תוך שניות.</td></tr>
+    <tr><th>מניעה</th><td>ראו <a href="#network">רשת ומדיניות ארגונית</a>: הגדירו את משתני הרשת ב-<code>env</code> של <code>~/.claude/settings.json</code> כדי שיגיעו גם ל-<bdi>Background agents</bdi>.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="slow-effort">Effort גבוה, Context גדול, MCP איטי או משאבים</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>כל תשובה לוקחת דקות; המחשב "מתחמם"; ה-<bdi>Terminal</bdi> קופא; קריאות <bdi>MCP</bdi> נתקעות; <code>MCP tool output exceeds 10,000 tokens</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>רמת <bdi>Effort</bdi> גבוהה למשימה פשוטה; <bdi>Context Window</bdi> מלא (כל תור יקר יותר); שרת <bdi>MCP</bdi> איטי או פלט ענק; <bdi>Plugin</bdi>, <bdi>Hook</bdi> או שרת <bdi>MCP</bdi> שצורכים משאבים; ריפוזיטורי עם תיקיות <bdi>build</bdi> ענקיות; דליפת זיכרון (נדיר).</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/effort</code><br><code>/context</code><br><code>/mcp</code><br><code>/tasks</code><br><code>claude --safe-mode</code> (השוואה)<br><code>/heapdump</code> (הקלידו במלואו; לא מופיע בתפריט)</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li><code>/effort medium</code> או <code>low</code> למשימות שגרתיות; ל-<bdi>Opus</bdi> יש גם <code>/fast</code> (<span class="badge preview">Research Preview</span>, <a href="ch08.html">פרק 8</a>).</li>
+      <li><code>/compact</code> או <code>/clear</code>; הפעילו מחדש בין משימות גדולות.</li>
+      <li>ל-<bdi>MCP</bdi>: קריאה בשיחה הראשית שרצה מעל שתי דקות עוברת אוטומטית לרקע (v2.1.212+) ומופיעה ב-<code>/tasks</code>; הגדירו <code>timeout</code> לשרת ב-<code>.mcp.json</code> או <code>MCP_TOOL_TIMEOUT</code>; לפלט גדול <code>MAX_MCP_OUTPUT_TOKENS=50000</code>.</li>
+      <li>אם <code>--safe-mode</code> מהיר בהרבה: החזירו התאמות אחת-אחת (<code>/mcp</code> להשבתת שרת, <code>/plugin</code> להשבתת <bdi>Plugin</bdi>).</li>
+      <li>אם ה-<bdi>Terminal</bdi> קפוא: <code>Ctrl+C</code>; אם לא עוזר, סגרו והריצו <code>claude --resume</code> באותה תיקייה. השיחה לא אובדת.</li>
+      <li>אם הזיכרון נשאר גבוה: <code>/heapdump</code> כותב <code>&lt;session-id&gt;-diagnostics.json</code> ו-<code>.heapsnapshot</code> לשולחן העבודה. צרפו לדיווח רק את קובץ ה-<code>-diagnostics.json</code>; ה-<code>.heapsnapshot</code> מכיל את כל השיחה והאישורים.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>זמן תגובה חוזר לנורמה; <code>/context</code> קטן; <code>/mcp</code> ירוק.</td></tr>
+    <tr><th>מניעה</th><td>הוסיפו תיקיות <bdi>build</bdi> ל-<code>.gitignore</code>; שמרו את <bdi>Effort</bdi> על <bdi>auto</bdi>; העדיפו שרתי <bdi>MCP</bdi> שמחזירים פלט מדופדף (<a href="ch30.html">פרק 30</a>).</td></tr>
+  </tbody></table></div>
+
+  <h2 id="commands">פקודה לא נמצאת</h2>
+
+  <h3 id="cmd-slash-vs-cli">בלבול בין פקודת <code>/</code> לפקודת CLI, ובין Session רגיל לרקע</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>הקלדתם <code>claude /compact</code> ב-<bdi>Terminal</bdi> ולא קרה כלום; או הקלדתם <code>/mcp list</code> בתוך <bdi>Session</bdi> וקיבלתם התנהגות שונה מהצפוי; <code>Can't open MCP settings in a background session</code>; <code>Input must be provided either through stdin or as a prompt argument when using --print</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>פקודות <code>/</code> קיימות רק בתוך <bdi>Session</bdi> אינטראקטיבי; פקודות <code>claude ...</code> קיימות רק ב-<bdi>Terminal</bdi>; חלק מהפקודות האינטראקטיביות (<code>/mcp</code> עם ממשק, <code>/hooks</code>) לא זמינות ב-<bdi>Session</bdi> רקע או ב-<code>-p</code>; פקודות שנחתכו או שהוסבו ל-<bdi>Alias</bdi> (<code>/pr-comments</code>, <code>/vim</code> הוסרו).</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/help</code> (בתוך Session)<br><code>claude --help</code>, <code>claude mcp --help</code>, <code>claude plugin --help</code> (ב-Terminal)</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>זהו את הצד: הגדרת שרתי <bdi>MCP</bdi> היא <code>claude mcp add ...</code> ב-<bdi>Terminal</bdi>; בדיקת סטטוס ואימות <bdi>OAuth</bdi> היא <code>/mcp</code> ב-<bdi>Session</bdi>.</li>
+      <li>השתמשו במטריצת הפקודות ב-<a href="ch41.html">פרק 41</a>: כל פקודה מסומנת "Session" או "Terminal".</li>
+      <li>לפעולות אינטראקטיביות ב-<bdi>Session</bdi> רקע: התחברו אליו עם <code>claude attach &lt;id&gt;</code> או בצעו את הפעולה ב-<bdi>Session</bdi> חזית.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>הפקודה מבצעת את המצופה; <code>/help</code> מציג אותה ברשימה.</td></tr>
+    <tr><th>מניעה</th><td>זכרו את הכלל: <code>/</code> בפנים, <code>claude</code> בחוץ.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-plugin-version">הפקודה שייכת ל-Plugin שלא הותקן, או לגרסה חדשה יותר</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>/my-plugin:review</code> לא מזוהה; פקודה שראיתם בתיעוד (למשל <code>/subtask</code>, <code>/fork</code> במשמעותו החדשה, <code>/reload-skills</code>) לא קיימת אצלכם; <code>claude import is not yet available in this build</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>ה-<bdi>Plugin</bdi> לא מותקן או מושבת; פקודות <bdi>Plugin</bdi> תמיד עם קידומת <code>plugin-name:</code>; ה-<bdi>Skill</bdi> נטען אבל צריך <code>/reload-plugins</code>; הגרסה שלכם ישנה משער הגרסה שבתיעוד (למשל <code>/subtask</code> ו-<code>/fork</code> כ-<bdi>Session</bdi> רקע דורשים v2.1.212+; <code>/reload-skills</code> v2.1.152+).</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>claude --version</code><br><code>/plugin</code> (רשימת Plugins ולשונית Errors)<br><code>claude plugin list</code><br><code>/skills</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li><code>claude update</code> אם הגרסה נמוכה משער הגרסה.</li>
+      <li>התקינו או הפעילו את ה-<bdi>Plugin</bdi>: <code>/plugin install name@marketplace</code>, ואז <code>/reload-plugins</code> אם סיכום ההתקנה מבקש.</li>
+      <li>השתמשו בשם המלא עם מרחב השמות: <code>/plugin-name:skill-name</code>.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>הפקודה מופיעה ב-<code>/help</code> תחת <bdi>Custom commands</bdi>.</td></tr>
+    <tr><th>מניעה</th><td>עדכנו באופן קבוע; כשמעתיקים פקודה מהתיעוד, בדקו את הערת הגרסה שלה (<a href="ch41.html">פרק 41</a> מסמן שערי גרסה).</td></tr>
+  </tbody></table></div>
+
+  <h2 id="skills">Skill לא מופעל</h2>
+
+  <h3 id="skill-desc">ה-Skill קיים אבל Claude לא מפעיל אותו לבד</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>ה-<bdi>Skill</bdi> מופיע ב-<code>/skills</code>, הפעלה ידנית ב-<code>/name</code> עובדת, אבל בקשה בשפה חופשית לא מפעילה אותו.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>שדה <code>description</code> לא תואם לניסוח שבו אתם מבקשים; <code>disable-model-invocation: true</code> ב-<bdi>frontmatter</bdi> (ב-<code>/skills</code> מסומן "user-only"); ה-<bdi>Skill</bdi> מתחרה ב-<bdi>Skills</bdi> אחרים עם תיאור דומה.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/skills</code> (בדקו את התג ליד השם)<br><code>/context</code> (האם תיאור ה-Skill נטען)<br><code>head -10 .claude/skills/&lt;name&gt;/SKILL.md</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>אם זה "user-only" בכוונה (למשל פעולה עם תופעות לוואי), זו לא תקלה: הפעילו ידנית.</li>
+      <li>אחרת, כתבו <code>description</code> שמתאר גם מתי להשתמש: "Use when the user asks to ... or mentions ..." (<a href="ch21.html">פרק 21</a>).</li>
+      <li>נסו לבקש עם המילים שבתיאור; אם עדיין לא, אמרו במפורש "use the X skill".</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>בקשה בשפה חופשית מפעילה את ה-<bdi>Skill</bdi> (רואים זאת בתמליל, <code>Ctrl+O</code>).</td></tr>
+    <tr><th>מניעה</th><td>כתבו תיאורים עם מילות מפתח שהצוות באמת משתמש בהן; בדקו כל <bdi>Skill</bdi> חדש בכמה ניסוחים.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="skill-scope">ה-Skill לא מופיע בכלל: תיקייה, טווח או רענון</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>/skills</code> לא מציג את ה-<bdi>Skill</bdi>; <code>/name</code> מחזיר "פקודה לא ידועה".</td></tr>
+    <tr><th>סיבות אפשריות</th><td>הקובץ ב-<code>.claude/skills/name.md</code> במקום <code>.claude/skills/name/SKILL.md</code>; ה-<bdi>Skill</bdi> נשמר ב-<code>~/.claude/skills</code> (משתמש) בעוד שאתם מצפים לו בפרויקט, או להפך; ה-<bdi>Session</bdi> נפתח לפני שהתיקייה נוצרה; ב-<bdi>Session</bdi> ענן <code>~/.claude</code> אינו נקרא; <code>--safe-mode</code> פעיל.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>ls -R .claude/skills ~/.claude/skills</code><br><code>/skills</code><br><code>/status</code> (safe mode?)</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>תקנו את המבנה: תיקייה בשם ה-<bdi>Skill</bdi> ובתוכה <code>SKILL.md</code>.</li>
+      <li><code>/reload-skills</code> (v2.1.152+) כדי לסרוק מחדש בלי להפעיל מחדש.</li>
+      <li>אם זה <bdi>Skill</bdi> של <bdi>Plugin</bdi>: <code>/reload-plugins</code>.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>/skills</code> מציג את ה-<bdi>Skill</bdi> עם המקור הנכון (project, user, plugin).</td></tr>
+    <tr><th>מניעה</th><td>צרו <bdi>Skills</bdi> חדשים דרך ה-<bdi>skill-creator</bdi> או ה-<bdi>Template</bdi> של הצוות, שמייצרים את המבנה הנכון.</td></tr>
+  </tbody></table></div>
+
+  <h2 id="hooks">כשל Hook</h2>
+
+  <h3 id="hook-not-firing">ה-Hook לא רץ בכלל</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>אין שום אפקט (קובץ לא מפורמט, פקודה לא נחסמת); <code>/hooks</code> לא מציג את ה-<bdi>Hook</bdi>, או מציג אותו והוא עדיין לא רץ.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>ה-<bdi>Hooks</bdi> נכתבו לקובץ נפרד במקום תחת מפתח <code>"hooks"</code> ב-<code>settings.json</code> (רק <bdi>Plugins</bdi> טוענים <code>hooks/hooks.json</code>); נכתבו ל-<code>~/.claude.json</code>; <code>matcher</code> כמערך במקום מחרוזת (שגיאת סכימה שפוסלת את כל קובץ ההגדרות); שם כלי באותיות קטנות (<code>"bash"</code> במקום <code>"Bash"</code>); פסיק כמפריד בגרסה לפני v2.1.191; שם אירוע שגוי (<code>postToolUse</code>); הסקריפט לא ניתן להרצה; תיקיית העבודה לא <bdi>Trusted</bdi>; <code>disableAllHooks: true</code> באחת הרמות.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/hooks</code><br><code>claude doctor</code> (שגיאות סכימה בקובצי Settings)<br><code>claude --debug-file /tmp/claude.log</code> ואז <code>tail -f /tmp/claude.log</code><br><code>ls -l .claude/hooks/</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>ודאו שהמבנה הוא <code>"hooks": {"PostToolUse": [{"matcher": "Edit|Write", "hooks": [{"type": "command", "command": "..."}]}]}</code>.</li>
+      <li>השתמשו ב-<code>|</code> כמפריד ובשמות כלים באות גדולה.</li>
+      <li><code>chmod +x .claude/hooks/your-script.sh</code>; ודאו <bdi>shebang</bdi> בשורה הראשונה.</li>
+      <li>לנתיבים השתמשו ב-<code>"$CLAUDE_PROJECT_DIR"/.claude/hooks/x.sh</code> (עם מירכאות), או בצורת <bdi>exec</bdi> עם <code>args</code>.</li>
+      <li>אם <code>/hooks</code> עדיין מציג הגדרה ישנה כמה שניות אחרי שמירה: הריצו <code>/hooks</code> שוב; העריכה נקלטת בלי הפעלה מחדש.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>הפעילו את האירוע (למשל בקשו עריכת קובץ) ובדקו את הלוג: רואים אילו <bdi>matchers</bdi> נבדקו, קוד היציאה והפלט.</td></tr>
+    <tr><th>מניעה</th><td>העתיקו <bdi>Hooks</bdi> מתבניות שעובדות (<a href="ch22.html">פרק 22</a>); בדקו כל <bdi>Hook</bdi> חדש מיד עם <code>--debug-file</code>.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="hook-exit-json">ה-Hook רץ אבל לא חוסם, או מייצר שגיאת JSON</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>הודעת <code>&lt;hook name&gt; hook error</code> ואחריה <code>Failed with non-blocking status code:</code>; הפעולה ממשיכה למרות שהסקריפט "נכשל"; <code>additionalContext</code> לא מוזרק; ה-<bdi>Hook</bdi> "מוותר" באמצע.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>יציאה בקוד 1 במקום 2 (רק 2 חוסם; קודים אחרים הם שגיאה לא חוסמת); האירוע אינו ניתן לחסימה (למשל <code>PostToolUse</code>, <code>SessionStart</code>, <code>Notification</code>); ה-<bdi>stdout</bdi> לא מתחיל ב-<code>{</code> (טקסט מפרופיל ה-<bdi>Shell</bdi> לפני ה-<bdi>JSON</bdi>); <code>additionalContext</code> ברמה העליונה במקום בתוך <code>hookSpecificOutput</code>; ערבוב של קוד 2 עם <bdi>JSON</bdi>; <bdi>Timeout</bdi> (ברירת מחדל 600 שניות ל-<code>command</code>, 30 ל-<code>UserPromptSubmit</code>, 30 ל-<code>prompt</code>, 60 ל-<code>agent</code>) שמבטל את ההחלטה.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>echo '{"tool_name":"Bash","tool_input":{"command":"rm -rf x"}}' | .claude/hooks/x.sh; echo "exit=$?"</code><br><code>Ctrl+O</code> (תצוגת תמליל)<br><code>claude --debug-file /tmp/claude.log</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>לחסימה: <code>exit 2</code> והודעה ל-<bdi>stderr</bdi>. לשליטה עדינה: <code>exit 0</code> ו-<bdi>JSON</bdi> ב-<bdi>stdout</bdi> (<code>hookSpecificOutput.permissionDecision: "deny"</code> ב-<code>PreToolUse</code>). בחרו גישה אחת לכל <bdi>Hook</bdi>.</li>
+      <li>ודאו שהאירוע ניתן לחסימה לפי טבלת האירועים ב-<a href="ch22.html">פרק 22</a>.</li>
+      <li>אם פרופיל ה-<bdi>Shell</bdi> מדפיס טקסט: הריצו <code>bash --noprofile</code> או צורת <bdi>exec</bdi> עם <code>args</code>.</li>
+      <li>קבעו <code>"timeout": 45</code> לפי הצורך; זכרו ש-<code>SessionEnd</code> חולק תקציב של 1.5 שניות אלא אם הגדרתם יותר.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>ההרצה הידנית מחזירה את קוד היציאה והפלט הצפויים; בתמליל רואים את הודעת החסימה.</td></tr>
+    <tr><th>מניעה</th><td>כתבו <bdi>Hooks</bdi> כסקריפטים נפרדים עם בדיקה עצמית; אל תסתמכו על <bdi>Hook</bdi> כשער אבטחה קשיח בלי לבדוק גם <bdi>Permissions</bdi> ו-<bdi>Sandbox</bdi>.</td></tr>
+  </tbody></table></div>
+
+  <h2 id="mcp">חיבור MCP</h2>
+  <p>הסטטוסים ש-<code>/mcp</code> ו-<code>claude mcp list</code> מציגים הם המפתח. להלן טיפול בכל אחד מהם. תזכורת: <bdi>Session</bdi> ב-<code>-p</code>, <bdi>SDK</bdi> ו-<bdi>Session</bdi> ענן טוענים שרתים פרויקטליים בלי בקשת אישור, ולא יכולים להריץ זרימת <bdi>OAuth</bdi>.</p>
+
+  <h3 id="mcp-failed">✘ Failed to connect / Connection error</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>✘ Failed to connect</code> עם שורת <code>Issue:</code> (קוד HTTP או שגיאה, מ-v2.1.219); <code>✘ Connection error</code> בלי פירוט; השרת מופיע ב-<code>/mcp</code> כ-<bdi>failed</bdi>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>נתיב יחסי ב-<code>command</code> או <code>args</code> (מפוענח מול תיקיית ההפעלה, לא מול <code>.mcp.json</code>); הפקודה לא קיימת ב-<bdi>PATH</bdi>; שרת מרוחק שמחזיר 401 (מפתח שגוי; <code>claude mcp add</code> אינו מאמת אישורים בהוספה) או 404; <code>url</code> ריק (<code>not configured</code>); שרת <bdi>stdio</bdi> שנפל אחרי ניסיונות חיבור חוזרים (<bdi>HTTP/SSE</bdi> מנסים שוב אוטומטית עד חמש פעמים, <bdi>stdio</bdi> לא); הפרדה שגויה של ארגומנטים.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>claude mcp list</code><br><code>claude mcp get &lt;name&gt;</code> (שורת Issue:)<br><code>claude --debug=mcp</code> ואז <code>~/.claude/debug/&lt;session-id&gt;.txt</code><br>הרצת פקודת השרת ידנית ב-Terminal</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>לשרתי <bdi>stdio</bdi>: זכרו את המפריד <code>--</code>. כל מה שאחרי <code>--</code> עובר לשרת ללא שינוי: <code>claude mcp add --transport stdio myserver -- npx -y some-server --port 8080</code>. אם שם השרת בא ישירות אחרי <code>--env</code>, ה-<bdi>CLI</bdi> יקרא אותו כזוג נוסף; שימו אופציה אחרת ביניהם.</li>
+      <li>השתמשו בנתיבים מוחלטים לסקריפטים מקומיים; <code>npx</code> ו-<code>uvx</code> שב-<bdi>PATH</bdi> עובדים כמו שהם.</li>
+      <li>לשרת מרוחק: תקנו את ה-<bdi>Header</bdi> או המפתח (<code>claude mcp remove</code> ואז <code>claude mcp add</code> מחדש), או השלימו <bdi>OAuth</bdi> ב-<code>/mcp</code>.</li>
+      <li>אם השרת איטי לעלות: <code>MCP_TIMEOUT=10000 claude</code> (במילישניות) לזמן ההפעלה.</li>
+      <li>ב-<code>/mcp</code> בחרו <bdi>Reconnect</bdi>.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>claude mcp list</code> מציג <code>✔ Connected</code>; ב-<code>/mcp</code> יש מספר כלים חיובי.</td></tr>
+    <tr><th>מניעה</th><td>שמרו <code>.mcp.json</code> עם נתיבים מוחלטים או פקודות מ-<bdi>PATH</bdi>; תעדו את הסודות הדרושים ב-<bdi>README</bdi> בלי ערכיהם (<a href="ch23.html">פרק 23</a>).</td></tr>
+  </tbody></table></div>
+
+  <h3 id="mcp-auth">! Needs authentication</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>! Needs authentication</code> ב-<code>claude mcp list</code>; ב-<code>/mcp</code> השרת מסומן כדורש התחברות; ב-<code>-p</code> Claude מדווח שהכלים של השרת "לא זמינים עד שתאשרו".</td></tr>
+    <tr><th>סיבות אפשריות</th><td>עדיין לא נכנסתם לשרת <bdi>OAuth</bdi>; ה-<bdi>Token</bdi> פג והרענון נכשל גם בניסיון החוזר; <code>headersHelper</code> שמחזיר אישור לא תקין (401/403 גם אחרי הרצה חוזרת); ב-<bdi>Session</bdi> לא-אינטראקטיבי אין דרך להריץ <bdi>OAuth</bdi>.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/mcp</code> ואז בחירת השרת<br><code>claude mcp get &lt;name&gt;</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>ב-<bdi>Session</bdi> אינטראקטיבי: <code>/mcp</code>, בחרו את השרת והשלימו את זרימת ה-<bdi>OAuth</bdi> בדפדפן.</li>
+      <li>מה-<bdi>Terminal</bdi>: <code>claude mcp login &lt;name&gt;</code> (v2.1.186+); לניתוק <code>claude mcp logout &lt;name&gt;</code>.</li>
+      <li>אם ההרשאות שהשרת מבקש נדחות (<code>invalid_scope</code>): הגדירו <code>oauth.scopes</code> בערך תת-קבוצה מאושרת.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>הסטטוס משתנה ל-<code>✔ Connected</code>; קריאת כלי פשוטה מצליחה.</td></tr>
+    <tr><th>מניעה</th><td>ל-<bdi>CI</bdi> ואוטומציה השתמשו בשרתים עם <bdi>Header</bdi> קבוע או <code>headersHelper</code>, לא ב-<bdi>OAuth</bdi> אינטראקטיבי (<a href="ch33.html">פרק 33</a>).</td></tr>
+  </tbody></table></div>
+
+  <h3 id="mcp-zero-tools">מחובר אבל בלי כלים (tools fetch נכשל)</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>השרת <bdi>connected</bdi> אבל מונה הכלים 0; Claude אומר שאין לו כלי מתאים; שרת מרוחק מציג <code>cached ... connects on first use</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>השרת עלה אבל אינו מחזיר רשימת כלים (שגיאה ב-<code>tools/list</code>; בקשות הגילוי מנסות שוב עד שלוש פעמים על שגיאות זמניות, לא על 4xx או <bdi>Timeout</bdi>); מצב <code>cached</code> (v2.1.221+) שמתחבר רק בקריאה הראשונה, וזה תקין; מסנן ארגוני שחוסם כלים (<code>blocked</code>) כך שאינם מוצגים כלל.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/mcp</code> ובחירת השרת<br><code>claude --debug=mcp</code> וקריאת ה-stderr של השרת בלוג<br><code>MCP_DISCOVERY_CACHE=0 claude</code> (לכפות חיבור בהפעלה)</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>ב-<code>/mcp</code> בחרו <bdi>Reconnect</bdi>.</li>
+      <li>אם המונה נשאר 0: קראו את ה-<bdi>stderr</bdi> של השרת בלוג ה-<bdi>Debug</bdi> ותקנו את השרת (לרוב תלות חסרה או שגיאת פרוטוקול).</li>
+      <li>אם כלי ספציפי חסר: בדקו ב-<code>/mcp</code> את הגדרת הכלי ברמת הארגון; <code>blocked</code> מסנן אותו לפני ש-Claude רואה אותו.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>מונה הכלים חיובי; <code>/context</code> מציג את כלי ה-<bdi>MCP</bdi>.</td></tr>
+    <tr><th>מניעה</th><td>בדקו שרתי <bdi>MCP</bdi> חדשים ידנית לפני הוספה לפרויקט; ראו את מטריצת ה-<bdi>MCP</bdi> של המדריך (<a href="ch23.html">פרק 23</a>).</td></tr>
+  </tbody></table></div>
+
+  <h3 id="mcp-pending">⏸ Pending approval ושרת פרויקטלי שלא נטען</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>⏸ Pending approval (run claude to approve)</code>; <code>✘ Rejected (see disabledMcpjsonServers in settings)</code>; שרת שהוגדר ב-<code>.mcp.json</code> לא מופיע; שרת שהוגדר תחת <code>mcpServers</code> ב-<code>settings.json</code> לא מופיע.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>שרתי <code>.mcp.json</code> דורשים אישור חד-פעמי, ובקשת האישור נדחתה או נסגרה; <code>.mcp.json</code> נשמר בתוך <code>.claude/</code> במקום בשורש ה-<bdi>Repository</bdi>, או בפורמט של <bdi>Claude Desktop</bdi>; <code>settings.json</code> אינו קורא מפתח <code>mcpServers</code>; ה-<bdi>Workspace</bdi> לא <bdi>Trusted</bdi>, ואז <code>enableAllProjectMcpServers</code> ו-<code>enabledMcpjsonServers</code> שב-<code>.claude/settings.json</code> המחויב ל-<bdi>Git</bdi> מתעלמים (v2.1.196+); <code>disabledMcpjsonServers</code> באחד הקבצים.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>claude mcp list</code><br><code>claude mcp get &lt;name&gt;</code><br><code>ls -la .mcp.json .claude/.mcp.json</code><br><code>grep -rn 'Mcpjson' .claude ~/.claude/settings.json</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>הריצו <code>claude</code> אינטראקטיבית בתיקייה, קבלו את דיאלוג ה-<bdi>Trust</bdi>, ואשרו את השרת ב-<code>/mcp</code>.</li>
+      <li>לאיפוס החלטות אישור: <code>claude mcp reset-project-choices</code>.</li>
+      <li>העבירו את <code>.mcp.json</code> לשורש ה-<bdi>Repository</bdi>; לשרתי משתמש השתמשו ב-<code>claude mcp add --scope user ...</code>.</li>
+      <li>הסירו את השרת מ-<code>disabledMcpjsonServers</code> אם הוא שם בטעות.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>claude mcp list</code> מציג את השרת עם <code>✔ Connected</code>.</td></tr>
+    <tr><th>מניעה</th><td>ב-<bdi>Onboarding</bdi> של הפרויקט כתבו במפורש: "הריצו <code>claude</code>, אשרו את ה-<bdi>Workspace</bdi> ואת שרתי ה-<bdi>MCP</bdi>".</td></tr>
+  </tbody></table></div>
+
+  <h3 id="mcp-env">משתנה סביבה חסר בשרת</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>השרת עולה אבל כל קריאה נכשלת ב-"missing API key" או דומה; עובד כשמריצים ידנית ב-<bdi>Terminal</bdi> ולא מתוך <bdi>Claude Code</bdi>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>הערך לא נכתב ב-<code>env</code> של השרת ב-<code>.mcp.json</code> ולא קיים בסביבה ש-<bdi>Claude Code</bdi> מעביר לשרתי <bdi>stdio</bdi> (סביבתו שלו פחות משתנים שהוא מסיר מתת-תהליכים, למשל <code>OTEL_*</code>); <bdi>Background agents</bdi> רצים תחת מפקח משותף שלא ירש את ה-<bdi>Shell</bdi> שלכם.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>claude mcp get &lt;name&gt;</code> (מציג את הגדרת env)<br><code>claude --debug=mcp</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>הוסיפו בהגדרה: <code>claude mcp add --env AIRTABLE_API_KEY=YOUR_KEY --transport stdio airtable -- npx -y airtable-mcp-server</code>, או ערכו את <code>env</code> בתוך רשומת השרת ב-<code>.mcp.json</code>.</li>
+      <li>אל תשמרו סודות אמיתיים ב-<code>.mcp.json</code> המחויב ל-<bdi>Git</bdi>; השתמשו בהרחבת משתני סביבה כפי שמתואר ב-<a href="ch23.html">פרק 23</a> ובמדיניות הסודות ב-<a href="ch20.html">פרק 20</a>.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>קריאת כלי שדורשת את המשתנה מצליחה.</td></tr>
+    <tr><th>מניעה</th><td>ה-<code>env</code> של השרת אינו תלוי בסביבת ההפעלה או ב-<bdi>Trust</bdi>; זה המקום הנכון להגדרות שרת.</td></tr>
+  </tbody></table></div>
+
+  <h2 id="connectors">כשל Connector</h2>
+
+  <h3 id="conn-invisible">ה-Connector לא מופיע ב-Claude Code</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>הוספתם <bdi>Connector</bdi> ב-<bdi>claude.ai</bdi> (למשל <bdi>Slack</bdi>, <bdi>Google Drive</bdi>) והוא לא מופיע ב-<code>/mcp</code>; או שהוא מופיע כמוסתר; או שהוא בקטגוריה מקופלת.</td></tr>
+    <tr><th>סיבות אפשריות</th><td><bdi>Connectors</bdi> נטענים רק כששיטת האימות הפעילה היא מנוי <bdi>claude.ai</bdi>. הם לא נטענים כאשר <code>ANTHROPIC_API_KEY</code>, <code>ANTHROPIC_AUTH_TOKEN</code> או <code>apiKeyHelper</code> פעילים; כשספק צד שלישי (<bdi>Bedrock</bdi>, <bdi>Agent Platform</bdi>) פעיל; כש-<code>CLAUDE_CODE_OAUTH_TOKEN</code> מ-<code>claude setup-token</code> מוגדר (הוא מאפשר רק בקשות <bdi>Model</bdi>); כש-<code>disableClaudeAiConnectors: true</code> באיזשהו טווח או <code>ENABLE_CLAUDEAI_MCP_SERVERS=false</code>; כשהוספתם שרת מקומי עם אותה כתובת (הוא גובר, וה-<bdi>Connector</bdi> מוצג כמוסתר); <bdi>Connectors</bdi> שמעולם לא נכנסתם אליהם מקופלים תחת <code>Show unused connectors</code>.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/status</code> (שיטת האימות)<br><code>/mcp</code> (גללו ל-Show unused connectors)<br><code>env | grep -E 'ANTHROPIC|CLAUDE_CODE_OAUTH|ENABLE_CLAUDEAI'</code><br><code>grep -rn disableClaudeAiConnectors .claude ~/.claude</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>בטלו את משתנה הסביבה או את <code>apiKeyHelper</code>, ואז <code>/login</code> ובחרו את חשבון <bdi>claude.ai</bdi>.</li>
+      <li>הסירו <code>disableClaudeAiConnectors</code> אם הוא לא מכוון (זכרו: <code>true</code> בכל מקור גובר, פרויקט לא יכול להפעיל מחדש מה שהמשתמש או המדיניות כיבו).</li>
+      <li>אם שרת מקומי כפול: הסירו אותו עם <code>claude mcp remove</code> אם אתם מעדיפים את ה-<bdi>Connector</bdi>.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>/mcp</code> מציג את ה-<bdi>Connector</bdi> עם סימון שמקורו ב-<bdi>claude.ai</bdi>.</td></tr>
+    <tr><th>מניעה</th><td>החליטו לכל מכונה איזו שיטת אימות היא ברירת המחדל; מי שצריך <bdi>Connectors</bdi> עובד עם מנוי (<a href="ch24.html">פרק 24</a>).</td></tr>
+  </tbody></table></div>
+
+  <h3 id="conn-admin">חסימה ארגונית, הרשאה חסרה וביטול דו-צדדי</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>כלי מבקש אישור בכל קריאה עם <code>Your organization requires approval for this tool</code> גם ב-<bdi>acceptEdits</bdi>; כלי לא מופיע כלל; <code>connected · session token rejected</code>; <bdi>Connector</bdi> ל-<bdi>Microsoft 365</bdi>, <bdi>Gmail</bdi> או <bdi>Google Calendar</bdi> מבקש להתחבר דרך <bdi>claude.ai</bdi>; הפעולה נכשלת ב-403 מהשירות עצמו.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>מנהל הארגון הגדיר לכלי <code>ask</code> (בקשה תמיד, גם <code>allow</code> לא עוקף; ב-<bdi>dontAsk</bdi> הקריאה נדחית) או <code>blocked</code> (מסונן לפני ש-Claude רואה); ה-<bdi>Connector</bdi> נמצא ב-<code>deniedMcpServers</code>; ה-<bdi>Login</bdi> של <bdi>Claude Code</bdi> ל-<bdi>claude.ai</bdi> פג (אישור מחדש של ה-<bdi>Connector</bdi> לא יעזור, כי לא הוא נדחה); חלק מה-<bdi>Connectors</bdi> תומכים רק ב-<bdi>OAuth</bdi> דרך <bdi>claude.ai</bdi>; ההרשאה (<bdi>Scope</bdi>) שאושרה בשירות המקורי צרה מדי, או שביטלתם את הגישה בצד השירות (למשל ב-<bdi>Google Account</bdi>) בעוד ה-<bdi>Connector</bdi> עדיין "מחובר" בצד <bdi>claude.ai</bdi>.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/mcp</code> ובחירת ה-Connector (רואים איזו הגדרה ארגונית חלה על כל כלי)<br><code>/status</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>ל-<code>ask</code> ו-<code>blocked</code>: אין עקיפה מקומית; פנו למנהל הארגון.</li>
+      <li>ל-<code>session token rejected</code>: <code>/login</code> ואז חיבור מחדש של ה-<bdi>Connector</bdi> מ-<code>/mcp</code>.</li>
+      <li>ל-<bdi>Connectors</bdi> שדורשים <bdi>OAuth</bdi> דרך <bdi>claude.ai</bdi>: חברו אותם ב-<bdi>Settings → Connectors</bdi> ב-<bdi>claude.ai</bdi>; הם יופיעו ב-<bdi>Claude Code</bdi> אוטומטית.</li>
+      <li>לביטול דו-צדדי: נתקו את ה-<bdi>Connector</bdi> ב-<bdi>claude.ai</bdi>, בטלו את הגישה גם באפליקציה המקורית, ואז חברו מחדש ואשרו את כל ההרשאות הנדרשות (<a href="ch24.html">פרק 24</a>).</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>קריאת כלי פשוטה (למשל קריאה בלבד) מצליחה בלי שגיאת הרשאה.</td></tr>
+    <tr><th>מניעה</th><td>לפני שמסתמכים על <bdi>Connector</bdi> בזרימת עבודה, בדקו את מטריצת הזמינות של המדריך (<bdi>connector-availability-matrix</bdi>) ואת מדיניות הארגון.</td></tr>
+  </tbody></table></div>
+
+  <h2 id="subagents">התנהגות Subagents</h2>
+
+  <h3 id="sub-not-delegating">Claude לא מאציל ל-Subagent שהגדרתם</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>הגדרתם <code>.claude/agents/security-reviewer.md</code>, ביקשתם סקירה, ו-Claude עשה הכול בעצמו; או שהוא לא מוצא את ה-<bdi>Subagent</bdi>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>שדה <code>description</code> לא תואם למשימה; המשימה דורשת הרבה הלוך-ושוב (השיחה הראשית מתאימה יותר); ה-<bdi>Session</bdi> נפתח לפני שתיקיית <code>agents</code> נוצרה בפעם הראשונה; שני קבצים באותה תיקייה עם אותו <code>name</code>; ה-<bdi>Subagent</bdi> ב-<bdi>Plugin</bdi> ומופיע בשם מרוחב (<code>my-plugin:code-reviewer</code>).</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/context</code> (Custom Agents והמקור)<br><code>/agents</code><br><code>/doctor</code> (שמות כפולים)<br><code>ls .claude/agents ~/.claude/agents</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>בקשו במפורש: "Use the security-reviewer subagent to review the auth changes", או הזכירו אותו עם <code>@</code> (<code>@agent-security-reviewer</code>) לאצילה מובטחת למשימה אחת.</li>
+      <li>לכל ה-<bdi>Session</bdi>: <code>claude --agent security-reviewer</code>.</li>
+      <li>שפרו את ה-<code>description</code>: הוסיפו "Use proactively ... immediately after ..." (<a href="ch25.html">פרק 25</a>).</li>
+      <li>אם זו תיקיית <code>agents</code> חדשה: הפעילו מחדש את <bdi>Claude Code</bdi>. עריכות של קבצים קיימים נקלטות תוך שניות.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>בתמליל (<code>Ctrl+O</code>) או ב-<code>/tasks</code> רואים את ה-<bdi>Subagent</bdi> רץ.</td></tr>
+    <tr><th>מניעה</th><td>שמרו על שמות ייחודיים; כתבו תיאור שכולל את פעלי הבקשה של הצוות.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="sub-tools">ה-Subagent עם כלים שגויים או בלי כלים בכלל</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>Agent would be spawned with zero tools</code>; ה-<bdi>Subagent</bdi> עורך קבצים למרות שביקשתם קריאה בלבד; ה-<bdi>Subagent</bdi> לא יכול להריץ פקודה שציפיתם; הוא מתעלם מ-<bdi>CLAUDE.md</bdi>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>שמות כלים שגויים ב-<code>tools</code>; ערבוב <code>tools</code> (רשימת היתר) עם <code>disallowedTools</code> (רשימת מניעה, מוחלת קודם); ירושת <bdi>bypassPermissions</bdi> או <bdi>acceptEdits</bdi> מההורה שאי אפשר לעקוף; הסוכנים המובנים <bdi>Explore</bdi> ו-<bdi>Plan</bdi> אינם טוענים <bdi>CLAUDE.md</bdi>; מגבלת <code>permissions.deny</code> כמו <code>Agent(Explore)</code>.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>head -15 .claude/agents/&lt;name&gt;.md</code><br><code>/permissions</code><br><code>/doctor</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>תקנו שמות: <code>tools: Read, Grep, Glob, Bash</code>. לכל כלי <bdi>MCP</bdi> של שרת: <code>mcp__&lt;server&gt;</code>.</li>
+      <li>לקריאה בלבד: <code>disallowedTools: Write, Edit</code> או <code>permissionMode: plan</code>.</li>
+      <li>ל-<bdi>Explore</bdi>/<bdi>Plan</bdi>: חזרו על ההוראות הקריטיות ב-<bdi>Prompt</bdi> ההאצלה; ל-<bdi>Subagent</bdi> מותאם, כתבו אותן בגוף הקובץ (הוא ה-<bdi>System Prompt</bdi> שלו).</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>הרצה קצרה ב-<code>/tasks</code> מראה שה-<bdi>Subagent</bdi> משתמש רק בכלים המותרים.</td></tr>
+    <tr><th>מניעה</th><td>העתיקו הגדרות מהסט של המדריך (<a href="ch25.html">פרק 25</a>) ובדקו כל <bdi>Subagent</bdi> חדש על משימה קטנה.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="sub-background">Subagent רקע "אבד", או שצריך להמשיך אותו</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>Claude המשיך הלאה וה-<bdi>Subagent</bdi> ברקע לא דיווח; שורת המשימה נעלמה; רוצים להמשיך סקירה שה-<bdi>Subagent</bdi> התחיל; <code>Agent terminated early due to an API error</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>ברירת המחדל האינטראקטיבית היא רקע: התוצאה מגיעה כהתראת סיום בתור מאוחר יותר; שורה של <bdi>Subagent</bdi> שהצליח נמחקת מיד (הכותרת התחתונה מציעה <code>/tasks to see subagents</code> ל-30 שניות); <bdi>Subagent</bdi> שעצרתם ידנית לא ממשיך אוטומטית (v2.1.191+); בקשת אישור של <bdi>Subagent</bdi> רקע ממתינה בשיחה הראשית; שגיאת <bdi>API</bdi> סופית (מגבלת שימוש).</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/tasks</code><br><code>Ctrl+T</code> (רשימת המשימות)<br><code>ls ~/.claude/projects/&lt;project&gt;/&lt;sessionId&gt;/subagents/</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>בקשו המשך בשפה טבעית: "Continue that code review and now analyze the authorization logic". Claude מחדש את ה-<bdi>Subagent</bdi> עם ה-<bdi>Context</bdi> שלו.</li>
+      <li>אם עצרתם אותו ידנית: הקלידו בתמליל שלו בזמן ששורתו עדיין בפאנל.</li>
+      <li>אחרי הפעלה מחדש של <bdi>Claude Code</bdi>: <code>claude --resume</code> לאותו <bdi>Session</bdi>; התמלילים של ה-<bdi>Subagents</bdi> נשמרים בקבצים נפרדים.</li>
+      <li>אם בקשת אישור ממתינה: אשרו אותה בשיחה הראשית או <code>Esc</code> לדחיית הקריאה בלי לעצור את ה-<bdi>Subagent</bdi>.</li>
+      <li>לעצירת כל ה-<bdi>Subagents</bdi> ברקע: <code>Ctrl+X Ctrl+K</code>.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>/tasks</code> מציג את ה-<bdi>Subagent</bdi> כפעיל או שסיכומו הופיע בשיחה.</td></tr>
+    <tr><th>מניעה</th><td>למשימה שדורשת תשובה מיידית, בקשו הרצה בחזית; לעבודה ארוכה, תנו ל-<bdi>Subagent</bdi> תוצר קובץ (דוח) שאפשר לקרוא בכל זמן (<a href="ch38.html">פרק 38</a>).</td></tr>
+  </tbody></table></div>
+
+  <h2 id="plugins">התקנת Plugins</h2>
+
+  <h3 id="plugin-marketplace">הוספת Marketplace או התקנה נכשלות</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>Marketplace "&lt;name&gt;" is registered from an untrusted source</code>; <code>Plugin directory not found at path: ./plugins/my-plugin</code>; <code>Plugin archive integrity check failed</code>; ה-<bdi>Marketplace</bdi> הרשמי לא מופיע.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>מדיניות ארגונית של <bdi>Marketplaces</bdi> חוסמת מקור; רשומת <code>source</code> ב-<code>marketplace.json</code> מצביעה לתיקייה לא קיימת; ארכיון פגום; <bdi>Claude Code</bdi> הופעל לא-אינטראקטיבית לפני ההרצה האינטראקטיבית הראשונה, כך ש-<code>claude-plugins-official</code> לא נרשם; רשת חוסמת <code>downloads.claude.ai</code>, <code>registry.npmjs.org</code> או <code>storage.googleapis.com</code>.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/plugin</code> (לשונית Errors)<br><code>claude plugin list</code><br><code>claude --debug</code> וחיפוש "loading plugin"</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>רשמו את ה-<bdi>Marketplace</bdi> הרשמי: <code>claude plugin marketplace add anthropics/claude-plugins-official</code>. לקהילתי: <code>/plugin marketplace add anthropics/claude-plugins-community</code>.</li>
+      <li>התקינו בשם המלא: <code>/plugin install name@marketplace</code>, כאשר שם ה-<bdi>Marketplace</bdi> מגיע מהמניפסט שלו ולא מכתובת ה-<bdi>Repository</bdi>.</li>
+      <li>אם המקור נחשב לא מהימן: ודאו שהוא לגיטימי; בארגון, בקשו מהמנהל להוסיפו לרשימת המותרים.</li>
+      <li>לבדיקה מקומית בלי <bdi>Marketplace</bdi>: <code>claude --plugin-dir ./my-plugin</code>.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>claude plugin list</code> מציג את ה-<bdi>Plugin</bdi>; <code>/help</code> מציג את פקודותיו תחת <bdi>Custom commands</bdi>.</td></tr>
+    <tr><th>מניעה</th><td>לצוות: <bdi>Marketplace</bdi> פנימי אחד מנוהל (<a href="ch26.html">פרק 26</a>), עם ה-<bdi>Plugins</bdi> המאושרים.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="plugin-validate">שגיאות Validate ובעיות נתיבים</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>Invalid JSON syntax: Unexpected token }</code>; <code>Plugin &lt;name&gt; has an invalid manifest file ... name: Invalid input</code>; <code>Warning: No commands found in plugin ...</code>; ה-<bdi>Plugin</bdi> נטען אבל ה-<bdi>Skills</bdi>, הסוכנים או ה-<bdi>Hooks</bdi> חסרים; <code>Executable not found in $PATH</code> לשרת <bdi>LSP</bdi>; <code>references ${user_config.*} in a shell-form command</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>שגיאת <bdi>JSON</bdi> במניפסט; שדה חובה חסר; רכיבים (<code>skills/</code>, <code>agents/</code>, <code>hooks/</code>) הוכנסו לתוך <code>.claude-plugin/</code> במקום לשורש ה-<bdi>Plugin</bdi>; נתיבים מוחלטים במקום יחסיים שמתחילים ב-<code>./</code>; שרת <bdi>MCP</bdi> של ה-<bdi>Plugin</bdi> בלי <code>${CLAUDE_PLUGIN_ROOT}</code>; סקריפט <bdi>Hook</bdi> לא ניתן להרצה; שרת שפה לא מותקן; <code>${user_config.*}</code> בצורת <bdi>Shell</bdi> (רק צורת <bdi>exec</bdi> נתמכת מ-v2.1.207).</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>claude plugin validate ./my-plugin</code><br><code>claude plugin validate ./my-plugin --strict</code><br><code>/plugin validate ./my-plugin</code><br><code>claude --debug</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>הריצו <code>claude plugin validate</code> ותקנו עד <code>✔ Validation passed</code>.</li>
+      <li>סדרו את המבנה: רק <code>plugin.json</code> בתוך <code>.claude-plugin/</code>; כל השאר בשורש.</li>
+      <li>השתמשו ב-<code>${CLAUDE_PLUGIN_ROOT}</code> לכל נתיב פנימי; <code>chmod +x</code> לסקריפטים.</li>
+      <li>אחרי כל שינוי: <code>/reload-plugins</code> (או <code>/reload-plugins --force</code>).</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>/context</code> מציג את הסוכנים תחת <bdi>Custom Agents</bdi>; ה-<bdi>Skills</bdi> ב-<code>/help</code>; ה-<bdi>Hooks</bdi> ב-<code>/hooks</code>.</td></tr>
+    <tr><th>מניעה</th><td>הריצו <code>claude plugin validate</code> ב-<bdi>CI</bdi> של ה-<bdi>Plugin</bdi>; התחילו מ-<code>claude plugin init</code>.</td></tr>
+  </tbody></table></div>
+
+  <h2 id="ide">שילוב IDE</h2>
+
+  <h3 id="ide-cli">התוסף לא מזהה את ה-CLI, או <code>/ide</code> לא מתחבר</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>Could not locate the Claude CLI on PATH</code>; <code>Claude Code process exited with code 1</code> (או 127, 137) בתוסף; <code>/ide</code> ב-<bdi>Terminal</bdi> חיצוני לא מוצא את ה-<bdi>IDE</bdi>; אייקון ה-<bdi>Spark</bdi> לא מופיע; טקסט משובש ב-<bdi>Terminal</bdi> המשולב.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>ה-<bdi>CLI</bdi> לא מותקן עצמאית (התוסף מביא עותק פרטי לפאנל שלו בלבד); ה-<bdi>IDE</bdi> לא ירש את ה-<bdi>PATH</bdi> או משתני הסביבה של ה-<bdi>Shell</bdi>; קוד 127 = פקודה לא נמצאה, 137 = נהרג בגלל זיכרון; ה-<bdi>Workspace</bdi> במצב <bdi>Restricted</bdi> (בלי <bdi>Trust</bdi>); אין קובץ פתוח (האייקון דורש קובץ פתוח); תוסף <bdi>AI</bdi> אחר מתנגש; ה-<bdi>Terminal</bdi> המשולב משתמש בהאצת <bdi>GPU</bdi>; גרסת <bdi>VS Code</bdi> נמוכה מ-1.94.0.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>which claude</code> (מתוך ה-Terminal המשולב)<br><code>claude --version</code><br><code>/ide</code> (בתוך Session)<br><code>code --version</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>התקינו את ה-<bdi>CLI</bdi> העצמאי (<a href="ch02.html">פרק 2</a>) והפעילו מחדש את ה-<bdi>IDE</bdi>.</li>
+      <li>אם ה-<bdi>IDE</bdi> לא רואה משתני סביבה: הפעילו אותו מ-<bdi>Terminal</bdi> שבו הם מיוצאים, או הגדירו אותם בהגדרות ה-<bdi>IDE</bdi>.</li>
+      <li>אשרו <bdi>Trust</bdi> ל-<bdi>Workspace</bdi> (או <code>code --trust-folder=/path/to/workspace</code>).</li>
+      <li>ב-<bdi>Terminal</bdi> חיצוני: פתחו את הפרויקט ב-<bdi>IDE</bdi>, ואז <code>/ide</code> בתוך <bdi>Claude Code</bdi>. ב-<bdi>Terminal</bdi> המשולב החיבור אוטומטי.</li>
+      <li>לטקסט משובש: <code>/terminal-setup</code> מכבה את <code>terminal.integrated.gpuAcceleration</code>.</li>
+      <li>"Developer: Reload Window" מפלטת הפקודות אחרי שינויים.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>/ide</code> מציג חיבור פעיל; <bdi>Diff</bdi> נפתח ב-<bdi>IDE</bdi> במקום ב-<bdi>Terminal</bdi>.</td></tr>
+    <tr><th>מניעה</th><td>התקינו תמיד גם את ה-<bdi>CLI</bdi> וגם את התוסף; ראו <a href="ch27.html">פרק 27</a> להבדלים בין הפאנל ל-<bdi>Terminal</bdi>.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="ide-panel-vs-terminal">תכונה שקיימת ב-Terminal ולא בפאנל (או להפך)</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>פקודה שעובדת ב-<bdi>Terminal</bdi> לא קיימת בתפריט <code>/</code> של הפאנל; משימות רקע לא נראות בפאנל; <bdi>Plan review</bdi> ו-<bdi>Inline diffs</bdi> קיימים רק בפאנל.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>שני מוצרים שונים: התוסף (פאנל גרפי) וה-<bdi>CLI</bdi>. חלק מהתכונות זמינות רק ב-<bdi>CLI</bdi>; פריטים עם אייקון <bdi>Terminal</bdi> בתפריט הפאנל נפתחים ב-<bdi>Terminal</bdi> המשולב.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr">בפאנל: <code>/</code> ופתיחת התפריט<br>ב-Terminal: <code>/help</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>לתכונת <bdi>CLI</bdi> בלבד: פתחו את ה-<bdi>Terminal</bdi> המשולב (<code>Ctrl+`</code> או <code>Cmd+`</code>) והריצו <code>claude</code>.</li>
+      <li>לפקודות ארוכות בפאנל: בקשו מ-Claude להדפיס את הפקודה והריצו אותה בעצמכם ב-<bdi>Terminal</bdi> המשולב.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>התכונה עובדת בממשק המתאים.</td></tr>
+    <tr><th>מניעה</th><td>למדו את טבלת ההשוואה ב-<a href="ch27.html">פרק 27</a>.</td></tr>
+  </tbody></table></div>
+
+  <h2 id="git">Git ו-Worktrees</h2>
+
+  <h3 id="git-worktree">בלבול בין Worktrees וסוכנים מקבילים</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>שינוי שביקשתם "נעלם"; שני <bdi>Sessions</bdi> דורסים זה את זה; <code>git status</code> מציג שינויים שלא הכרתם; <code>Could not find merge-base with &lt;branch&gt;</code>; <code>Your checkout has no branches (detached HEAD only)</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>ה-<bdi>Session</bdi> רץ ב-<bdi>Worktree</bdi> אחר (<code>-w</code>/<code>--worktree</code>, <code>/batch</code>, <code>isolation: worktree</code> של <bdi>Subagent</bdi>) ואתם מסתכלים על ה-<bdi>Checkout</bdi> הראשי; שני סוכנים עורכים אותו קובץ ללא מטריצת בעלות; ענף הבסיס לא קיים מקומית; <bdi>HEAD</bdi> מנותק.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>git worktree list</code><br><code>pwd</code> ו-<code>git branch --show-current</code> בכל Session<br><code>git fetch origin</code><br><code>git branch -a</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>מצאו את ה-<bdi>Worktree</bdi> שבו העבודה נעשתה (<code>git worktree list</code>) ופתחו אותו, או מזגו את הענף שלו.</li>
+      <li>לסוכנים מקבילים: קבעו מטריצת בעלות על קבצים ו-<bdi>Worktree</bdi> לכל סוכן (<a href="ch38.html">פרק 38</a>).</li>
+      <li>ל-<bdi>merge-base</bdi>: <code>git fetch origin</code> ובדיקת שם הענף; ל-<bdi>HEAD</bdi> מנותק: <code>git checkout -b main origin/main</code> (או הענף המתאים).</li>
+      <li>ניקוי: <code>git worktree remove &lt;path&gt;</code> ל-<bdi>Worktrees</bdi> שסיימו.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>git log --oneline -5</code> בענף היעד מציג את ה-<bdi>Commits</bdi> הצפויים.</td></tr>
+    <tr><th>מניעה</th><td>קראו לענפים ול-<bdi>Sessions</bdi> בשמות תואמים (<code>/rename</code>); לפני מיזוג, סקירה אנושית (<a href="ch13.html">פרק 13</a>).</td></tr>
+  </tbody></table></div>
+
+  <h3 id="git-checkpoint">Checkpoint מול Git: Rewind לא החזיר מה שציפיתם</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>/rewind</code> החזיר את השיחה אבל קובץ נשאר משתנה; <code>Restored the code, but skipped N files</code>; קובץ שנוצר בפקודת <bdi>Shell</bdi> לא הוחזר; ציפיתם ש-<bdi>Rewind</bdi> יבטל <bdi>Commit</bdi>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td><bdi>Checkpoints</bdi> עוקבים רק אחרי שינויים דרך כלי העריכה של Claude, לא אחרי <bdi>Bash</bdi> או תהליכים חיצוניים; קובץ לא היה קיים בנקודת ה-<bdi>Checkpoint</bdi>; בעיית הרשאות; <bdi>Rewind</bdi> אינו תחליף ל-<bdi>Git</bdi>.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/rewind</code> (תפריט)<br><code>git status</code><br><code>git diff</code><br><code>/diff</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>לשינויים דרך <bdi>Bash</bdi>: <code>git checkout -- &lt;file&gt;</code> או <code>git stash</code>, לא <bdi>Rewind</bdi>.</li>
+      <li>לביטול <bdi>Commit</bdi>: <code>git revert</code> או <code>git reset</code> לפי המדיניות (<a href="ch13.html">פרק 13</a>).</li>
+      <li>לקבצים שדולגו: בדקו הרשאות ונסו <code>/rewind</code> שוב.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>git status</code> נקי או מציג רק את השינויים המכוונים.</td></tr>
+    <tr><th>מניעה</th><td>עשו <bdi>Commit</bdi> קטן לפני כל שינוי מסוכן; השתמשו ב-<bdi>Rewind</bdi> לניסויים קצרים ובתוך תור (<a href="ch19.html">פרק 19</a>).</td></tr>
+  </tbody></table></div>
+
+  <h2 id="tests">כשלי בדיקות</h2>
+
+  <h3 id="test-flaky">בדיקות לא יציבות (flaky) ותלויות סביבה</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>הבדיקה עוברת מקומית ונכשלת ב-<bdi>CI</bdi> או להפך; נכשלת רק כשמריצים את כל החבילה; Claude מדווח "all tests pass" ואתם רואים כישלון.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>תלות בסדר הרצה או במצב משותף (ב-<bdi>TaskFlow</bdi>: מסד ה-<bdi>SQLite</bdi> ב-<code>TASKFLOW_DB</code> משותף בין בדיקות); תלות בזמן, ברשת או בקבצים מקומיים; גרסאות תלויות שונות; משתני סביבה חסרים; Claude הריץ תת-קבוצה של הבדיקות או הריץ בתיקייה הלא נכונה.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>cd backend &amp;&amp; pytest -q</code> (כמו ב-CI)<br><code>pytest -q -p no:randomly tests/test_tasks.py::test_delete</code> (בדיקה בודדת)<br><code>pytest -q --lf</code> (הכישלונות האחרונים)<br><code>env | sort</code> להשוואה בין הסביבות</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>בקשו מ-Claude להריץ את הפקודה המדויקת מ-<bdi>CLAUDE.md</bdi> ולהציג את הפלט המלא, לא סיכום.</li>
+      <li>בודדו: הריצו את הבדיקה לבד ואז עם החבילה; אם ההתנהגות שונה, יש מצב משותף. ב-<bdi>TaskFlow</bdi>, ודאו ש-<bdi>fixture</bdi> ה-<code>client</code> מאתחל מסד נקי.</li>
+      <li>קבעו את משתני הסביבה ב-<bdi>CI</bdi> ובמקומי לאותם ערכים; תעדו אותם ב-<bdi>CLAUDE.md</bdi>.</li>
+      <li>לבדיקות תלויות רשת: <bdi>Mock</bdi> או סימון <code>@pytest.mark.skipif</code> עם תנאי מפורש.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>שלוש הרצות רצופות של החבילה המלאה עוברות מקומית וב-<bdi>CI</bdi>.</td></tr>
+    <tr><th>מניעה</th><td>כתבו ב-<bdi>CLAUDE.md</bdi> את פקודת הבדיקה הקנונית; דרשו מ-Claude להציג ראיות (פלט הבדיקה) ולא הצהרות (<a href="ch11.html">פרק 11</a>).</td></tr>
+  </tbody></table></div>
+
+  <h3 id="test-wrong-fix">Claude "מתקן" את הבדיקה במקום את הקוד</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>הבדיקה עוברת אחרי שינוי, אבל ה-<bdi>Assertion</bdi> רוכך, הבדיקה נמחקה, סומנה <code>skip</code>, או שהוספה עקיפה בקוד היעד רק כדי לרצות את הבדיקה.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>ה-<bdi>Prompt</bdi> אמר "make the tests pass" בלי לומר מה מותר לשנות; אין <bdi>Hook</bdi> או כלל שמגן על קובצי הבדיקות; Claude פירש את הבדיקה כשגויה.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>git diff -- backend/tests</code><br><code>/diff</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li><code>/rewind</code> לנקודה שלפני השינוי, או <code>git checkout -- backend/tests</code>.</li>
+      <li>נסחו מחדש: "Fix the root cause in app/, do not modify files under tests/. If you believe a test is wrong, stop and explain why before changing it." (תבנית ב-<a href="ch40.html#bugs">פרק 40</a>).</li>
+      <li>הוסיפו כלל <code>deny</code> זמני על עריכת <code>tests/</code>, או <bdi>PreToolUse Hook</bdi> שחוסם עריכה שם בזמן תיקוני <bdi>Bug</bdi> (<a href="ch22.html">פרק 22</a>).</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>git diff -- backend/tests</code> ריק (או מכיל רק בדיקות חדשות שאישרתם) והחבילה עוברת.</td></tr>
+    <tr><th>מניעה</th><td>ב-<bdi>CLAUDE.md</bdi>: "Never weaken or delete a failing test to make it pass; report it instead."</td></tr>
+  </tbody></table></div>
+
+  <h2 id="ci">כשלי CI</h2>
+
+  <h3 id="ci-secrets-perms">Secrets חסרים, הרשאות וגרסת Action</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>Claude לא מגיב ל-<code>@claude</code>; ה-<bdi>Job</bdi> נכשל באימות; <code>Not logged in</code> או <code>Invalid API key</code> בלוג ה-<bdi>Action</bdi>; שגיאת הרשאה בכתיבת תגובה או דחיפה; ה-<bdi>CI</bdi> לא רץ על <bdi>Commits</bdi> ש-Claude דחף; ה-<bdi>Workflow</bdi> משתמש ב-<code>@beta</code> עם <code>direct_prompt</code> ונשבר.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>ה-<bdi>Secret</bdi> (<code>ANTHROPIC_API_KEY</code> או <code>CLAUDE_CODE_OAUTH_TOKEN</code>) לא הוגדר, או הועבר לקלט הלא נכון (<code>anthropic_api_key</code> מול <code>claude_code_oauth_token</code>); ב-<bdi>PR</bdi> מ-<bdi>Fork</bdi> ציבורי <bdi>GitHub</bdi> לא חושף <bdi>Secrets</bdi>; חסרות הרשאות <code>id-token: write</code>, <code>contents</code>, <code>pull-requests</code>, <code>issues</code>; אפליקציית <bdi>Claude GitHub App</bdi> לא מותקנת; המגיב ללא הרשאת כתיבה או שהוא <bdi>Bot</bdi>; הועבר <code>github_token: ${{ secrets.GITHUB_TOKEN }}</code> ולכן <bdi>GitHub</bdi> לא מפעיל <bdi>Workflows</bdi> על ה-<bdi>Commits</bdi>; גרסת <bdi>Action</bdi> ישנה.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>gh secret list</code><br><code>gh run view --log</code> (הרצה אחרונה)<br><code>gh api repos/{owner}/{repo}/installation</code> (האם ה-App מותקן)<br>מקומית: <code>claude auth status</code> עם אותו אישור</td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>הפעילו <code>/install-github-app</code> מתוך <bdi>Claude Code</bdi> ב-<bdi>Repository</bdi>; הוא מתקין את ה-<bdi>App</bdi>, יוצר את ה-<bdi>Secret</bdi> ופותח <bdi>PR</bdi> עם ה-<bdi>Workflow</bdi>.</li>
+      <li>ידנית: הוסיפו את ה-<bdi>Secret</bdi> ב-<bdi>Settings → Secrets</bdi>, וודאו שה-<bdi>Workflow</bdi> משתמש ב-<code>anthropics/claude-code-action@v1</code> עם <code>anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}</code> או <code>claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}</code>.</li>
+      <li>הרשאות מינימליות ל-<bdi>Job</bdi> האינטראקטיבי: <code>contents: write</code>, <code>pull-requests: write</code>, <code>issues: write</code>, <code>id-token: write</code>, <code>actions: read</code>.</li>
+      <li>הסירו <code>github_token</code> אם רוצים שה-<bdi>CI</bdi> ירוץ על <bdi>Commits</bdi> של Claude, או העבירו <bdi>Token</bdi> של <bdi>App</bdi> מותאם.</li>
+      <li>שדרוג מ-<code>@beta</code>: <code>@v1</code>, הסרת <code>mode</code>, <code>direct_prompt</code> ל-<code>prompt</code>, ו-<code>max_turns</code>/<code>model</code> ל-<code>claude_args</code>.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>תגובת <code>@claude</code> ב-<bdi>PR</bdi> מקבלת מענה; <code>gh run list</code> מציג הרצה ירוקה.</td></tr>
+    <tr><th>מניעה</th><td>שמרו את ה-<bdi>Workflow</bdi> הרשמי מ-<code>examples/claude.yml</code>; קבעו <code>--max-turns</code> ו-<bdi>Timeout</bdi> ל-<bdi>Job</bdi> (<a href="ch28.html">פרק 28</a>).</td></tr>
+  </tbody></table></div>
+
+  <h2 id="cost">קפיצת עלות</h2>
+
+  <h3 id="cost-spike">העלות או השימוש קפצו פתאום</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>/usage</code> מציג שימוש גבוה מהרגיל; <code>You've hit your session limit</code> מוקדם ביום; חשבון <bdi>API</bdi> גבוה; <code>Credit balance is too low</code>; <code>Budget limit reached</code> ב-<code>-p</code>.</td></tr>
+    <tr><th>סיבות אפשריות</th><td>סוכנים מקבילים (<code>/batch</code>, <bdi>Subagents</bdi> רבים, <bdi>Agent Teams</bdi>) שמכפילים <bdi>Tokens</bdi>; <bdi>Session</bdi> ארוך עם <bdi>Context</bdi> מלא (כל תור שולח את כל ההיסטוריה); <bdi>Model</bdi> יקר או <bdi>Effort</bdi> גבוה למשימות פשוטות; לולאת תיקונים על אותה בעיה; <bdi>MCP</bdi> שמחזיר פלט ענק; <code>/loop</code> או <bdi>Routines</bdi> שרצים ברקע; <bdi>Fast mode</bdi> פעיל.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/usage</code> (פירוט לפי Skill, Subagent, Plugin ו-MCP בתוכניות בתשלום)<br><code>/context</code><br><code>/tasks</code> ו-<code>claude agents</code> (מה רץ ברקע)<br><code>/effort</code>, <code>/model</code>, <code>/fast</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>עצרו מה שרץ ברקע ולא נחוץ: <code>/tasks</code> ו-<code>x</code>, <code>claude stop &lt;id&gt;</code>, <code>Ctrl+X Ctrl+K</code>.</li>
+      <li><code>/compact</code> או <code>/clear</code>; <code>/effort medium</code>; <code>/model</code> ל-<bdi>Model</bdi> זול יותר למשימות שגרה (<a href="ch08.html">פרק 8</a>).</li>
+      <li>להרצות אוטומטיות: <code>claude -p --max-budget-usd 5.00 --max-turns 20 "..."</code> (הדגלים פועלים במצב <code>-p</code>; ההוצאה של <bdi>Subagents</bdi> נספרת בתקרה).</li>
+      <li>ב-<bdi>Console</bdi>: קבעו תקרות הוצאה ל-<bdi>Workspace</bdi>; במנוי: <code>/usage-credits</code> רק אם באמת צריך.</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td><code>/usage</code> אחרי שעה של עבודה מציג קצב סביר; אין משימות רקע לא מוכרות.</td></tr>
+    <tr><th>מניעה</th><td>קבעו לצוות כללי מקבול (<a href="ch38.html">פרק 38</a>) ותקרות ל-<bdi>CI</bdi>; עקבו אחרי <bdi>Analytics</bdi> ברמת הארגון (<a href="ch30.html">פרק 30</a>).</td></tr>
+  </tbody></table></div>
+
+  <h2 id="network">רשת, Proxy ומדיניות ארגונית</h2>
+
+  <h3 id="net-proxy">Proxy, תעודות ודומיינים חסומים</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td><code>SSL certificate verification failed</code>; <code>unable to get local issuer certificate</code>; <code>Unable to connect to Anthropic services</code> בהתקנה; <code>Couldn't connect through your proxy</code>; ההפעלה נעצרת עם הודעה על משתנה <bdi>Proxy</bdi> לא תקין; <bdi>Plugins</bdi> או <bdi>Connectors</bdi> לא נטענים למרות שה-<bdi>API</bdi> עובד; <bdi>Background agents</bdi> נכשלים ברשת בעוד ה-<bdi>Session</bdi> הרגיל עובד.</td></tr>
+    <tr><th>סיבות אפשריות</th><td><code>HTTPS_PROXY</code> חסר או בלי סכימת <code>http://</code>; <bdi>Proxy</bdi> עם <bdi>TLS inspection</bdi> שהתעודה שלו לא נטענת (<code>NODE_EXTRA_CA_CERTS</code> חסר, או התקנת <bdi>npm</bdi> על <bdi>Node</bdi> ישן מ-22.15 שלא קורא את מאגר התעודות של המערכת); <bdi>Proxy</bdi> מסוג <bdi>SOCKS</bdi> (לא נתמך); דומיינים חסרים ברשימת המותרים; משתני הרשת יוצאו רק ב-<bdi>Shell</bdi> ולא ב-<code>settings.json</code>, ולכן המפקח של <bdi>Background agents</bdi> לא קיבל אותם.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/status</code> (Proxy, mTLS, Additional CA cert(s))<br><code>claude --debug</code> וחיפוש <code>CA certs:</code> ו-<code>mTLS:</code> בלוג<br><code>openssl s_client -connect api.anthropic.com:443</code><br><code>curl -sI https://api.anthropic.com</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li><code>export HTTPS_PROXY=http://proxy.example.com:8080</code> (עם סכימה); <code>NO_PROXY</code> לכתובות פנימיות. ל-<bdi>Proxy</bdi> עם אימות בסיסי: <code>http://username:password@proxy...</code>, עדיף ממשתנה סביבה ולא מסקריפט.</li>
+      <li><code>export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem</code>. ל-<bdi>mTLS</bdi>: <code>CLAUDE_CODE_CLIENT_CERT</code>, <code>CLAUDE_CODE_CLIENT_KEY</code>, ואופציונלית <code>CLAUDE_CODE_CLIENT_KEY_PASSPHRASE</code>.</li>
+      <li>אשרו ברשימת המותרים לפחות: <code>api.anthropic.com</code>, <code>claude.ai</code>, <code>claude.com</code>, <code>platform.claude.com</code>, <code>downloads.claude.ai</code>, <code>registry.npmjs.org</code> (Plugins ו-npx), <code>mcp-proxy.anthropic.com</code> (Connectors), <code>storage.googleapis.com</code> (מטא-נתונים של Plugins), <code>raw.githubusercontent.com</code> (release notes), <code>code.claude.com</code> (תיעוד). הרשימה המלאה בתיעוד <bdi>network-config</bdi>.</li>
+      <li>העבירו את כל משתני הרשת ל-<code>"env"</code> ב-<code>~/.claude/settings.json</code> או ל-<bdi>Managed Settings</bdi>, כדי שיגיעו גם ל-<bdi>Background agents</bdi>; אחרי שינוי, <code>claude daemon stop --any</code> כדי שהמפקח הבא ייטען עם ההגדרות.</li>
+      <li>ל-<bdi>NTLM</bdi> או <bdi>Kerberos</bdi>: השתמשו ב-<bdi>LLM Gateway</bdi> שתומך בהם (<a href="ch29.html">פרק 29</a>).</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>בלוג ה-<bdi>Debug</bdi> מופיע <code>CA certs: Appended extra certificates from NODE_EXTRA_CA_CERTS (...)</code>; <code>/status</code> מציג <bdi>Proxy</bdi> תקין; <code>claude -p "say ok"</code> מצליח גם דרך <code>claude --bg</code>.</td></tr>
+    <tr><th>מניעה</th><td>ה-<bdi>IT</bdi> מספק קובץ <code>settings.json</code> מנוהל עם <code>env</code> מלא; אל תכבו אימות <bdi>TLS</bdi> (<code>NODE_TLS_REJECT_UNAUTHORIZED=0</code>) לעולם.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="net-managed">Managed Settings חוסמים תכונה</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>תסמינים</th><td>הגדרה שקבעתם "לא נתפסת"; <bdi>Hook</bdi> רץ למרות <code>disableAllHooks: false</code> אצלכם; <bdi>Plugin</bdi> או <bdi>Skill</bdi> נעלמים; <code>Routines are disabled by your organization's policy</code>; <bdi>Model</bdi> מוגבל; שרת <bdi>MCP</bdi> לא ברשימת המותרים; <bdi>Connector</bdi> ב-<code>ask</code> תמידי; <code>Remote Control is only available when using Claude via api.anthropic.com</code>; <code>--dangerously-skip-permissions</code> לא עובד.</td></tr>
+    <tr><th>סיבות אפשריות</th><td><bdi>Managed Settings</bdi> (קובץ מערכת או הגדרות מנוהלות בשרת) חלים ראשונים וגוברים על משתמש, פרויקט ומקומי; <code>allowManagedHooksOnly</code>; <code>allowedMcpServers</code>/<code>deniedMcpServers</code>; <code>permissions.disableBypassPermissionsMode</code>; הגבלת <bdi>Marketplaces</bdi>; <code>ANTHROPIC_BASE_URL</code> או ספק ענן שמונעים תכונות שדורשות את ה-<bdi>API</bdi> הישיר.</td></tr>
+    <tr><th>פקודות אבחון</th><td class="ltr"><code>/status</code> (האם Managed Settings פעילים)<br><code>/permissions</code> (המקור של כל חוק)<br><code>/hooks</code> (מקור: Managed)<br><code>/mcp</code></td></tr>
+    <tr><th>תיקון צעד אחר צעד</th><td><ol>
+      <li>אשרו ב-<code>/status</code> ש-<bdi>Managed Settings</bdi> פעילים. אם כן, זה לא <bdi>Bug</bdi>: זו מדיניות.</li>
+      <li>קראו את המדיניות (בקשו מה-<bdi>IT</bdi> את הקובץ או את התיעוד הפנימי) והבינו מה מותר.</li>
+      <li>אם התכונה נחוצה לעבודה: הגישו בקשה מנומקת למנהל, עם ההגדרה המדויקת שנדרשת (למשל הוספת שרת ל-<code>allowedMcpServers</code>).</li>
+      <li>אל תנסו לעקוף (למשל <code>CLAUDE_CONFIG_DIR</code> אינו עוקף <bdi>Managed Settings</bdi>, ולא אמור לעקוף).</li>
+    </ol></td></tr>
+    <tr><th>אימות</th><td>אחרי עדכון המדיניות, <code>/status</code> ו-<code>/permissions</code> משקפים את השינוי בלי הפעלה מחדש (הגדרות מנוהלות בשרת מתעדכנות בריצה).</td></tr>
+    <tr><th>מניעה</th><td>לצוותים: מסמך מדיניות אחד שמסביר כל הגבלה ולמה (<a href="ch29.html">פרק 29</a>).</td></tr>
+  </tbody></table></div>
+
+  <h2 id="escalation">כשכלום לא עוזר: הסלמה מסודרת</h2>
+  <ol>
+    <li>אספו: <code>claude --version</code>, מערכת הפעלה, פלט <code>claude doctor</code>, קטע רלוונטי מלוג ה-<bdi>Debug</bdi> (בלי סודות), ורצף הפעולות המדויק.</li>
+    <li>בתוך <bdi>Session</bdi>: <code>/feedback</code> (או <code>/bug</code>) שולח דיווח עם מסך הסכמה לשיתוף השיחה.</li>
+    <li>ב-<bdi>GitHub</bdi>: <a href="https://github.com/anthropics/claude-code/issues">anthropics/claude-code/issues</a>, חפשו קודם תקלה דומה. צרפו רק <code>-diagnostics.json</code> אם עשיתם <code>/heapdump</code>, לעולם לא <code>.heapsnapshot</code>.</li>
+    <li>לבעיות חשבון, חיוב או ארגון מושבת: תמיכת <bdi>Anthropic</bdi> דרך "Get help" ב-<bdi>claude.ai</bdi> או <bdi>platform.claude.com</bdi>.</li>
+    <li>שאלו את Claude עצמו: יש לו גישה מובנית לתיעוד של <bdi>Claude Code</bdi>, ולעיתים קרובות הוא יאבחן נכון אם תתנו לו את הלוג.</li>
+  </ol>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 39.1: אבחון מבודד</div>
+    <div class="body"><p>הוסיפו בכוונה ל-<code>.claude/settings.json</code> של <bdi>TaskFlow</bdi> <bdi>Hook</bdi> שגוי (למשל <code>"matcher": ["Edit"]</code> כמערך). פתחו <bdi>Session</bdi>, ואז: (1) מצאו את הבעיה רק עם כלי האבחון מהפרק, בלי לפתוח את הקובץ; (2) תקנו; (3) אמתו שה-<bdi>Hook</bdi> רץ.</p></div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><code>claude doctor</code> ידווח על שגיאת אימות בקובץ ההגדרות של הפרויקט (מערך במקום מחרוזת פוסל את הקובץ כולו). <code>/hooks</code> לא יציג אף <bdi>Hook</bdi> מאותו קובץ, מה שמאשר את הסיבה. התיקון: <code>"matcher": "Edit|Write"</code>. אימות: <code>claude --debug-file /tmp/claude.log</code>, בקשה לערוך קובץ, ובלוג רואים את ההתאמה ואת קוד היציאה. הלקח: שגיאת סכימה אחת מפילה את כל הקובץ, ולכן <code>claude doctor</code> הוא תמיד הצעד הראשון.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>רוב התקלות ב-<bdi>Claude Code</bdi> נופלות לאחת מארבע קבוצות: משהו לא נטען (קובץ במקום הלא נכון, שגיאת סכימה, טווח שגוי), משהו נטען אבל נדרס (עדיפויות בין <bdi>Managed</bdi>, מקומי, פרויקט ומשתמש, או משתנה סביבה), משהו נחסם (הרשאות, מדיניות ארגונית, רשת), או שה-<bdi>Context</bdi> פשוט מלא. הכלים לבידוד קבועים: <code>claude doctor</code>, <code>/status</code>, <code>/context</code>, פקודות התצפית הייעודיות, <code>--safe-mode</code>, <code>CLAUDE_CONFIG_DIR</code> נקי, ולוג <bdi>Debug</bdi>. אחרי שמזהים את השכבה, התיקון בדרך כלל קצר. בפרק הבא נעבור מ"מה נשבר" ל"מה לכתוב": ספריית <bdi>Prompts</bdi> מוכנים להעתקה לכל שלב בעבודה.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/troubleshooting">Troubleshooting (performance, auto-compact thrashing, search)</a> |
+      <a href="https://code.claude.com/docs/en/troubleshoot-install">Troubleshoot installation and login</a> |
+      <a href="https://code.claude.com/docs/en/debug-your-config">Debug your configuration</a> |
+      <a href="https://code.claude.com/docs/en/errors">Error reference</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">CLI reference (--safe-mode, --debug, --fallback-model, --max-budget-usd)</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands (/doctor, /status, /context, /debug, /usage)</a> |
+      <a href="https://code.claude.com/docs/en/mcp">MCP (server status, timeouts, connectors, approvals)</a> |
+      <a href="https://code.claude.com/docs/en/hooks">Hooks reference (exit codes, JSON output, timeouts)</a> |
+      <a href="https://code.claude.com/docs/en/hooks-guide">Hooks guide (debug techniques)</a> |
+      <a href="https://code.claude.com/docs/en/plugins">Create plugins</a> |
+      <a href="https://code.claude.com/docs/en/plugins-reference">Plugins reference (debugging and development tools)</a> |
+      <a href="https://code.claude.com/docs/en/sub-agents">Subagents (delegation, tools, background, resume)</a> |
+      <a href="https://code.claude.com/docs/en/vs-code">VS Code (fix common issues)</a> |
+      <a href="https://code.claude.com/docs/en/network-config">Enterprise network configuration</a> |
+      <a href="https://code.claude.com/docs/en/github-actions">GitHub Actions (troubleshooting)</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (common failure patterns)</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch38.html"><span class="lbl">הפרק הקודם</span>Multi-Agent Development</a>
+    <a href="ch40.html"><span class="lbl">הפרק הבא</span>Prompt Library</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

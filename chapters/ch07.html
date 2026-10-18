@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 7: Plan לפני Implementation</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ב | פרק 7</p>
+  <h1>Plan לפני Implementation</h1>
+  <p class="lead">הדרך המהירה ביותר לקבל קוד גרוע היא לבקש קוד מיד. בפרק הזה נלמד את <bdi>Plan Mode</bdi>: מצב שבו <bdi>Claude Code</bdi> חוקר ומציע תוכנית מפורטת בלי לגעת בקבצים, עד שאתם מאשרים. נראה איך נכנסים, מה מותר ומה חסום, איך נראה מסך אישור התוכנית ואיך עורכים תוכנית לפני ביצוע. נלמד לבקש חלופות ולהשוות <bdi>Trade-offs</bdi>, לתכנן שינויים שאינם שוברים, להעריך השפעה על <bdi>Architecture</bdi>, נתונים, <bdi>API</bdi>, אבטחה, ביצועים ובדיקות, ולהגדיר תנאי עצירה. בסוף נתכנן יחד, מקצה לקצה, פיצ'ר אמיתי ב-<bdi>TaskFlow</bdi>: תאריכי יעד למשימות.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what">מה זה Plan Mode ואיזו בעיה הוא פותר</h2>
+  <p><bdi>Plan Mode</bdi> הוא אחד ממצבי ההרשאות (<bdi>Permission Modes</bdi>) של <bdi>Claude Code</bdi>. כשהוא פעיל, Claude מונחה לחקור ולהציע שינויים בלי לבצע אותם: הוא קורא קבצים, מריץ פקודות חקירה, ומנסח תוכנית כתובה. עריכת קוד המקור חסומה עד שאתם מאשרים את התוכנית במסך אישור ייעודי. שורת הסטטוס מציגה <code>plan mode on</code> כשהמצב פעיל.</p>
+  <p>הבעיה שהמצב פותר מנוסחת בתיעוד הרשמי במשפט אחד: לתת ל-Claude לקפוץ ישר לקוד עלול להפיק קוד שפותר את הבעיה הלא נכונה. תוכנית כתובה, שאתם קוראים לפני שנכתבת שורת קוד, תופסת אי הבנות בשלב שבו תיקון עולה משפט אחד במקום <bdi>Refactoring</bdi> שלם. זה גם משנה את חוויית העבודה: במקום לפקח על עריכות בזמן אמת, אתם מבצעים <bdi>Review</bdi> אחד מרוכז על הכוונה, ואז משחררים את הביצוע.</p>
+  <p>העיקרון שמאחורי המצב נקרא בתיעוד "Explore, plan, code": קודם חקירה (כמו שלמדנו ב<a href="ch06.html">פרק 6</a>), אחר כך תוכנית, ורק אז מימוש, ולבסוף <bdi>Commit</bdi>. ארבעה שלבים, שני מצבים: השניים הראשונים ב-<bdi>Plan Mode</bdi>, השניים האחרונים אחרי האישור.</p>
+
+  <h2 id="when">מתי להשתמש ומתי לא</h2>
+  <p><strong>מתי כן:</strong> התיעוד מגדיר זאת במדויק. תכנון משתלם כשאינכם בטוחים בגישה, כשהשינוי נוגע בכמה קבצים, או כשאתם לא מכירים את הקוד שמשתנה. כמו כן: שינויים ב-<bdi>Schema</bdi> של נתונים, שינויי <bdi>API</bdi> שמשפיעים על צרכנים, עבודה על קוד רגיש, וכל משימה שאתם מתכוונים לשחרר לריצה ארוכה בלי פיקוח צמוד.</p>
+  <p><strong>מתי לא:</strong> התיעוד מזהיר במפורש ש-<bdi>Plan Mode</bdi> מוסיף תקורה. תיקון כתיב, הוספת שורת <bdi>Log</bdi>, שינוי שם משתנה: כלל האצבע הרשמי הוא שאם אתם יכולים לתאר את ה-<bdi>Diff</bdi> במשפט אחד, דלגו על התכנון ובקשו את השינוי ישירות.</p>
+
+  <h2 id="how">איך זה עובד: כניסה, מגבלות ויציאה</h2>
+  <h3 id="enter">שלוש דרכים להיכנס</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>דרך</th><th>איך</th><th>מתי מתאים</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>Shift+Tab</code></td><td>מקליק בין המצבים במחזור <code>default</code> ואז <code>acceptEdits</code> ואז <code>plan</code> (מצבים נוספים מצטרפים למחזור רק אם הופעלו)</td><td>מעבר מהיר באמצע <bdi>Session</bdi></td></tr>
+        <tr><td class="ltr"><code>/plan</code></td><td>תחילית ל-<bdi>Prompt</bdi> בודד שמפעילה עליו מצב תכנון</td><td>בקשת תכנון נקודתית בלי לשנות את מצב ה-<bdi>Session</bdi></td></tr>
+        <tr><td class="ltr"><code>claude --permission-mode plan</code></td><td>פתיחת ה-<bdi>Session</bdi> כולו במצב תכנון מהטרמינל</td><td>משימות שמתחילות ממחקר; עבודה על קוד רגיש</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>אפשר גם לקבוע את המצב כברירת מחדל קבועה לפרויקט, בקובץ ההגדרות שלו:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/settings.json</div>
+    <pre><code>{
+  "permissions": {
+    "defaultMode": "plan"
+  }
+}</code></pre>
+  </div>
+  <p>ליציאה מהמצב בלי לאשר תוכנית, לחצו <code>Shift+Tab</code> שוב והמשיכו במחזור המצבים. חשוב להבין: המצב נקבע דרך הפקדים האלה, לא בבקשה מילולית מ-Claude בצ'אט.</p>
+
+  <h3 id="allowed">מה מותר ומה חסום בזמן תכנון</h3>
+  <ul>
+    <li><strong>מותר:</strong> קריאת קבצים, חיפוש, וכתיבת התוכנית עצמה. פקודות <bdi>Shell</bdi> מהסט המובנה של פקודות קריאה בלבד רצות חופשי.</li>
+    <li><strong>מבוקר:</strong> פקודות מחוץ לסט הקריאה. כש-<bdi>Auto Mode</bdi> זמין בחשבונכם (וההגדרה <code>useAutoModeDuringPlan</code> פעילה, כברירת מחדל), מודל מסווג בודק את הפקודה ברקע: פקודות שאושרו רצות, והשאר נחסמות. בלי <bdi>Auto Mode</bdi>, כל פקודה כזו עוצרת לבקשת אישור רגילה.</li>
+    <li><strong>חסום:</strong> עריכת קובצי קוד המקור. העריכות ממתינות עד לאישור התוכנית.</li>
+  </ul>
+  <div class="callout warn"><span class="title">חריג שחשוב להכיר</span><p>ב-<bdi>Sessions</bdi> שהופעלו עם <bdi>Bypass Permissions</bdi> (למשל <code>--dangerously-skip-permissions</code>), התיעוד מציין שהחסימות של <bdi>Plan Mode</bdi> אינן נאכפות: Claude עדיין מונחה לתכנן בלי לערוך, אבל עריכה שהוא ינסה תרוץ בלי בקשת אישור. אל תסמכו על <bdi>Plan Mode</bdi> כמנגנון בטיחות בסביבה כזו. על מצבי ההרשאות במלואם: <a href="ch18.html">פרק 18</a>.</p></div>
+
+  <h3 id="approve">מסך אישור התוכנית</h3>
+  <p>כשהתוכנית מוכנה, Claude מציג אותה ושואל איך להמשיך. לפי התיעוד, אלו האפשרויות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>אפשרות</th><th>מה היא עושה</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr">Yes, and use auto mode</td><td>מאשר את התוכנית ועובר לביצוע ב-<bdi>Auto Mode</bdi> (בדיקות בטיחות ברקע במקום בקשות אישור). כש-<bdi>Auto Mode</bdi> אינו זמין, האפשרות מופיעה כ-<bdi>Yes, auto-accept edits</bdi>, שמאשרת עריכות אוטומטית; ב-<bdi>Session</bdi> עם <bdi>Bypass Permissions</bdi> מופיע <bdi>Yes, and bypass permissions</bdi></td></tr>
+        <tr><td class="ltr">Yes, manually approve edits</td><td>מאשר את התוכנית, וכל עריכה בביצוע תבקש אישור פרטני. הבחירה השמרנית והמומלצת למתחילים</td></tr>
+        <tr><td class="ltr">No, refine with Ultraplan on Claude Code on the web</td><td>שולח את התוכנית ל-<bdi>Ultraplan</bdi>, ממשק עידון תוכניות בדפדפן ב-<bdi>Claude Code on the web</bdi></td></tr>
+        <tr><td class="ltr">No, keep planning</td><td>נשאר במצב תכנון; אתם כותבים מה לשנות בתוכנית</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>שלושה פרטים חשובים סביב האישור:</p>
+  <ul>
+    <li><strong>עריכה ישירה של התוכנית:</strong> לחיצה על <code>Ctrl+G</code> פותחת את התוכנית המוצעת בעורך הטקסט המוגדר במערכת שלכם. אתם עורכים, שומרים, ו-Claude ממשיך עם הגרסה שלכם. זה הכלי החזק ביותר לתיקונים כירורגיים בתוכנית.</li>
+    <li><strong>אישור מחליף מצב:</strong> אישור תוכנית יוצא ממצב התכנון ומעביר את ה-<bdi>Session</bdi> למצב ההרשאות שהאפשרות שבחרתם מתארת. כדי לתכנן שוב, חוזרים עם <code>Shift+Tab</code> או <code>/plan</code>.</li>
+    <li><strong>שם אוטומטי:</strong> אישור תוכנית גם מעניק ל-<bdi>Session</bdi> שם שנגזר מתוכן התוכנית (אלא אם כבר קבעתם שם עם <code>/rename</code> או <code>--name</code>), מה שמקל לאתר אותו אחר כך ב-<code>/resume</code>.</li>
+  </ul>
+  <div class="callout note"><span class="title">הגדרה שימושית לתוכניות ארוכות</span><p>ההגדרה <code>showClearContextOnPlanAccept</code> מוסיפה למסך האישור אפשרות ראשונה שמאשרת את התוכנית ומנקה את הקשר התכנון, כך שהביצוע מתחיל עם <bdi>Context</bdi> נקי שמכיל את התוכנית בלבד. שימושי כשהחקירה הייתה ארוכה במיוחד.</p></div>
+
+  <h2 id="alternatives">לבקש חלופות ולהשוות Trade-offs</h2>
+  <p>תוכנית אחת היא הצעה; שתי תוכניות הן החלטה. אחד השימושים החזקים ב-<bdi>Plan Mode</bdi> הוא לדרוש חלופות מנומקות לפני בחירת כיוון:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (בתוך Plan Mode)</div>
+    <pre><code>propose two alternative approaches for this feature. for each: the files
+that change, effort estimate, risks, performance implications, and how hard
+it would be to reverse later. then recommend one and justify the choice</code></pre>
+  </div>
+  <p>דרשו שההשוואה תהיה קונקרטית: שמות קבצים, לא כותרות. "גישה א' משנה שלושה קבצים והפיכה ב-<bdi>Commit</bdi> אחד; גישה ב' דורשת <bdi>Migration</bdi> בלתי הפיך" זו השוואה שאפשר להחליט לפיה. אם ההמלצה של Claude לא משכנעת, אתם המחליטים: כתבו <code>go with approach B, but keep the API surface of approach A</code> והמשיכו בתכנון.</p>
+
+  <h2 id="nonbreaking">תכנון שינויים שאינם שוברים</h2>
+  <p>שינוי שאינו שובר (<bdi>Non-breaking</bdi>) הוא שינוי שקוד קיים, נתונים קיימים וצרכני <bdi>API</bdi> קיימים ממשיכים לעבוד אחריו בלי התאמה. זו דרישה שצריך לכתוב ב-<bdi>Prompt</bdi> במפורש, כי בלעדיה Claude רשאי להציע גם מהלכים הורסים. תבניות מנוסחות היטב:</p>
+  <ul>
+    <li><code>the change must be backward compatible: existing rows, existing API clients and existing tests must keep working unchanged</code></li>
+    <li><code>additive changes only: new optional fields and new endpoints are fine, changing or removing existing ones is not</code></li>
+    <li><code>if a breaking change is unavoidable, stop and present it as a separate decision instead of including it in the plan</code></li>
+  </ul>
+  <p>בפועל, ב-<bdi>Backend</bdi> טיפוסי זה מתורגם ל: עמודות חדשות עם <bdi>NULL</bdi> או ערך ברירת מחדל במקום שינוי עמודות קיימות, שדות אופציונליים במודלים במקום שדות חובה, ו-<bdi>Endpoints</bdi> חדשים במקום שינוי חוזה של קיימים. את התבנית הזו נראה חיה בדוגמת ה-<bdi>TaskFlow</bdi> בהמשך.</p>
+
+  <h2 id="impact">רשימת בדיקה: הערכת השפעה בשישה ממדים</h2>
+  <p>לפני שמאשרים תוכנית, עברו עליה עם הרשימה הזאת. תוכנית טובה עונה על כל שאלה; אם ממד חסר, זו בדיוק הסיבה לבחור "No, keep planning" ולבקש השלמה:</p>
+  <ul class="check">
+    <li><strong>Architecture:</strong> אילו שכבות ורכיבים משתנים? האם השינוי מכבד את הגבולות הקיימים או יוצר תלות חדשה בין שכבות?</li>
+    <li><strong>Data:</strong> האם ה-<bdi>Schema</bdi> משתנה? מה קורה לנתונים קיימים? האם נדרש <bdi>Migration</bdi>, והאם הוא הפיך?</li>
+    <li><strong>API:</strong> אילו חוזים משתנים? האם צרכן קיים יכול להישבר? האם השינוי תוספתי בלבד?</li>
+    <li><strong>Security:</strong> האם נוסף קלט משתמש חדש, ומי מבצע עליו <bdi>Validation</bdi>? האם משתנים הרשאות, <bdi>Secrets</bdi> או משטח תקיפה?</li>
+    <li><strong>Performance:</strong> האם נוספות שאילתות, לולאות או קריאות רשת במסלולים חמים? מה קורה בנפחי נתונים גדולים?</li>
+    <li><strong>Tests:</strong> אילו בדיקות חדשות נוספות? אילו קיימות צריכות עדכון? ומה פקודת האימות שמוכיחה שהכול עובד?</li>
+  </ul>
+
+  <h2 id="stop">תנאי עצירה: לקבוע מראש מתי Claude עוצר</h2>
+  <p>תוכנית טובה כוללת לא רק מה ייעשה, אלא מתי עוצרים לבדיקה. הגדירו זאת ב-<bdi>Prompt</bdi> התכנון, כדי שתנאי העצירה ייכנסו לתוכנית עצמה ויחייבו את שלב הביצוע:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt: דוגמאות לתנאי עצירה</div>
+    <pre><code>structure the plan in phases. at the end of each phase, run the tests
+and stop for my review before starting the next phase.
+
+stop immediately and ask me if: a test that passed before now fails,
+the change requires touching a file outside backend/ and frontend/,
+or you discover the schema change cannot be made backward compatible</code></pre>
+  </div>
+  <p>שימו לב להבחנה: תנאי עצירה ב-<bdi>Prompt</bdi> הם הנחיה למודל, חזקים אך לא אכיפה קשיחה. שכבת האכיפה נשארת מצב ההרשאות: אם בחרתם "Yes, manually approve edits", כל עריכה ממילא עוברת דרככם. השילוב של שניהם, תוכנית עם שלבים ועצירות ועליה אישור עריכות ידני, הוא המסגרת הבטוחה ביותר לשינוי גדול. גבולות שאמרתם בשיחה ("אל תעשה <bdi>Push</bdi> עד שאבדוק") נלקחים ברצינות גם על ידי מנגנון ה-<bdi>Auto Mode</bdi>, שמתייחס אליהם כאות חסימה, אבל לערובה קשיחה השתמשו בחוקי <code>deny</code> שנלמד ב<a href="ch18.html">פרק 18</a>.</p>
+
+  <h2 id="opusplan">opusplan: מודל חזק לתכנון, חסכוני לביצוע</h2>
+  <p>מכיוון שתכנון הוא שלב החשיבה הכבד, יש היגיון לתכנן עם מודל חזק ולבצע עם מודל מהיר וזול יותר. בדיוק לשם כך קיים ה-<bdi>Model Alias</bdi> בשם <code>opusplan</code>: לפי תיעוד תצורת המודלים, במצב תכנון הוא משתמש ב-<code>opus</code> לחשיבה מורכבת והחלטות ארכיטקטוניות, ובמעבר לביצוע הוא עובר אוטומטית ל-<code>sonnet</code> לכתיבת הקוד. מפעילים אותו כמו כל בחירת מודל:</p>
+  <div class="terminal"><span class="p">$</span> claude --permission-mode plan --model opusplan</div>
+  <p>או מתוך ה-<bdi>Session</bdi> עם <code>/model opusplan</code>. זו דוגמה מצוינת להתאמת עלות למשימה; על משפחת המודלים, ה-<bdi>Aliases</bdi> והשיקולים לבחירה נרחיב ב<a href="ch08.html">פרק 8</a>.</p>
+
+  <h2 id="example">דוגמה מציאותית מקצה לקצה: תכנון Due Dates ב-TaskFlow</h2>
+  <p>נתכנן פיצ'ר אמיתי: תאריך יעד (<bdi>Due Date</bdi>) אופציונלי לכל משימה. זה פיצ'ר מייצג כי הוא חוצה את כל השכבות שמיפינו בפרק 6: <bdi>Schema</bdi>, מודלים, <bdi>API</bdi>, טיפוסים ו-<bdi>UI</bdi>. פתחו את ה-<bdi>Session</bdi> במצב תכנון:</p>
+  <div class="terminal"><span class="p">$</span> claude --permission-mode plan</div>
+
+  <h3 id="ex-explore">צעד 1: חקירה ממוקדת</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>read the backend (app/models.py, app/database.py, app/routers/tasks.py),
+the frontend (src/types.ts, src/api.ts, src/App.tsx) and the tests.
+summarize how a task field flows through the system today,
+and what it takes to add a new optional field end to end</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude קורא את הקבצים (פעולות קריאה, בלי בקשות אישור) ומסכם: שדה חדש נוגע ב-<bdi>Schema</bdi> ב-<code>database.py</code>, בשלושת מודלי ה-<bdi>Pydantic</bdi> ב-<code>models.py</code>, בהרכבת ה-<code>Task</code> ב-<code>_row_to_task</code>, בטיפוסי ה-<bdi>Frontend</bdi> ב-<code>types.ts</code>, וב-<bdi>UI</bdi>. זו בדיוק תשתית הידע שהתוכנית תיבנה עליה.</p>
+
+  <h3 id="ex-plan">צעד 2: בקשת התוכנית, עם אילוצים ותנאי עצירה</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>create a detailed plan for adding an optional due_date to tasks.
+requirements:
+- backward compatible: existing rows, clients and tests keep working
+- consider two storage options (ISO-8601 TEXT vs epoch INTEGER),
+  compare and pick one
+- include validation, tests, and impact on architecture, data, API,
+  security, performance
+- structure the work in phases: backend first, then frontend.
+  plan a stop for my review after the backend phase</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude מעבד את הדרישות ומציג תוכנית. הנה דוגמה מציאותית (מקוצרת) לתוכנית סבירה שתקבלו; הניסוח אצלכם יהיה שונה, המבנה צריך להיות דומה:</p>
+  <div class="codeblock">
+    <div class="codehead">תוכנית לדוגמה (כפי ש-Claude מציג אותה)</div>
+    <pre><code># Plan: optional due_date for tasks
+
+## Storage decision
+ISO-8601 TEXT (e.g. "2026-08-15"), matching created_at which is
+already TEXT via datetime('now'). Sorts correctly as a string,
+human readable in SQLite. Epoch INTEGER rejected: saves little,
+inconsistent with existing conventions.
+
+## Phase 1: backend
+1. database.py: add "due_date TEXT" (nullable) to CREATE TABLE.
+   For existing databases add a startup migration:
+   ALTER TABLE tasks ADD COLUMN due_date TEXT
+   (guarded, runs only if the column is missing).
+2. models.py: TaskCreate/TaskUpdate get optional due_date with
+   date-format validation; Task gets due_date: Optional[str].
+3. routers/tasks.py: include due_date in INSERT and _row_to_task.
+   PATCH needs no change (model_dump(exclude_none=True)).
+4. tests: create with/without due_date, invalid format 422,
+   update due_date, old payloads still work.
+Verification: cd backend &amp;&amp; pytest -q
+== STOP for user review ==
+
+## Phase 2: frontend
+5. types.ts: due_date?: string | null on Task and TaskCreate.
+6. App.tsx: date input in the add form; show due date on items.
+   api.ts needs no change (createTask passes the payload through).
+Verification: cd frontend &amp;&amp; npm run typecheck
+
+## Impact summary
+Architecture: no new layers or dependencies. Data: additive nullable
+column, reversible. API: additive only, old clients unaffected.
+Security: new input validated by Pydantic before SQL; parameterized
+INSERT unchanged. Performance: negligible (no new queries).
+Tests: 4 new backend tests; frontend covered by typecheck only.</code></pre>
+  </div>
+
+  <h3 id="ex-review">צעד 3: ביקורת ותיקון התוכנית</h3>
+  <p>עברו על התוכנית עם רשימת ששת הממדים. נניח ששמתם לב לפער אמיתי: התוכנית מוסיפה <bdi>Validation</bdi> לפורמט תאריך אבל לא מגדירה מה קורה עם תאריך בעבר. אל תאשרו; בחרו "No, keep planning" וכתבו:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>revise the plan: due dates in the past are allowed (importing old data
+must work), but add a test that documents this decision explicitly.
+also spell out the exact guard for the ALTER TABLE migration</code></pre>
+  </div>
+  <p>Claude מעדכן את התוכנית ומציג אותה שוב לאישור. לחלופין, לתיקונים קטנים, לחצו <code>Ctrl+G</code> וערכו את הטקסט ישירות בעורך שלכם. שני המסלולים לגיטימיים; כתיבה חופשית מתאימה לשינויי כיוון, ועריכה ישירה לליטוש.</p>
+
+  <h3 id="ex-approve">צעד 4: אישור ומעבר לביצוע</h3>
+  <p>כשהתוכנית משקפת בדיוק את מה שאתם רוצים, בחרו "Yes, manually approve edits". ה-<bdi>Session</bdi> יוצא ממצב תכנון, Claude מתחיל לממש את שלב 1, וכל עריכה עוברת דרך בקשת אישור שבה אתם רואים את ה-<bdi>Diff</bdi>. בזכות תנאי העצירה שבתוכנית, אחרי ששלב ה-<bdi>Backend</bdi> עובר את הבדיקות Claude יעצור לביקורת שלכם לפני ה-<bdi>Frontend</bdi>. את מלאכת הביצוע המבוקר עצמה נעמיק ב<a href="ch09.html">פרק 9</a>.</p>
+  <div class="callout tip"><span class="title">Best Practice: תוכנית ששורדת</span><p>במשימות ארוכות, בקשו בסוף התכנון: <code>save this plan to PLAN.md before implementing</code> (שמירת הקובץ תבקש אישור, או תתבצע אחרי היציאה ממצב התכנון). התיעוד ממליץ על כך במיוחד בשינויים חוצי חבילות: שיחה ארוכה עוברת <bdi>Compaction</bdi>, וקובץ תוכנית שמור מחזיק מעמד גם כשהיסטוריית השיחה מסוכמת. בהמשך אפשר לבקש מ-<bdi>Subagent</bdi> לבדוק את ה-<bdi>Diff</bdi> מול <code>PLAN.md</code>.</p></div>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>לאשר תוכנית אחרי קריאה ברפרוף.</strong> התוכנית היא ה-<bdi>Review</bdi> החשוב ביותר בתהליך. קראו אותה כמו <bdi>Pull Request</bdi>: כל קובץ שמוזכר, כל החלטה, כל מה שחסר.</li>
+    <li><strong>לתכנן בלי אילוצים.</strong> "plan adding due dates" בלי דרישת תאימות לאחור, בלי חלופות ובלי תנאי עצירה מחזיר תוכנית גנרית. האילוצים הם המקום שבו המומחיות שלכם נכנסת לתהליך.</li>
+    <li><strong>לתקן תוכנית דרך אישור וביטול.</strong> אם התוכנית לא טובה, אל תאשרו "כדי לראות מה יקרה". בחרו "No, keep planning"; תיקון מילולי בשלב התכנון זול פי כמה מ-<bdi>Rewind</bdi> אחרי ביצוע שגוי.</li>
+    <li><strong>Plan Mode לכל דבר.</strong> תקורה של תכנון על תיקון של שורה היא בזבוז. זכרו את כלל ה-<bdi>Diff</bdi> במשפט אחד.</li>
+    <li><strong>לשכוח שהאישור מחליף מצב.</strong> אחרי אישור עם "Yes, and use auto mode" אתם כבר לא במצב ברירת המחדל. שימו לב לשורת הסטטוס, וחזרו למצב המתאים עם <code>Shift+Tab</code> כשמתחילים משימה חדשה.</li>
+    <li><strong>לבלבל בין תוכנית לבין ביצוע מובטח.</strong> תוכנית מאושרת אינה ערובה: הביצוע יכול לסטות כשמתגלות הפתעות. תנאי העצירה והבדיקות בכל שלב הם מה שמחזיר סטיות אליכם.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <ul>
+    <li><strong>לא מוצאים את מצב התכנון:</strong> לחצו <code>Shift+Tab</code> כמה פעמים ועקבו אחרי שורת הסטטוס עד שמופיע <code>plan mode on</code>. אם המקש לא מגיב בטרמינל שלכם (קורה בחלק מסביבות <bdi>Windows</bdi>), התיעוד מציין את <code>Alt+M</code> כקיצור חלופי, ותמיד אפשר לפתוח עם <code>claude --permission-mode plan</code>.</li>
+    <li><strong>Claude ביצע פעולה בזמן תכנון:</strong> בדקו מה בדיוק רץ ב-<code>Ctrl+O</code>. פקודות קריאה ופקודות שאושרו על ידי המסווג הן חלק מהתנהגות המצב המתועדת. אם נערך קובץ מקור, בדקו אם ה-<bdi>Session</bdi> הופעל עם <bdi>Bypass Permissions</bdi> (החריג שתואר למעלה).</li>
+    <li><strong><code>Ctrl+G</code> לא פותח עורך:</strong> הקיצור פותח את עורך ברירת המחדל של המערכת. ודאו שמשתנה הסביבה <code>EDITOR</code> (או <code>VISUAL</code>) מוגדר בטרמינל שלכם, למשל <code>export EDITOR="code --wait"</code>.</li>
+    <li><strong>התוכנית שטחית מדי:</strong> סימן שהחקירה הייתה רזה. חזרו לצעד החקירה ובקשו קריאה מפורשת של הקבצים הרלוונטיים לפני בקשת תוכנית מחודשת, או דרשו: <code>the plan must name every file and function it touches</code>.</li>
+    <li><strong>אישרתם בטעות:</strong> <code>Esc</code> עוצר את הביצוע מיד. אם כבר בוצעו עריכות, <code>/rewind</code> משחזר את מצב הקבצים ל-<bdi>Checkpoint</bdi> שלפני (פרק 3, ובהרחבה ב<a href="ch19.html">פרק 19</a>).</li>
+  </ul>
+
+  <h2 id="security">Security</h2>
+  <div class="callout warn"><span class="title">תכנון כשכבת הגנה, לא כתחליף לה</span><p>שלב התוכנית הוא נקודת הביקורת הטובה ביותר לתפוס פעולות מסוכנות לפני שהן קורות: מחיקות, <bdi>Migrations</bdi> הרסניים, שינויי הרשאות, פקודות רשת. חפשו אותן בתוכנית באופן אקטיבי. אבל זכרו שלוש מגבלות: התוכנית היא טקסט, והביצוע יכול לסטות ממנה; ב-<bdi>Sessions</bdi> עם <bdi>Bypass Permissions</bdi> חסימות המצב אינן נאכפות; וגם בזמן תכנון Claude קורא קבצים, כך שאזהרת ה-<bdi>Prompt Injection</bdi> מ<a href="ch06.html#security">פרק 6</a> תקפה גם כאן, כולל האפשרות שתוכן עוין ינסה להשפיע על התוכנית עצמה. בקוד לא מהימן, תכננו במצב תכנון, בצעו עם אישור ידני, והשאירו את חוקי ה-<code>deny</code> פעילים. הרחבה: <a href="ch20.html">פרק 20</a>.</p></div>
+
+  <h2 id="cost">שיקולי Cost ו-Context</h2>
+  <div class="callout note"><span class="title">כמה עולה תוכנית</span><p>תכנון צורך <bdi>Tokens</bdi> פעמיים: חקירה שממלאת את ה-<bdi>Context</bdi> בקריאות קבצים, וניסוח התוכנית עצמה. זו עלות שמחזירה את עצמה במשימות מורכבות (ביצוע שגוי עולה יותר), אבל היא בדיוק הסיבה שלא מתכננים תיקוני שורה. עם <code>opusplan</code> שלב התכנון רץ על <code>opus</code>, מודל יקר יותר, והביצוע חוזר ל-<code>sonnet</code>; קחו זאת בחשבון בתקציב. כלים לניהול: <code>/context</code> לבדיקת מצב, שמירת התוכנית לקובץ כדי שתשרוד <bdi>Compaction</bdi>, וההגדרה <code>showClearContextOnPlanAccept</code> שמתחילה את הביצוע עם הקשר נקי. הרחבה: <a href="ch14.html">פרק 14</a> ו<a href="ch30.html">פרק 30</a>.</p></div>
+
+  <h2 id="best">Best Practices</h2>
+  <ul class="check">
+    <li>עבדו בארבעת השלבים הרשמיים: Explore, ואז Plan, ואז Implement, ואז Commit. אל תדלגו מחקירה ישר לקוד במשימות מורכבות.</li>
+    <li>פתחו משימות גדולות עם <code>claude --permission-mode plan</code>, כך שהמחקר והתכנון מוגנים מהרגע הראשון.</li>
+    <li>כתבו את האילוצים בתוך בקשת התכנון: תאימות לאחור, חלופות, ממדי השפעה, תנאי עצירה.</li>
+    <li>העבירו כל תוכנית דרך רשימת ששת הממדים: Architecture, Data, API, Security, Performance, Tests.</li>
+    <li>דרשו שכל תוכנית תסתיים בצעד אימות מוכח: פקודת בדיקות ותוצאה צפויה.</li>
+    <li>תקנו תוכניות במילים ("No, keep planning") או ב-<code>Ctrl+G</code>; אשרו רק כשהייתם חותמים על זה כ-<bdi>Reviewer</bdi>.</li>
+    <li>במשימות ארוכות, שמרו את התוכנית ל-<code>PLAN.md</code> ובדקו את הביצוע מולה בסוף.</li>
+    <li>שקלו <code>/model opusplan</code> כשהתכנון הוא החלק הקשה של המשימה.</li>
+  </ul>
+
+  <h2 id="antipatterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>תכנון טקסי:</strong> להיכנס ל-<bdi>Plan Mode</bdi> כי "ככה נכון" ולאשר כל תוכנית תוך שניות. אם אינכם מתכוונים לקרוא את התוכנית, חסכתם לכולם זמן בלי המצב הזה.</li>
+    <li><strong>תוכנית ענק אחת:</strong> תוכנית של עשרות צעדים בלי עצירות ביניים היא הימור אחד גדול. פרקו לשלבים עם אימות אחרי כל אחד.</li>
+    <li><strong>לתכנן את מה שלא נחקר:</strong> בקשת תוכנית בלי שלב חקירה קודם מייצרת תוכנית מנותקת מהקוד. קודם קריאה, אחר כך תכנון.</li>
+    <li><strong>יישור אוטומטי עם ההמלצה:</strong> לקבל תמיד את החלופה ש-Claude ממליץ עליה בלי לקרוא את הנימוקים. ההשוואה קיימת בשביל שאתם תחליטו.</li>
+    <li><strong>שימוש ב-Plan Mode כ-Sandbox אבטחה:</strong> להריץ קוד לא מהימן "כי אנחנו רק בתכנון". המצב מגביל עריכות, הוא אינו סביבה מבודדת.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 7.1: תכנון פיצ'ר סינון וחיפוש</div>
+    <div class="body">
+      <p>תכננו ב-<bdi>TaskFlow</bdi>, בלי לממש, פיצ'ר חדש: סינון משימות לפי סטטוס וחיפוש טקסט חופשי בכותרת, דרך פרמטרים ב-<code>GET /tasks</code> (למשל <code>?status=todo&amp;q=docs</code>).</p>
+      <ol>
+        <li>פתחו <bdi>Session</bdi> עם <code>claude --permission-mode plan</code> והריצו חקירה ממוקדת של הקבצים הרלוונטיים.</li>
+        <li>בקשו תוכנית עם הדרישות: תאימות לאחור מלאה, שתי חלופות למימוש הסינון (ב-<bdi>SQL</bdi> מול סינון בזיכרון ב-<bdi>Python</bdi>) עם השוואה והמלצה, כיסוי ששת ממדי ההשפעה, ותנאי עצירה אחרי ה-<bdi>Backend</bdi>.</li>
+        <li>מצאו בתוכנית לפחות דבר אחד לתקן (רמז: מה קורה עם ערך <code>status</code> לא חוקי בפרמטר? והאם החיפוש משתמש בפרמטרים של <bdi>SQL</bdi>?), ותקנו עם "No, keep planning" או <code>Ctrl+G</code>.</li>
+        <li>צאו ממצב התכנון עם <code>Shift+Tab</code> בלי לאשר, וודאו עם <code>!git status</code> ששום קובץ לא השתנה.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>(1) חקירה טובה תקרא את <code>routers/tasks.py</code>, <code>models.py</code> ו-<code>api.ts</code>, ותזהה ש-<code>list_tasks</code> היום מחזירה הכול בלי פרמטרים. (2) תוכנית סבירה תמליץ על סינון ב-<bdi>SQL</bdi> עם <code>WHERE</code> ופרמטרים (<code>?</code>): הוא מנצל את בסיס הנתונים, נשאר יעיל כשהטבלה גדלה, ועקבי עם המוסכמה הקיימת של שאילתות עם פרמטרים. סינון בזיכרון פשוט יותר אך אינו מתרחב יפה. תאימות לאחור מובטחת כי שני הפרמטרים אופציונליים ו-<code>GET /tasks</code> בלי פרמטרים מתנהג בדיוק כמו היום. (3) שני התיקונים המתבקשים: <code>status</code> לא חוקי צריך להידחות עם 422 (למשל על ידי טיפוס <code>TaskStatus</code> בפרמטר) ולא להיכשל בשקט או להחזיר רשימה ריקה בלי הסבר; והחיפוש חייב לרוץ כ-<code>LIKE</code> עם פרמטר קשור ולא בשרשור מחרוזת לשאילתה, כדי לא לפתוח דלת ל-<bdi>SQL Injection</bdi> ראשונה בפרויקט. תוכנית שכוללת בדיקות לשני המקרים האלה היא תוכנית שעברה את ממד ה-<bdi>Security</bdi> וה-<bdi>Tests</bdi> באמת. (4) <code>git status</code> נקי מדגים את הנקודה המרכזית של הפרק: תכנון שלם, עם ביקורת ותיקונים, בלי ששורת קוד אחת השתנתה.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p><bdi>Plan Mode</bdi> הופך את סדר העבודה הנכון, קודם להבין ולתכנן ורק אז לכתוב, ממשמעת אישית למנגנון של הכלי. למדתם להיכנס (<code>Shift+Tab</code>, <code>/plan</code>, <code>--permission-mode plan</code>), מה מותר בזמן תכנון ומה חסום, ואיך עובד מסך האישור על ארבע אפשרויותיו, כולל עריכת תוכנית ישירה עם <code>Ctrl+G</code>. למדתם לבקש חלופות עם <bdi>Trade-offs</bdi>, לדרוש שינויים שאינם שוברים, להעריך השפעה בשישה ממדים, להגדיר תנאי עצירה, ולנצל את <code>opusplan</code> לחלוקת עבודה חכמה בין מודלים. ותרגלתם את כל זה על פיצ'ר אמיתי ב-<bdi>TaskFlow</bdi> בלי לשנות קובץ אחד. בפרק הבא נכיר מקרוב את המודלים עצמם: מתי <bdi>Sonnet</bdi>, מתי <bdi>Opus</bdi>, ואיך בוחרים נכון.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/permission-modes">Permission modes (Plan mode, approval flow)</a> |
+      <a href="https://code.claude.com/docs/en/interactive-mode">Interactive mode (Shift+Tab, Ctrl+G)</a> |
+      <a href="https://code.claude.com/docs/en/model-config">Model configuration (opusplan)</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (Explore, plan, code)</a> |
+      <a href="https://code.claude.com/docs/en/common-workflows">Common workflows (Plan before editing)</a> |
+      <a href="https://code.claude.com/docs/en/large-codebases">Monorepos and large repos (saving plans to files)</a>
+      | נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch06.html"><span class="lbl">הפרק הקודם</span>קריאת Repository והבנת Architecture</a>
+    <a href="ch08.html"><span class="lbl">הפרק הבא</span>Claude Models ובחירת Model</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

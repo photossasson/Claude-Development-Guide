@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 12: Refactoring</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ב | פרק 12</p>
+  <h1>Refactoring</h1>
+  <p class="lead"><bdi>Refactoring</bdi> הוא שינוי מבנה הקוד בלי שינוי התנהגות, וזו בדיוק הנקודה שבה מודל שמייצר קוד "טוב יותר" בקלות הופך מסוכן: קל לקבל קוד יפה יותר שמתנהג קצת אחרת. בפרק הזה נבנה את שרשרת הביטחון המלאה: <bdi>Characterization Tests</bdi> שמקבעים את ההתנהגות הקיימת, צעדים קטנים ומבוקרים, פירוק קבצים גדולים, הסרת קוד מת עם הוכחה, שמירת תאימות <bdi>API</bdi> ו-<bdi>Schema</bdi>, והוכחת שימור התנהגות. נסיים בדוגמה מלאה: חילוץ שכבת אחסון מה-<bdi>Routers</bdi> של <bdi>TaskFlow</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what">מהו Refactoring, ולמה עם Claude זה שונה</h2>
+  <p>ההגדרה המחייבת: שינוי במבנה הפנימי של הקוד שמשאיר את ההתנהגות הנצפית זהה. אותם קלטים, אותם פלטים, אותם קודי שגיאה, אותן תופעות לוואי. כל דבר אחר הוא לא <bdi>Refactoring</bdi> אלא שינוי התנהגות, וצריך להיות מנוהל ככזה: בנפרד, עם בדיקות משלו.</p>
+  <p>הבעיה שהפרק פותר: קוד חי צובר חוב מבני. קובץ <bdi>Router</bdi> שמערבב <bdi>HTTP</bdi> עם <bdi>SQL</bdi>, פונקציה של 300 שורות, קוד מת שאיש לא מעז למחוק. Claude מוריד דרמטית את עלות העבודה המכנית של השינוי, אבל לא את הסיכון שבו. להפך, שני מאפיינים שלו מגדילים את הסיכון אם לא מרסנים אותם:</p>
+  <ul>
+    <li><strong>נטייה לשכתב במקום להזיז.</strong> כשמבקשים "לשפר" קוד, מודל עלול לייצר גרסה חדשה ודומה במקום להעביר את הקוד הקיים כמו שהוא. גרסה "דומה" היא בדיוק המקום שבו התנהגות משתנה בשקט: תנאי גבול, סדר פעולות, ערך ברירת מחדל.</li>
+    <li><strong>יוזמה מעבר לבקשה.</strong> "תוך כדי" תיקון שמות, שינוי הודעות שגיאה, "שיפור" ולידציה. כל אחד מאלה הוא שינוי התנהגות שמוסתר בתוך <bdi>Diff</bdi> גדול.</li>
+  </ul>
+  <p>לכן ההמלצה הרשמית בתיעוד היא לבצע <bdi>Refactoring</bdi> בצעדים קטנים וניתנים לבדיקה, לבקש שמירת תאימות במפורש, ולאמת עם הרצת בדיקות אחרי כל שינוי. כל הפרק הוא פירוט של שלושת הכללים האלה.</p>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>הפרק נשען ישירות על <a href="ch11.html">פרק 11 (Testing)</a>: בלי חבילת בדיקות ירוקה אין <bdi>Refactoring</bdi> בטוח. נדרש גם <bdi>Git</bdi> בסיסי (<bdi>Commit</bdi> לכל צעד); את זרימת העבודה המלאה מול <bdi>Git</bdi> נראה בפרק 13.</p></div>
+
+  <h2 id="characterization">שלב ראשון תמיד: Characterization Tests</h2>
+  <p><bdi>Characterization Test</bdi> היא בדיקה שמקבעת את ההתנהגות הקיימת של הקוד, כפי שהיא, כולל המוזרויות שלה. בניגוד לבדיקה רגילה, היא לא שואלת "מה הקוד אמור לעשות?" אלא "מה הקוד עושה בפועל?". זו רשת הביטחון שמאפשרת לשנות מבנה בלב שקט: אם אחרי השינוי כל בדיקות האפיון ירוקות, ההתנהגות נשמרה, לפחות בכל מה שקיבעתם.</p>
+  <p>נדגים על ה-<bdi>Endpoint</bdi> שנשנה בהמשך הפרק: <code>PATCH /tasks/{task_id}</code> ב-<code>backend/app/routers/tasks.py</code>. לפני שנוגעים בו, מבקשים מ-Claude לאפיין אותו:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>I am about to restructure the update endpoint in app/routers/tasks.py.
+before any change: write characterization tests in
+backend/tests/test_characterize_update.py that pin its CURRENT behavior,
+including quirks. probe edge cases through the HTTP API only: empty
+payload, null fields, unknown fields, invalid status on a missing id,
+partial updates. document surprises as comments. run the tests, make
+sure they are green against the current code, and do not touch app/.</code></pre>
+  </div>
+  <p>תוצר אופייני, אחרי הרצה ירוקה. שימו לב כמה התנהגות לא מובנת מאליה מסתתרת ב-<bdi>Endpoint</bdi> אחד קטן:</p>
+  <div class="codeblock">
+    <div class="codehead">backend/tests/test_characterize_update.py</div>
+    <pre><code>"""Characterization tests for PATCH /tasks/{task_id}.
+
+They pin what the code DOES today, not what it should do.
+If one fails after a refactor, behavior changed.
+"""
+
+
+def test_empty_payload_is_400_not_422(client, task):
+    # A quirk worth pinning: the endpoint itself rejects {} with 400,
+    # while Pydantic validation errors return 422.
+    res = client.patch(f"/tasks/{task['id']}", json={})
+    assert res.status_code == 400
+    assert res.json()["detail"] == "No fields to update"
+
+
+def test_explicit_nulls_count_as_missing(client, task):
+    # model_dump(exclude_none=True) drops nulls, so {"title": null}
+    # behaves exactly like {}.
+    res = client.patch(f"/tasks/{task['id']}", json={"title": None})
+    assert res.status_code == 400
+
+
+def test_validation_beats_existence_check(client):
+    # Surprise: invalid body on a MISSING id returns 422, not 404.
+    # Validation runs before the handler ever queries the database.
+    res = client.patch("/tasks/999999", json={"status": "bad"})
+    assert res.status_code == 422
+
+
+def test_unknown_fields_silently_ignored(client, task):
+    res = client.patch(
+        f"/tasks/{task['id']}", json={"title": "t", "due_date": "2026-01-01"}
+    )
+    assert res.status_code == 200
+
+
+def test_partial_update_preserves_other_fields(client, task):
+    res = client.patch(f"/tasks/{task['id']}", json={"status": "done"})
+    assert res.json()["title"] == task["title"]
+    assert res.json()["description"] == task["description"]</code></pre>
+  </div>
+  <p>שלוש נקודות על התוצר: ראשית, בדיקת סדר הבדיקות (ולידציה לפני קיום) היא זהב: זה בדיוק סוג ההתנהגות ש-<bdi>Refactoring</bdi> תמים משנה בלי כוונה, למשל אם מזיזים את שליפת המשימה לפני הולידציה. שנית, גם אם התנהגות נראית לכם שגויה (אולי 422 על <code>{}</code> היה "נכון" יותr מ-400?), מקבעים אותה כמו שהיא: תיקון התנהגות הוא משימה נפרדת, אחרי ה-<bdi>Refactoring</bdi>, לעולם לא בתוכו. שלישית, כאן מותר וכדאי לקבע גם את נוסח הודעת השגיאה: בזמן <bdi>Refactoring</bdi> אתם רוצים לדעת על כל שינוי נצפה, גם בניסוח. אחרי שהשינוי הושלם אפשר לרכך את ה-<bdi>Assertion</bdi> חזרה לקוד סטטוס בלבד.</p>
+
+  <h2 id="incremental">צעדים קטנים, מבוקרים, הפיכים</h2>
+  <p>היחידה הבסיסית של <bdi>Refactoring</bdi> בטוח היא צעד אחד קטן: טרנספורמציה אחת (חילוץ פונקציה, העברת קובץ, שינוי שם), ואחריה מיד הרצת בדיקות ו-<bdi>Commit</bdi>. המחזור:</p>
+  <ol>
+    <li><strong>ירוק לפני:</strong> <code>pytest -q</code> עובר במלואו. אם לא, קודם מתקנים או מבודדים; אסור להתחיל מבסיס אדום, כי לא תוכלו להבחין בין כישלון ישן לכישלון שיצרתם.</li>
+    <li><strong>צעד אחד:</strong> הנחיה שמגדירה טרנספורמציה אחת, עם איסור מפורש על שינויים נלווים.</li>
+    <li><strong>ירוק אחרי + סקירת Diff:</strong> הרצת הבדיקות וקריאת ה-<bdi>Diff</bdi> המלא.</li>
+    <li><strong>Commit:</strong> נקודת שמירה שמאפשרת חזרה מדויקת.</li>
+  </ol>
+  <p>ניסוח הנחיה של צעד, עם המגבלות בגוף הבקשה:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>extract the row-to-model conversion from app/routers/tasks.py into a
+separate module. move the existing code as-is: do not rename fields, do
+not change error handling, do not "improve" anything else. run
+cd backend &amp;&amp; pytest -q after the change and show the result.</code></pre>
+  </div>
+  <p>אם צעד השתבש, יש שתי דרכי נסיגה: <code>git checkout</code> ל-<bdi>Commit</bdi> האחרון, או תפריט ה-<bdi>Rewind</bdi> של <bdi>Claude Code</bdi> (<code>Esc Esc</code> או <code>/rewind</code>) שמשחזר גם את הקבצים וגם את השיחה ל-<bdi>Checkpoint</bdi> קודם. זכרו את הגבול המתועד של <bdi>Checkpoints</bdi>: הם עוקבים רק אחרי עריכות שנעשו דרך כלי העריכה של Claude, לא אחרי שינויים מפקודות <bdi>Bash</bdi> או מכלים חיצוניים. לכן ב-<bdi>Refactoring</bdi> ה-<bdi>Commit</bdi> הוא רשת הביטחון הראשית, וה-<bdi>Rewind</bdi> תוספת נוחה.</p>
+  <div class="callout tip"><span class="title">Best Practice</span><p>לצעדים גדולים (פירוק קובץ, החלפת תלות) התחילו ב-<bdi>Plan Mode</bdi> (<code>Shift+Tab</code>): Claude קורא ומתכנן בלי לגעת בקבצים, אתם מאשרים את התוכנית, ורק אז עוברים לביצוע. לצעד זעיר ומוגדר היטב, כמו שינוי שם משתנה, התוכנית מיותרת: בקשו ישירות.</p></div>
+
+  <h2 id="decompose">פירוק קובץ גדול: תוכנית, ואז לולאת העבר-ואמת</h2>
+  <p>קובץ של אלף שורות הוא המקרה שבו הפיתוי "תפצל לי את זה" הכי מסוכן: פיצול בבת אחת מייצר <bdi>Diff</bdi> ענק שאי אפשר לסקור. השיטה הבטוחה בנויה משני שלבים:</p>
+  <h3 id="split-plan">שלב א: תוכנית פיצול</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt (ב-Plan Mode)</div>
+    <pre><code>app/routers/tasks.py mixes HTTP handling with SQL. propose a split plan:
+which units move to which new files, in what order, and what stays.
+order the moves from least to most entangled. for each move list the
+imports that change. do not write code yet.</code></pre>
+  </div>
+  <p>מהתוכנית אתם דורשים שלושה דברים: יעד לכל יחידה, סדר העברות מהקל אל הסבוך, ורשימת ה-<bdi>Imports</bdi> שמושפעים בכל צעד. שמרו את התוכנית המאושרת בקובץ (למשל <code>REFACTOR_PLAN.md</code>): היא תשמש אתכם גם אם ה-<bdi>Session</bdi> יתחלף באמצע, כפי שנראה בסעיף ה-<a href="#cost-context">Cost/Context</a>.</p>
+  <h3 id="move-verify">שלב ב: לולאת העבר-ואמת</h3>
+  <p>כל איטרציה מעבירה יחידה אחת מהתוכנית: העברת הקוד כמו שהוא, עדכון <bdi>Imports</bdi>, הרצת בדיקות, סקירת <bdi>Diff</bdi>, <bdi>Commit</bdi> עם הודעה שמפנה לצעד בתוכנית ("step 2 of REFACTOR_PLAN"). היתרון המצטבר: בכל רגע נתון הקוד עובד, ואפשר לעצור באמצע ולהמשיך מחר. <bdi>Refactoring</bdi> שאפשר לעצור באמצעו הוא הסימן שהצעדים בגודל נכון.</p>
+
+  <h2 id="dependency-inversion">היפוך תלות בעזרת Claude</h2>
+  <p><bdi>Dependency Inversion</bdi> הוא הצעד שאחרי הפירוק: במקום שקוד עסקי יידע על מימוש קונקרטי (למשל: ה-<bdi>Router</bdi> יודע ש-<bdi>SQLite</bdi> קיים), הוא תלוי בהפשטה, והמימוש מוזרק מבחוץ. ב-<bdi>Python</bdi> ההפשטה הטבעית היא <code>Protocol</code>:</p>
+  <div class="codeblock">
+    <div class="codehead">backend/app/storage/base.py (סקיצה)</div>
+    <pre><code>from typing import Optional, Protocol
+
+from app.models import Task
+
+
+class TaskStore(Protocol):
+    def list_tasks(self) -&gt; list[Task]: ...
+    def get_task(self, task_id: int) -&gt; Optional[Task]: ...</code></pre>
+  </div>
+  <p>מתי זה שווה את המורכבות? כשיש לפחות שני מימושים אמיתיים באופק (למשל: <bdi>SQLite</bdi> היום, <bdi>PostgreSQL</bdi> מחר), או כשרוצים להחליף את המימוש בבדיקות. ב-<bdi>TaskFlow</bdi>, שבו הבדיקות רצות מצוין מול <bdi>SQLite</bdi> אמיתי, נסתפק בדוגמה המלאה בהמשך בחילוץ מודול אחסון פשוט בלי <code>Protocol</code>: הפשטה מוסיפים כשיש לה צרכן שני, לא "ליתר ביטחון". זה בדיוק סוג ההחלטה שכדאי לברר עם Claude לפני שמבצעים: <code>we have one storage backend and no plans for another. is introducing a TaskStore protocol justified now? argue both sides</code>.</p>
+
+  <h2 id="dead-code">הסרת קוד מת: איך מוכיחים שהוא באמת מת</h2>
+  <p>קוד מת הוא קוד שאין אליו שום הפניה חיה. הבעיה: "לא מצאתי הפניה" אינו "אין הפניה". לפני מחיקה, דרשו מ-Claude תיק ראיות:</p>
+  <ol>
+    <li><strong>חיפוש טקסטואלי מלא</strong> על השם, כולל מחרוזות: קוד שנקרא דרך <code>getattr</code>, קובצי תצורה, <bdi>Templates</bdi> ו-<bdi>Frontend</bdi> לא יופיעו כ-<bdi>Import</bdi>.</li>
+    <li><strong>גבולות ציבוריים:</strong> פונקציה שלא נקראת בתוך ה-<bdi>Repository</bdi> עדיין יכולה להיות חוזה ציבורי: <bdi>Endpoint</bdi> של <bdi>API</bdi>, <bdi>Export</bdi> של חבילה, <bdi>Hook</bdi> שנרשם חיצונית. ב-<bdi>TaskFlow</bdi>, אף אחד בקוד לא "קורא" ל-<code>delete_task</code> של ה-<bdi>Router</bdi>, ובכל זאת הוא חי מאוד: ה-<bdi>Frontend</bdi> וכל צרכן <bdi>HTTP</bdi> אחר תלויים בו.</li>
+    <li><strong>היסטוריה:</strong> <code>git log</code> על הקובץ: מתי נגעו בזה לאחרונה ולמה. התיעוד הרשמי ממליץ במפורש להפנות את Claude להיסטוריית <bdi>Git</bdi> כשחוקרים "למה הקוד הזה קיים".</li>
+    <li><strong>ראיות זמן ריצה</strong> כשיש: לוגים, <bdi>Metrics</bdi>, נתוני <bdi>Coverage</bdi> מסביבה אמיתית.</li>
+  </ol>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>is anything in app/database.py dead code? for each candidate produce
+evidence: grep results (including string references and the frontend),
+whether it is part of a public contract, and last-touched history.
+conclude keep or delete per item. do not delete anything yet.</code></pre>
+  </div>
+  <p>את המחיקה עצמה עושים ב-<bdi>Commit</bdi> נפרד ונקי, בלי שום שינוי אחר, כך שאם מתברר שהקוד היה חי, ההחזרה היא <code>git revert</code> אחד.</p>
+
+  <h2 id="compatibility">תאימות API ו-Schema בזמן Refactoring</h2>
+  <h3 id="api-compat">תאימות API: Deprecation Shims</h3>
+  <p>כשמשנים שם או חתימה של קוד שיש לו צרכנים (מודול ציבורי, <bdi>Endpoint</bdi>), לא מוחקים את הישן: משאירים <bdi>Shim</bdi>, מעטפת דקה שמפנה מהישן אל החדש ומכריזה על הוצאה משימוש:</p>
+  <div class="codeblock">
+    <div class="codehead">דוגמת Shim ב-Python</div>
+    <pre><code>import warnings
+
+
+def old_name(*args, **kwargs):
+    warnings.warn(
+        "old_name is deprecated, use new_name",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return new_name(*args, **kwargs)</code></pre>
+  </div>
+  <p>ב-<bdi>API</bdi> חיצוני העיקרון זהה בכלים אחרים: הנתיב הישן ממשיך לענות (מפנה פנימית לחדש), התגובה שומרת על כל השדות הקיימים, והסרה נעשית רק אחרי חלון זמן והודעה לצרכנים. כלל אצבע להנחיות: הוסיפו תמיד <code>maintain backward compatibility</code> כשזה נדרש, וזה בדיוק אחד הניסוחים שהתיעוד הרשמי ממליץ עליהם ב-<bdi>Refactoring</bdi>.</p>
+  <h3 id="schema-compat">תאימות Schema: שינויים תוספתיים תחילה</h3>
+  <p>ב-<bdi>Database</bdi> הכלל הוא "תוספתי קודם" (additive first): כל שינוי מפורק לרצף של צעדים שכל אחד מהם תאים לאחור. למשל, שינוי שם עמודה לא נעשה כ-<code>RENAME</code> אחד אלא כרצף: הוספת עמודה חדשה, כתיבה כפולה לשתיהן, העתקת נתונים קיימים (backfill), העברת הקריאה לעמודה החדשה, ורק בסוף, אחרי שהכול יציב, הסרת הישנה. בכל שלב ביניים גם הקוד הישן וגם החדש עובדים, ולכן אפשר לפרוס ולחזור אחורה בבטחה.</p>
+  <p>דוגמה מ-<bdi>TaskFlow</bdi>: נניח שרוצים לשנות את ערך הסטטוס <code>in_progress</code> ל-<code>active</code>. זה נוגע בשלושה מקומות שחייבים לנוע יחד: אילוץ ה-<code>CHECK</code> בטבלה (<code>database.py</code>), הטיפוס <code>TaskStatus</code> במודלים, והטיפוס המקביל ב-<bdi>Frontend</bdi>. המסלול הבטוח: להרחיב את האילוץ ואת הטיפוסים כך שיקבלו את שני הערכים, להסב את הנתונים, לעדכן את הצרכנים, ורק בסוף לצמצם חזרה לערך החדש בלבד. שימו לב לאילוץ מעשי של <bdi>SQLite</bdi>: שינוי אילוץ <code>CHECK</code> מחייב בנייה מחדש של הטבלה, עוד סיבה לתכנן את הצעדים מראש ולא לאלתר.</p>
+
+  <h2 id="proving">הוכחת שימור התנהגות</h2>
+  <p>איך יודעים שבאמת לא שיניתם התנהגות? שלוש שכבות, מצטברות:</p>
+  <ul>
+    <li><strong>חבילה ירוקה לפני ואחרי.</strong> תנאי הכרחי אך לא מספיק: הוא מוכיח שימור רק של מה שהבדיקות מכסות. לכן שכבת האפיון קודמת: ודאו שבדיקות ה-<bdi>Characterization</bdi> מכסות את הקוד שאתם נוגעים בו, כולל מקרי הקצה והשגיאות, לא רק את המסלול המאושר.</li>
+    <li><strong>משמעת סקירת Diff.</strong> קוראים את כל ה-<bdi>Diff</bdi>, ושואלים על כל שינוי: האם זו הזזה או שינוי? טכניקה יעילה היא לבקש מ-Claude דוח על ה-<bdi>Diff</bdi> של עצמו: <code>summarize the current git diff. list anything that is NOT a pure move or rename: any changed condition, default, message, or order of operations</code>. זה לא תחליף לקריאה שלכם, זה זרקור שמכוון אותה.</li>
+    <li><strong>סוקר עצמאי.</strong> ההטיה המתועדת: מודל נוטה לאשר קוד שהוא עצמו כתב. לכן ביקורת אפקטיבית רצה ב-<bdi>Context</bdi> נקי: פקודת <code>/code-review</code> המובנית מריצה סקירת <bdi>Bugs</bdi> על ה-<bdi>Diff</bdi> הנוכחי ב-<bdi>Subagent</bdi> טרי, ואפשר גם לנסח סוקר ייעודי: <code>use a subagent to review the diff against REFACTOR_PLAN.md: verify it is behavior-preserving and nothing outside the plan changed</code>.</li>
+  </ul>
+  <div class="verify">
+    <p><strong>אימות לכל Refactoring, לפני ה-Commit האחרון:</strong></p>
+    <ul class="check">
+      <li>בדיקות האפיון נכתבו לפני השינוי והיו ירוקות על הקוד הישן.</li>
+      <li><code>pytest -q</code> ירוק אחרי, בלי שום שינוי בקובצי הבדיקות עצמם.</li>
+      <li>ה-<bdi>Diff</bdi> נסקר במלואו ואין בו שינוי התנהגות שלא הוכרז.</li>
+      <li>סוקר עצמאי (<code>/code-review</code> או <bdi>Subagent</bdi>) עבר על ה-<bdi>Diff</bdi>.</li>
+      <li>כל צעד יושב ב-<bdi>Commit</bdi> משלו וניתן להחזרה בנפרד.</li>
+    </ul>
+  </div>
+  <div class="callout warn"><span class="title">אזהרה</span><p>אם בדיקה נכשלה אחרי צעד <bdi>Refactoring</bdi>, הבדיקה כמעט תמיד צודקת. האינסטינקט "נעדכן את הבדיקה שתתאים לקוד החדש" הופך את רשת הביטחון לנייר טואלט: כך מקבעים שינוי התנהגות בלי לשים לב. קודם מבינים מה השתנה, ורק אם השינוי מכוון ומוצהר, מעדכנים בדיקה, ב-<bdi>Commit</bdi> נפרד עם הסבר.</p></div>
+
+  <h2 id="when-not">מתי לא לעשות Refactoring</h2>
+  <ul>
+    <li><strong>בלי רשת ביטחון ואין זמן לבנות אחת.</strong> קוד ללא בדיקות משנים רק אחרי אפיון. אם אין תקציב לאפיון, אין תקציב ל-<bdi>Refactoring</bdi>.</li>
+    <li><strong>קוד שעומד להימחק או להיכתב מחדש</strong> ממילא בקרוב. שיפוץ של בניין מיועד להריסה.</li>
+    <li><strong>קוד שאתם עדיין לא מבינים.</strong> קודם חקירה (פרק 6) ואפיון; ה-<bdi>Refactoring</bdi> יחכה.</li>
+    <li><strong>באמצע פיתוח Feature.</strong> ערבוב שינוי מבנה ושינוי התנהגות ב-<bdi>Diff</bdi> אחד הוא ה-<bdi>Anti-pattern</bdi> המרכזי של הפרק. סיימו את ה-<bdi>Feature</bdi>, ואז שפצו, או להפך.</li>
+    <li><strong>ערב Release או תיקון דחוף.</strong> שינוי מבנה מרחיב את שטח הסיכון בדיוק כשסובלנות הסיכון נמוכה.</li>
+    <li><strong>"יופי" בלי תועלת.</strong> אם אף אחד לא נכווה מהמבנה הנוכחי ואין תוכנית שהוא חוסם, העלות ודאית והתועלת ספקולטיבית.</li>
+  </ul>
+
+  <h2 id="prompts">ספריית Prompts ל-Refactoring</h2>
+  <p>תבניות לניסוחים שחוזרים שוב ושוב. התאימו שמות קבצים ופקודות לפרויקט שלכם:</p>
+  <div class="codeblock">
+    <div class="codehead">1. אפיון לפני שינוי</div>
+    <pre><code>before I restructure &lt;file&gt;, write characterization tests that pin its
+current behavior including quirks and error paths. green against current
+code. do not touch the code itself.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">2. חילוץ יחידה, בלי שיפורים</div>
+    <pre><code>extract &lt;unit&gt; from &lt;file&gt; into &lt;new file&gt;. move code as-is: no renames,
+no logic changes, no "improvements". update imports, run &lt;test command&gt;,
+show the diff summary.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">3. שינוי שם חוצה-פרויקט</div>
+    <pre><code>rename &lt;old&gt; to &lt;new&gt; across the codebase, including strings, docs and
+config. list every file you changed. keep a deprecation shim at the old
+name that warns and delegates.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">4. תוכנית פירוק לקובץ גדול</div>
+    <pre><code>(plan mode) propose a split plan for &lt;file&gt;: target file per unit, move
+order from least to most entangled, affected imports per step. no code.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">5. קוד מת עם ראיות</div>
+    <pre><code>find dead code candidates in &lt;scope&gt;. for each: grep evidence including
+string references, public-contract check, git history. keep/delete
+verdict per item. no deletions yet.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">6. דוח שימור התנהגות על ה-Diff</div>
+    <pre><code>summarize the current git diff. list anything that is not a pure move
+or rename: changed conditions, defaults, messages, ordering, error
+handling. if the list is empty, say so explicitly.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">7. שדרוג דפוס עם שמירת התנהגות</div>
+    <pre><code>refactor &lt;file&gt; to use &lt;modern pattern&gt; while maintaining the same
+behavior and backward compatibility. work in small steps, run
+&lt;test command&gt; after each step.</code></pre>
+  </div>
+
+  <h2 id="worked-example">דוגמה מלאה: חילוץ שכבת אחסון ב-TaskFlow</h2>
+  <p>ה-<bdi>Router</bdi> של <bdi>TaskFlow</bdi> (<code>app/routers/tasks.py</code>) מערבב שתי אחריויות: טיפול ב-<bdi>HTTP</bdi> (קודי סטטוס, <code>HTTPException</code>) וגישה לנתונים (<bdi>SQL</bdi>, המרת שורות למודלים). נחלץ את שכבת האחסון, צעד אחר צעד.</p>
+  <h3 id="we-structure">מבנה הקבצים: לפני ואחרי</h3>
+  <div class="codeblock">
+    <div class="codehead">לפני</div>
+    <pre><code>backend/app/
+├── main.py
+├── database.py            # חיבור SQLite ו-init
+├── models.py
+└── routers/
+    └── tasks.py           # HTTP + SQL + המרות, הכול יחד</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">אחרי</div>
+    <pre><code>backend/app/
+├── main.py
+├── database.py            # ללא שינוי
+├── models.py              # ללא שינוי
+├── storage/
+│   ├── __init__.py
+│   └── tasks_store.py     # SQL והמרות בלבד, בלי HTTP
+└── routers/
+    └── tasks.py           # HTTP בלבד: ולידציה, סטטוסים, שגיאות</code></pre>
+  </div>
+  <h3 id="we-steps">רצף הצעדים</h3>
+  <ol>
+    <li><strong>אפיון:</strong> בדיקות ה-<bdi>Characterization</bdi> מ<a href="#characterization">תחילת הפרק</a> כבר ירוקות, לצד החבילה הקיימת. <bdi>Commit</bdi>.</li>
+    <li><strong>תכנון:</strong> ב-<bdi>Plan Mode</bdi>, תוכנית פיצול (תבנית 4). ההחלטה המרכזית שעולה בתכנון: איפה עובר הגבול? ה-<code>HTTPException</code> נשאר ב-<bdi>Router</bdi> (זו שפת <bdi>HTTP</bdi>), והאחסון מסמן "לא נמצא" בהחזרת <code>None</code>. גם בדיקת "גוף ריק" נשארת ב-<bdi>Router</bdi>: זה חוק של החוזה, לא של האחסון.</li>
+    <li><strong>צעד 1:</strong> יצירת <code>storage/tasks_store.py</code> והעברת פעולות הקריאה בלבד (<code>list</code>, <code>get</code>) יחד עם <code>_row_to_task</code>. ה-<bdi>Router</bdi> נהיה צרכן. בדיקות, <bdi>Diff</bdi>, <bdi>Commit</bdi>.</li>
+    <li><strong>צעד 2:</strong> העברת <code>create</code>, <code>update</code>, <code>delete</code>. בדיקות, <bdi>Diff</bdi>, <bdi>Commit</bdi>.</li>
+    <li><strong>סקירה עצמאית:</strong> <code>/code-review</code> על ה-<bdi>Diff</bdi> המצטבר, ותיקון ממצאים אם יש.</li>
+  </ol>
+  <h3 id="we-after">הקוד אחרי (הקטעים המרכזיים)</h3>
+  <div class="codeblock">
+    <div class="codehead">backend/app/storage/tasks_store.py</div>
+    <pre><code>"""Data access for tasks. No HTTP concerns here."""
+from typing import Optional
+
+from app.database import get_conn
+from app.models import Task
+
+
+def _row_to_task(row) -&gt; Task:
+    return Task(
+        id=row["id"],
+        title=row["title"],
+        description=row["description"],
+        status=row["status"],
+        created_at=row["created_at"],
+    )
+
+
+def get_task(task_id: int) -&gt; Optional[Task]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+    return _row_to_task(row) if row else None
+
+
+def update_task(task_id: int, fields: dict) -&gt; Optional[Task]:
+    sets = ", ".join(f"{k} = ?" for k in fields)
+    with get_conn() as conn:
+        cur = conn.execute(
+            f"UPDATE tasks SET {sets} WHERE id = ?",
+            (*fields.values(), task_id),
+        )
+        if cur.rowcount == 0:
+            return None
+        row = conn.execute(
+            "SELECT * FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+    return _row_to_task(row)</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">backend/app/routers/tasks.py (אחרי, הפונקציה המרכזית)</div>
+    <pre><code>@router.patch("/{task_id}", response_model=Task)
+def update_task(task_id: int, payload: TaskUpdate) -&gt; Task:
+    fields = payload.model_dump(exclude_none=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    task = tasks_store.update_task(task_id, fields)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task</code></pre>
+  </div>
+  <p>שימו לב מה השתמר בקפידה: סדר הבדיקות (גוף ריק לפני גישה לנתונים), קודי הסטטוס, נוסחי השגיאות, והעובדה שהעדכון מחזיר את השורה הטרייה מה-<bdi>Database</bdi>. בדיקות האפיון הן שמוכיחות זאת: הן רצות אחרי כל צעד בלי שנגענו בהן. שימו לב גם למה שלא עשינו: לא הוספנו <code>Protocol</code>, לא <bdi>Class</bdi>, לא <bdi>Dependency Injection</bdi>. חילוץ המודול לבדו כבר נתן את ההפרדה; את ההפשטה נוסיף כשיהיה לה צרכן שני.</p>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>"תשפר את הקובץ הזה" כהנחיית Refactoring.</strong> "שיפור" מזמין שינויי התנהגות. בקשו טרנספורמציה מוגדרת עם איסור מפורש על כל שינוי אחר.</li>
+    <li><strong>להתחיל מחבילה אדומה.</strong> אי אפשר להבחין בין כישלון ירושה לכישלון שנגרם עכשיו.</li>
+    <li><strong>לעדכן בדיקות שנכשלו כדי "להתאים לקוד החדש".</strong> ראו האזהרה למעלה: זו הדרך המהירה לקבע <bdi>Regression</bdi>.</li>
+    <li><strong>Diff ענק אחד.</strong> אם אי אפשר לסקור את הצעד בכמה דקות, הצעד גדול מדי.</li>
+    <li><strong>מחיקת "קוד מת" לפי תחושה.</strong> בלי תיק ראיות, במיוחד סביב גבולות ציבוריים ורפלקציה.</li>
+    <li><strong>Refactoring ו-Feature באותו Commit.</strong> הסוקר (אנושי או Claude) לא יכול להפריד בין הזזה לשינוי.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>סיבה שכיחה</th><th>פתרון</th></tr></thead>
+      <tbody>
+        <tr><td>בדיקות נכשלות אחרי צעד</td><td>הצעד שינה התנהגות בלי כוונה</td><td>חזרו ל-<bdi>Commit</bdi> הקודם (או <code>/rewind</code>), פצלו את הצעד לשניים קטנים יותר, והשוו את נקודת הכשל בין הגרסאות</td></tr>
+        <tr><td class="ltr"><code>ImportError: circular import</code></td><td>הפיצול יצר תלות מעגלית בין המודולים החדשים</td><td>בקשו מ-Claude למפות את גרף ה-<bdi>Imports</bdi> ולהעביר את הטיפוס או הפונקציה המשותפים למודול נמוך יותר (למשל <code>models.py</code>)</td></tr>
+        <tr><td>החבילה ירוקה אבל ההתנהגות השתנתה בפועל</td><td>פער כיסוי באפיון: המקרה שהשתנה לא היה מקובע</td><td>הוסיפו קודם בדיקת אפיון שנכשלת על הקוד החדש ועוברת על הישן, ורק אז תקנו; זו גם בדיקת ה-<bdi>Regression</bdi> העתידית</td></tr>
+        <tr><td>Claude "משפר" מעבר לצעד המבוקש</td><td>הנחיה בלי גבולות מפורשים</td><td>הוסיפו <code>move as-is, change nothing else</code>; אם זה קרה, עצרו עם <code>Esc</code>, בטלו, וחדדו את ההנחיה</td></tr>
+        <tr><td><bdi>Rewind</bdi> לא החזיר את כל הקבצים</td><td><bdi>Checkpoints</bdi> עוקבים רק אחרי עריכות של Claude, לא אחרי פקודות <bdi>Bash</bdi> וסקריפטים</td><td>שחזרו מ-<bdi>Git</bdi>; זו הסיבה ש-<bdi>Commit</bdi> לכל צעד אינו אופציונלי</td></tr>
+        <tr><td>ה-Frontend נשבר אחרי Refactoring ב-Backend</td><td>שינוי בחוזה ה-API שלא הוכרז (שם שדה, קוד סטטוס)</td><td>השוו תגובות <bdi>API</bdi> לפני ואחרי; החזירו את השדה הישן או הוסיפו <bdi>Shim</bdi>; הוסיפו בדיקת אפיון על צורת התגובה</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="security">אבטחה</h2>
+  <ul>
+    <li><strong>אל תזיזו קוד אבטחה, תאפיינו אותו קודם.</strong> ולידציה, אימות, הרשאות והגבלות קצב הם המקומות שבהם "הזזה תמימה" מסוכנת: שינוי סדר (כמו ולידציה מול שליפה, שקיבענו באפיון) יכול לפתוח חור. כתבו בדיקות אפיון על מסלולי הדחייה, לא רק על ההצלחה.</li>
+    <li><strong>קוד מת של אבטחה הוא לא קוד מת.</strong> <bdi>Header</bdi> שנראה מיותר, בדיקת קלט "כפולה": לפני שמוחקים, בררו בהיסטוריה למה זה נוסף. לפעמים זו הגנה מאירוע אמת.</li>
+    <li><strong>ה-Shim יורש את שטח התקיפה.</strong> נתיב ישן שהושארו לתאימות חייב לעבור את אותן בדיקות הרשאה כמו החדש, אחרת יצרתם מעקף.</li>
+    <li><strong>שימו לב לזליגת SQL דינמי.</strong> בחילוץ שעשינו, בניית ה-<code>SET</code> הדינמית עברה למודול האחסון. ודאו שהקריאה אליה נשארת רק מ-<bdi>Pydantic</bdi> שמסנן שדות; חשיפת <code>update_task(fields)</code> לקלט לא מסונן תהיה פרצת <bdi>SQL Injection</bdi>. בדיקת ה-<bdi>Security</bdi> מפרק 11 שומרת גם כאן.</li>
+  </ul>
+
+  <h2 id="cost-context">עלות ו-Context: אסטרטגיית Session ל-Refactoring גדול</h2>
+  <p><bdi>Refactoring</bdi> רחב הוא ממלא <bdi>Context</bdi> אגרסיבי: קריאת קבצים גדולים, <bdi>Diffs</bdi> ארוכים, הרצות בדיקה חוזרות. העקרונות:</p>
+  <ul>
+    <li><strong>התוכנית חיה בקובץ, לא בשיחה.</strong> <code>REFACTOR_PLAN.md</code> עם סימון צעדים שהושלמו הוא הזיכרון החיצוני: כל <bdi>Session</bdi> חדש נפתח ב"קרא את התוכנית והמשך מהצעד הבא", בלי לשחזר הקשר.</li>
+    <li><strong>Session לכל מקטע.</strong> אחרי כמה צעדים, או כשה-<bdi>Context</bdi> מתמלא, <code>/clear</code> ופתיחה מהתוכנית. עדיף על <bdi>Session</bdi> אחד ארוך שמתחיל לשכוח את ההנחיות. לחלופין <code>/compact</code> עם הנחיה ממוקדת ("שמור את רשימת הקבצים שהושלמו ואת הצעד הנוכחי").</li>
+    <li><strong>חקירה ב-Subagents.</strong> מיפוי תלויות ("מי משתמש במודול הזה?") צורך המון קריאות קבצים; הריצו אותו ב-<bdi>Subagent</bdi> שמחזיר סיכום בלבד.</li>
+    <li><strong>הרצות בדיקה ממוקדות</strong>, כמו בפרק 11: קובץ אחד בכל איטרציה, החבילה המלאה בסוף כל צעד.</li>
+  </ul>
+  <p>לניהול המעמיק של <bdi>Sessions</bdi> ו-<bdi>Context</bdi> ראו <a href="ch14.html">פרק 14</a>; ל-<bdi>Refactoring</bdi> בקנה מידה של <bdi>Codebase</bdi> שלם, כולל עבודה מקבילית ו-<bdi>Fan-out</bdi>, ראו <a href="ch35.html">פרק 35</a>.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>אפיון לפני שינוי: ההתנהגות הקיימת מקובעת בבדיקות, כולל המוזרויות ומסלולי השגיאה.</li>
+    <li>צעד אחד, בדיקות, סקירת <bdi>Diff</bdi>, <bdi>Commit</bdi>. אם אי אפשר לעצור באמצע, הצעדים גדולים מדי.</li>
+    <li>כל הנחיה כוללת "העבר כמו שהוא" ואיסור על שיפורים נלווים; <bdi>Plan Mode</bdi> לצעדים מורכבים.</li>
+    <li>שינוי התנהגות, אם נדרש, נעשה לפני או אחרי, לעולם לא בתוך ה-<bdi>Refactoring</bdi>, וב-<bdi>Commit</bdi> נפרד.</li>
+    <li>תאימות כברירת מחדל: <bdi>Shims</bdi> לצרכני קוד, שינויים תוספתיים ל-<bdi>Schema</bdi>.</li>
+    <li>סוקר עצמאי על ה-<bdi>Diff</bdi> לפני סיום: <code>/code-review</code> או <bdi>Subagent</bdi> עם קריטריונים.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Anti-pattern</th><th>למה זה מזיק</th><th>במקום</th></tr></thead>
+      <tbody>
+        <tr><td>שכתוב Big-bang: "תכתוב את המודול מחדש"</td><td>מאבד התנהגות שקטה שנצברה בשנים; אי אפשר לסקור</td><td>פירוק לצעדים משמרי התנהגות</td></tr>
+        <tr><td>Refactoring הזדמנותי בתוך משימה אחרת ("while I'm here")</td><td>מזהם את ה-<bdi>Diff</bdi> ומערבב סיכונים</td><td>לרשום בצד ולתזמן כמשימה נפרדת</td></tr>
+        <tr><td>אמון עיוור בחבילה ירוקה עם כיסוי דל</td><td>ירוק על 40% כיסוי מוכיח 40% שימור</td><td>אפיון ממוקד בקוד הנגוע לפני השינוי</td></tr>
+        <tr><td>הפשטה מראש "ליתר ביטחון" (<code>Protocol</code> בלי צרכן שני)</td><td>מורכבות בלי תועלת, שכבה נוספת לתחזק</td><td>הפשטה כשמופיע הצרכן השני</td></tr>
+        <tr><td>מחיקת בדיקות אפיון אחרי ה-<bdi>Refactoring</bdi> "כי הן זמניות"</td><td>מאבדים את רשת הביטחון של השינוי הבא</td><td>לשמר אותן כבדיקות <bdi>Regression</bdi>, לרכך רק <bdi>Assertions</bdi> שביריםות מדי</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="exercise">תרגיל: פישוט שנראה זהה, ואינו</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 12.1</div>
+    <div class="body">
+      <p>ב-<code>backend/app/database.py</code> של <bdi>TaskFlow</bdi> יש כפילות לכאורה:</p>
+      <div class="codeblock">
+        <div class="codehead">backend/app/database.py (קטע)</div>
+        <pre><code>DEFAULT_DB_PATH = os.environ.get("TASKFLOW_DB", "taskflow.db")
+
+
+def get_db_path() -&gt; str:
+    return os.environ.get("TASKFLOW_DB", DEFAULT_DB_PATH)</code></pre>
+      </div>
+      <p>מוצע "פישוט": למחוק את <code>DEFAULT_DB_PATH</code> ולהחזיר <code>os.environ.get("TASKFLOW_DB", "taskflow.db")</code> ישירות. ענו, בעזרת Claude או בלעדיה: (1) האם <code>DEFAULT_DB_PATH</code> הוא קוד מת? (2) האם הפישוט משמר התנהגות בכל תרחיש? (3) האם חבילת הבדיקות הקיימת תתפוס הבדל אם יש? (4) החליטו: לבצע או לא, ואיך.</p>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>(1) לא מת:</strong> <code>DEFAULT_DB_PATH</code> משמש כערך ברירת המחדל בתוך <code>get_db_path</code>. חיפוש הפניות מוכיח זאת מיד.</p>
+      <p><strong>(2) לא בדיוק:</strong> יש הבדל התנהגות דק. <code>DEFAULT_DB_PATH</code> מקובע בזמן טעינת המודול: אם <code>TASKFLOW_DB</code> היה מוגדר בזמן ה-<code>import</code> ונמחק מהסביבה אחר כך, הקוד הישן ימשיך להחזיר את הערך שנלכד בטעינה, והקוד "המפושט" יחזור פתאום ל-<code>taskflow.db</code>. פישוט שנראה זהה לחלוטין משנה התנהגות בתרחיש קצה. זה בדיוק השיעור: "אותו דבר בערך" אינו "אותו דבר".</p>
+      <p><strong>(3) לא:</strong> הבדיקות מגדירות את <code>TASKFLOW_DB</code> לפני ה-<code>import</code> ולא מוחקות אותו, כך שכל החבילה ירוקה בשתי הגרסאות. זו הדגמה חיה של הגבול מסעיף <a href="#proving">הוכחת השימור</a>: חבילה ירוקה מוכיחה שימור רק של מה שמכוסה, ולכן סקירת ה-<bdi>Diff</bdi> והחשיבה על תרחישים הן שכבה שאין לוותר עליה.</p>
+      <p><strong>(4) החלטה סבירה:</strong> לבצע, כי התרחיש (מחיקת משתנה סביבה באמצע ריצה) אינו נתמך ואינו מתועד, אבל לבצע במודע: <bdi>Commit</bdi> נפרד עם הודעה שמצהירה על ההבדל ההתנהגותי הדק. החלטה סבירה לא פחות: להשאיר, כי אין כאב אמיתי. מה שפסול הוא לבצע בלי לדעת שההבדל קיים. נסו למסור ל-Claude את ההנחיה <code>is this simplification behavior-preserving? think about import-time versus call-time environment reads</code> וראו אם הוא מזהה את ההבדל בעצמו.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul class="check">
+    <li><bdi>Refactoring</bdi> משנה מבנה ומשמר התנהגות; כל השאר הוא שינוי התנהגות שמנוהל בנפרד.</li>
+    <li>הסדר הקבוע: אפיון, תוכנית, צעדים קטנים עם בדיקות ו-<bdi>Commit</bdi> לכל צעד, סוקר עצמאי בסוף.</li>
+    <li><bdi>Characterization Tests</bdi> מקבעים את מה שיש, כולל מוזרויות ומסלולי שגיאה; בדיקה שנכשלת אחרי צעד היא כמעט תמיד צודקת.</li>
+    <li>קוד מת מוסר רק עם תיק ראיות; תאימות נשמרת עם <bdi>Shims</bdi> ושינויי <bdi>Schema</bdi> תוספתיים.</li>
+    <li>חבילה ירוקה היא תנאי הכרחי ולא מספיק: סקירת <bdi>Diff</bdi> ומודעות לפערי כיסוי משלימות את ההוכחה.</li>
+    <li>ב-<bdi>Refactoring</bdi> גדול, התוכנית חיה בקובץ וה-<bdi>Sessions</bdi> מתחלפים סביבה; בפרק הבא נחבר את הצעדים האלה לזרימת <bdi>Git</bdi> ו-<bdi>Pull Requests</bdi> מסודרת.</li>
+  </ul>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/common-workflows">Common Workflows</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best Practices for Claude Code</a>
+      <br>נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch11.html"><span class="lbl">הפרק הקודם</span>פרק 11: Testing</a>
+    <a href="ch13.html"><span class="lbl">הפרק הבא</span>פרק 13: Git ו-Pull Requests</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

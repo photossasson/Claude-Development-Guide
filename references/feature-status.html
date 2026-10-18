@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>סטטוס Features | מדריך פיתוח ב-Claude Code</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <h1>סטטוס Features</h1>
+  <p class="lead">מצב כל היכולות המרכזיות נכון לתאריך האימות. Feature שאינו מסומן הוא יציב לפי התיעוד הרשמי. גרסת Claude Code שנבדקה: <span class="ltr"><code>2.1.220</code></span>.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Feature</th><th>סטטוס</th><th>הערות</th><th>נבדק</th></tr></thead>
+      <tbody>
+        <tr><td>Claude Code CLI, IDE surfaces, Desktop (macOS/Windows)</td><td><span class="badge stable">Stable</span></td><td>ליבת המוצר</td><td class="ltr">2026-07-28</td></tr>
+        <tr><td>Claude Code on the Web (claude.ai/code)</td><td><span class="badge preview">Research Preview</span></td><td>Pro/Max/Team/Enterprise</td><td class="ltr">2026-07-28</td></tr>
+        <tr><td>Desktop for Linux</td><td><span class="badge beta">Beta</span></td><td>Ubuntu/Debian</td><td class="ltr">2026-07-28</td></tr>
+        <tr><td>Fast Mode (/fast)</td><td><span class="badge preview">Research Preview</span></td><td>דגמי Opus בלבד; תמחור נפרד</td><td class="ltr">2026-07-28</td></tr>
+        <tr><td>Channels (Telegram/Discord/iMessage)</td><td><span class="badge preview">Research Preview</span></td><td>דורש Bun</td><td class="ltr">2026-07-28</td></tr>
+        <tr><td>Agent view / Background sessions (<span class="ltr"><code>claude --bg</code></span>, <span class="ltr"><code>/background</code></span>, <span class="ltr"><code>claude agents</code></span>)</td><td><span class="badge preview">Research Preview</span></td><td>Sessions מלאים ברקע תחת Daemon; ראו פרקים 33 ו-38</td><td class="ltr">2026-07-29</td></tr>
+        <tr><td><span class="ltr"><code>/batch</code></span> (Skill מובנה לשינויים רחבים)</td><td><span class="badge stable">Stable</span></td><td>מפרק שינוי ל-5 עד 30 יחידות, סוכן רקע ב-Worktree לכל יחידה; דורש Git Repository</td><td class="ltr">2026-07-29</td></tr>
+        <tr><td>Agent Teams</td><td><span class="badge exp">Experimental</span></td><td>מושבת כברירת מחדל</td><td class="ltr">2026-07-28</td></tr>
+        <tr><td>GitLab CI/CD integration</td><td><span class="badge beta">Beta</span></td><td>מתוחזק על ידי GitLab</td><td class="ltr">2026-07-28</td></tr>
+        <tr><td>Extended Thinking (budget_tokens)</td><td><span class="badge dep">Deprecated</span></td><td>בדגמי 4.6 ומעלה; הוחלף ב-Adaptive Thinking + Effort</td><td class="ltr">2026-07-28</td></tr>
+        <tr><td><span class="ltr"><code>.claude/commands/</code></span> (Custom Commands)</td><td><span class="badge dep">Legacy</span></td><td>עדיין עובד; Skills הוא המנגנון הנוכחי</td><td class="ltr">2026-07-28</td></tr>
+        <tr><td>Voice Dictation (/voice)</td><td><span class="badge stable">Stable</span></td><td>לפי התיעוד</td><td class="ltr">2026-07-28</td></tr>
+        <tr><td>Managed Agents (API)</td><td><span class="badge beta">Beta</span></td><td>Beta headers נדרשים</td><td class="ltr">2026-07-28</td></tr>
+        <tr><td>Zero Data Retention</td><td><span class="badge stable">Stable</span></td><td>Enterprise בלבד, בהזמנה</td><td class="ltr">2026-07-28</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout note"><span class="title">עדכון</span><p>טבלה זו נסגרה בשלב ה-QA הסופי (Wave 10, 29.07.2026) יחד עם דוחות האימות הפנימיים של הפרויקט (אינם כלולים בגרסה המפורסמת). סטטוסים נבדקו מול התיעוד הרשמי בתאריך המצוין בכל שורה.</p></div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

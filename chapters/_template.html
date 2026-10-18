@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תבנית פרק: בדיקת RTL ורכיבים</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">תבנית פנימית | אינה חלק מהמדריך</p>
+  <h1>תבנית פרק: בדיקת RTL ורכיבים</h1>
+  <p class="lead">עמוד זה בודק שכל רכיבי העיצוב מוצגים נכון בעברית מימין לשמאל, כולל מונחים באנגלית, קוד, טבלאות ותרשימים.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2>טקסט עם מונחים באנגלית</h2>
+  <p>כאשר עובדים עם <bdi>Claude Code</bdi>, כל פקודה נשלחת דרך ה-<bdi>Terminal</bdi>. לדוגמה, הפקודה <code>claude -p "explain this repo"</code> רצה במצב לא אינטראקטיבי. שימו לב: הנקודה בסוף המשפט נמצאת בצד הנכון, גם אחרי מונח באנגלית כמו <bdi>Pull Request</bdi>.</p>
+  <p>בדיקת פיסוק: ה-<bdi>Context Window</bdi> של <bdi>Sonnet 5</bdi> הוא מיליון <bdi>Tokens</bdi>, וה-<bdi>Model ID</bdi> שלו הוא <code>claude-sonnet-5</code>. האם הפסיק והנקודתיים מוצגים נכון? כן: הם בצד שמאל של המונח האנגלי ובצד ימין של ההמשך העברי.</p>
+
+  <h2>בלוקי קוד ו-Terminal</h2>
+  <div class="codeblock">
+    <div class="codehead">.claude/settings.json</div>
+    <pre><code>{
+  "permissions": {
+    "allow": ["Bash(git diff *)"],
+    "deny": ["Read(.env)"]
+  }
+}</code></pre>
+  </div>
+  <div class="terminal"><span class="p">$</span> claude --version
+<span class="out">2.1.220 (Claude Code)</span></div>
+
+  <h2>Callouts</h2>
+  <div class="callout note"><span class="title">הערה</span><p>זהו רכיב הערה רגיל.</p></div>
+  <div class="callout tip"><span class="title">Best Practice</span><p>התחילו כל משימה גדולה ב-<bdi>Plan Mode</bdi>.</p></div>
+  <div class="callout warn"><span class="title">אזהרה</span><p>הדגל <code>--dangerously-skip-permissions</code> מבטל את כל בקשות האישור.</p></div>
+  <div class="callout danger"><span class="title">סכנה</span><p>אין לחבר מערכת <bdi>Production</bdi> ללא הגבלת הרשאות.</p></div>
+  <div class="callout source"><span class="title">מקורות</span><p><a href="https://code.claude.com/docs/en/overview">Claude Code Overview</a> | נבדק: 28.07.2026</p></div>
+
+  <h2>טבלה עם תאי LTR</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פקודה</th><th>מטרה</th><th>סטטוס</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>/compact</code></td><td>סיכום השיחה לפינוי Context</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/fast</code></td><td>הפעלת Fast Mode</td><td><span class="badge preview">Research Preview</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>תרגיל ופתרון</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 0.1</div>
+    <div class="body"><p>פתחו <bdi>Terminal</bdi> והריצו <code>claude doctor</code>. מה הפלט שקיבלתם?</p></div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body"><p>הפקודה מדפיסה אבחון של ההתקנה, כולל גרסה ותקינות הגדרות.</p></div>
+  </details>
+
+  <h2>רשימת בדיקה</h2>
+  <ul class="check">
+    <li>העברית מיושרת לימין.</li>
+    <li>הקוד מיושר לשמאל.</li>
+    <li>אין גלישה אופקית במובייל.</li>
+  </ul>
+
+  <div class="chapnav">
+    <a href="#"><span class="lbl">הפרק הקודם</span>פרק לדוגמה</a>
+    <a href="#"><span class="lbl">הפרק הבא</span>פרק לדוגמה</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

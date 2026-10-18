@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 8: Claude Models ובחירת Model | מדריך פיתוח ב-Claude Code</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ב | פרק 8</p>
+  <h1>Claude Models ובחירת Model</h1>
+  <p class="lead">כל משימה ב-<bdi>Claude Code</bdi> רצה על מודל <bdi>Claude</bdi> מסוים, והבחירה בו קובעת את איכות התוצאה, את המהירות ואת העלות. בפרק הזה נכיר את מערך המודלים הנוכחי (<bdi>Fable 5</bdi>, <bdi>Opus 5</bdi>, <bdi>Sonnet 5</bdi>, <bdi>Haiku 4.5</bdi>), את מנגנון ה-<bdi>Effort</bdi> וה-<bdi>Adaptive Thinking</bdi>, את <bdi>Fast Mode</bdi>, ואת כל הדרכים להחליף מודל בפועל: <code>/model</code>, הגדרות, דגלים ו-<bdi>Fallback</bdi>. חשוב להדגיש: פרק זה תלוי-גרסה במיוחד. כל העובדות, המחירים והסטטוסים בו אומתו מול התיעוד הרשמי בתאריך 28.07.2026, והם משתנים עם הזמן.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <div class="callout warn"><span class="title">תמונת מצב מתוארכת</span><p>מחירים, מודלים זמינים וסטטוסים של יכולות מתעדכנים בתדירות גבוהה. כל המספרים בפרק הזה הם תמונת מצב מ-28.07.2026, לפי דפי התיעוד הרשמיים המפורטים בסוף הפרק. לפני החלטה תקציבית, בדקו את <a href="https://platform.claude.com/docs/en/about-claude/pricing">דף התמחור הרשמי</a> בעצמכם.</p></div>
+
+  <h2 id="lineup">מפת המודלים הנוכחית</h2>
+  <p>נכון לתאריך האימות, דף ה-<bdi>Models Overview</bdi> הרשמי מונה חמישה מודלים נוכחיים. לכל מודל יש שם רשמי, <bdi>Model ID</bdi> ב-<bdi>API</bdi>, ו-<bdi>Alias</bdi> (כינוי קצר) ב-Claude Code. ה-<bdi>Context Window</bdi> הוא כמות ה-<bdi>Tokens</bdi> המקסימלית שהמודל יכול לקבל כקלט בבת אחת, וה-<bdi>Max Output</bdi> הוא גבול הפלט לתשובה אחת. המחירים נקובים בדולרים לכל מיליון <bdi>Tokens</bdi> (<bdi>MTok</bdi>):</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מודל</th><th>Model ID</th><th>Alias ב-Claude Code</th><th>Context Window</th><th>פלט מרבי</th><th>מחיר לכל MTok (קלט / פלט)</th><th>זמינות</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>Claude Fable 5</bdi></td><td class="ltr"><code>claude-fable-5</code></td><td class="ltr"><code>fable</code></td><td>מיליון Tokens</td><td>128K</td><td>$10 / $50</td><td>API, Bedrock, Google Cloud, Foundry</td></tr>
+        <tr><td><bdi>Claude Opus 5</bdi></td><td class="ltr"><code>claude-opus-5</code></td><td class="ltr"><code>opus</code></td><td>מיליון Tokens</td><td>128K</td><td>$5 / $25</td><td>API, Bedrock, Google Cloud, Foundry</td></tr>
+        <tr><td><bdi>Claude Sonnet 5</bdi></td><td class="ltr"><code>claude-sonnet-5</code></td><td class="ltr"><code>sonnet</code></td><td>מיליון Tokens</td><td>128K</td><td>$3 / $15 (מחיר השקה: $2 / $10 עד 31.08.2026)</td><td>API, Bedrock, Google Cloud, Foundry</td></tr>
+        <tr><td><bdi>Claude Haiku 4.5</bdi></td><td class="ltr"><code>claude-haiku-4-5-20251001</code> (כינוי: <code>claude-haiku-4-5</code>)</td><td class="ltr"><code>haiku</code></td><td>200K</td><td>64K</td><td>$1 / $5</td><td>API, Bedrock, Google Cloud, Foundry</td></tr>
+        <tr><td><bdi>Claude Mythos 5</bdi></td><td class="ltr"><code>claude-mythos-5</code></td><td>אין Alias ייעודי</td><td>מיליון Tokens</td><td>128K</td><td>$10 / $50</td><td>זמינות מוגבלת, בהזמנה בלבד (Project Glasswing)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>כמה הערות חשובות על הטבלה:</p>
+  <ul>
+    <li><strong>מחיר השקה ל-Sonnet 5.</strong> דף התמחור מציין במפורש: מחיר ההשקה של $2 לקלט ו-$10 לפלט לכל MTok בתוקף עד 31.08.2026, ומ-01.09.2026 ייכנס לתוקף המחיר הרגיל של $3 / $15. אם אתם קוראים את הפרק אחרי התאריך הזה, המחיר הנקוב בטבלה כבר אינו המבצע.</li>
+    <li><strong>Mythos 5</strong> מיועד לפי התיעוד לתהליכי <bdi>Cybersecurity</bdi> הגנתיים במסגרת תוכנית בהזמנה בלבד. הוא אינו רלוונטי לרוב המשתמשים ואינו מופיע בהמשך הפרק.</li>
+    <li><strong>Aliases נוספים.</strong> מלבד הארבעה שבטבלה, Claude Code מכיר גם את <code>best</code> (בוחר את <bdi>Fable 5</bdi> כשהוא זמין לארגון, אחרת את ה-<bdi>Opus</bdi> העדכני), את <code>opusplan</code> (מצב היברידי שנרחיב עליו בהמשך), את <code>default</code> (ערך מיוחד שמחזיר את המודל המומלץ לסוג החשבון, לא Alias אמיתי), ואת הסיומת <code>[1m]</code> כמו <code>opus[1m]</code> להפעלת חלון של מיליון Tokens במקום שבו זה אינו אוטומטי.</li>
+    <li><strong>דרישות גרסה.</strong> לפי התיעוד: <bdi>Opus 5</bdi> דורש Claude Code בגרסה 2.1.219 ומעלה, <bdi>Sonnet 5</bdi> דורש 2.1.197 ומעלה, ו-<bdi>Fable 5</bdi> דורש 2.1.170 ומעלה. אם מודל חסר לכם ב-<code>/model</code>, הריצו <code>claude update</code>.</li>
+    <li><strong>Model ID הוא צילום קבוע.</strong> התיעוד מציין שכל <bdi>Model ID</bdi> מוצמד לגרסה: מזהים עם תאריך (כמו <code>20251001</code>) קבועים לאותה מהדורה, ובדורות שלפני 4.6 ה-<bdi>Alias</bdi> ב-API הוא מצביע נוחות למזהה מתוארך.</li>
+  </ul>
+  <div class="callout note"><span class="title">Bedrock, Vertex ו-Foundry</span><p>התיעוד של Claude Code מכנה כיום את פלטפורמת Google בשם <bdi>Google Cloud's Agent Platform</bdi> (דפי התיעוד עדיין יושבים תחת הנתיב <bdi>google-vertex-ai</bdi>). בכל אחת מהפלטפורמות החיצוניות, <bdi>Amazon Bedrock</bdi>, <bdi>Google Cloud</bdi> ו-<bdi>Microsoft Foundry</bdi>, המזהים הם ספציפיים לפלטפורמה (למשל <bdi>Inference Profile ARN</bdi> ב-Bedrock או שם <bdi>Deployment</bdi> ב-Foundry), ולכן איננו מפרטים אותם כאן. בדקו את דף ה-<bdi>Models Overview</bdi> לקבלת המזהה המדויק לפלטפורמה שלכם.</p></div>
+
+  <h3 id="legacy">נספח: מודלים מדורות קודמים <span class="badge dep">Legacy / Deprecated</span></h3>
+  <p>המודלים הבאים אינם ברשימת המודלים הנוכחיים, אך דף התמחור עדיין מפרט אותם, וחלקם עדיין נגישים דרך ה-API ו-Claude Code (למשל דרך <bdi>Fallback</bdi> אוטומטי או הצמדת גרסה מפורשת). "Deprecated" פירושו שהוכרז תאריך פרישה; "Retired" פירושו שהמודל כבר אינו זמין. תאריכי הפרישה נלקחו מדף ה-<bdi>Model Deprecations</bdi> הרשמי:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מודל</th><th>Model ID</th><th>מחיר לכל MTok (קלט / פלט)</th><th>סטטוס מתועד</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>Claude Opus 4.8</bdi></td><td class="ltr"><code>claude-opus-4-8</code></td><td>$5 / $25</td><td>זמין; דור קודם. משמש כיעד Fallback של מסווגי בטיחות וכמודל Fast Mode</td></tr>
+        <tr><td><bdi>Claude Opus 4.7</bdi></td><td class="ltr"><code>claude-opus-4-7</code></td><td>$5 / $25</td><td>זמין; דור קודם. תמיכת Fast Mode עבורו הוסרה ב-24.07.2026</td></tr>
+        <tr><td><bdi>Claude Opus 4.6</bdi></td><td class="ltr"><code>claude-opus-4-6</code></td><td>$5 / $25</td><td>זמין; דור קודם</td></tr>
+        <tr><td><bdi>Claude Opus 4.5</bdi></td><td>לא צוין בדפים שנבדקו</td><td>$5 / $25</td><td>זמין; דור קודם</td></tr>
+        <tr><td><bdi>Claude Sonnet 4.6</bdi></td><td class="ltr"><code>claude-sonnet-4-6</code></td><td>$3 / $15</td><td>זמין; דור קודם. Extended Thinking עליו במעמד Deprecated</td></tr>
+        <tr><td><bdi>Claude Sonnet 4.5</bdi></td><td class="ltr"><code>claude-sonnet-4-5-20250929</code></td><td>$3 / $15</td><td>זמין; דור קודם</td></tr>
+        <tr><td><bdi>Claude Opus 4.1</bdi></td><td class="ltr"><code>claude-opus-4-1-20250805</code></td><td>$15 / $75</td><td><span class="badge dep">Deprecated</span> מ-05.06.2026; פרישה: 05.08.2026. תחליף מומלץ: <code>claude-opus-4-8</code></td></tr>
+        <tr><td><bdi>Claude Haiku 3.5</bdi></td><td class="ltr"><code>claude-3-5-haiku-20241022</code></td><td>$0.80 / $4</td><td><span class="badge dep">Retired</span> ב-API מ-19.02.2026; לפי דף התמחור עדיין זמין ב-Bedrock וב-Google Cloud</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>מודלים שכבר פרשו לחלוטין לפי דף ה-Deprecations: <bdi>Claude Opus 4</bdi> ו-<bdi>Claude Sonnet 4</bdi> (פרשו ב-15.06.2026), <bdi>Claude Sonnet 3.7</bdi> (19.02.2026) ו-<bdi>Claude Haiku 3</bdi> (20.04.2026). אם הצמדתם <bdi>Model ID</bdi> מתוארך בהגדרות או בסקריפטים, בדקו את הדף הזה מדי פעם: Claude Code מציג אזהרה כשמודל מבוקש נמצא במסלול פרישה.</p>
+
+  <h2 id="profiles">פרופיל היכולות של כל מודל</h2>
+  <p>ההשוואות בסעיף הזה מבוססות על התיאורים וההנחיות שבתיעוד הרשמי עצמו. במקומות שבהם התיעוד אינו קובע קביעה השוואתית מפורשת, נציג את הדברים כהכוונה כללית ולא כעובדה.</p>
+
+  <h3 id="fable5">Claude Fable 5</h3>
+  <p>לפי תיעוד Claude Code, <bdi>Fable 5</bdi> הוא המודל היכול ביותר ב-Claude Code, והוא מתאים למשימות שגדולות מ"ישיבה אחת": הוא מחזיק <bdi>Sessions</bdi> אוטונומיים ארוכים, חוקר לפני שהוא פועל, ומאמת את העבודה של עצמו בתדירות גבוהה יותר ממודלים קטנים ממנו. דף ה-Overview מתאר אותו כאינטליגנציה מהדור הבא ל-<bdi>Agents</bdi> ארוכי-טווח. ה-<bdi>Adaptive Thinking</bdi> שלו פעיל תמיד ואי אפשר לכבותו. נקודת הידע (<bdi>Knowledge Cutoff</bdi>) שלו: ינואר 2026. הושק ב-09.06.2026.</p>
+  <ul>
+    <li><strong>מתאים במיוחד ל:</strong> חקירות שורש-בעיה, <bdi>Debugging</bdi> של תקלות <bdi>Production</bdi>, החלטות ארכיטקטורה, ומשימות ארוכות שבדרך כלל הייתם מפרקים לחלקים. התיעוד ממליץ לתאר לו את התוצאה הרצויה ולא את הצעדים, ולוותר על תזכורות "תבדוק את עצמך": הוא עושה זאת בעצמו.</li>
+    <li><strong>פחות מתאים ל:</strong> משימות קטנות ויומיומיות. הוא המודל היקר ביותר ($10 / $50 לכל MTok), ואינו מודל ברירת המחדל באף סוג חשבון. בוחרים אותו במפורש עם <code>/model fable</code>.</li>
+    <li><strong>מגבלות מתועדות:</strong> אינו זמין תחת <bdi>Zero Data Retention</bdi>; בקשות שמסווגי הבטיחות שלו מסמנים (לרוב בתחומי <bdi>Cybersecurity</bdi> וביולוגיה) עוברות אוטומטית למודל אחר, כפי שנראה בסעיף ההחלפה; דורש Claude Code בגרסה 2.1.170 ומעלה.</li>
+  </ul>
+
+  <h3 id="opus5">Claude Opus 5</h3>
+  <p>דף ה-Overview מתאר את <bdi>Opus 5</bdi> במילים "למשימות <bdi>Agentic Coding</bdi> מורכבות ולעבודה ארגונית". נקודת הידע שלו היא המאוחרת ביותר במערך: מאי 2026. הוא מודל ברירת המחדל ב-Claude Code בחשבונות <bdi>Max</bdi>, <bdi>Team Premium</bdi>, <bdi>Enterprise</bdi> בתשלום לפי שימוש, וב-<bdi>API</bdi>. הוא תומך ב-<bdi>Fast Mode</bdi> וברמות ה-<bdi>Effort</bdi> הגבוהות <code>xhigh</code> ו-<code>max</code> (שבהן, לפי תיעוד ה-API, אי אפשר לכבות את החשיבה: ניסיון כזה מחזיר שגיאת 400).</p>
+  <ul>
+    <li><strong>מתאים במיוחד ל:</strong> הסקה מורכבת רב-שלבית, החלטות ארכיטטורה ו-Debugging עמוק. דף ניהול העלויות מנסח זאת כך: שמרו את Opus להחלטות ארכיטקטוניות מורכבות ולהסקה רב-שלבית.</li>
+    <li><strong>פחות מתאים ל:</strong> עבודה שוטפת רגישת-עלות. באותו דף: Sonnet מטפל היטב ברוב משימות הקוד ועולה פחות מ-Opus.</li>
+    <li><strong>מגבלות מתועדות:</strong> בקשות שמסומנות על ידי מסווג ה-Cybersecurity עוברות ל-<bdi>Opus 4.8</bdi>; בקשות שמסומנות על ידי מסווג הביולוגיה מסתיימות בסירוב (ל-Opus 5 אין מודל Fallback לביולוגיה). דורש Claude Code בגרסה 2.1.219 ומעלה.</li>
+  </ul>
+
+  <h3 id="sonnet5">Claude Sonnet 5</h3>
+  <p>התיאור הרשמי: השילוב הטוב ביותר של מהירות ואינטליגנציה. זהו מודל ברירת המחדל ב-Claude Code בחשבונות <bdi>Pro</bdi>, <bdi>Team Standard</bdi> ומושבי מנוי <bdi>Enterprise</bdi>, וסביר שזה המודל שרוב הקוראים עובדים איתו רוב הזמן. ב-<bdi>Anthropic API</bdi> הוא רץ תמיד עם חלון של מיליון Tokens: אין לו גרסת 200K, ו-Claude Code מבצע <bdi>Auto-Compact</bdi> כברירת מחדל בסביבות 967K. נקודת ידע: ינואר 2026.</p>
+  <ul>
+    <li><strong>מתאים במיוחד ל:</strong> העבודה היומיומית: כתיבת קוד, <bdi>Tests</bdi>, <bdi>Refactoring</bdi> מוגדר-היקף ותיקוני <bdi>Bugs</bdi> שגרתיים. דף העלויות ממליץ עליו גם כמודל לחברי <bdi>Agent Teams</bdi> ו-<bdi>Subagents</bdi> שדורשים יכולת מלאה.</li>
+    <li><strong>פחות מתאים ל:</strong> לפי חלוקת התפקידים שבתיעוד, את ההסקה העמוקה ביותר ואת המשימות הארוכות במיוחד עדיף להפנות ל-Opus או ל-Fable. זו הכוונה כללית: התיעוד אינו מפרסם השוואת <bdi>Benchmarks</bdi> ישירה בין המודלים בדפים שנבדקו.</li>
+    <li><strong>שווה לדעת:</strong> מחיר ההשקה ($2 / $10) בתוקף עד 31.08.2026; דורש Claude Code בגרסה 2.1.197 ומעלה.</li>
+  </ul>
+
+  <h3 id="haiku45">Claude Haiku 4.5</h3>
+  <p>התיאור הרשמי: המודל המהיר ביותר עם אינטליגנציה קרובת-חזית. הוא הזול במערך ($1 / $5 לכל MTok), עם חלון של 200K ופלט מרבי של 64K. חשוב: הוא המודל הנוכחי היחיד שאינו תומך ב-<bdi>Adaptive Thinking</bdi> וברמות <bdi>Effort</bdi>; הוא עדיין משתמש במנגנון ה-<bdi>Extended Thinking</bdi> הידני. נקודות הידע שלו מוקדמות מהאחרים: פברואר 2025 (אמין) ויולי 2025 (נתוני אימון).</p>
+  <ul>
+    <li><strong>מתאים במיוחד ל:</strong> משימות פשוטות, לפי טבלת ה-Aliases הרשמית; התיעוד ממליץ עליו ל-<bdi>Subagents</bdi> פשוטים (<code>model: haiku</code>) והוא משמש גם לפונקציונליות רקע של Claude Code.</li>
+    <li><strong>פחות מתאים ל:</strong> משימות שהתיעוד משייך למודלים הגדולים: הסקה רב-שלבית, ארכיטקטורה ומשימות ארוכות. גם כאן זו הכוונה כללית שנגזרת ממיצוב המודל בתיעוד.</li>
+    <li><strong>שווה לדעת:</strong> בהגבלות מודלים ארגוניות, מודלי Haiku זמינים תמיד ואי אפשר לחסום אותם, כך שלכל חבר ארגון נשאר לפחות מודל אחד שמיש.</li>
+  </ul>
+
+  <h2 id="effort">Effort ו-Adaptive Thinking</h2>
+  <p>בדורות הקודמים, "חשיבה" של המודל נשלטה על ידי <bdi>Extended Thinking</bdi>: מצב שבו מקצים למודל תקציב Tokens קבוע להסקה פנימית (<code>budget_tokens</code>). המנגנון הזה נמצא בתהליך החלפה: לפי תיעוד ה-API, Extended Thinking הוגדר <span class="badge dep">Deprecated</span> במודלי 4.6 (בקשות עדיין עוברות), ובמודלי 4.7 ואילך הוא אינו נתמך כלל ובקשות שמשתמשות בו נדחות עם שגיאת 400. במקומו הגיע <bdi>Adaptive Thinking</bdi>: המודל מחליט בעצמו, בכל צעד, אם לחשוב וכמה, לפי מורכבות המשימה. מבין המודלים הנוכחיים, רק <bdi>Haiku 4.5</bdi> עדיין עובד עם Extended Thinking ידני; <bdi>Fable 5</bdi>, <bdi>Opus 5</bdi> ו-<bdi>Sonnet 5</bdi> הם Adaptive בלבד.</p>
+  <p>הידית שבה אתם שולטים על Adaptive Thinking היא פרמטר ה-<bdi>Effort</bdi>. תיעוד ה-API מנסח זאת במדויק: Effort הוא איתות התנהגותי, לא תקציב Tokens נוקשה. ברמה נמוכה המודל עדיין יחשוב על בעיות קשות מספיק, אבל פחות משהיה חושב ברמה גבוהה. חשוב להבין ש-Effort משפיע על כל ה-Tokens בתשובה: טקסט, קריאות לכלים וחשיבה, לא רק על בלוקי החשיבה.</p>
+
+  <h3 id="effort-levels">רמות ה-Effort ב-Claude Code</h3>
+  <p>אלו הרמות לפי תיעוד ה-<bdi>Model Configuration</bdi> של Claude Code. מודלים שאינם מופיעים בטבלת התמיכה אינם תומכים ב-Effort כלל (ובהם Haiku 4.5):</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>רמה</th><th>מתי להשתמש</th><th>הערות</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>low</code></td><td>משימות קצרות, תחומות ורגישות-זמן שאינן דורשות אינטליגנציה גבוהה</td><td>החיסכון הגדול ביותר ב-Tokens</td></tr>
+        <tr><td class="ltr"><code>medium</code></td><td>עבודה רגישת-עלות שמוכנה לוותר על מעט יכולת</td><td>לפי תיעוד ה-API, ב-Sonnet 5 רמה זו משתווה בערך ל-Sonnet 4.6 ברמת high</td></tr>
+        <tr><td class="ltr"><code>high</code></td><td>ברירת המחדל: איזון בין Tokens לאינטליגנציה</td><td>ברירת המחדל בכל המודלים התומכים, חוץ מ-Opus 4.7 שבו ברירת המחדל היא xhigh</td></tr>
+        <tr><td class="ltr"><code>xhigh</code></td><td>הסקה עמוקה יותר בעלות Tokens גבוהה יותר; תיעוד ה-API מייעד אותה למשימות ארוכות במיוחד</td><td>נתמכת ב-Fable 5, Opus 5, Sonnet 5, Opus 4.8 ו-Opus 4.7</td></tr>
+        <tr><td class="ltr"><code>max</code></td><td>משימות תובעניות במיוחד</td><td>התיעוד מזהיר: תשואה פוחתת ונטייה לחשיבת-יתר. תקפה ל-Session הנוכחי בלבד</td></tr>
+        <tr><td class="ltr"><code>ultracode</code></td><td>משימות מהותיות שמצדיקות תכנון Workflow דינמי</td><td>הגדרה של Claude Code, לא רמת מודל: שולחת xhigh ומוסיפה תזמור Workflows. ל-Session הנוכחי בלבד</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>תמיכה לפי מודל: <bdi>Fable 5</bdi>, <bdi>Opus 5</bdi>, <bdi>Sonnet 5</bdi>, <bdi>Opus 4.8</bdi> ו-<bdi>Opus 4.7</bdi> תומכים בכל הרמות <code>low</code> עד <code>max</code>; <bdi>Opus 4.6</bdi> ו-<bdi>Sonnet 4.6</bdi> תומכים ב-<code>low</code>, <code>medium</code>, <code>high</code> ו-<code>max</code> בלבד. אם תבחרו רמה שהמודל אינו תומך בה, Claude Code יורד לרמה הנתמכת הגבוהה ביותר שמתחתיה (למשל <code>xhigh</code> על Opus 4.6 רץ כ-<code>high</code>). בצד ה-API, פרמטר ה-Effort נשלח דרך <code>output_config</code> ונתמך גם במודלים נוספים, ובהם <bdi>Mythos 5</bdi> ו-<bdi>Mythos Preview</bdi>. סולם ה-Effort מכויל לכל מודל בנפרד: אותה רמה אינה מייצגת אותו ערך פנימי בין מודלים.</p>
+
+  <h3 id="effort-set">כך קובעים Effort בפועל</h3>
+  <ul>
+    <li><code>/effort</code> בלי ארגומנט פותח <bdi>Slider</bdi> אינטראקטיבי; <code>/effort xhigh</code> קובע רמה ישירות; <code>/effort auto</code> חוזר לברירת המחדל של המודל.</li>
+    <li>בתוך בורר <code>/model</code>, חיצי ימין ושמאל מכווננים את ה-Slider של ה-Effort למודל הנבחר.</li>
+    <li>דגל <code>--effort</code> בהפעלה קובע רמה ל-Session בודד, למשל <code>claude --effort medium</code>.</li>
+    <li>משתנה הסביבה <code>CLAUDE_CODE_EFFORT_LEVEL</code> גובר על כל שאר הדרכים.</li>
+    <li>השדה <code>effortLevel</code> בקובץ ההגדרות מקבל <code>low</code>, <code>medium</code>, <code>high</code> או <code>xhigh</code> (לא <code>max</code> ולא <code>ultracode</code>, שהם ל-Session בלבד).</li>
+    <li>שדה <code>effort</code> ב-<bdi>Frontmatter</bdi> של <bdi>Skill</bdi> או <bdi>Subagent</bdi> עוקף את רמת ה-Session כשהם פעילים.</li>
+    <li>המילה <code>ultrathink</code> בכל מקום ב-<bdi>Prompt</bdi> מבקשת הסקה עמוקה יותר לאותו תור בלבד, בלי לשנות את הגדרת ה-Session. ביטויים כמו "think hard" אינם מזוהים כמילת מפתח ועוברים כטקסט רגיל.</li>
+  </ul>
+  <p>הרמות <code>low</code>, <code>medium</code>, <code>high</code> ו-<code>xhigh</code> שנקבעות ב-Session אינטראקטיבי נשמרות בין Sessions. הרמה הפעילה מוצגת בכותרת ה-Session ליד שם המודל (למשל "with low effort"), כך שתמיד אפשר לוודא מה פעיל. בארגוני <bdi>Enterprise</bdi>, מנהלים יכולים להגדיר תקרת Effort לכל מודל ולכל תפקיד; בחירת רמה גבוהה מהתקרה רצה ברמת התקרה עם אזהרה.</p>
+
+  <h3 id="thinking-controls">שליטה בתצוגת החשיבה</h3>
+  <p>בנפרד מרמת ה-Effort, Claude Code מציע מתגים לחשיבה עצמה: קיצור המקלדת <bdi>Option+T</bdi> ב-macOS או <bdi>Alt+T</bdi> ב-Windows וב-Linux מדליק ומכבה את מצב החשיבה ל-Session הנוכחי, ו-<code>/config</code> קובע ברירת מחדל גלובלית (נשמרת כ-<code>alwaysThinkingEnabled</code> בקובץ <code>~/.claude/settings.json</code>). פלט החשיבה מקופל כברירת מחדל; <bdi>Ctrl+O</bdi> עובר למצב מפורט. שימו לב לשתי נקודות מהתיעוד: ב-<bdi>Fable 5</bdi> אי אפשר לכבות את החשיבה בשום דרך, ואתם מחויבים על כל Tokens החשיבה שנוצרו גם כשהם מקופלים או מוסתרים.</p>
+  <div class="callout tip"><span class="title">Effort ועלות</span><p>רמת Effort נמוכה יותר פירושה פחות Tokens, תגובה מהירה יותר ועלות נמוכה יותר; רמה גבוהה יותר קונה עומק תמורת Tokens וזמן. עוד המלצה רשמית שחוסכת כסף: שמרו על רמת Effort קבועה לאורך שיחה. שינוי Effort בין בקשות מבטל את ה-<bdi>Prompt Caching</bdi>, והבקשה הבאה תעבד מחדש את כל ההקשר במחיר מלא.</p></div>
+
+  <h2 id="fast-mode">Fast Mode <span class="badge preview">Research Preview</span></h2>
+  <p><bdi>Fast Mode</bdi> הוא תצורה מהירה של <bdi>Opus</bdi>: לפי התיעוד, עד פי 2.5 מהיר יותר, במחיר גבוה יותר לכל Token. זה אינו מודל אחר: אותו Opus, אותה איכות, תצורת API שמעדיפה מהירות על חסכוניות. הפיצ'ר נמצא ב-<bdi>Research Preview</bdi>, כלומר היכולת, התמחור והזמינות עשויים להשתנות.</p>
+  <ul>
+    <li><strong>מודלים נתמכים:</strong> <bdi>Opus 5</bdi> ו-<bdi>Opus 4.8</bdi> בלבד. אין Fast Mode ב-Sonnet או ב-Haiku. התמיכה ב-<bdi>Opus 4.7</bdi> הוגדרה Deprecated ב-25.06.2026 והוסרה ב-24.07.2026. מגרסה 2.1.219, מודל ברירת המחדל של Fast Mode הוא Opus 5.</li>
+    <li><strong>תמחור:</strong> $10 קלט / $50 פלט לכל MTok בשני המודלים, אחיד לכל אורך חלון המיליון (לעומת $5 / $25 במצב רגיל, לפי דף התמחור).</li>
+    <li><strong>הפעלה:</strong> הפקודה <code>/fast</code> ב-CLI מדליקה ומכבה (והרצה חוזרת שלה גם מדווחת על המצב), או <code>"fastMode": true</code> בקובץ הגדרות המשתמש. אם אתם על מודל אחר, Claude Code עובר אוטומטית ל-Opus. כשהמצב פעיל מופיע סימן <bdi>↯</bdi> ליד שורת ההקלדה והודעת "Fast mode ON". כיבוי משאיר אתכם על Opus, בלי חזרה למודל הקודם. Fast Mode אינו נתמך בהרחבת <bdi>VS Code</bdi>.</li>
+    <li><strong>דרישות:</strong> זמין דרך ה-<bdi>Anthropic API</bdi> (Console) ולמנויי <bdi>Pro</bdi>/<bdi>Max</bdi>/<bdi>Team</bdi>/<bdi>Enterprise</bdi> באמצעות <bdi>Usage Credits</bdi> בלבד: הצריכה מחויבת מקרדיט השימוש מה-Token הראשון ואינה נכללת במגבלות המנוי. אינו זמין ב-Bedrock, ב-Google Cloud, ב-Foundry וב-<bdi>Claude Platform on AWS</bdi>. בארגוני Team ו-Enterprise הוא כבוי כברירת מחדל עד ש-<bdi>Owner</bdi> מפעיל אותו, ואפשר לחסום אותו לגמרי עם <code>CLAUDE_CODE_DISABLE_FAST_MODE=1</code>.</li>
+    <li><strong>מגבלות קצב:</strong> ל-Fast Mode מאגר מגבלות נפרד מ-Opus רגיל, וכל מודלי ה-Opus הנתמכים חולקים מאגר Fast Mode אחד. כשנתקלים במגבלה או כשנגמר הקרדיט: חזרה אוטומטית למהירות רגילה, הסימן ↯ מאפיר, וכשההשהיה מסתיימת Fast Mode חוזר להידלק לבד.</li>
+    <li><strong>שליטה ארגונית:</strong> ההגדרה <code>fastModePerSessionOptIn: true</code> גורמת לכל Session להתחיל עם Fast Mode כבוי ולדרוש הפעלה מפורשת, מנגנון שהתיעוד ממליץ עליו לבקרת עלויות בארגונים.</li>
+  </ul>
+  <div class="callout warn"><span class="title">מלכודת עלות: הפעלה באמצע שיחה</span><p>בפעם הראשונה שמדליקים Fast Mode בשיחה, משלמים את מחיר הקלט המלא (ללא Cache) של Fast Mode על כל ההקשר הקיים. ככל שהשיחה עמוקה יותר, זה יקר יותר. לכן ההמלצה הרשמית: הדליקו Fast Mode בתחילת Session ולא באמצעו. החיוב הזה חל פעם אחת לשיחה, כך שכיבוי והדלקה חוזרת אינם חוזרים עליו.</p></div>
+  <p>ההבדל בין Fast Mode לבין הורדת Effort: Fast Mode שומר על אותה איכות מודל ומוריד את זמן התגובה תמורת מחיר גבוה יותר; Effort נמוך מוריד את כמות החשיבה, מהיר יותר וזול יותר, אך עלול לפגוע באיכות במשימות מורכבות. התיעוד מציין שאפשר לשלב: Fast Mode עם Effort נמוך למהירות מרבית במשימות פשוטות.</p>
+
+  <h2 id="choosing">בחירת מודל למשימה</h2>
+  <p>עכשיו, כשאנחנו מכירים את השחקנים, נבנה שיטת החלטה. העיקרון המרכזי מדף ניהול העלויות: התאימו את המודל למשימה. Sonnet מטפל היטב ברוב משימות הקוד; את Opus שומרים להחלטות מורכבות; את Fable למשימות שגדולות מישיבה אחת; ואת Haiku למשימות הפשוטות ולתפקידי עזר.</p>
+  <figure>
+    <img src="../diagrams/model-decision-tree.svg" alt="עץ החלטה לבחירת מודל: משימה קצרה ופשוטה מובילה ל-Haiku 4.5; משימה יומיומית רגילה ל-Sonnet 5 ברמת high; משימה מורכבת שגדולה מישיבה אחת ל-Fable 5; משימה מורכבת רגישת-עלות ל-opusplan; ומשימה מורכבת ללא מגבלת תקציב ל-Opus 5 ברמת high או xhigh.">
+    <figcaption>עץ החלטה לבחירת <bdi>Model</bdi> ו-<bdi>Effort</bdi>. העלים מציינים את פקודת ה-<code>/model</code> המתאימה; את ה-Effort מכווננים עם <code>/effort</code>.</figcaption>
+  </figure>
+  <p>והנה מטריצת שימוש מפורטת יותר לתרחישים נפוצים. ההמלצות נגזרות מההכוונה הרשמית שצוטטה לעיל, אך ההצמדה המדויקת של רמת Effort לתרחיש היא שיקול דעת מערכתי שלנו, לא קביעה של התיעוד:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תרחיש</th><th>מודל מומלץ</th><th>Effort</th><th>נימוק</th></tr></thead>
+      <tbody>
+        <tr><td>שינוי קטן וממוקד (תיקון Typo, עדכון Config)</td><td>Haiku 4.5, או Sonnet 5</td><td>אין ב-Haiku; low ב-Sonnet</td><td>משימה פשוטה לפי הגדרת ה-Alias הרשמית; אין הצדקה לעלות של מודל גדול</td></tr>
+        <tr><td>כתיבת Tests למודול קיים</td><td>Sonnet 5</td><td class="ltr">high</td><td>עבודה יומיומית מובהקת; לולאת כתיבה-הרצה-תיקון זולה ומהירה</td></tr>
+        <tr><td>Debugging מורכב (תקלה לא עקבית, רב-רכיבים)</td><td>Opus 5; אם החקירה ממושכת ועצמאית: Fable 5</td><td class="ltr">high</td><td>התיעוד שומר ל-Opus הסקה רב-שלבית, ומייעד את Fable לחקירות שורש ותקלות Production</td></tr>
+        <tr><td>Architecture Review</td><td>Opus 5</td><td class="ltr">high או xhigh</td><td>החלטות ארכיטקטוניות מורכבות הן הדוגמה המפורשת של התיעוד לשימוש ב-Opus</td></tr>
+        <tr><td>Refactoring רחב אך מוגדר היטב</td><td>Sonnet 5</td><td class="ltr">high</td><td>היקף גדול אינו מורכבות; כשהתוכנית ברורה, Sonnet מבצע היטב ובזול</td></tr>
+        <tr><td>Migration ארוכה ורב-שלבית</td><td>Fable 5, או Opus 5</td><td class="ltr">high ב-Fable; xhigh ב-Opus</td><td>משימה שגדולה מישיבה אחת; תיעוד ה-API מייעד את xhigh לעבודה ארוכת-טווח</td></tr>
+        <tr><td>Security Review</td><td>Opus 5</td><td class="ltr">high</td><td>הסקה עמוקה נדרשת; שימו לב שתוכן Cybersecurity עלול להפעיל את מסווגי הבטיחות ולהעביר את הבקשה ל-Opus 4.8 (התנהגות מתועדת וצפויה)</td></tr>
+        <tr><td>Feature חדש על פני כמה קבצים</td><td>Sonnet 5; לתכנון מורכב: opusplan</td><td class="ltr">high</td><td>ביצוע רב-קבצים הוא חוזק יומיומי של Sonnet; opusplan קונה תכנון ברמת Opus במחיר ביצוע של Sonnet</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="switching">החלפת מודלים ב-Claude Code</h2>
+  <p>יש ארבע דרכים לקבוע מודל, לפי סדר העדיפויות שבתיעוד:</p>
+  <ol>
+    <li><strong>בתוך Session:</strong> <code>/model &lt;alias או שם&gt;</code> מחליף מיד, ו-<code>/model</code> בלי ארגומנט פותח בורר. מאז גרסה 2.1.153, בחירה בבורר עם <bdi>Enter</bdi> נשמרת כברירת המחדל שלכם (בכתיבת השדה <code>model</code> להגדרות המשתמש), ומקש <bdi>s</bdi> מחליף ל-Session הנוכחי בלבד. הבורר מבקש אישור כשיש כבר פלט בשיחה, כי התשובה הבאה תקרא מחדש את כל ההיסטוריה ללא Cache.</li>
+    <li><strong>בהפעלה:</strong> <code>claude --model &lt;alias או שם&gt;</code>, תקף ל-Session שהופעל איתו בלבד. שימושי להרצת מודלים שונים בטרמינלים שונים במקביל.</li>
+    <li><strong>משתנה סביבה:</strong> <code>ANTHROPIC_MODEL</code>, גם הוא ל-Session הנוכחי.</li>
+    <li><strong>הגדרות:</strong> השדה <code>model</code> בקובץ ההגדרות, לקביעה קבועה.</li>
+  </ol>
+  <div class="terminal"><span class="p">$</span> claude --model opus
+<span class="out"># בתוך ה-Session, מעבר ל-Sonnet:</span>
+<span class="out">/model sonnet</span></div>
+  <div class="codeblock">
+    <div class="codehead">~/.claude/settings.json</div>
+    <pre><code>{
+  "model": "opus",
+  "fallbackModel": ["claude-sonnet-5", "claude-haiku-4-5"]
+}</code></pre>
+  </div>
+  <p>לבדיקה איזה מודל פעיל כרגע: <code>/status</code>, או שורת הסטטוס אם הגדרתם אחת. שימו לב ש-Sessions שמשוחזרים עם <code>--resume</code> או <code>--continue</code> שומרים על המודל שאיתו נשמרו, ולא על ההגדרה הנוכחית.</p>
+
+  <h3 id="fallback">Fallback: כשהמודל הראשי אינו זמין</h3>
+  <p>כשהמודל הראשי עמוס או לא זמין (שגיאת שרת שאינה ניתנת לניסיון חוזר), Claude Code יכול לעבור למודל גיבוי במקום להיכשל. מגדירים שרשרת עם הדגל <code>--fallback-model</code> שמקבל רשימה מופרדת בפסיקים, למשל <code>claude --fallback-model sonnet,haiku</code>, או עם השדה <code>fallbackModel</code> בהגדרות (מערך, כמו בדוגמה למעלה). הדגל גובר על ההגדרה. השרשרת מוגבלת לשלושה מודלים אחרי הסרת כפילויות, והמעבר תקף לתור הנוכחי בלבד: ההודעה הבאה תנסה שוב את המודל הראשי. שגיאות אימות, חיוב ומגבלות קצב אינן מפעילות Fallback. שימו לב: Claude Code אינו מציג את השרשרת ב-<code>/status</code>; הסימן הראשון לקיומה הוא ההודעה בעת מעבר.</p>
+  <p>נפרד מכך קיים <strong>Fallback אוטומטי מבוסס תוכן</strong>: <bdi>Fable 5</bdi> ו-<bdi>Opus 5</bdi> רצים עם מסווגי בטיחות לתחומי Cybersecurity וביולוגיה. בקשה שסומנה רצה מחדש אוטומטית על מודל היעד (למשל Cybersecurity מ-Fable 5 או מ-Opus 5 עובר ל-Opus 4.8) עם הודעה בשיחה, וה-Session ממשיך על מודל היעד עד שתריצו <code>/model</code>. עבודה בתחומים האלה (בדיקות חדירות, <bdi>CTF</bdi>) צפויה להיתקל בזה תדיר; זה ניתוב מתועד, לא דגל על החשבון.</p>
+
+  <h3 id="opusplan">opusplan: תכנון ב-Opus, ביצוע ב-Sonnet</h3>
+  <p>ה-Alias <code>opusplan</code> הוא גישה היברידית אוטומטית: ב-<bdi>Plan Mode</bdi> (פרק 7) הוא משתמש ב-<code>opus</code> להסקה ולהחלטות ארכיטקטורה, וכשעוברים לביצוע הוא מחליף אוטומטית ל-<code>sonnet</code> לכתיבת הקוד. כך מקבלים תכנון ברמת Opus במחיר ביצוע של Sonnet. שלב התכנון משתמש באותו Context Window כמו הגדרת <code>opus</code>, ובתוכניות מנוי שבהן Opus משודרג אוטומטית למיליון Tokens, גם שלב התכנון של opusplan מקבל את השדרוג. לאכיפת מיליון בשני השלבים קיים <code>opusplan[1m]</code>. מפעילים כרגיל: <code>/model opusplan</code>.</p>
+
+  <h3 id="restrict">availableModels: הגבלת בחירה בארגון</h3>
+  <p>מנהלי מערכת יכולים להגביל אילו מודלים משתמשים רשאים לבחור באמצעות השדה <code>availableModels</code> בהגדרות מנוהלות. הרשימה מקבלת משפחת מודל (כמו <code>sonnet</code>), קידומת גרסה (כמו <code>claude-sonnet-4-5</code>) או Model ID מלא, והיא נאכפת בכל מקום שבו נבחר מודל: <code>/model</code>, הדגלים, משתני הסביבה, מודלים של Subagents, Skills ועוד. מודלים שהוחרגו מוסתרים מהבורר, ו-Alias משפחתי כמו <code>opus</code> נפתר לגרסה החדשה ביותר של המשפחה שהרשימה מתירה:</p>
+  <div class="codeblock">
+    <div class="codehead">managed-settings.json</div>
+    <pre><code>{
+  "availableModels": ["sonnet", "haiku"],
+  "enforceAvailableModels": true
+}</code></pre>
+  </div>
+  <p>נקודה שחשוב לדייק בה: <code>availableModels</code> לבדו אינו מגביל את אפשרות ה-<bdi>Default</bdi> בבורר. כדי שגם היא תציית לרשימה יש להוסיף <code>enforceAvailableModels: true</code> (דורש גרסה 2.1.175 ומעלה). וההגדרה <code>model</code> היא בחירה התחלתית, לא אכיפה: משתמש תמיד יכול לפתוח <code>/model</code> ולבחור אחרת, אלא אם הרשימה מונעת זאת. בארגוני Enterprise קיימת גם שכבת הגבלה נפרדת מקונסולת הניהול של claude.ai, שנאכפת בצד השרת.</p>
+
+  <h3 id="alias-resolution">לאן ה-Aliases מצביעים בכל Provider</h3>
+  <p>ה-Alias אינו מצביע לאותו מודל בכל פלטפורמה. נכון לתאריך האימות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Provider</th><th class="ltr">opus</th><th class="ltr">sonnet</th><th>מודל ה-default לחשבון</th></tr></thead>
+      <tbody>
+        <tr><td>Anthropic API</td><td><bdi>Opus 5</bdi></td><td><bdi>Sonnet 5</bdi></td><td>Opus 5 (ב-API, Max, Team Premium, Enterprise לפי שימוש); Sonnet 5 (Pro, Team Standard, מושבי Enterprise)</td></tr>
+        <tr><td>Claude Platform on AWS</td><td><bdi>Opus 5</bdi></td><td><bdi>Sonnet 4.6</bdi></td><td>Opus 5</td></tr>
+        <tr><td>Amazon Bedrock / Google Cloud Agent Platform</td><td><bdi>Opus 5</bdi></td><td><bdi>Sonnet 4.5</bdi></td><td>Opus 5</td></tr>
+        <tr><td>Microsoft Foundry</td><td><bdi>Opus 4.6</bdi></td><td><bdi>Sonnet 4.5</bdi></td><td>Sonnet 4.5</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>כשה-Alias נפתר למודל ישן יותר, אפשר לבחור מודל חדש בשמו המלא או להצמיד גרסה עם משתני הסביבה <code>ANTHROPIC_DEFAULT_OPUS_MODEL</code>, <code>ANTHROPIC_DEFAULT_SONNET_MODEL</code>, <code>ANTHROPIC_DEFAULT_HAIKU_MODEL</code> ו-<code>ANTHROPIC_DEFAULT_FABLE_MODEL</code>. התיעוד ממליץ בחום להצמיד גרסאות בפריסות ארגוניות על פלטפורמות צד שלישי, כדי שאתם תשלטו מתי המשתמשים עוברים למודל חדש. <bdi>Fable 5</bdi> אינו מודל ברירת מחדל באף סוג חשבון: עוברים אליו רק בבחירה מפורשת.</p>
+
+  <div class="verify">
+    <p><strong>אימות:</strong> אחרי שקבעתם מודל ו-Effort, ודאו שהם באמת פעילים:</p>
+    <ul class="check">
+      <li><code>/status</code> מציג את המודל הנוכחי ואת פרטי החשבון.</li>
+      <li>כותרת ה-Session מציגה את רמת ה-Effort ליד שם המודל (למשל "with low effort").</li>
+      <li>אם הפעלתם Fast Mode, הסימן <bdi>↯</bdi> מופיע ליד שורת ההקלדה, ו-<code>/fast</code> מדווח על המצב.</li>
+    </ul>
+  </div>
+
+  <h2 id="costs">שיקולי עלות</h2>
+  <p>בחירת המודל היא ידית העלות הגדולה ביותר שיש לכם: פער של פי 10 בין Haiku 4.5 ($1 / $5) ל-Fable 5 ($10 / $50) על כל MTok. כמה מספרים ועובדות מדף ניהול העלויות הרשמי, נכון לתאריך האימות:</p>
+  <ul>
+    <li>בפריסות ארגוניות, העלות הממוצעת היא בסביבות $13 למפתח ליום פעיל, ו-$150 עד $250 למפתח לחודש, כאשר אצל 90% מהמשתמשים העלות נשארת מתחת ל-$30 ליום פעיל.</li>
+    <li><code>/usage</code> מציג את צריכת ה-Tokens של ה-Session הנוכחי ואת ניצול מגבלות התוכנית. שימו לב: הסכום הדולרי מחושב מקומית לפי מחירי המחירון הרגילים, ואינו משקף מחירי מבצע (כמו מבצע ההשקה של Sonnet 5) או הנחות חוזיות.</li>
+    <li>תהליכי רקע (כמו סיכום שיחות עבור <code>--resume</code>) צורכים Tokens גם בלי אינטראקציה, בדרך כלל פחות מ-$0.04 ל-Session.</li>
+    <li><bdi>Prompt Caching</bdi> פועל אוטומטית: קריאת Cache עולה 10% ממחיר הקלט הרגיל. אורך חיי ה-Cache הוא שעה במנוי, ויורד לחמש דקות כשעוברים ל-Usage Credits או עובדים עם מפתח API. הפסקה ארוכה מאורך החיים גוררת עיבוד מלא מחדש של ההקשר.</li>
+    <li>חלון המיליון מתומחר במחיר הרגיל, בלי תוספת על Tokens מעבר ל-200K, במודלי 4.6 ואילך.</li>
+  </ul>
+  <p>שלוש ההרגלים שהתיעוד מדגיש כבעלי ההשפעה הגדולה ביותר: ניקוי הקשר בין משימות לא קשורות (<code>/clear</code>), התאמת המודל למשימה במקום להשאיר את Opus כברירת מחדל קבועה, ורמת Effort מותאמת. את ניהול ה-Context המלא נלמד בפרק ייעודי בהמשך המדריך.</p>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>המודל הגדול ביותר לכל דבר.</strong> הטעות הקלאסית: לקבוע את Opus או Fable כברירת מחדל קבועה "כדי לקבל את הטוב ביותר". דף העלויות מציין במפורש שהוצאה גבוהה במפתיע מתחילה לרוב מ-Sessions ארוכים שלא נוקו ומ-Opus שנשאר כברירת מחדל. Sonnet 5 מטפל היטב ברוב משימות הקוד.</li>
+    <li><strong>הנחה שה-Alias זהה בכל מקום.</strong> <code>sonnet</code> הוא Sonnet 5 ב-API אבל Sonnet 4.5 ב-Bedrock וב-Foundry נכון לתאריך האימות. בפריסות ארגוניות, הצמידו גרסאות.</li>
+    <li><strong>הרצת <code>/effort</code> על Haiku.</strong> Haiku 4.5 אינו תומך ב-Effort. הרמות חלות רק על המודלים שבטבלת התמיכה.</li>
+    <li><strong>שינוי Effort באמצע שיחה ארוכה.</strong> מבטל את ה-Prompt Caching ומייקר את הבקשה הבאה משמעותית. קבעו רמה בתחילת השיחה.</li>
+    <li><strong>הדלקת Fast Mode עמוק בתוך שיחה.</strong> משלמים מחיר קלט מלא ללא Cache על כל ההקשר הקיים. הדליקו בתחילת Session.</li>
+    <li><strong>החלפת מודל כדי "לאפס" מגבלת שימוש.</strong> מגבלות ה-Session והמגבלה השבועית במנויים משותפות לכל המודלים, כך שהחלפה אינה מחזירה גישה. היוצא מן הכלל: הודעת "הגעת למגבלת ה-Opus" הספציפית, שאחריה מעבר ל-Sonnet כן מאפשר להמשיך לעבוד.</li>
+    <li><strong>ציטוט מחירים מהזיכרון.</strong> מחירי השקה (כמו של Sonnet 5) פגים בתאריך נקוב, ומודלים עוברים Deprecation. כל החלטת עלות מתחילה בדף התמחור העדכני.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>סיבה סבירה</th><th>פתרון</th></tr></thead>
+      <tbody>
+        <tr><td>מודל אינו מופיע ב-<code>/model</code> (למשל Fable 5 או Opus 5)</td><td>גרסת Claude Code ישנה (Fable 5 דורש 2.1.170+, Opus 5 דורש 2.1.219+), Zero Data Retention, או שהשרת טרם דיווח על זמינות לארגון</td><td>הריצו <code>claude update</code>; נסו <code>/model fable</code> ישירות (הבדיקה מול השרת יכולה להצליח לפני שהבורר מציג את השורה); בדקו הגבלות ארגוניות</td></tr>
+        <tr><td class="ltr">Model "&lt;name&gt;" is restricted by your organization's settings</td><td>הגבלת מודלים ארגונית מקונסולת הניהול או <code>availableModels</code></td><td>בחרו מודל מותר עם <code>/model</code>, או פנו למנהל המערכת</td></tr>
+        <tr><td>הודעת "הגעת למגבלת Session / מגבלה שבועית"</td><td>חלון שימוש של המנוי, משותף לכל המודלים</td><td>ההודעה מציגה מתי החלון מתאפס; <code>/usage-credits</code> מאפשר להמשיך מעבר למכסה אם הקרדיטים מופעלים</td></tr>
+        <tr><td>הודעת "הגעת למגבלת ה-Opus"</td><td>מכסת Opus ספציפית נגמרה</td><td>עברו ל-Sonnet עם <code>/model sonnet</code> והמשיכו לעבוד</td></tr>
+        <tr><td>בחרתם <code>xhigh</code> אך המערכת רצה ב-<code>high</code></td><td>המודל הפעיל אינו תומך ברמה (למשל Opus 4.6), או תקרת Effort ארגונית</td><td>בדקו את כותרת ה-Session; עברו למודל תומך או קבלו את התקרה</td></tr>
+        <tr><td class="ltr">Fast mode has been disabled by your organization</td><td>Owner לא הפעיל את הפיצ'ר בארגון, או ש-Proxy מיירט את בדיקת הזמינות</td><td>בקשו מ-Owner להפעיל; בסביבות Gateway עיינו בסעיף ה-Proxy בתיעוד Fast Mode</td></tr>
+        <tr><td>המודל הראשי עמוס ובקשות נכשלות</td><td>עומס זמני בצד השרת</td><td>הגדירו שרשרת גיבוי: <code>claude --fallback-model sonnet,haiku</code> או <code>fallbackModel</code> בהגדרות</td></tr>
+        <tr><td class="ltr">There's an issue with the selected model</td><td>שגיאת הקלדה ב-<code>--model</code>, ב-<code>ANTHROPIC_MODEL</code> או בשדה <code>model</code></td><td>תקנו את השם; ערכים אלה אינם עוברים בדיקת זיהוי מוקדמת, והשגיאה מופיעה רק בבקשה הראשונה</td></tr>
+        <tr><td>ה-Session עבר לבד למודל אחר באמצע עבודה</td><td>Fallback של מסווגי בטיחות (תוכן Cybersecurity או ביולוגיה), או Fallback זמינות</td><td>קראו את ההודעה בשיחה; חזרו למודל הרצוי עם <code>/model</code>. אפשר לעבור לאישור ידני דרך <code>/config</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>עבדו עם Sonnet 5 ברירת מחדל ו-Effort ברמת high, והסלימו במודע: Opus להחלטות מורכבות, Fable למשימות ארוכות ואוטונומיות, Haiku לפשוטות.</li>
+    <li>השתמשו ב-<code>opusplan</code> כשאתם רוצים תכנון עמוק בלי לשלם מחיר Opus על כל הביצוע.</li>
+    <li>קבעו Effort בתחילת שיחה ושמרו עליו קבוע לאורכה, כדי לא לשבור את ה-Prompt Caching.</li>
+    <li>הגדירו שרשרת <code>fallbackModel</code> כדי שעומס שרת לא יעצור אתכם.</li>
+    <li>בצוותים: הגדירו <code>availableModels</code> עם <code>enforceAvailableModels</code>, והצמידו גרסאות עם משתני <code>ANTHROPIC_DEFAULT_*_MODEL</code> בפלטפורמות צד שלישי.</li>
+    <li>בדקו את <code>/usage</code> באופן שוטף, והצליבו החלטות תקציב מול דף התמחור הרשמי בתאריך ההחלטה.</li>
+    <li>ל-Subagents פשוטים, קבעו <code>model: haiku</code> בהגדרת ה-Subagent.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>Opus או Fable בכל אוטומציה.</strong> ב-<bdi>CI/CD</bdi> וב-<bdi>Batch</bdi>, שבהם אין אדם שממתין לתשובה, מהירות פחות חשובה ועלות מצטברת מהר. גם Fast Mode מוגדר בתיעוד כלא מתאים לתרחישים אלה.</li>
+    <li><strong>שימוש בהגדרת <code>model</code> כאילו היא אכיפה.</strong> היא רק בחירה התחלתית; משתמש יכול לעבור מודל. אכיפה אמיתית דורשת <code>availableModels</code> ו-<code>enforceAvailableModels</code>.</li>
+    <li><strong>Effort ברמת max כקבוע.</strong> התיעוד מזהיר מתשואה פוחתת ומחשיבת-יתר, והרמה ממילא אינה נשמרת בין Sessions. השתמשו בה נקודתית ובדקו אם היא באמת משפרת.</li>
+    <li><strong>הצמדת Model ID מתוארך ושכחתו.</strong> מודלים מוצמדים פורשים (ראו את Opus 4.1). עקבו אחרי דף ה-Deprecations ואחרי אזהרות הפרישה של Claude Code.</li>
+    <li><strong>Fast Mode כפתרון לאיכות.</strong> Fast Mode אינו משנה את איכות המודל, רק את המהירות והמחיר. אם התוצאות אינן טובות מספיק, הבעיה היא במודל, ב-Effort או ב-Prompt, לא במהירות.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 8.1: בחרו מודל ו-Effort לשישה תרחישים</div>
+    <div class="body">
+      <p>לכל אחד מהתרחישים הבאים בפרויקט <bdi>TaskFlow</bdi>, בחרו מודל, רמת Effort (אם רלוונטית) והאם להפעיל Fast Mode. נמקו כל בחירה בעובדה או הנחיה מהתיעוד שהופיעה בפרק:</p>
+      <ol>
+        <li>תיקון שגיאת כתיב בהודעה למשתמש בקובץ <code>frontend/src/components/TaskList.tsx</code>.</li>
+        <li>כתיבת חבילת <bdi>Unit Tests</bdi> מלאה ל-<bdi>Endpoint</bdi> של יצירת משימות ב-<bdi>Backend</bdi>.</li>
+        <li>תקלה לא עקבית ב-Production: משימות נעלמות מהרשימה אחרי סנכרון, רק אצל חלק מהמשתמשים, והחקירה צפויה להימשך שעות ולחצות את כל שכבות המערכת.</li>
+        <li>סקירת הצעת ארכיטקטורה למעבר מ-<bdi>SQLite</bdi> ל-<bdi>PostgreSQL</bdi> עם שכבת <bdi>Cache</bdi>.</li>
+        <li><bdi>Live Debugging</bdi> בשיחה אינטראקטיבית מול לקוח, עשר דקות לפני הדגמה: כל שנייה של המתנה כואבת, והחשבון כולל Usage Credits.</li>
+        <li>סקריפט לילי לא אינטראקטיבי שמסכם את ה-<bdi>Issues</bdi> החדשים ב-Repository ומתייג אותם לפי תבניות פשוטות.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <ol>
+        <li><strong>Haiku 4.5</strong> (<code>/model haiku</code>), בלי Effort (אינו נתמך בו) ובלי Fast Mode (לא זמין בו). שינוי טקסט נקודתי הוא בדיוק "משימה פשוטה" כהגדרת ה-Alias הרשמית, והמודל הזול והמהיר ביותר מספיק. גם Sonnet 5 עם <code>/effort low</code> היא תשובה סבירה.</li>
+        <li><strong>Sonnet 5</strong> ברמת <code>high</code>. כתיבת Tests היא עבודה יומיומית מובהקת: לפי דף העלויות, Sonnet מטפל היטב ברוב משימות הקוד ועולה פחות מ-Opus. הרמה high היא ברירת המחדל ואין סיבה לסטות ממנה.</li>
+        <li><strong>Fable 5</strong> (<code>/model fable</code>) ברמת <code>high</code>. זו בדיוק המשימה שהתיעוד מייעד לו: חקירת שורש-בעיה ממושכת ואוטונומית שגדולה מישיבה אחת, שבה הוא חוקר לפני שהוא פועל ומאמת את עצמו. תארו לו את התוצאה הרצויה, לא את הצעדים. חלופה לגיטימית אם Fable אינו זמין לחשבון: Opus 5 ברמת <code>xhigh</code>, הרמה שתיעוד ה-API מייעד לעבודה ארוכת-טווח.</li>
+        <li><strong>Opus 5</strong> ברמת <code>high</code> (או <code>xhigh</code> אם ההצעה סבוכה במיוחד). החלטות ארכיטקטוניות מורכבות הן הדוגמה המפורשת של התיעוד לשימוש ב-Opus. אפשר גם <code>opusplan</code> אם אחרי הסקירה מתכננים לבצע את השינוי באותו Session, כדי לרדת אוטומטית ל-Sonnet בשלב הביצוע.</li>
+        <li><strong>Opus 5 עם Fast Mode</strong> (<code>/fast</code>): זהו התרחיש המתועד המובהק של Fast Mode: עבודה אינטראקטיבית שבה זמן התגובה חשוב מהעלות, עד פי 2.5 מהיר יותר במחיר $10 / $50 לכל MTok מתוך ה-Usage Credits. הדליקו את Fast Mode בתחילת ה-Session, לא באמצעו, כדי לא לשלם קלט מלא ללא Cache על הקשר קיים.</li>
+        <li><strong>Haiku 4.5</strong>. משימה לא אינטראקטיבית, פשוטה וחוזרת: אף אחד לא ממתין לתשובה, והתבניות פשוטות. זה גם התרחיש שבו התיעוד ממליץ במפורש נגד Fast Mode (עיבוד Batch ותהליכי CI/CD). אם התיוג דורש הבנה עמוקה יותר משציפיתם, המדרגה הבאה היא Sonnet 5 ברמת <code>low</code> או <code>medium</code>.</li>
+      </ol>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>מערך המודלים הנוכחי, נכון ל-28.07.2026, בנוי כסולם ברור: <bdi>Haiku 4.5</bdi> למשימות פשוטות ומהירות, <bdi>Sonnet 5</bdi> כסוס העבודה היומיומי (וכרגע גם במחיר השקה מוזל), <bdi>Opus 5</bdi> להסקה מורכבת ולארכיטקטורה, ו-<bdi>Fable 5</bdi> למשימות אוטונומיות שגדולות מישיבה אחת. את עומק החשיבה מכווננים עם רמות ה-<bdi>Effort</bdi> (<code>low</code> עד <code>max</code>, וברירת מחדל <code>high</code>), שהחליפו את מנגנון ה-Extended Thinking הישן במודלים החדשים. <bdi>Fast Mode</bdi>, שעדיין ב-Research Preview, קונה מהירות ב-Opus תמורת מחיר כפול. ההחלפה עצמה פשוטה: <code>/model</code> בתוך Session, <code>--model</code> בהפעלה, <code>model</code> בהגדרות, ו-<code>fallbackModel</code> לגיבוי. הכלל המנחה של התיעוד פשוט: התאימו את המודל למשימה, לא את המשימה למודל. בפרק הבא ניקח את הכלים האלה לשטח ונבצע שינוי קוד מבוקר מתחילתו ועד סופו.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://platform.claude.com/docs/en/about-claude/models/overview">Models Overview</a> |
+      <a href="https://platform.claude.com/docs/en/about-claude/pricing">Pricing</a> |
+      <a href="https://platform.claude.com/docs/en/about-claude/model-deprecations">Model Deprecations</a> |
+      <a href="https://platform.claude.com/docs/en/build-with-claude/effort">Effort</a> |
+      <a href="https://platform.claude.com/docs/en/build-with-claude/extended-thinking">Extended Thinking</a> |
+      <a href="https://code.claude.com/docs/en/model-config">Model Configuration (Claude Code)</a> |
+      <a href="https://code.claude.com/docs/en/fast-mode">Fast Mode (Claude Code)</a> |
+      <a href="https://code.claude.com/docs/en/costs">Manage Costs (Claude Code)</a>
+      | נבדק: 28.07.2026
+    </p>
+    <p>הערה מחייבת: מחירים, מבצעים, זמינות מודלים וסטטוסים של יכולות משתנים. כל המספרים בפרק הם תמונת מצב מתאריך האימות שלעיל; לפני כל החלטה מבוססת-מחיר, בדקו את דף התמחור הרשמי במועד ההחלטה.</p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch07.html"><span class="lbl">הפרק הקודם</span>פרק 7: Plan לפני Implementation</a>
+    <a href="ch09.html"><span class="lbl">הפרק הבא</span>פרק 9: ביצוע שינוי קוד מבוקר</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

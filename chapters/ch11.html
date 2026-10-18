@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 11: Testing</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ב | פרק 11</p>
+  <h1>Testing</h1>
+  <p class="lead">בדיקות הן לא רק ביטוח נגד <bdi>Bugs</bdi>: בעבודה עם <bdi>Claude Code</bdi> הן מנגנון האימות שסוגר את הלולאה האגנטית. בפרק הזה נמפה את סוגי הבדיקות ואת דפוסי ה-<bdi>Prompt</bdi> לכל אחד, נעבוד עם <bdi>Fixtures</bdi> ו-<bdi>Mocking</bdi>, נמדוד <bdi>Coverage</bdi> ונסגור פערים באחריות, נטפל בבדיקות <bdi>Flaky</bdi>, נלמד את המשמעת של בדיקה נכשלת לפני תיקון, ונתרגל דוגמה מלאה: יצירת חבילת בדיקות ל-<bdi>Endpoint</bdi> אמיתי של <bdi>TaskFlow</bdi>, כולל סינון הבדיקות שנוצרו.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="why">בדיקות כמנגנון האימות של Claude</h2>
+  <p>התיעוד הרשמי של <bdi>Claude Code</bdi> מנסח עיקרון מרכזי: תנו ל-Claude דרך לאמת את העבודה של עצמו. בלי בדיקה שהכלי יכול להריץ, הסימן היחיד לסיום משימה הוא "זה נראה גמור", ואתם הופכים למנגנון הבקרה היחיד: כל טעות מחכה שתשימו לב אליה. כשיש חבילת בדיקות, הלולאה נסגרת מעצמה: Claude כותב קוד, מריץ את הבדיקות, קורא את התוצאה, ומתקן עד שהכול ירוק. זה ההבדל בין <bdi>Session</bdi> שאתם צריכים לפקח עליו לבין <bdi>Session</bdi> שאפשר לתת לו לרוץ.</p>
+  <p>מכאן נובעות שתי מסקנות מעשיות לכל הפרק:</p>
+  <ul>
+    <li><strong>הבדיקות הן חלק מה-Prompt.</strong> משימה שמנוסחת עם קריטריון בדיק ("כתוב את הפונקציה, הרץ את הבדיקות ותקן כשלים") מסתיימת טוב יותר ממשימה בלי קריטריון. את התבנית המלאה למשימת בדיקות ראינו ב<a href="ch05.html#p-tests">ספריית ה-Prompts של פרק 5</a>.</li>
+    <li><strong>איכות הבדיקות קובעת את איכות האוטונומיה.</strong> חבילת בדיקות חלשה נותנת ל-Claude אישור כוזב. לכן חצי מהפרק עוסק לא בכתיבת בדיקות אלא בביקורת עליהן.</li>
+  </ul>
+  <p><strong>מתי להשתמש בעזרת Claude לבדיקות:</strong> הרחבת כיסוי לקוד קיים, שחזור <bdi>Bug</bdi> כבדיקה, כתיבת מקרי קצה שקל לפספס, ותחזוקת חבילה קיימת. <strong>מתי להיזהר:</strong> כש-Claude כותב גם את הקוד וגם את הבדיקות באותו <bdi>Session</bdi>, בלי ביקורת שלכם, הבדיקות נוטות לשקף את המימוש במקום את הכוונה. נטפל בזה בהמשך הפרק.</p>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>נדרש פרויקט ה-<bdi>TaskFlow</bdi> מ<a href="ch03.html#taskflow-setup">פרק 3</a>, עם <bdi>Python 3.10+</bdi> וסביבה שבה <code>pytest</code> מותקן (<code>pip install -r backend/requirements.txt</code>). מומלץ לרענן את פרק 10 (<bdi>Debugging</bdi>): שני הפרקים חולקים את אותה לולאת שחזור ואימות.</p></div>
+
+  <h2 id="test-types">מפת סוגי הבדיקות ודפוסי Prompt</h2>
+  <p>לכל סוג בדיקה יש תפקיד, עלות ומהירות שונים. הטבלה מסכמת, ואחריה נעבור סוג-סוג עם דפוס ה-<bdi>Prompt</bdi> המתאים:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>סוג</th><th>מה נבדק</th><th>מהירות</th><th>מתי חיוני</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr">Unit</td><td>יחידה מבודדת: פונקציה, מחלקה, מודל</td><td>מילישניות</td><td>לוגיקה עסקית, ולידציה, חישובים</td></tr>
+        <tr><td class="ltr">Integration</td><td>כמה רכיבים יחד: API מול Database אמיתי</td><td>שניות</td><td>חוזה ה-API, שכבת הנתונים</td></tr>
+        <tr><td class="ltr">End-to-End</td><td>המערכת כולה דרך עיני המשתמש</td><td>דקות</td><td>זרימות קריטיות: הרשמה, תשלום</td></tr>
+        <tr><td class="ltr">Regression</td><td>ש-Bug שתוקן לא חוזר</td><td>משתנה</td><td>אחרי כל תיקון Bug</td></tr>
+        <tr><td class="ltr">Property-based</td><td>תכונה שנכונה לכל קלט שנוצר אוטומטית</td><td>שניות</td><td>ולידציה, פרסרים, אינווריאנטים</td></tr>
+        <tr><td class="ltr">Security</td><td>שהמערכת עומדת בקלט עוין</td><td>שניות</td><td>קלט משתמש, הרשאות, SQL</td></tr>
+        <tr><td class="ltr">Performance</td><td>זמני תגובה ועומס</td><td>דקות</td><td>לפני שינויי ביצועים ואחריהם</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="unit">Unit Tests</h3>
+  <p>בדיקת יחידה בודדת, בלי רשת ובלי <bdi>Database</bdi>. ב-<bdi>TaskFlow</bdi> המועמדים הטבעיים הם מודלי ה-<bdi>Pydantic</bdi> ב-<code>models.py</code>: הם מרכזים את חוקי הולידציה (אורך כותרת 1 עד 200 תווים, סטטוס מתוך שלושה ערכים). דפוס ה-<bdi>Prompt</bdi>: ציינו קובץ, התנהגות, והעדפות. התיעוד הרשמי מדגים בדיוק את ההבדל: לא <code>add tests for foo.py</code> אלא ניסוח ממוקד:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>write unit tests for backend/app/models.py: TaskCreate and TaskUpdate
+validation rules only. cover boundary lengths (0, 1, 200, 201 chars)
+and every allowed status value. no mocks, no database.</code></pre>
+  </div>
+
+  <h3 id="integration">Integration Tests</h3>
+  <p>בדיקת כמה רכיבים יחד. חבילת הבדיקות הקיימת של <bdi>TaskFlow</bdi> (<code>backend/tests/test_tasks.py</code>) היא בעצם כזאת: היא מפעילה את ה-API דרך <bdi>TestClient</bdi> של <bdi>FastAPI</bdi> מול <bdi>SQLite</bdi> אמיתי בקובץ זמני. זו נקודה חשובה כשאתם מבקשים בדיקות: Claude בוחן את קובצי הבדיקה הקיימים ומחקה את הסגנון, ה-<bdi>Frameworks</bdi> ודפוסי ה-<bdi>Assertions</bdi> שכבר בשימוש. אם החבילה הקיימת טובה, הבדיקות החדשות יתחילו טובות.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>add integration tests for DELETE /tasks/{id} in the style of
+backend/tests/test_tasks.py: deleting twice, deleting a task that
+appears in the list, and the list state after deletion.</code></pre>
+  </div>
+
+  <h3 id="e2e">End-to-End Tests</h3>
+  <p>בדיקה שמדמה משתמש אמיתי: ה-<bdi>Frontend</bdi> של <bdi>React</bdi> מדבר עם ה-<bdi>Backend</bdi>, וכלי כמו <bdi>Playwright</bdi> מקליק בדפדפן. אלה הבדיקות היקרות והאיטיות ביותר, ולכן שומרים אותן לזרימות קריטיות בלבד: יצירת משימה מהמסך ועד ה-<bdi>Database</bdi>, סימון כ-<code>done</code>. כשמבקשים מ-Claude חבילת <bdi>E2E</bdi>, הגדירו מראש כמה תרחישים מותר לו לכתוב, אחרת תקבלו עשרות בדיקות איטיות שמכפילות את מה שבדיקות ה-<bdi>Integration</bdi> כבר מכסות.</p>
+
+  <h3 id="regression">Regression Tests</h3>
+  <p>בדיקה שמנציחה תיקון: היא משחזרת את ה-<bdi>Bug</bdi> ונכשלת אם הוא חוזר. זה למעשה התוצר הקבוע של כל תיקון לפי המשמעת שנראה ב<a href="#failing-first">סעיף הבא</a>: הבדיקה שכתבתם כדי להוכיח את ה-<bdi>Bug</bdi> נשארת בחבילה לתמיד. דפוס מומלץ: לתת לבדיקה שם שמצביע על התקלה, למשל <code>test_patch_with_only_null_fields_returns_400</code>, כדי שכישלון עתידי יסביר את עצמו.</p>
+
+  <h3 id="property">Property-based Tests</h3>
+  <p>במקום לבחור דוגמאות ידנית, מגדירים תכונה שחייבת להתקיים לכל קלט, וכלי כמו <bdi>Hypothesis</bdi> (ב-<bdi>Python</bdi>) מייצר מאות קלטים וגם מכווץ כל כישלון לדוגמה מינימלית. ב-<bdi>TaskFlow</bdi>: "כל כותרת מעל 200 תווים נדחית, תמיד":</p>
+  <div class="codeblock">
+    <div class="codehead">backend/tests/test_models_properties.py</div>
+    <pre><code>import pytest
+from hypothesis import given, strategies as st
+from pydantic import ValidationError
+
+from app.models import TaskCreate
+
+
+@given(st.text(min_size=201))
+def test_long_titles_always_rejected(title):
+    with pytest.raises(ValidationError):
+        TaskCreate(title=title)</code></pre>
+  </div>
+  <p>Claude טוב במיוחד בניסוח תכונות: בקשו <code>suggest 3 properties of TaskUpdate that should hold for any input, then implement them with Hypothesis</code>, ובדקו שהתכונות באמת נובעות מהחוזה ולא מהמימוש.</p>
+
+  <h3 id="security-tests">Security Tests</h3>
+  <p>בדיקות שמתעדות שהמערכת עומדת בקלט עוין. ה-<bdi>Endpoint</bdi> של עדכון משימה ב-<bdi>TaskFlow</bdi> בונה משפט <bdi>SQL</bdi> דינמי, ולכן ראוי לבדיקה שמוכיחה שהערכים עוברים כפרמטרים ולא משורשרים:</p>
+  <div class="codeblock">
+    <div class="codehead">backend/tests/test_security.py</div>
+    <pre><code>def test_sql_injection_in_title_is_stored_literally(client):
+    payload = {"title": "x'); DROP TABLE tasks; --"}
+    res = client.post("/tasks", json=payload)
+    assert res.status_code == 201
+    assert res.json()["title"] == payload["title"]
+    # הטבלה עדיין קיימת: הרשימה נענית ומכילה את המשימה
+    assert client.get("/tasks").status_code == 200</code></pre>
+  </div>
+  <p>שימו לב לבדיקת יושרה נוספת שכדאי לבקש: בדיקה שמתעדת ש-<code>/tasks</code> פתוח ללא אימות. היא לא "מאשרת" את המצב, היא הופכת אותו לגלוי: ביום שיתווסף אימות, הבדיקה תיכשל ותזכיר לעדכן את החוזה.</p>
+
+  <h3 id="performance-tests">Performance Tests</h3>
+  <p>מדידת זמנים לפני מסקנות. ברמה הפשוטה: בדיקה שיוצרת אלף משימות ומוודאת ש-<code>GET /tasks</code> חוזר בזמן סביר; ברמה המקצועית: כלים ייעודיים כמו <bdi>pytest-benchmark</bdi> או <bdi>Locust</bdi>. שני כללים כשעובדים עם Claude: ראשית, בקשו מדידה לפני ואחרי כל שינוי ביצועים, לא הערכה. שנית, אל תכניסו בדיקות זמן רגישות לחבילה הרגילה: הן המקור הקלאסי לבדיקות <bdi>Flaky</bdi>, כפי שנראה בהמשך.</p>
+
+  <h2 id="fixtures">נתוני בדיקה, Fixtures ו-Mocking</h2>
+  <h3 id="fixtures-real">ה-Fixture האמיתי של TaskFlow</h3>
+  <p><bdi>Fixture</bdi> הוא מנגנון של <bdi>pytest</bdi> להכנת סביבה לבדיקה: פונקציה שמכינה משאב, מוסרת אותו לבדיקה, ומנקה אחריה. כך זה נראה היום ב-<code>backend/tests/test_tasks.py</code>, קוד אמיתי מהפרויקט:</p>
+  <div class="codeblock">
+    <div class="codehead">backend/tests/test_tasks.py (המצב הקיים)</div>
+    <pre><code>import os
+import tempfile
+
+import pytest
+from fastapi.testclient import TestClient
+
+# Point the app at a temporary database BEFORE importing it.
+_tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+os.environ["TASKFLOW_DB"] = _tmp.name
+
+from app.database import init_db  # noqa: E402
+from app.main import app  # noqa: E402
+
+
+@pytest.fixture()
+def client():
+    init_db()
+    with TestClient(app) as c:
+        yield c</code></pre>
+  </div>
+  <p>שלוש נקודות ללמידה מהקוד הזה: ראשית, משתנה הסביבה <code>TASKFLOW_DB</code> נקבע לפני ה-<code>import</code> של האפליקציה, כי נתיב ה-<bdi>Database</bdi> נקרא בזמן הטעינה. שנית, הבדיקות רצות מול <bdi>SQLite</bdi> אמיתי בקובץ זמני, לא מול <bdi>Mock</bdi>: זה נותן ודאות גבוהה בעלות אפסית. שלישית, יש כאן חולשה מכוונת שנחשוף בתרגיל: ה-<bdi>Fixture</bdi> לא מנקה את הטבלה בין בדיקות.</p>
+  <p>כשחבילת הבדיקות גדלה לכמה קבצים, הקוד המשותף הזה עובר לקובץ <code>conftest.py</code>: קובץ מיוחד ש-<bdi>pytest</bdi> טוען אוטומטית, וכל ה-<bdi>Fixtures</bdi> שבו זמינים לכל הבדיקות בתיקייה. בקשו את המעבר מ-Claude יחד עם שדרוג קטן: <bdi>Fixture</bdi> נוסף שמספק משימה קיימת:</p>
+  <div class="codeblock">
+    <div class="codehead">backend/tests/conftest.py (אחרי ההעברה)</div>
+    <pre><code>@pytest.fixture()
+def client():
+    init_db()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM tasks")   # בידוד בין בדיקות
+    with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture()
+def task(client):
+    """A task that already exists in the database."""
+    return client.post("/tasks", json={"title": "Fixture task"}).json()</code></pre>
+  </div>
+  <h3 id="test-data">נתוני בדיקה</h3>
+  <p>שלושה כללים לנתונים: קטנים ככל האפשר (רק השדות שהבדיקה צריכה), מפורשים (הערך הנבדק מופיע בבדיקה עצמה, לא קבור בקובץ עזר), ומזויפים בבירור (שמות כמו <code>Fixture task</code>, לעולם לא נתונים אמיתיים של משתמשים). כשצריך עשרות רשומות, בקשו מ-Claude פונקציית <bdi>Factory</bdi> קטנה במקום קובצי <bdi>JSON</bdi> ענקיים: <code>make_task(title="X", status="done")</code> עם ברירות מחדל.</p>
+  <h3 id="mocking">Mocking: מתי כן ומתי לא</h3>
+  <p><bdi>Mock</bdi> הוא תחליף מזויף לרכיב אמיתי: אובייקט שמעמיד פני שירות חיצוני ומתעד איך קראו לו. הכלל: מזייפים את מה שלא בבעלותכם או שאי אפשר להריץ בבדיקה (שירות תשלומים, שליחת מייל, שעון), ולא מזייפים את מה שזול להריץ באמת. <bdi>TaskFlow</bdi> הוא דוגמה טובה לצד השני: אין סיבה לזייף את <bdi>SQLite</bdi> כשקובץ זמני עושה את העבודה. חשוב לדעת ש-Claude נוטה להציע <bdi>Mocks</bdi> בנדיבות; התיעוד הרשמי עצמו מדגים הנחיה שמוסיפה במפורש <code>avoid mocks</code>. אמצו את ההרגל: כתבו בהנחיה מה מותר לזייף, ואם קיבלתם בדיקה שכולה <bdi>Mocks</bdi> של קוד פנימי, זה סימן אזהרה שנרחיב עליו ב<a href="#overfit">סעיף על בדיקות מראה</a>.</p>
+
+  <h2 id="coverage">Coverage: מדידה וסגירת פערים באחריות</h2>
+  <p><bdi>Coverage</bdi> מודד אילו שורות והסתעפויות בקוד הורצו במהלך הבדיקות. ב-<bdi>Python</bdi> משתמשים ב-<bdi>pytest-cov</bdi> (<code>pip install pytest-cov</code>). מריצים מתיקיית <code>backend</code>:</p>
+  <div class="terminal"><span class="p">$</span> pytest --cov=app --cov-report=term-missing -q
+<span class="out">........                                                 [100%]
+Name                    Stmts   Miss  Cover   Missing
+-----------------------------------------------------
+app/routers/tasks.py       40      3    92%   55-56, 63</span></div>
+  <p>פירוש הדגלים: <code>--cov=app</code> מודד את החבילה <code>app</code>; <code>--cov-report=term-missing</code> מוסיף את מספרי השורות שלא כוסו; <code>-q</code> מקצר את הפלט (חשוב גם לחיסכון ב-<bdi>Context</bdi>). הפלט אצלכם יהיה שונה במספרים; מה שחשוב הוא העמודה <code>Missing</code>: היא הופכת את השאלה "מה לא בדוק?" לרשימת שורות קונקרטית שאפשר למסור ל-Claude:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>coverage says lines 55-56 and 63 of app/routers/tasks.py are untested.
+read the code, explain what user-visible behavior each gap represents,
+and add a test only where the behavior matters. if a line is not worth
+testing, say so and explain why.</code></pre>
+  </div>
+  <p>זו סגירת פערים אחראית: ההנחיה מבקשת התנהגות, לא אחוזים. הצבת יעד כמו "הגע ל-100%" מייצרת את הרע משני העולמות: בדיקות ריקות שקוראות לקוד בלי <bdi>Assertions</bdi> משמעותיים, שמעלות את המספר ומורידות את הערך. <bdi>Coverage</bdi> גבוה הוא תוצר לוואי של חבילה טובה, לא מטרה. זכרו גם את הגבול המובנה של המדד: הוא מוכיח שהקוד רץ, לא שהוא נבדק. שורה יכולה להיות מכוסה במלואה בלי שאף <bdi>Assertion</bdi> בודק את התוצאה שלה.</p>
+
+  <h2 id="flaky">בדיקות Flaky: איתור, בידוד, תיקון</h2>
+  <p>בדיקה <bdi>Flaky</bdi> עוברת לפעמים ונכשלת לפעמים, בלי שהקוד השתנה. היא מסוכנת פעמיים: היא שוחקת את האמון בחבילה ("זה סתם ה-<bdi>Flaky</bdi>, תריץ שוב"), והיא מטעה את Claude, שלולאת העבודה שלו מניחה שכישלון פירושו קוד שבור.</p>
+  <p><strong>איתור:</strong> החשוד המיידי הוא כישלון שנעלם בהרצה חוזרת. אפשר לאתר שיטתית בהרצה חוזרת של החבילה כמה פעמים ברצף, ובהרצת בדיקה בודדת מול הרצת הקובץ המלא (כישלון רק באחד מהמצבים מסגיר תלות בסדר). זו משימת האבחון שנוח למסור ל-Claude, כי היא לולאת הרצה-והשוואה:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>test_list_tasks fails when the whole suite runs but passes alone.
+run it both ways to confirm, then find the shared state that causes
+the difference. do not change the assertion, fix the isolation.</code></pre>
+  </div>
+  <p><strong>הגורמים הנפוצים:</strong> מצב משותף בין בדיקות (ה-<bdi>Database</bdi> הזמני של <bdi>TaskFlow</bdi> נשמר בין בדיקות באותה הרצה: דוגמה חיה בתרגיל בסוף הפרק), תלות בזמן ובשעון, תלות ברשת, מקביליות, וסדר איטרציה לא מובטח. <strong>בידוד (Quarantine):</strong> כשאין זמן לתקן מיד, מסמנים את הבדיקה במפורש, למשל עם <code>@pytest.mark.skip(reason="flaky: TASK-123")</code>, עם הפניה למשימת תיקון. בדיקה מבודדת בלי כרטיס מעקב היא בדיקה שנמחקה בשקט. <strong>תיקון:</strong> תמיד בשורש: בידוד נתונים, הזרקת שעון, <bdi>Retry</bdi> מבוקר סביב תלות חיצונית. הרצה חוזרת אוטומטית של כל החבילה כפתרון קבע רק מסתירה את הבעיה.</p>
+
+  <h2 id="failing-first">המשמעת: בדיקה נכשלת לפני התיקון</h2>
+  <p>זה ההרגל החשוב ביותר בפרק, והוא מופיע כלשונו בתיעוד הרשמי כניסוח מומלץ: <code>write a failing test that reproduces the issue, then fix it</code>. הסדר מחייב:</p>
+  <ol>
+    <li><strong>שחזור:</strong> כתבו (או בקשו מ-Claude לכתוב) בדיקה שמבטאת את ההתנהגות הנכונה, זו שה-<bdi>Bug</bdi> מפר.</li>
+    <li><strong>אדום:</strong> הריצו וודאו שהיא נכשלת, ומהסיבה הנכונה. בדיקה שנכשלת בגלל <code>ImportError</code> לא הוכיחה כלום.</li>
+    <li><strong>תיקון:</strong> רק עכשיו מתקנים את הקוד.</li>
+    <li><strong>ירוק:</strong> הבדיקה עוברת, וכל שאר החבילה נשארת ירוקה.</li>
+  </ol>
+  <p>למה השלב האדום קריטי דווקא עם Claude? כי בלעדיו אין לכם הוכחה שהבדיקה מסוגלת להיכשל. תרחיש נפוץ: Claude מתקן קוד וכותב בדיקה באותו מהלך, הבדיקה עוברת, וכולם מרוצים. אבל אם הבדיקה הייתה עוברת גם על הקוד השבור, היא לא בדקה את התיקון. לכן כשאתם מוסרים <bdi>Bug</bdi>, נסחו את הסדר במפורש:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>PATCH /tasks/{id} with {"title": null} returns 400, but the frontend
+expects null fields to be simply ignored when other fields are present.
+first write a failing test that reproduces this with
+{"title": null, "status": "done"}. run it, show me the failure output,
+and stop. do not fix anything yet.</code></pre>
+  </div>
+  <p>ה-<code>stop</code> בסוף מכוון: אתם רואים את הכישלון במו עיניכם, מוודאים שהוא מבטא את ה-<bdi>Bug</bdi>, ורק אז נותנים אישור להמשיך לתיקון. הבדיקה הזו נשארת בחבילה כבדיקת <bdi>Regression</bdi> לתמיד.</p>
+
+  <h2 id="overfit">הסכנה: בדיקות שמשקפות את המימוש</h2>
+  <p>הכשל העמוק ביותר בבדיקות שנוצרות אוטומטית: בדיקה שנגזרת מהקוד במקום מהכוונה. אם הקוד מכיל באג לוגי, בדיקה שמשקפת את הקוד תקבע את הבאג כ"התנהגות נכונה". ולבדיקה כזאת יש גם עלות תחזוקה: היא נכשלת בכל <bdi>Refactoring</bdi> למרות שההתנהגות לא השתנתה. שלוש הגנות:</p>
+  <h3 id="contract-first">1. לבקש בדיקות מהחוזה, לא מהקוד</h3>
+  <p>נסחו את ההנחיה סביב ההתנהגות הגלויה למשתמש: קלט, פלט, קודי סטטוס. השוו:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>חלש (מראה של המימוש)</th><th>חזק (חוזה)</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>write tests for the update_task function</code></td><td class="ltr"><code>write tests for the PATCH /tasks/{id} contract: partial update, unknown id, invalid status, empty payload. test only through the HTTP API</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>הדרישה "רק דרך ה-API" חוסמת בדיקות שמציצות לתוך המימוש (קריאה ישירה ל-<bdi>Database</bdi>, <bdi>Mock</bdi> על פונקציה פנימית) וכך שורדות <bdi>Refactoring</bdi>. חיזוק נוסף שהתיעוד מציע: הפרדת כותב ומבקר. בקשו מ-<bdi>Subagent</bdi>, או מ-<bdi>Session</bdi> נפרד עם <bdi>Context</bdi> נקי, לבקר את הבדיקות: מבקר שלא ראה את הקוד שופט את הבדיקות לגופן. באותה רוח אפשר גם להפוך את הסדר: Claude אחד כותב בדיקות מהמפרט, ואחר כותב קוד שיעבור אותן.</p>
+  <h3 id="review-assertions">2. לבקר כל Assertion</h3>
+  <p>עברו על כל בדיקה שנוצרה ושאלו שתי שאלות: "אם הקוד היה שבור, הבדיקה הזאת הייתה נכשלת?" ו"אם המימוש ישתנה בלי שינוי התנהגות, הבדיקה תשרוד?". <bdi>Assertion</bdi> שנכשל בשתי השאלות (למשל: בדיקה שמוודאת שמשפט ה-<bdi>SQL</bdi> המדויק הורץ) מוחקים או מחליפים.</p>
+  <h3 id="mutation">3. Mutation Testing: לבדוק את הבדיקות</h3>
+  <p>הרעיון: מכניסים בכוונה שינוי קטן ושובר לקוד (<bdi>Mutation</bdi>), ומריצים את החבילה. אם שום בדיקה לא נכשלה, ה-<bdi>Mutation</bdi> "שרד" והחבילה עיוורת לאזור הזה. יש כלים אוטומטיים לכך (בעולם ה-<bdi>Python</bdi> מוכר <bdi>mutmut</bdi>), אבל אפשר לקבל את רוב הערך בגרסה ידנית מהירה עם Claude:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>introduce one deliberate bug into app/routers/tasks.py (for example,
+invert the rowcount check in update_task). run the suite. report which
+tests failed. then revert the change and confirm the suite is green.
+repeat for two more mutations of your choice.</code></pre>
+  </div>
+  <p><bdi>Mutation</bdi> ששרד הוא מתנה: הוא מצביע בדיוק על הבדיקה שחסרה. שימו לב שהתרגיל דורש הרשאות הרצה ועריכה, והחזרת הקוד לקדמותו בסופו; ודאו שהוא רץ על עותק נקי ב-<bdi>Git</bdi> כדי שאפשר יהיה לאמת שהכול חזר למקומו (<code>git diff</code> ריק בסוף).</p>
+
+  <h2 id="run-vs-review">לתת ל-Claude להריץ בדיקות, או רק לכתוב?</h2>
+  <p>הרצת בדיקות היא פקודת <bdi>Bash</bdi>, ולכן במצב ברירת המחדל כל הרצה מבקשת אישור. יש שלוש רמות עבודה:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מצב</th><th>איך</th><th>מתאים כאשר</th></tr></thead>
+      <tbody>
+        <tr><td>אישור פרטני</td><td>ברירת המחדל: כל <code>pytest</code> מאושר ידנית</td><td>פרויקט חדש, פקודות לא מוכרות</td></tr>
+        <tr><td>הרצה חופשית של בדיקות</td><td class="ltr"><code>"allow": ["Bash(pytest *)"]</code></td><td>לולאת כתיבה-הרצה-תיקון שוטפת</td></tr>
+        <tr><td>Review בלבד</td><td><bdi>Plan Mode</bdi>, או שאתם מריצים בעצמכם ומדביקים פלט</td><td>סביבות רגישות, CI בלבד</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>הרמה האמצעית היא נקודת האיזון לרוב הפרויקטים: הרצת בדיקות היא פעולה בטוחה יחסית (היא לא נוגעת ב-<bdi>Production</bdi>), והיא בדיוק מה שמאפשר ל-Claude לסגור את הלולאה לבד. מוסיפים כלל דרך הפקודה <code>/permissions</code> או ישירות בקובץ ההגדרות של הפרויקט:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/settings.json</div>
+    <pre><code>{
+  "permissions": {
+    "allow": [
+      "Bash(pytest *)",
+      "Bash(python -m pytest *)"
+    ]
+  }
+}</code></pre>
+  </div>
+  <p>לפי כללי ההתאמה המתועדים, <code>Bash(pytest *)</code> מתיר כל פקודה שמתחילה ב-<code>pytest</code> ואחריו רווח, וגם את <code>pytest</code> לבד; הרווח לפני הכוכבית יוצר גבול מילה, כך שפקודה בשם <code>pytest-evil</code> לא תתאים. לחלופין, כשמאשרים הרצה בדיאלוג ההרשאות ובוחרים "Yes, don't ask again", הכלל המתאים נשמר עבורכם. זכרו שהבדיקות עצמן הן קוד שרץ: אם Claude גם עורך את קובצי הבדיקה וגם מריץ אותם בהרשאה גורפת, בדיקה יכולה להכיל כל קוד <bdi>Python</bdi>. בסביבות רגישות עבדו במצב <bdi>Review</bdi> בלבד, או הפעילו <bdi>Sandboxing</bdi> (ראו פרק ההרשאות).</p>
+
+  <h2 id="worked-example">דוגמה מלאה: חבילת בדיקות ל-PATCH /tasks/{id}</h2>
+  <p>נעבור את התהליך המלא על ה-<bdi>Endpoint</bdi> העשיר ביותר של <bdi>TaskFlow</bdi>: עדכון חלקי של משימה. הוא מכיל ולידציה, בניית <bdi>SQL</bdi> דינמית, טיפול ב-404 וטיפול בגוף ריק: כר מושלם למקרי קצה.</p>
+  <h3 id="we-step1">שלב 1: הנחיה ממוקדת חוזה</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>create backend/tests/test_update_task.py covering the PATCH /tasks/{id}
+contract. requirements:
+- test only through the HTTP API, in the style of test_tasks.py
+- cover: partial update preserving other fields, boundary title lengths
+  (200 ok, 201 rejected, empty rejected), invalid status, unknown id,
+  empty payload, payload with only null fields, unknown extra fields,
+  created_at unchanged after update
+- one behavior per test, descriptive names, no mocks
+run the file and make sure every test passes. do not modify app code.</code></pre>
+  </div>
+  <p>שימו לב לסוגר: <code>do not modify app code</code>. במשימת כתיבת בדיקות לקוד קיים, כישלון בדיקה צריך לחזור אליכם כשאלה ("זה <bdi>Bug</bdi> או התנהגות מכוונת?"), לא להפוך לתיקון שקט של האפליקציה.</p>
+  <h3 id="we-step2">שלב 2: התוצר (אחרי הרצה ירוקה)</h3>
+  <div class="codeblock">
+    <div class="codehead">backend/tests/test_update_task.py</div>
+    <pre><code>"""Contract tests for PATCH /tasks/{task_id}."""
+
+
+def test_partial_update_preserves_other_fields(client, task):
+    res = client.patch(f"/tasks/{task['id']}", json={"title": "New title"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["title"] == "New title"
+    assert body["description"] == task["description"]
+    assert body["status"] == task["status"]
+
+
+def test_title_boundaries(client, task):
+    url = f"/tasks/{task['id']}"
+    assert client.patch(url, json={"title": "x" * 200}).status_code == 200
+    assert client.patch(url, json={"title": "x" * 201}).status_code == 422
+    assert client.patch(url, json={"title": ""}).status_code == 422
+
+
+def test_invalid_status_rejected(client, task):
+    res = client.patch(f"/tasks/{task['id']}", json={"status": "archived"})
+    assert res.status_code == 422
+
+
+def test_unknown_id_returns_404(client):
+    assert client.patch("/tasks/999999", json={"title": "x"}).status_code == 404
+
+
+def test_empty_payload_returns_400(client, task):
+    assert client.patch(f"/tasks/{task['id']}", json={}).status_code == 400
+
+
+def test_only_null_fields_treated_as_empty(client, task):
+    res = client.patch(f"/tasks/{task['id']}", json={"title": None})
+    assert res.status_code == 400
+
+
+def test_unknown_fields_ignored(client, task):
+    res = client.patch(
+        f"/tasks/{task['id']}", json={"title": "ok", "priority": "high"}
+    )
+    assert res.status_code == 200
+    assert "priority" not in res.json()
+
+
+def test_created_at_unchanged_by_update(client, task):
+    res = client.patch(f"/tasks/{task['id']}", json={"title": "later"})
+    assert res.json()["created_at"] == task["created_at"]</code></pre>
+  </div>
+  <p>הבדיקות משתמשות ב-<bdi>Fixtures</bdi> <code>client</code> ו-<code>task</code> מ-<code>conftest.py</code> שבנינו קודם. שימו לב לשתי בדיקות שמתעדות התנהגות לא מובנת מאליה: גוף ריק מחזיר 400 (לא 422), ושדה עם <code>null</code> מפורש נחשב כלא נשלח. אלה בדיוק הבדיקות שהופכות התנהגות שקטה לחוזה גלוי.</p>
+  <h3 id="we-step3">שלב 3: ביקורת וגיזום</h3>
+  <p>בהרצות אמיתיות של משימות כאלה, כמעט תמיד יהיה מה לגזום. דוגמאות אופייניות לבדיקות שנוצרות ושכדאי להסיר או לתקן, עם הנימוק:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>בדיקה שנוצרה</th><th>הבעיה</th><th>הפעולה</th></tr></thead>
+      <tbody>
+        <tr><td>בדיקה שפותחת את קובץ ה-<bdi>SQLite</bdi> ובודקת את השורה ישירות</td><td>עוקפת את ה-API, תישבר ב-<bdi>Refactoring</bdi> של שכבת הנתונים</td><td>להחליף ב-<code>GET</code> דרך ה-API</td></tr>
+        <tr><td>תשע בדיקות נפרדות לכל מעבר סטטוס אפשרי</td><td>שכפול בלי ערך: החוזה לא מגביל מעברים</td><td>לאחד לבדיקה אחת או <code>parametrize</code></td></tr>
+        <tr><td><bdi>Assertion</bdi> על נוסח הודעת השגיאה המלא</td><td>שביר: שינוי ניסוח ישבור בדיקות בלי שינוי התנהגות</td><td>לבדוק קוד סטטוס, ונוסח רק אם הוא חוזה</td></tr>
+        <tr><td>בדיקה עם <bdi>Mock</bdi> על <code>get_conn</code> שבודקת את משפט ה-<bdi>SQL</bdi></td><td>מראה של המימוש: תיכשל בכל שינוי פנימי</td><td>למחוק; ההתנהגות כבר מכוסה דרך ה-API</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">Prompt (סבב הביקורת)</div>
+    <pre><code>review backend/tests/test_update_task.py you just wrote. for each test
+answer: (1) what user-visible behavior does it protect? (2) would it
+survive an internal refactor of the storage code? delete or rewrite any
+test that fails either question, then run the suite again.</code></pre>
+  </div>
+  <div class="verify">
+    <p><strong>אימות:</strong> בסוף התהליך ודאו:</p>
+    <ul class="check">
+      <li><code>pytest -q</code> מתיקיית <code>backend</code> ירוק כולו, כולל הבדיקות הישנות.</li>
+      <li>כל בדיקה נכשלת כשמכניסים <bdi>Mutation</bdi> רלוונטי (בדקו לפחות אחת).</li>
+      <li>אין בדיקה שנוגעת בקובץ ה-<bdi>Database</bdi> ישירות או ב-<bdi>Internals</bdi>.</li>
+      <li><code>git diff app/</code> ריק: קוד האפליקציה לא השתנה.</li>
+    </ul>
+  </div>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>לדלג על השלב האדום.</strong> בדיקה שלא ראיתם נכשלת היא בדיקה שלא הוכיחה שהיא בודקת משהו.</li>
+    <li><strong>לבקש "תוסיף בדיקות" בלי חוזה.</strong> תקבלו בדיקות שמשקפות את הקוד הקיים, כולל הבאגים שבו.</li>
+    <li><strong>לאשר חבילה שנוצרה בלי לקרוא אותה.</strong> סבב הגיזום הוא חלק מהמשימה, לא תוספת.</li>
+    <li><strong>לרדוף אחוזי Coverage.</strong> המדד עולה, הערך יורד. בקשו כיסוי התנהגויות, לא שורות.</li>
+    <li><strong>לתת ל-Claude לתקן את הקוד כדי שהבדיקה תעבור, כשבעצם הבדיקה שגויה</strong> (או להפך). בכל כישלון שאלו קודם: מי צודק, הקוד או הבדיקה?</li>
+    <li><strong>להתעלם מבדיקה Flaky.</strong> היא תלמד אתכם, ואת Claude, להתעלם גם מכישלונות אמיתיים.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>סיבה שכיחה</th><th>פתרון</th></tr></thead>
+      <tbody>
+        <tr><td>עובר לוקלית, נכשל ב-CI</td><td>הבדלי סביבה: גרסת <bdi>Python</bdi>, משתני סביבה, אזור זמן, מקביליות, תלות בסדר בדיקות</td><td>שחזרו עם אותה פקודה בדיוק כמו ב-CI; הדביקו ל-Claude את לוג ה-CI ואת קובץ ה-<bdi>Workflow</bdi> ובקשו השוואת סביבות; בדקו תלות בסדר עם הרצת הקובץ המלא</td></tr>
+        <tr><td class="ltr"><code>pytest: command not found</code></td><td>סביבה וירטואלית לא פעילה</td><td>הפעילו את ה-<bdi>venv</bdi>, או הריצו <code>python -m pytest</code></td></tr>
+        <tr><td class="ltr"><code>ModuleNotFoundError: app</code></td><td>הרצה מתיקייה שגויה</td><td>הריצו מ-<code>backend/</code>; זו הסיבה שהפקודה הקנונית ב-<bdi>CLAUDE.md</bdi> של <bdi>TaskFlow</bdi> היא <code>cd backend &amp;&amp; pytest -q</code></td></tr>
+        <tr><td>Claude מריץ פקודת בדיקות שגויה</td><td>הפקודה הקנונית לא מתועדת</td><td>הוסיפו אותה ל-<bdi>CLAUDE.md</bdi>; זה בדיוק סוג המידע שהתיעוד ממליץ לשים שם</td></tr>
+        <tr><td>הבדיקות איטיות פתאום</td><td>בדיקות חדשות עם רשת/זמן אמיתיים</td><td>בקשו מ-Claude לאתר את הבדיקות האיטיות (<code>pytest --durations=10</code>) ולהחליף תלות חיצונית ב-<bdi>Mock</bdi></td></tr>
+        <tr><td>כישלון שלא משוחזר</td><td>בדיקה <bdi>Flaky</bdi></td><td>סעיף ה-<a href="#flaky">Flaky</a> לעיל; אל תריצו שוב ותמשיכו הלאה</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="security">אבטחה: סודות ונתונים בבדיקות</h2>
+  <ul>
+    <li><strong>אסור סודות אמיתיים ב-Fixtures.</strong> קובצי בדיקה נכנסים ל-<bdi>Git</bdi> ונקראים על ידי Claude כהקשר. השתמשו בערכים מזויפים במובהק בסגנון <code>test-api-key-not-real</code>.</li>
+    <li><strong>אל תעתיקו נתוני Production לבדיקות.</strong> גם "רק כמה שורות לדוגמה" הן דליפת מידע אישי. בקשו מ-Claude לייצר נתונים סינתטיים באותו מבנה.</li>
+    <li><strong>חסמו קריאת קובצי סודות</strong> עם כלל כמו <code>"deny": ["Read(./.env)"]</code>, כך שסוד לא יזלוג לבדיקה שנוצרת (ראו פרק ההרשאות).</li>
+    <li><strong>זכרו שבדיקות הן קוד רץ.</strong> בהרשאת <code>Bash(pytest *)</code> גורפת, עריכת קובץ בדיקה שקולה להרצת קוד. בפרויקטים שאינם שלכם, השאירו אישור ידני.</li>
+    <li><strong>בדיקות Security הן תיעוד חי.</strong> בדיקה שמתעדת "אין אימות על <code>/tasks</code>" שווה יותר מהערה בקוד: היא תיכשל כשהמצב ישתנה.</li>
+  </ul>
+
+  <h2 id="cost-context">עלות ו-Context: חבילות גדולות בלולאה</h2>
+  <p>לולאת "הרץ בדיקות ותקן" היא צרכנית ה-<bdi>Context</bdi> הגדולה של הפרק: כל הרצה מזרימה פלט לשיחה, וכל כישלון מוסיף <bdi>Traceback</bdi>. בחבילה גדולה זה מצטבר מהר. ההמלצות, כולן בהשראת התיעוד הרשמי:</p>
+    <ul>
+    <li><strong>הריצו בדיקות בודדות, לא את כל החבילה.</strong> זו המלצה מפורשת לתוך <bdi>CLAUDE.md</bdi>: העדיפו <code>pytest tests/test_update_task.py</code> או <code>pytest -k update</code> על פני הרצה מלאה בכל איטרציה. את החבילה המלאה מריצים פעם אחת בסוף.</li>
+    <li><strong>קצרו פלט:</strong> <code>-q</code> תמיד; <code>-x</code> (עצירה בכישלון הראשון) בלולאת תיקון; <code>--lf</code> (הרצת הנכשלות בלבד מההרצה הקודמת) בין איטרציות.</li>
+    <li><strong>נקו בין משימות:</strong> אחרי <bdi>Session</bdi> תיקונים ארוך, <code>/clear</code> לפני משימה חדשה. עשרות <bdi>Tracebacks</bdi> ישנים ב-<bdi>Context</bdi> מבלבלים יותר משהם עוזרים.</li>
+    <li><strong>העבירו חקירות רועשות ל-Subagent:</strong> אבחון <bdi>Flaky</bdi> שדורש עשר הרצות יכול לרוץ ב-<bdi>Context</bdi> נפרד ולהחזיר רק מסקנה.</li>
+  </ul>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>כל משימת קוד מסתיימת ב"הרץ את הבדיקות ותקן כשלים": סגירת הלולאה כברירת מחדל.</li>
+    <li>Bug מתחיל בבדיקה נכשלת; הבדיקה נשארת כ-<bdi>Regression</bdi> לתמיד.</li>
+    <li>בקשו בדיקות מהחוזה ("דרך ה-API בלבד"), וגזמו כל <bdi>Assertion</bdi> שלא ישרוד <bdi>Refactoring</bdi>.</li>
+    <li>הפקודה הקנונית להרצת בדיקות מתועדת ב-<bdi>CLAUDE.md</bdi>, והרשאת <code>Bash(pytest *)</code> חוסכת אישורים.</li>
+    <li>Coverage הוא מצפן לפערים, לא יעד. סוגרים פערים לפי ערך ההתנהגות.</li>
+    <li>מדי פעם, הריצו סבב <bdi>Mutation</bdi> ידני: ודאו שהחבילה יודעת להיכשל.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Anti-pattern</th><th>למה זה מזיק</th><th>במקום</th></tr></thead>
+      <tbody>
+        <tr><td>"תכתוב קוד ובדיקות" בהנחיה אחת בלי ביקורת</td><td>הבדיקות משקפות את המימוש ומאשרות את עצמן</td><td>הפרדת כתיבה וביקורת; מבקר עם <bdi>Context</bdi> נקי</td></tr>
+        <tr><td>מחיקת בדיקה נכשלת "כי היא ישנה"</td><td>ייתכן שהיא בדיוק תפסה <bdi>Regression</bdi></td><td>לברר מה היא הגנה עליו לפני כל מחיקה</td></tr>
+        <tr><td>בדיקות שישנות (<code>sleep</code>) כדי לחכות למשהו</td><td>איטיות ו-<bdi>Flaky</bdi> מובנה</td><td>המתנה מפורשת לתנאי, הזרקת שעון</td></tr>
+        <tr><td>חבילת E2E ענקית במקום פירמידה</td><td>איטית, שבירה, יקרה לתחזוקה</td><td>הרבה <bdi>Unit</bdi> ו-<bdi>Integration</bdi>, מעט <bdi>E2E</bdi> קריטיים</td></tr>
+        <tr><td>הרצה חוזרת אוטומטית כפתרון ל-<bdi>Flaky</bdi></td><td>מסתירה באגים אמיתיים לא דטרמיניסטיים</td><td>בידוד עם כרטיס מעקב, ותיקון שורש</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="exercise">תרגיל: לחשוף תלות בסדר הבדיקות</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 11.1</div>
+    <div class="body">
+      <p>בעותק ה-<bdi>TaskFlow</bdi> שלכם (עם ה-<bdi>Fixture</bdi> המקורי, לפני התיקון מהפרק): הוסיפו ל-<code>backend/tests/test_tasks.py</code> את הבדיקה הבאה:</p>
+      <div class="codeblock">
+        <div class="codehead">בדיקה חדשה</div>
+        <pre><code>def test_list_contains_exactly_created_tasks(client):
+    a = client.post("/tasks", json={"title": "A"}).json()
+    b = client.post("/tasks", json={"title": "B"}).json()
+    ids = [t["id"] for t in client.get("/tasks").json()]
+    assert ids == [a["id"], b["id"]]</code></pre>
+      </div>
+      <p>הריצו אותה לבד (<code>pytest -k exactly -q</code>), ואז הריצו את הקובץ המלא (<code>pytest -q</code>). הסבירו את ההבדל בתוצאות, ותקנו את הגורם, לא את הבדיקה. מותר ומומלץ להיעזר ב-Claude, אבל נסחו את ההנחיה כך שהוא יאבחן לפני שהוא מתקן.</p>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>מה קורה:</strong> לבד הבדיקה עוברת; בהרצה מלאה היא נכשלת (ברוב סדרי ההרצה). הסיבה: קובץ ה-<bdi>SQLite</bdi> הזמני נוצר פעם אחת בטעינת המודול, וה-<bdi>Fixture</bdi> <code>client</code> קורא ל-<code>init_db()</code> שמריץ <code>CREATE TABLE IF NOT EXISTS</code>: הוא לא מנקה כלום. כל הבדיקות שרצו קודם השאירו משימות בטבלה, ולכן הרשימה מכילה יותר משתי המשימות שהבדיקה יצרה. זו תלות בסדר: הצורה הנפוצה ביותר של <bdi>Flakiness</bdi> בחבילות אמיתיות.</p>
+      <p><strong>הנחיה לאבחון:</strong></p>
+      <div class="codeblock">
+        <div class="codehead">Prompt</div>
+        <pre><code>test_list_contains_exactly_created_tasks passes alone but fails in the
+full run. run both to confirm, diagnose the root cause, and propose a
+fix in the fixture, not in the test. wait for my approval before editing.</code></pre>
+      </div>
+      <p><strong>התיקון:</strong> בידוד ב-<bdi>Fixture</bdi>: ניקוי הטבלה לפני כל בדיקה (<code>DELETE FROM tasks</code> כמו ב-<code>conftest.py</code> שבנינו בפרק), או קובץ <bdi>Database</bdi> זמני נפרד לכל בדיקה. שימו לב מה לא עשינו: לא שינינו את ה-<bdi>Assertion</bdi> ל"מכיל את A ו-B" כדי שיעבור. הבדיקה צדקה; הסביבה הייתה שבורה. ואחרי התיקון, הריצו את כל החבילה שוב: תיקוני בידוד יכולים לחשוף בדיקות אחרות שנשענו בשקט על נתונים משותפים.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul class="check">
+    <li>בדיקות הן מנגנון האימות שהופך את Claude מעוזר מפוקח לסוכן שסוגר לולאה לבד; איכות הבדיקות קובעת כמה אוטונומיה מותר לתת.</li>
+    <li>לכל סוג בדיקה יש דפוס <bdi>Prompt</bdi>: ממוקד קובץ והתנהגות ב-<bdi>Unit</bdi>, בסגנון החבילה הקיימת ב-<bdi>Integration</bdi>, מוגבל תרחישים ב-<bdi>E2E</bdi>, תכונות ב-<bdi>Property-based</bdi>.</li>
+    <li>Bug מטופל בסדר קבוע: בדיקה נכשלת, צפייה בכישלון, תיקון, ירוק. בלי השלב האדום אין הוכחה.</li>
+    <li>הסכנה המרכזית היא בדיקות מראה: מתגוננים בבקשת חוזה, בביקורת כל <bdi>Assertion</bdi>, וב-<bdi>Mutation Testing</bdi>.</li>
+    <li><code>Bash(pytest *)</code> משחרר את הלולאה; <bdi>CLAUDE.md</bdi> עם הפקודה הקנונית ובדיקות בודדות במקום חבילה מלאה שומרים על ה-<bdi>Context</bdi>.</li>
+    <li>בפרק הבא נשתמש בכל זה כרשת ביטחון למשימה הרגישה ביותר: <bdi>Refactoring</bdi> בלי שינוי התנהגות.</li>
+  </ul>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/common-workflows">Common Workflows</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best Practices for Claude Code</a> |
+      <a href="https://code.claude.com/docs/en/permissions">Configure Permissions</a>
+      <br>נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch10.html"><span class="lbl">הפרק הקודם</span>פרק 10: Debugging</a>
+    <a href="ch12.html"><span class="lbl">הפרק הבא</span>פרק 12: Refactoring</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

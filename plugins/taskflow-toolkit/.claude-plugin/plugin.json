@@ -1,0 +1,11 @@
+{
+  "name": "taskflow-toolkit",
+  "description": "TaskFlow team toolkit: PR readiness skill, secrets scanning hook, and a read-only database review agent",
+  "version": "1.0.0",
+  "author": {
+    "name": "TaskFlow Team",
+    "email": "dev@taskflow.example.com"
+  },
+  "license": "MIT",
+  "keywords": ["workflow", "security", "database", "code-review"]
+}

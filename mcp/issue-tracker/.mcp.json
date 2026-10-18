@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "asana": {
+      "type": "sse",
+      "url": "https://mcp.asana.com/sse"
+    },
+    "your-tracker": {
+      "type": "http",
+      "url": "${TRACKER_MCP_URL:-https://mcp.YOUR-TRACKER.example/mcp}"
+    }
+  }
+}

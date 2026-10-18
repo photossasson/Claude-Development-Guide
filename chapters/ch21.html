@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 21: Skills</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ה | פרק 21</p>
+  <h1>Skills</h1>
+  <p class="lead"><bdi>Skill</bdi> הוא הדרך המרכזית להרחיב את <bdi>Claude Code</bdi> ביכולות משלכם: קובץ <code>SKILL.md</code> עם הוראות, ש-Claude טוען אוטומטית כשהוא רלוונטי או שאתם מפעילים ידנית עם <code>/skill-name</code>. בפרק הזה נבין מה זה <bdi>Skill</bdi> ומתי לבחור בו על פני כלים אחרים, נפרק את כל שדות ה-<bdi>Frontmatter</bdi> המתועדים, ובעיקר: נבנה חמישה <bdi>Skills</bdi> מקצועיים ומלאים שתוכלו להעתיק לכל פרויקט, כולל <bdi>TaskFlow</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <div class="callout tip"><span class="title">לומדה אינטראקטיבית משלימה</span><p>מעדיפים ללמוד בצעדים? ב<a href="../interactive/skills-lomda.html">לומדה "בונים Skill ב-Claude"</a> בונים <bdi>Skill</bdi> אמיתי (<code>checking-hebrew-style</code>) מהרעיון ועד בדיקה, מתקינים אותו גם באפליקציית Claude וגם ב-<bdi>Claude Code</bdi>, ובודקים את ה-<bdi>Frontmatter</bdi> במאמת חי. הפרק הזה הוא ההפניה המלאה שמאחוריה.</p></div>
+
+  <h2 id="what-is-skill">מה זה Skill</h2>
+  <p><bdi>Skill</bdi> הוא תיקייה עם קובץ <code>SKILL.md</code> בתוכה. הקובץ מכיל שני חלקים: <bdi>YAML Frontmatter</bdi> בין סימני <code>---</code> שמגדיר מטא-נתונים (בעיקר תיאור שעוזר ל-Claude להחליט מתי להשתמש ב-Skill), וגוף <bdi>Markdown</bdi> עם ההוראות עצמן. ברגע שהקובץ קיים באחד המיקומים המוכרים, Claude מוסיף אותו לארגז הכלים שלו: הוא יכול לטעון אותו אוטומטית כשהבקשה שלכם מתאימה לתיאור, ואתם יכולים להפעיל אותו ישירות בהקלדת <code>/</code> ושם ה-Skill.</p>
+  <p>העיקרון החשוב ביותר: תיאורי ה-Skills נטענים תמיד להקשר (כדי ש-Claude ידע מה קיים), אבל גוף ה-Skill נטען רק כשמפעילים אותו. לכן חומר עזר ארוך שיושב ב-Skill כמעט לא עולה <bdi>Tokens</bdi> עד לרגע שבו באמת צריך אותו. זה ההבדל המהותי מ-<code>CLAUDE.md</code>, שנטען כולו בכל <bdi>Session</bdi>.</p>
+  <p><bdi>Claude Code</bdi> מיישם את התקן הפתוח <bdi>Agent Skills</bdi> (agentskills.io), שעובד גם בכלי <bdi>AI</bdi> נוספים, ומרחיב אותו ביכולות ייחודיות: שליטה במי רשאי להפעיל את ה-Skill, הרצה בתוך <bdi>Subagent</bdi>, והזרקת הקשר דינמית מפקודות מעטפת. <bdi>Anthropic</bdi> מפרסמת גם מאגר <bdi>Skills</bdi> רשמי לדוגמה ב-<code>github.com/anthropics/skills</code>, הכולל את מפרט התקן, תבנית ליצירת Skill חדש, ואת ה-Skills שמאחורי יכולות המסמכים של Claude (<bdi>docx</bdi>, <bdi>pdf</bdi>, <bdi>pptx</bdi>, <bdi>xlsx</bdi>).</p>
+  <div class="callout note"><span class="title">איזו בעיה זה פותר</span><p>אם אתם מדביקים שוב ושוב את אותן הוראות לצ'אט, או שסעיף ב-<code>CLAUDE.md</code> שלכם הפך מ"עובדה על הפרויקט" ל"נוהל רב-שלבי", זה בדיוק הרגע ליצור Skill. התיעוד הרשמי מגדיר את שני המצבים האלה כטריגר המרכזי ליצירת Skill.</p></div>
+
+  <h3 id="quickstart">Skill ראשון בדקה</h3>
+  <p>לפני התיאוריה, הנה ההרגשה. צרו תיקייה וקובץ יחיד:</p>
+  <div class="terminal"><span class="p">$</span> mkdir -p ~/.claude/skills/summarize-changes</div>
+  <div class="codeblock">
+    <div class="codehead">~/.claude/skills/summarize-changes/SKILL.md</div>
+    <pre><code>---
+description: Summarizes uncommitted changes and flags anything risky. Use when the user asks what changed, wants a commit message, or asks to review their diff.
+---
+
+## Current changes
+
+!`git diff HEAD`
+
+## Instructions
+
+Summarize the changes above in two or three bullet points, then list any
+risks you notice. If the diff is empty, say there are no uncommitted changes.</code></pre>
+  </div>
+  <p>זהו. פתחו פרויקט Git עם שינוי כלשהו, הריצו <code>claude</code>, ושאלו <code>What did I change?</code> (הפעלה אוטומטית לפי התיאור) או הקלידו <code>/summarize-changes</code> (הפעלה ישירה). בשני המקרים תקבלו סיכום של השינוי האמיתי שלכם, כי שורת ה-<code>!`git diff HEAD`</code> רצה לפני ש-Claude רואה את התוכן והפלט שלה כבר בפנים. שאר הפרק מפרק בדיוק את מה שקרה כאן.</p>
+
+  <h2 id="when-to-use">מתי Skill ומתי כלי אחר</h2>
+  <p>ל-<bdi>Claude Code</bdi> יש כמה מנגנוני הרחבה שנראים דומים ממבט ראשון. הטבלה הבאה עוזרת לבחור נכון:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מנגנון</th><th>מה זה</th><th>מתי נטען</th><th>מתי לבחור בו</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>Prompt</bdi> חופשי</td><td>הוראה חד-פעמית בצ'אט</td><td>מיידית, פעם אחת</td><td>משימה שלא תחזור על עצמה</td></tr>
+        <tr><td><code>CLAUDE.md</code></td><td>עובדות והנחיות קבועות על הפרויקט</td><td>כולו, בכל Session</td><td>מידע קצר שרלוונטי תמיד: מבנה, פקודות, מוסכמות</td></tr>
+        <tr><td><bdi>Skill</bdi></td><td>נוהל או ידע ארוז בקובץ <code>SKILL.md</code></td><td>תיאור תמיד; גוף רק בהפעלה</td><td>נוהל שחוזר על עצמו, חומר עזר ארוך, פעולה עם שם</td></tr>
+        <tr><td><bdi>Subagent</bdi></td><td>סוכן נפרד עם הקשר, כלים ומודל משלו</td><td>בהאצלת משימה</td><td>עבודה מבודדת שלא צריכה לזהם את ההקשר הראשי (<a href="ch25.html">פרק 25</a>)</td></tr>
+        <tr><td><bdi>Hook</bdi></td><td>סקריפט דטרמיניסטי סביב אירועים</td><td>אוטומטית באירוע</td><td>אכיפה שחייבת לקרות תמיד, בלי שיקול דעת של המודל (<a href="ch22.html">פרק 22</a>)</td></tr>
+        <tr><td><bdi>Plugin</bdi></td><td>אריזה של Skills, Agents, Hooks ו-MCP להפצה</td><td>בהתקנה והפעלה</td><td>הפצת אוסף יכולות לצוות או לקהילה (<a href="ch26.html">פרק 26</a>)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>שימו לב להבחנה בין <bdi>Skill</bdi> ל-<bdi>Subagent</bdi>: הם גם משלימים זה את זה. בהמשך הפרק נראה Skill שרץ בתוך Subagent עם <code>context: fork</code>, ובחבילת המדריך תמצאו בתיקיית <code>subagents/</code> חמישה <bdi>Subagents</bdi> מוכנים (למשל <bdi>test-specialist</bdi>) שמדגימים את הצד השני של אותו מטבע: שם ההגדרה היא סוכן שלם, וכאן היא נוהל שנטען לשיחה.</p>
+  <p><strong>מתי לא ליצור Skill:</strong> אל תהפכו לSkill עובדה של שורה אחת (מקומה ב-<code>CLAUDE.md</code>), אכיפה שחייבת להתרחש בכל מקרה (זה Hook: המודל יכול "לשכוח" Skill, אבל Hook רץ תמיד), או משימה חד-פעמית. וזכרו: גוף Skill שהופעל נשאר בהקשר עד סוף ה-Session, אז Skill מנופח הוא עלות מתמשכת.</p>
+
+  <h2 id="locations">איפה Skills חיים</h2>
+  <p>המיקום של ה-Skill קובע באילו <bdi>Sessions</bdi> הוא נטען:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>רמה</th><th>נתיב</th><th>נטען ב-</th></tr></thead>
+      <tbody>
+        <tr><td>Enterprise</td><td class="ltr"><code>.claude/skills/&lt;name&gt;/SKILL.md</code> בתיקיית Managed settings</td><td>כל המשתמשים במכונות שהארגון פורס אליהן</td></tr>
+        <tr><td>אישי</td><td class="ltr"><code>~/.claude/skills/&lt;name&gt;/SKILL.md</code></td><td>כל הפרויקטים שלכם במחשב הזה, אבל לא Cowork ולא Cloud Sessions</td></tr>
+        <tr><td>פרויקט</td><td class="ltr"><code>.claude/skills/&lt;name&gt;/SKILL.md</code></td><td>Sessions ב-Repository הזה. עושים לו Commit כדי שכל הצוות יקבל אותו</td></tr>
+        <tr><td>מקונן</td><td class="ltr"><code>&lt;subdir&gt;/.claude/skills/&lt;name&gt;/SKILL.md</code></td><td>Sessions שהתחילו בתוך <code>&lt;subdir&gt;</code> או מתחתיה, או מהרגע ש-Claude קורא או עורך קובץ שם</td></tr>
+        <tr><td>תיקייה נוספת</td><td class="ltr"><code>.claude/skills/&lt;name&gt;/SKILL.md</code> בתיקייה שהועברה עם <code>--add-dir</code></td><td>אותו Session</td></tr>
+        <tr><td>Plugin</td><td class="ltr"><code>&lt;plugin&gt;/skills/&lt;name&gt;/SKILL.md</code></td><td>בכל מקום שה-Plugin מופעל, בשם <code>/plugin-name:skill-name</code></td></tr>
+        <tr><td>חשבון claude.ai</td><td>Skills שהופעלו בחשבון</td><td>Cowork, Cloud Sessions, ו-Sessions במסוף שנכנסו עם אותו חשבון (<a href="#synced">פירוט בהמשך</a>)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>כשכמה רמות מגדירות Skill באותו שם, הסדר הוא: Enterprise גובר על אישי, ואישי גובר על פרויקט. Skill בכל אחת מהרמות גובר גם על <bdi>Bundled Skill</bdi> באותו שם, אבל לא על הכינויים שלו: למשל, <code>code-review</code> בתיקיית <code>.claude/skills/</code> של הפרויקט מחליף את <code>/code-review</code> המובנה (נשתמש בזה בהמשך בכוונה), והכינוי <code>/review</code> ממשיך להריץ את המובנה. Skills מ-Plugins חיים במרחב שמות נפרד, <code>plugin-name:skill-name</code>, ולכן לא מתנגשים. Skill שמסונכרן מ-claude.ai מפסיד לכל פקודה אחרת שתופסת את השם הקצר שלו, ואז רץ רק בשם המלא <code>/anthropic-skills:&lt;name&gt;</code>.</p>
+  <p>עוד עובדות מתועדות שכדאי להכיר:</p>
+  <ul>
+    <li><strong>Monorepo:</strong> Skills נטענים מ-<code>.claude/skills/</code> בתיקייה שבה הפעלתם את Claude Code ובכל תיקיות האב עד שורש ה-Repository. Skills בתיקיות מקוננות מתחת לתיקיית ההתחלה נטענים בפעם הראשונה ש-Claude קורא או עורך קובץ בתוכן, או מיד אם מריצים <code>/add-dir</code> עם הנתיב (מ-<bdi>v2.1.257</bdi>). בהתנגשות שמות שניהם זמינים: <code>/deploy</code> מריץ את ה-Skill שבשורש, ו-<code>/apps/web:deploy</code> מריץ את המקונן.</li>
+    <li><strong>זיהוי שינויים חי:</strong> הוספה, עריכה או מחיקה של Skill ב-<code>~/.claude/skills/</code>, ב-<code>.claude/skills/</code> של הפרויקט או בתיקיית <code>--add-dir</code> נקלטות בתוך ה-Session הנוכחי בלי הפעלה מחדש. אם יצרתם תיקיית skills ראשית שלא הייתה קיימת בתחילת ה-Session, הריצו <code>/reload-skills</code> כדי לטעון אותה. התיקייה הזו לא נצפית, ולכן מריצים את הפקודה שוב אחרי כל שינוי בה.</li>
+    <li><strong>תיקיות נוספות:</strong> <code>--add-dir</code> ו-<code>/add-dir</code> טוענים גם Skills מהתיקייה שנוספה (חריג מתועד); ההגדרה <code>permissions.additionalDirectories</code> מעניקה גישת קבצים בלבד ולא טוענת Skills.</li>
+    <li><strong>שמות שמורים ותווים אסורים:</strong> אל תקראו לתיקיית Skill בשם <code>synced</code> או <code>anthropic-skills</code>; Claude Code שומר אותם ל-Skills מסונכרנים. שם תיקייה שמכיל תו נסתר, תו שמשנה כיוון טקסט, רווח כפול או <code>&lt;</code> ו-<code>&gt;</code> לא נטען; <code>claude --debug</code> ורישום <code>[names]</code> ביומן מראים איזה שם נדחה.</li>
+  </ul>
+  <div class="callout note"><span class="title">Cowork ו-Cloud Sessions</span><p><bdi>Sessions</bdi> בענן וב-<bdi>Cowork</bdi> לא קוראים את <code>~/.claude/skills/</code> מהמחשב שלכם; הם טוענים Skills שמופעלים בחשבון claude.ai שלכם, וב-Cloud גם Skills שנמצאים ב-<code>.claude/skills/</code> בתוך ה-Repository. אם Skill קיים רק במחשב המקומי, משימה מתוזמנת בענן תדווח שהוא לא נמצא.</p></div>
+
+  <h3 id="synced">Skills מסונכרנים מ-claude.ai</h3>
+  <p>מ-<bdi>v2.1.273</bdi>, Sessions במסוף שנכנסו עם חשבון claude.ai (דרך <code>/login</code>) טוענים אוטומטית את ה-Skills שהופעלו בחשבון: אלה שיצרתם או הפעלתם, Skills שהארגון מספק, ו-Skills מובנים של <bdi>Anthropic</bdi> כמו <code>pdf</code> ו-<code>xlsx</code>. הם יורדים ברקע אל <code>~/.claude/skills/synced/</code>, ו-Claude Code בודק שינויים בערך כל 10 דקות בזמן עבודה וכל 40 דקות במנוחה. ב-<code>/skills</code> הם מופיעים תחת <bdi>claude.ai sync</bdi>.</p>
+  <ul>
+    <li><strong>חד-כיווני:</strong> Claude Code מוריד ולא מעלה. עריכה של קובץ ב-<code>synced/</code> לא נשמרת בחשבון, וסנכרון הבא עלול לדרוס אותה. משנים את ה-Skill ב-claude.ai.</li>
+    <li><strong>מתי אין סנכרון:</strong> Session שמאומת במפתח API או בטוקן מסביבה, Session על <bdi>Amazon Bedrock</bdi> או עם <code>CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC</code>, ו-Sessions במצב <code>--bare</code> או <code>--safe-mode</code>.</li>
+    <li><strong>הרצה לא אינטראקטיבית:</strong> כדי שהרצת <code>claude -p</code> תוריד את ה-Skills ותמתין לרשימה לפני שהיא עונה, הגדירו <code>CLAUDE_CODE_SYNC_SKILLS=1</code>.</li>
+    <li><strong>כיבוי:</strong> <code>"syncClaudeAiSkills": false</code> בהגדרות המשתמש. Skills שכבר סונכרנו עוברים ל-<code>~/.claude/skills/.trash/</code>. ארגון יכול לכבות את הסנכרון לכולם באותו מפתח ב-<bdi>Managed settings</bdi>, או לכבות את Skills ב-claude.ai.</li>
+    <li><strong>אבטחה:</strong> במחשב המקומי, Claude Code לא מריץ פקודות <code>!`...`</code> מתוך Skill מסונכרן, ומסנן תווים מיוחדים מהתיאור שלו.</li>
+  </ul>
+
+  <h2 id="anatomy">אנטומיה של SKILL.md</h2>
+  <p>מבנה בסיסי של Skill עם קבצים תומכים:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/skills/my-skill/</div>
+    <pre><code>my-skill/
+├── SKILL.md           # הוראות ראשיות (חובה)
+├── template.md        # תבנית ש-Claude ממלא (אופציונלי)
+├── examples/
+│   └── sample.md      # דוגמת פלט (אופציונלי)
+└── scripts/
+    └── validate.sh    # סקריפט להרצה (אופציונלי)</code></pre>
+  </div>
+
+  <h3 id="frontmatter">כל שדות ה-Frontmatter המתועדים</h3>
+  <p>כל השדות אופציונליים; רק <code>description</code> מומלץ תמיד, כי בלעדיו Claude לא יודע מתי להשתמש ב-Skill. שם שדה חייב להתאים בדיוק, כולל מקפים: Claude Code מתעלם בשקט משדה שהוא לא מכיר. מ-<bdi>v2.1.218</bdi> שדות בוליאניים מקבלים גם <code>yes/no/on/off/1/0</code> בנוסף ל-<code>true/false</code>.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>שדה</th><th>תפקיד</th><th>הערות</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>name</code></td><td>שם הפקודה בתפריט <code>/</code> ובהקלדה</td><td>ברירת מחדל: שם התיקייה. ב-Skill אישי או של פרויקט, <code>name</code> קובע את הפקודה אלא אם פקודה אחרת כבר תופסת את השם, ושם התיקייה ממשיך להפעיל גם הוא. ב-Plugin הוא קובע את החלק האחרון של <code>/plugin-name:name</code></td></tr>
+        <tr><td class="ltr"><code>description</code></td><td>מה ה-Skill עושה ומתי להשתמש בו</td><td>לפיו Claude מחליט על הפעלה אוטומטית; אם חסר, נלקחת הפסקה הראשונה של הגוף</td></tr>
+        <tr><td class="ltr"><code>when_to_use</code></td><td>הקשר נוסף לזיהוי: ביטויי טריגר, דוגמאות בקשה</td><td>מצורף ל-description; יחד הם נחתכים ב-1,536 תווים ברשימת ה-Skills</td></tr>
+        <tr><td class="ltr"><code>argument-hint</code></td><td>רמז לארגומנטים בהשלמה אוטומטית</td><td>למשל <code>[issue-number]</code></td></tr>
+        <tr><td class="ltr"><code>arguments</code></td><td>שמות לארגומנטים לפי מיקום, להצבה עם <code>$name</code></td><td>מחרוזת מופרדת ברווחים או רשימת YAML</td></tr>
+        <tr><td class="ltr"><code>disable-model-invocation</code></td><td><code>true</code>: רק אתם מפעילים, Claude לא</td><td>מסיר גם את התיאור מההקשר. ברירת מחדל: <code>false</code></td></tr>
+        <tr><td class="ltr"><code>user-invocable</code></td><td><code>false</code>: מוסתר מתפריט ה-<code>/</code>, רק Claude מפעיל</td><td>לידע רקע שאינו פעולה. ברירת מחדל: <code>true</code></td></tr>
+        <tr><td class="ltr"><code>allowed-tools</code></td><td>כלים מאושרים מראש בתור שבו ה-Skill הופעל</td><td>ההיתר פג בהודעה הבאה שלכם. Workspace Trust לא חוסם אותו: הוא חל גם ב-Skill של Repository שלא אישרתם (ראו <a href="#security">Security</a>)</td></tr>
+        <tr><td class="ltr"><code>disallowed-tools</code></td><td>כלים שמוסרים מהמאגר כשה-Skill פעיל</td><td>ההגבלה פגה בהודעה הבאה שלכם</td></tr>
+        <tr><td class="ltr"><code>model</code></td><td>מודל בזמן שה-Skill פעיל</td><td>לשארית התור הנוכחי; אותם ערכים כמו <code>/model</code>, או <code>inherit</code></td></tr>
+        <tr><td class="ltr"><code>effort</code></td><td>רמת Effort כשה-Skill פעיל</td><td><code>low/medium/high/xhigh/max</code>; ברירת מחדל: יורש מה-Session</td></tr>
+        <tr><td class="ltr"><code>context</code></td><td><code>fork</code>: הרצה ב-Subagent מבודד</td><td>גוף ה-Skill הופך ל-Prompt של ה-Subagent</td></tr>
+        <tr><td class="ltr"><code>agent</code></td><td>סוג ה-Subagent כש-<code>context: fork</code></td><td><code>Explore</code>, <code>Plan</code>, <code>general-purpose</code> או Subagent מותאם; ברירת מחדל: <code>general-purpose</code></td></tr>
+        <tr><td class="ltr"><code>background</code></td><td><code>false</code>: המתנה לתוצאת ה-Fork באותו תור</td><td>רק עם <code>context: fork</code>; ברירת מחדל <code>true</code> (רקע). דורש <bdi>v2.1.218</bdi></td></tr>
+        <tr><td class="ltr"><code>hooks</code></td><td>Hooks שנרשמים כשה-Skill מופעל</td><td>נשארים פעילים עד סוף ה-Session; פורמט בפרק <a href="ch22.html">Hooks</a></td></tr>
+        <tr><td class="ltr"><code>paths</code></td><td>תבניות Glob שמגבילות הפעלה אוטומטית לקבצים תואמים</td><td>מחרוזת מופרדת בפסיקים או רשימת YAML</td></tr>
+        <tr><td class="ltr"><code>shell</code></td><td>מעטפת להזרקת הקשר: <code>bash</code> או <code>powershell</code></td><td>ברירת מחדל: <code>bash</code></td></tr>
+        <tr><td class="ltr"><code>metadata</code></td><td>מפת YAML חופשית לנתונים של הכלים שלכם</td><td>Claude Code לא פועל לפיה; אל תשתמשו בשמות של שדות אחרים כמפתחות</td></tr>
+        <tr><td class="ltr"><code>license</code></td><td>רישיון ה-Skill</td><td>חלק מתקן Agent Skills; Claude Code מקבל ולא פועל לפיו</td></tr>
+        <tr><td class="ltr"><code>compatibility</code></td><td>דרישות סביבה, עד 500 תווים</td><td>חלק מתקן Agent Skills; Claude Code מקבל ולא פועל לפיו</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn"><span class="title">Skill שצריך לעבוד גם מחוץ ל-Claude Code</span><p>בהעלאה ל-claude.ai, ב-Skills API ובאריזה עם <code>package_skill.py</code> מותרים רק ששת שדות התקן: <code>name</code>, <code>description</code>, <code>license</code>, <code>compatibility</code>, <code>metadata</code> ו-<code>allowed-tools</code>. שדה אחר גורם לשגיאה קשה בסגנון <code>Unexpected key(s) in SKILL.md frontmatter</code>. תכונות גוף של Claude Code, כמו הזרקת הקשר דינמית, לא פועלות בצ'אט של claude.ai או ב-API. הדגמה מלאה של Skill שעובד בכל המוצרים נמצאת ב<a href="../interactive/skills-lomda.html">לומדה המשלימה</a>.</p></div>
+
+  <h3 id="invocation">מי מפעיל: אתם, Claude, או שניהם</h3>
+  <p>כברירת מחדל שניכם יכולים להפעיל כל Skill. שני שדות משנים את זה:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Frontmatter</th><th>אתם</th><th>Claude</th><th>טעינה להקשר</th></tr></thead>
+      <tbody>
+        <tr><td>(ברירת מחדל)</td><td>כן</td><td>כן</td><td>התיאור תמיד; הגוף בהפעלה</td></tr>
+        <tr><td class="ltr"><code>disable-model-invocation: true</code></td><td>כן</td><td>לא</td><td>התיאור לא בהקשר; הגוף כשאתם מפעילים</td></tr>
+        <tr><td class="ltr"><code>user-invocable: false</code></td><td>לא</td><td>כן</td><td>התיאור תמיד; הגוף בהפעלה</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>כלל אצבע מהתיעוד: פעולות עם תופעות לוואי או תזמון רגיש (<bdi>Deploy</bdi>, <bdi>Commit</bdi>, שליחת הודעות) מקבלות <code>disable-model-invocation: true</code>; ידע רקע שאינו "פעולה" מקבל <code>user-invocable: false</code>. אפשר לשלוט בהפעלה גם דרך כללי הרשאות: <code>Skill</code> ב-Deny מכבה את הכול, <code>Skill(name)</code> מתיר התאמה מדויקת ו-<code>Skill(name *)</code> עם ארגומנטים.</p>
+  <p><strong>שרשור (Stacking):</strong> אפשר לפתוח הודעה בכמה Skills ברצף, למשל <code>/write-tests /fix-issue 123</code>: שניהם נטענים, והטקסט שנשאר (<code>123</code>) מועבר בתור <code>$ARGUMENTS</code> לכל אחד מהם. Claude Code מרחיב את ה-Skill הראשון ועד חמישה נוספים אחריו; ההרחבה נעצרת באסימון הראשון שאינו Skill מסוג Inline, כך ש-Skill שרץ כ-Fork (כמו <code>/code-review</code> מ-<bdi>v2.1.218</bdi>) חותם את הרצף.</p>
+
+  <h3 id="substitutions">ארגומנטים והצבות מחרוזת</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>משתנה</th><th>פירוש</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>$ARGUMENTS</code></td><td>כל הארגומנטים כפי שהוקלדו. אם לא מופיע בגוף, הם מצורפים לסוף בתור <code>ARGUMENTS: &lt;value&gt;</code></td></tr>
+        <tr><td class="ltr"><code>$ARGUMENTS[N]</code> / <code>$N</code></td><td>ארגומנט לפי אינדקס מבוסס אפס; ציטוט בגרשיים מאחד מילים לארגומנט אחד</td></tr>
+        <tr><td class="ltr"><code>$name</code></td><td>ארגומנט בשם שהוגדר בשדה <code>arguments</code>; ללא ערך תואם מתרחב למחרוזת ריקה</td></tr>
+        <tr><td class="ltr"><code>${CLAUDE_SESSION_ID}</code></td><td>מזהה ה-Session הנוכחי</td></tr>
+        <tr><td class="ltr"><code>${CLAUDE_EFFORT}</code></td><td>רמת ה-Effort הפעילה</td></tr>
+        <tr><td class="ltr"><code>${CLAUDE_SKILL_DIR}</code></td><td>תיקיית ה-Skill עצמו; עובד גם בכללי <code>Bash</code> בתוך <code>allowed-tools</code> (מ-<bdi>v2.1.129</bdi>)</td></tr>
+        <tr><td class="ltr"><code>${CLAUDE_PROJECT_DIR}</code></td><td>שורש הפרויקט (מ-<bdi>v2.1.196</bdi>)</td></tr>
+        <tr><td class="ltr"><code>${CLAUDE_PLUGIN_ROOT}</code></td><td>תיקיית ההתקנה של ה-Plugin; מוצב רק ב-Skills של Plugin</td></tr>
+        <tr><td class="ltr"><code>${CLAUDE_PLUGIN_DATA}</code></td><td>תיקיית הנתונים הקבועה של ה-Plugin, שנשמרת בין עדכונים; מוצב רק ב-Skills של Plugin</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="dynamic-context">הזרקת הקשר דינמית</h3>
+  <p>שורה בגוף ה-Skill בצורת <code>!`command`</code> (או בלוק מגודר שנפתח ב-<code>```!</code> לפקודות מרובות שורות) מריצה את הפקודה לפני שהתוכן נשלח ל-Claude, והפלט מחליף את השורה. זה עיבוד מקדים: Claude רואה רק את התוצאה, לא את הפקודה. הסימן <code>!</code> חייב להופיע בתחילת שורה או אחרי רווח. נראה את זה בפעולה ב-Skill <bdi>documentation-update</bdi> בהמשך.</p>
+  <p>שלושה כללים שחשוב להכיר. ראשית, פקודה שנכשלת מבטלת את כל הפעלת ה-Skill, ו-Claude לא רואה את התוכן; ההודעה היא <code>Shell command failed for pattern "..."</code>. עם המעטפת שבברירת המחדל, כל קוד יציאה שאינו 0 נחשב כשל, חוץ מקוד 1 של פקודות חיפוש והשוואה; לפקודה אחרת שצפויה להחזיר קוד שאינו 0 מוסיפים <code>|| true</code>. שנית, הפקודות לא מבקשות אישור בזמן הטעינה: הן נבדקות מול כללי ההרשאה, ומחוץ ל-<bdi>Auto mode</bdi> פקודה שאינה מאושרת מבטלת את ההפעלה. כדי למנוע זאת מאשרים אותה מראש ב-<code>allowed-tools</code>. שלישית, כל פקודה רצה עם ה-Timeout של כלי Bash (שתי דקות כברירת מחדל) ובתיקיית העבודה הנוכחית, ולכן בנתיבים משתמשים ב-<code>${CLAUDE_SKILL_DIR}</code> או ב-<code>${CLAUDE_PROJECT_DIR}</code>.</p>
+  <div class="callout warn"><span class="title">שליטה ארגונית</span><p>ההגדרה <code>disableSkillShellExecution: true</code> (שימושית בעיקר ב-<bdi>Managed Settings</bdi>) מנטרלת את המנגנון עבור Skills ממקורות משתמש, פרויקט, Plugin ותיקיות נוספות; כל פקודה מוחלפת בטקסט <code>[shell command execution disabled by policy]</code>. Bundled ו-Managed Skills אינם מושפעים.</p></div>
+
+  <h3 id="lifecycle">מחזור החיים של תוכן ה-Skill</h3>
+  <p>כשמפעילים Skill, התוכן המרונדר נכנס לשיחה ונשאר שם עד סוף ה-Session; הקובץ לא נקרא שוב בתורות הבאים. הפעלה חוזרת עם תוכן זהה מוסיפה רק הערה קצרה במקום עותק נוסף (מ-<bdi>v2.1.202</bdi>). ב-<bdi>Auto-compaction</bdi>, כל Skill שהופעל נשמר עד 5,000 <bdi>Tokens</bdi> ראשונים, בתקציב משותף של 25,000 Tokens מהחדש לישן; Skills ישנים עלולים להישמט. לעומת התוכן, היתר <code>allowed-tools</code> פג כבר בהודעה הבאה שלכם.</p>
+
+  <h2 id="bundled">תזכורת: Bundled Skills</h2>
+  <p>Claude Code מגיע עם Skills ארוזים, ביניהם <code>/code-review</code>, <code>/simplify</code>, <code>/debug</code>, <code>/batch</code>, <code>/loop</code>, <code>/doctor</code>, <code>/verify</code>, <code>/run</code>, <code>/run-skill-generator</code> ו-<code>/claude-api</code>. סקרנו את התחביר והזמינות שלהם ב<a href="ch04.html#skills-table">פרק 4</a>, ולא נחזור על הטבלה כאן. נקודות שרלוונטיות לפרק הזה:</p>
+  <ul>
+    <li>ההגדרה <code>disableBundledSkills: true</code> מכבה אותם, אבל <code>/doctor</code> נשאר זמין להקלדה. Skill שלכם באותו שם גובר על ה-Bundled Skill, אבל לא על הכינויים שלו.</li>
+    <li><code>/verify</code> רץ רק כשאתם מפעילים אותו. את <code>/code-review</code>, לעומת זאת, Claude יכול להפעיל בעצמו כשאתם מבקשים סקירה בשפה חופשית (בכל ההתקנות מ-<bdi>v2.1.246</bdi>). כדי להשאיר אותו להפעלה ידנית בלבד, מגדירים <code>"skillOverrides": { "code-review": "user-invocable-only" }</code>.</li>
+    <li><code>/security-review</code> אינו Skill: זו פקודה מובנית, אחת מכמה (כמו <code>/init</code>) שזמינות גם דרך ה-<bdi>Skill tool</bdi>.</li>
+    <li>מ-<bdi>v2.1.286</bdi>: כש-Session מתחיל עם Skill בשם <code>verify</code> או <code>simplify</code> (אישי, פרויקט, Enterprise או קובץ ב-<code>.claude/commands/</code>), הוראות ה-Commit של Claude Code מורות ל-Claude להריץ אותו לפני כל Commit, חוץ משינויים בתיעוד או בבדיקות.</li>
+  </ul>
+
+  <h2 id="supporting-files">קבצים תומכים ואיך Claude משתמש בהם</h2>
+  <p>Skill יכול להכיל קבצים נוספים לצד <code>SKILL.md</code>: תבניות למילוי, רשימות בדיקה, דוגמאות פלט, תיעוד עזר וסקריפטים להרצה. הרעיון: <code>SKILL.md</code> נשאר ממוקד וקצר (ההמלצה הרשמית: מתחת ל-500 שורות), והחומר הכבד יושב בקבצים ש-Claude קורא רק כשצריך. כדי שזה יעבוד, חובה להפנות לקבצים מתוך הגוף, למשל: <code>See [checklist.md](checklist.md)</code>. בלי הפניה מפורשת, Claude לא יודע שהקובץ קיים ומה יש בו. סקריפטים מופעלים ולא נטענים להקשר, ולכן הם הדרך הזולה ביותר לבצע עבודה דטרמיניסטית; שילוב <code>${CLAUDE_SKILL_DIR}</code> בגוף וב-<code>allowed-tools</code> מאפשר לסקריפט המצורף לרוץ בלי בקשת אישור.</p>
+
+  <h2 id="skills-subagents">Skills ו-Subagents: שני כיוונים</h2>
+  <p>הוספת <code>context: fork</code> מריצה את ה-Skill בהקשר מבודד: גוף ה-Skill הופך ל-Prompt שמניע Subagent, בלי גישה להיסטוריית השיחה שלכם. ה-Fork רץ ברקע כברירת מחדל ומחזיר תוצאה כשהוא מסיים; <code>background: false</code> ממתין לתוצאה באותו תור. חשוב: <code>context: fork</code> מתאים רק ל-Skill עם משימה מפורשת. Skill של "הנחיות סגנון" בלי משימה יחזיר תוצאה חסרת ערך, כי ה-Subagent מקבל הנחיות בלי מה לעשות איתן.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>גישה</th><th>System Prompt</th><th>המשימה</th><th>נטען בנוסף</th></tr></thead>
+      <tbody>
+        <tr><td>Skill עם <code>context: fork</code></td><td>מסוג ה-Agent</td><td>תוכן ה-SKILL.md</td><td>CLAUDE.md, למעט Explore ו-Plan</td></tr>
+        <tr><td>Subagent עם שדה <code>skills</code></td><td>גוף ה-Subagent</td><td>הודעת ההאצלה של Claude</td><td>Skills טעונים מראש + CLAUDE.md</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>הכיוון השני, Subagent שמצהיר על שדה <code>skills</code> וטוען אותם מראש במלואם בעת האתחול, נכסה לעומק ב<a href="ch25.html">פרק 25</a>. שימו לב לאזהרה מתועדת אחת: Fork שרץ ברקע מבצע עריכות מחוץ ל-<bdi>Checkpoints</bdi> של ה-Session, כך ש-<code>/rewind</code> לא מבטל אותן; משתמשים ב-<bdi>Git</bdi> לשחזור (ראו <a href="ch19.html">פרק 19</a>).</p>
+
+  <h2 id="five-skills">חמשת ה-Skills של המדריך</h2>
+  <p>עכשיו לחלק המרכזי: חמישה Skills מלאים, מוכנים לשימוש, שנמצאים בחבילת המדריך בתיקייה <code>skills/</code>. כל אחד מדגים קבוצה אחרת של יכולות מתועדות. ההתקנה זהה לכולם: העתקת התיקייה אל <code>.claude/skills/</code> בפרויקט (או <code>~/.claude/skills/</code> לשימוש בכל הפרויקטים):</p>
+  <div class="terminal"><span class="p">$</span> cp -r /path/to/guide/skills/code-review ~/projects/taskflow/.claude/skills/code-review
+<span class="p">$</span> cp -r /path/to/guide/skills/bug-investigation ~/projects/taskflow/.claude/skills/bug-investigation</div>
+  <p>ה-<bdi>Frontmatter</bdi> של כל החמישה עבר אימות פרסינג של <bdi>YAML</bdi> מול רשימת השדות המתועדים בלבד. בזכות זיהוי השינויים החי, ההעתקה נקלטת גם ב-Session פתוח.</p>
+
+  <h3 id="skill-code-review">1. code-review: סקירת קוד ב-Subagent מבודד</h3>
+  <p><strong>מה הוא מדגים:</strong> <code>context: fork</code> עם <code>agent: Explore</code> (סקירה לקריאה בלבד בהקשר נקי), <code>disable-model-invocation</code> (רק אתם מחליטים מתי לשרוף Tokens על סקירה), <code>allowed-tools</code> עם כללי <code>Bash(git ...)</code> מדויקים, וקובץ תומך עם רשימת בדיקה. שימו לב: השם <code>code-review</code> נבחר בכוונה, והוא דורס את ה-Bundled Skill באותו שם, כפי שמתועד. הכינוי <code>/review</code> ממשיך להריץ את הסקירה המובנית.</p>
+  <div class="codeblock">
+    <div class="codehead">skills/code-review/</div>
+    <pre><code>code-review/
+├── SKILL.md
+└── checklist.md    # רשימת בדיקה: נכונות, אבטחה, חוזי API, בדיקות</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">skills/code-review/SKILL.md</div>
+    <pre><code>---
+name: code-review
+description: Structured review of pending git changes. Finds correctness bugs, security issues, and maintainability problems, ordered by severity, without proposing stylistic rewrites. Use when asked to review a diff, a branch, or changes before a commit or pull request.
+argument-hint: "[base-branch]"
+disable-model-invocation: true
+context: fork
+agent: Explore
+allowed-tools: Bash(git diff *) Bash(git log *) Bash(git status *) Bash(git merge-base *)
+---
+
+# Code review
+
+Review the pending changes in this repository against a base branch and report
+findings ordered by severity.
+
+## Determine scope
+
+1. Base branch: the first argument (`$0`) if provided, otherwise `main`.
+2. Collect the change set:
+   - `git status --short` for the working tree state.
+   - `git diff &lt;base&gt;...HEAD` for committed work on this branch.
+   - `git diff HEAD` for uncommitted work.
+3. If both diffs are empty, report "No changes to review" and stop.
+
+## Review procedure
+
+For every changed file:
+
+1. Read the whole file, not only the hunks, whenever a change touches control
+   flow, state, error handling, or a public interface.
+2. Check the change against every item in [checklist.md](checklist.md).
+3. For each modified function, find at least one caller and confirm the
+   contract (arguments, return shape, raised errors) still holds.
+4. Note tests: does the diff add or update tests for the behavior it changes?
+
+## Report format
+
+Produce a single report with these sections:
+
+### Summary
+Two or three sentences: what the change does and your overall assessment.
+
+### Findings
+One entry per finding, ordered Critical, High, Medium, Low:
+
+- **[Severity] file:line. Title.** What is wrong, why it matters, and a
+  concrete suggested fix. Quote the relevant line.
+
+Severity definitions:
+- **Critical**: data loss, security vulnerability, or guaranteed runtime failure.
+- **High**: incorrect behavior on realistic inputs, broken contract, missing
+  error handling on a likely path.
+- **Medium**: edge-case bug, missing test for changed behavior, misleading code.
+- **Low**: naming, duplication, or clarity issue worth fixing while here.
+
+### Verdict
+One line: "Ready to merge", "Ready after fixing High findings", or
+"Needs rework", with the reason.
+
+## Rules
+
+- Report only issues you can tie to a specific file and line.
+- Do not propose stylistic rewrites or formatting-only changes.
+- Do not edit any files; this is a read-only review.
+- If you are not sure a finding is real, say so explicitly and mark it Low.</code></pre>
+  </div>
+  <p><strong>הפעלה על TaskFlow</strong> (אחרי שינוי ב-<code>backend/app/routers/tasks.py</code>):</p>
+  <div class="terminal"><span class="p">&gt;</span> /code-review main
+<span class="out">✻ Running code-review in a background subagent…
+[בסיום] Summary: The change adds a status filter to GET /tasks…
+Findings:
+[High] backend/app/routers/tasks.py:42. Unvalidated query parameter…
+Verdict: Ready after fixing High findings.</span></div>
+  <p><strong>התנהגות צפויה:</strong> ה-Skill רץ כ-Subagent ברקע (אתם ממשיכים לעבוד), אוסף את ה-Diff מול <code>main</code>, בודק מול <code>checklist.md</code>, ומחזיר דוח ממצאים בחומרה יורדת עם שורת פסק דין. הוא לא עורך קבצים.</p>
+  <p><strong>תרחיש בדיקה:</strong> הוסיפו ל-<code>tasks.py</code> שאילתת <bdi>SQL</bdi> שנבנית בשרשור מחרוזות, הפעילו <code>/code-review</code>, וודאו שמופיע ממצא Critical על <bdi>SQL Injection</bdi> עם מספר שורה.</p>
+  <p><strong>מקרה כשל:</strong> עץ עבודה נקי בלי Commits מעל <code>main</code> מחזיר "No changes to review" ועוצר, לפי ההוראה בגוף. וכשל צפוי נוסף: מי שרגיל ל-<code>/code-review --fix</code> של ה-Bundled Skill יגלה שהדגל לא קיים כאן, כי ה-Skill המקומי החליף אותו לגמרי. זה המחיר המתועד של דריסת שם.</p>
+
+  <h3 id="skill-bug-investigation">2. bug-investigation: אבחון שורש לפני תיקון</h3>
+  <p><strong>מה הוא מדגים:</strong> הפעלה אוטומטית לפי <code>description</code> בתוספת שדה <code>when_to_use</code> עם ביטויי טריגר, <code>$ARGUMENTS</code> עם התנהגות גיבוי כשאין ארגומנט, ותבנית פלט בקובץ תומך. ה-Skill רץ בתוך השיחה (בלי Fork) בכוונה: הוא צריך את ההקשר שלכם, כמו הודעת השגיאה שהדבקתם.</p>
+  <div class="codeblock">
+    <div class="codehead">skills/bug-investigation/</div>
+    <pre><code>bug-investigation/
+├── SKILL.md
+└── diagnosis-template.md   # מבנה קבוע לדוח אבחון</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">skills/bug-investigation/SKILL.md</div>
+    <pre><code>---
+name: bug-investigation
+description: Systematic root-cause investigation of a reported bug. Produces a written diagnosis with file and line evidence before any fix is attempted.
+when_to_use: Use when the user reports a bug, an error message, a stack trace, a failing test, or unexpected behavior, and the root cause is not yet known. Do not use for feature requests or for bugs whose cause is already identified.
+argument-hint: "[bug description or error message]"
+allowed-tools: Read Grep Glob
+---
+
+# Bug investigation
+
+Diagnose the root cause of a bug before changing any code. Investigation and
+fixing are separate steps: this skill produces a diagnosis, not a patch.
+
+Bug to investigate: $ARGUMENTS
+
+If no bug description was provided above, use the problem described in the
+conversation. If neither exists, ask for the symptom, the expected behavior,
+and how to reproduce it, then stop.
+
+## Procedure
+
+1. **Restate the symptom.** One sentence: what happens, what was expected.
+2. **Locate the failure surface.** From the error message, stack trace, or
+   feature name, find the entry point with Grep and Glob, then read the
+   relevant files end to end.
+3. **Trace the data flow.** Follow the failing value or request from input to
+   the point of failure. Record each file:line hop.
+4. **Form hypotheses.** List every plausible cause you found, most likely first.
+5. **Verify against the code.** For each hypothesis, find concrete evidence
+   for or against it: the exact line, the exact condition, the exact input
+   that triggers it. Reproduce with the project's test runner when a failing
+   test is available.
+6. **Write the diagnosis** using the structure in
+   [diagnosis-template.md](diagnosis-template.md).
+
+## Rules
+
+- Do not edit source files during the investigation.
+- Separate confirmed facts (with file:line evidence) from hypotheses, and
+  label each finding as one or the other.
+- One root cause per report. If you find independent additional bugs, list
+  them under "Other issues noticed" without investigating them.
+- If you cannot confirm a root cause, say so and report the strongest
+  hypothesis, the missing evidence, and the next diagnostic step you would run.
+- End the report by proposing the minimal fix and which test would prove it,
+  but wait for approval before implementing.</code></pre>
+  </div>
+  <p><strong>הפעלה על TaskFlow:</strong> כאן בדרך כלל לא מקלידים <code>/</code> בכלל. כותבים בשפה חופשית:</p>
+  <div class="terminal"><span class="p">&gt;</span> creating a task with an empty title returns 500 instead of 422
+<span class="out">✻ Using skill: bug-investigation
+[Claude קורא את tasks.py ואת models.py, עוקב אחרי הזרימה,
+ומחזיר דוח לפי diagnosis-template.md: Symptom, Reproduction,
+Root cause עם file:line, Trace, Proposed fix, Regression test]</span></div>
+  <p><strong>התנהגות צפויה:</strong> Claude מזהה התאמה לתיאור ומפעיל את ה-Skill בעצמו, חוקר לקריאה בלבד, ומסיים בהצעת תיקון מינימלי ובדיקת רגרסיה, בלי לגעת בקוד עד שתאשרו.</p>
+  <p><strong>תרחיש בדיקה:</strong> הפעילו ידנית <code>/bug-investigation "POST /tasks accepts an empty title"</code> וודאו שהדוח כולל את כל שבעת הסעיפים של התבנית, ושסעיף Root cause מפנה לשורה אמיתית בקוד.</p>
+  <p><strong>מקרה כשל:</strong> דיווח מעורפל מדי ("משהו שבור") בלי סימפטום קונקרטי: ה-Skill שואל מה הסימפטום, מה הציפייה ואיך משחזרים, ועוצר. אם Claude לא מפעיל את ה-Skill אוטומטית, בדקו שהניסוח שלכם קרוב למילות ה-<code>when_to_use</code> (ראו Troubleshooting בהמשך).</p>
+
+  <h3 id="skill-feature-plan">3. feature-plan: תכנון בלי יכולת לכתוב</h3>
+  <p><strong>מה הוא מדגים:</strong> <code>disallowed-tools</code> שמסיר את <code>Edit</code>, <code>Write</code> ו-<code>NotebookEdit</code> מהמאגר בזמן שה-Skill פעיל: תכנון שלא יכול "להתפתות" לממש, ברוח <bdi>Plan Mode</bdi> אך ברמת ה-Skill; בתוספת <code>disable-model-invocation</code> ותבנית תוכנית בקובץ תומך.</p>
+  <div class="codeblock">
+    <div class="codehead">skills/feature-plan/</div>
+    <pre><code>feature-plan/
+├── SKILL.md
+└── plan-template.md   # Scope, Steps עם Checkpoints, Test plan, Risks</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">skills/feature-plan/SKILL.md</div>
+    <pre><code>---
+name: feature-plan
+description: Produce a written implementation plan for a feature before any code is written, including scope, affected files, ordered steps, risks, and a test plan.
+argument-hint: "[feature description]"
+disable-model-invocation: true
+disallowed-tools: Edit Write NotebookEdit
+---
+
+# Feature plan
+
+Plan the implementation of a feature. This is a planning-only skill: read the
+codebase, then produce a plan. Do not modify any files.
+
+Feature to plan: $ARGUMENTS
+
+If no feature description was provided, ask for one and stop.
+
+## Procedure
+
+1. **Clarify scope.** Restate the feature in one sentence. If the request is
+   ambiguous on a point that changes the design (data model, API shape, user
+   flow), ask one round of focused questions before planning.
+2. **Survey the codebase.** Find the modules the feature touches: entry points,
+   data models, existing similar features to imitate, and the test layout.
+   Record concrete file paths.
+3. **Design the change.** Prefer the smallest design consistent with existing
+   patterns in this repository. Reuse existing conventions for naming, error
+   handling, and validation; do not introduce new frameworks or layers unless
+   the feature is impossible without them.
+4. **Write the plan** using the structure in
+   [plan-template.md](plan-template.md). Every step must name the files it
+   changes and end with a verifiable checkpoint (a command to run or a
+   behavior to observe).
+
+## Rules
+
+- Steps must be small enough that each leaves the project working: build
+  passing and tests green after every step.
+- Include test work inside the steps, not as a final afterthought step.
+- List real risks (migrations, breaking API changes, concurrency, performance)
+  with a mitigation for each; write "None identified" only after looking.
+- State every assumption you made where the request was underspecified.
+- End with: "Approve this plan or request changes before implementation."</code></pre>
+  </div>
+  <p><strong>הפעלה על TaskFlow:</strong></p>
+  <div class="terminal"><span class="p">&gt;</span> /feature-plan "add due dates to tasks, with overdue highlighting in the UI"
+<span class="out">[תוכנית לפי plan-template.md: שינוי models.py ו-database.py,
+עדכון tasks.py, רכיב React ב-frontend/src, צעדים ממוספרים עם
+Checkpoint לכל צעד, Test plan, Risks: schema migration]
+Approve this plan or request changes before implementation.</span></div>
+  <p><strong>התנהגות צפויה:</strong> Claude סוקר את הקוד, שואל לכל היותר סבב הבהרות אחד, ומגיש תוכנית שכל צעד בה מסתיים בנקודת אימות. אחרי אישור שלכם, מבקשים ממנו לממש בהודעה הבאה: אז ההגבלה כבר פגה, כי <code>disallowed-tools</code> תקף רק עד ההודעה הבאה שלכם.</p>
+  <p><strong>תרחיש בדיקה:</strong> באמצע התור של התכנון, בקשו "וגם תיצור כבר את הקובץ". Claude לא אמור להצליח לכתוב: הכלים הוסרו מהמאגר לתור הזה.</p>
+  <p><strong>מקרה כשל:</strong> הקלדת <code>/feature-plan</code> בלי ארגומנט ובלי תיאור בשיחה: ה-Skill מבקש תיאור ועוצר. וכיוון שהוגדר <code>disable-model-invocation: true</code>, Claude לעולם לא יפעיל אותו מעצמו; אם ציפיתם להפעלה אוטומטית, זו הסיבה.</p>
+
+  <h3 id="skill-test-generator">4. test-generator: ארגומנטים בשמות</h3>
+  <p><strong>מה הוא מדגים:</strong> שדה <code>arguments</code> עם ארגומנטים בשמות (<code>$target</code>, <code>$framework</code>) והתנהגות מתועדת של ארגומנט חסר (התרחבות למחרוזת ריקה), לצד קובץ מוסכמות לשתי מסגרות בדיקה: <bdi>pytest</bdi> ו-<bdi>Vitest</bdi>, בדיוק הצירוף של <bdi>TaskFlow</bdi>.</p>
+  <div class="codeblock">
+    <div class="codehead">skills/test-generator/</div>
+    <pre><code>test-generator/
+├── SKILL.md
+└── conventions.md   # מוסכמות כתיבה: כלליות, pytest, Vitest/Jest</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">skills/test-generator/SKILL.md</div>
+    <pre><code>---
+name: test-generator
+description: Generate focused automated tests for a file, function, or module, following the project's existing test framework and conventions.
+when_to_use: Use when asked to add tests, improve coverage, or write a regression test for a specific behavior. Do not use for fixing production code.
+argument-hint: "[target-file-or-function] [framework]"
+arguments: target framework
+allowed-tools: Read Grep Glob
+---
+
+# Test generator
+
+Write tests for: $target
+Framework: $framework
+
+If `$target` is empty, ask what to test and stop. If `$framework` is empty,
+detect the framework from the project (test directories, config files,
+dependency manifests) and state which one you detected.
+
+## Procedure
+
+1. **Read the target.** Read the target file completely. Identify every public
+   behavior: normal paths, error paths, and boundaries.
+2. **Learn the local conventions.** Read one or two existing test files closest
+   to the target. Match their style exactly: runner, file naming, directory
+   placement, fixture usage, assertion style, import paths.
+3. **Plan the cases.** Before writing code, list the test cases as one line
+   each: name and the single behavior it verifies. Cover, in priority order:
+   - the main success path with realistic data;
+   - each documented error or exception path;
+   - boundaries: empty, zero, one, maximum, malformed input;
+   - any bug fix in recent history of the target (regression tests).
+4. **Write the tests** following [conventions.md](conventions.md).
+5. **Run the tests** with the project's own test command and iterate until
+   they pass. If a test fails because of a real bug in the target, keep the
+   failing test, mark it as expected-failure per the framework's mechanism,
+   and report the bug; do not change production code.
+
+## Rules
+
+- Test files only: never modify production code.
+- One behavior per test; the test name states the behavior.
+- Deterministic tests only: no real network, no wall clock, no shared state.
+- Do not assert on private internals; assert on observable behavior.
+- Report at the end: cases added, cases that found real bugs, coverage gaps
+  you saw but did not cover, and why.</code></pre>
+  </div>
+  <p><strong>הפעלה על TaskFlow:</strong></p>
+  <div class="terminal"><span class="p">&gt;</span> /test-generator backend/app/routers/tasks.py pytest
+<span class="out">✻ Using skill: test-generator
+[Claude קורא את tasks.py ואת test_tasks.py הקיים, מציג רשימת
+מקרים, מוסיף בדיקות ל-backend/tests/test_tasks.py ומריץ pytest]</span></div>
+  <p><strong>התנהגות צפויה:</strong> <code>$target</code> מתרחב ל-<code>backend/app/routers/tasks.py</code> ו-<code>$framework</code> ל-<code>pytest</code>. Claude לומד את הסגנון מ-<code>test_tasks.py</code> הקיים, מוסיף מקרי גבול (כותרת ריקה, מזהה לא קיים), ומריץ את החבילה עד ירוק. הרצת <bdi>pytest</bdi> עדיין תבקש אישור, כי <code>allowed-tools</code> כאן מאשר מראש רק כלי קריאה: בחירה מכוונת שמשאירה את הרצת הקוד בשליטתכם.</p>
+  <p><strong>תרחיש בדיקה:</strong> הפעילו בלי ארגומנט שני: <code>/test-generator frontend/src/App.tsx</code>. הצפי: <code>$framework</code> ריק, ו-Claude מזהה <bdi>Vitest</bdi> מ-<code>package.json</code> ומצהיר על הזיהוי.</p>
+  <p><strong>מקרה כשל:</strong> הפעלה בלי ארגומנטים כלל: ה-Skill שואל מה לבדוק ועוצר. ומקרה עדין: אם תקלידו יעד עם רווחים בלי גרשיים, המילה השנייה תיתפס בתור <code>$framework</code>; לכן ה-<code>argument-hint</code> מציג את הסדר הצפוי, וריבוי מילים דורש גרשיים, לפי כללי הציטוט המתועדים.</p>
+
+  <h3 id="skill-documentation-update">5. documentation-update: הזרקת הקשר דינמית</h3>
+  <p><strong>מה הוא מדגים:</strong> הזרקת הקשר עם <code>!`git diff HEAD --stat`</code> ו-<code>!`git log --oneline -10`</code>: רשימת השינויים האמיתית נכנסת ל-Prompt עוד לפני ש-Claude רואה אותו, ומפת משטחי תיעוד בקובץ תומך.</p>
+  <div class="codeblock">
+    <div class="codehead">skills/documentation-update/</div>
+    <pre><code>documentation-update/
+├── SKILL.md
+└── doc-map.md   # README, API docs, Docstrings, .env.example, CHANGELOG</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">skills/documentation-update/SKILL.md</div>
+    <pre><code>---
+name: documentation-update
+description: Bring documentation in line with recent code changes. Updates README, docstrings, API docs, configuration samples, and changelog entries to match what the code actually does.
+when_to_use: Use after implementing or merging changes that alter behavior, APIs, configuration, setup steps, or CLI usage. Also use when asked to check whether the docs are stale.
+argument-hint: "[optional scope, e.g. 'backend only']"
+---
+
+# Documentation update
+
+Update the project's documentation to match its code. Ground every edit in the
+actual current behavior of the code, never in what the docs used to say.
+
+Requested scope: $ARGUMENTS
+
+## Recent changes (injected at load time)
+
+Uncommitted changes:
+!`git diff HEAD --stat`
+
+Last commits:
+!`git log --oneline -10`
+
+## Procedure
+
+1. **Map the change set.** From the file list and commits above, read the full
+   diffs that touch behavior, APIs, configuration, or setup. Ignore pure
+   refactors that change nothing observable.
+2. **Find the affected doc surfaces.** For each behavioral change, check every
+   surface listed in [doc-map.md](doc-map.md) that could describe it.
+3. **Verify before editing.** For each doc statement you are about to change,
+   confirm the new truth by reading the code, not by guessing. For documented
+   commands, check that the command as written matches the project's actual
+   scripts and entry points.
+4. **Edit.** Update stale statements, add missing documentation for new
+   behavior, and delete documentation for removed behavior. Match the
+   surrounding style, language, heading structure, and formatting.
+5. **Report.** List each doc file changed with a one-line reason, plus any
+   stale documentation you found that is outside the requested scope.
+
+## Rules
+
+- Never document behavior you have not confirmed in the code.
+- Never invent features, flags, or options; if the code is ambiguous, say so
+  in the report instead of guessing in the docs.
+- Keep examples runnable: exact paths, exact commands, working snippets.
+- Do not rewrite sections that are still accurate; smallest diff that makes
+  the docs true.
+- Docstrings follow the file's existing docstring style; do not introduce a
+  new style into a file.</code></pre>
+  </div>
+  <p><strong>הפעלה על TaskFlow</strong> (אחרי שמימשתם את תוכנית ה-Due Dates):</p>
+  <div class="terminal"><span class="p">&gt;</span> /documentation-update "backend only"
+<span class="out">[שתי פקודות ה-git רצות מיד; Claude מקבל את ה-Prompt כשרשימת
+הקבצים שהשתנו וההיסטוריה כבר בפנים, קורא את ה-Diffs המלאים,
+ומעדכן את README.md ואת ה-Docstrings ב-tasks.py]</span></div>
+  <p><strong>התנהגות צפויה:</strong> העריכות מעוגנות בשינויים אמיתיים בלבד: ה-Skill קורא את הקוד לפני כל תיקון תיעוד, לא ממציא יכולות, ומדווח בסוף על כל קובץ ששונה עם סיבה.</p>
+  <p><strong>תרחיש בדיקה:</strong> שנו התנהגות של Endpoint בלי לעדכן את <code>README.md</code>, הפעילו את ה-Skill, וודאו שהדוגמה ב-README עודכנה ושסעיפים נכונים לא שוכתבו.</p>
+  <p><strong>מקרה כשל:</strong> בסביבה שבה מדיניות ארגונית הפעילה <code>disableSkillShellExecution</code>, שתי ההזרקות מוחלפות בטקסט <code>[shell command execution disabled by policy]</code>; ה-Skill עדיין עובד, אבל Claude יצטרך להריץ את פקודות ה-git בעצמו (עם בקשות אישור). ומחוץ ל-Git Repository, פקודות ה-git נכשלות, וכשל של פקודה מוזרקת מבטל את כל הפעלת ה-Skill עם השגיאה <code>Shell command failed for pattern</code>. לכן מפעילים אותו רק בתוך Repository.</p>
+
+  <h2 id="sharing">שיתוף ו-Versioning</h2>
+  <p>שלוש דרכי הפצה מתועדות, לפי קהל היעד:</p>
+  <ul>
+    <li><strong>צוות הפרויקט:</strong> מוסיפים את <code>.claude/skills/</code> ל-<bdi>Git</bdi>. כל מי שמשכפל את ה-Repository מקבל את ה-Skills, וה-<bdi>Pull Request</bdi> הוא מנגנון הסקירה הטבעי לשינויים בהם.</li>
+    <li><strong>כמה פרויקטים או קהילה:</strong> אורזים את ה-Skills בתיקיית <code>skills/</code> של <bdi>Plugin</bdi> ומפיצים דרך <bdi>Marketplace</bdi> (<a href="ch26.html">פרק 26</a>). עדכון גרסה מגיע דרך עדכון ה-Marketplace וה-Plugin.</li>
+    <li><strong>כלל הארגון:</strong> פריסה דרך <bdi>Managed Settings</bdi>, שגם גוברת על כל הרמות האחרות.</li>
+  </ul>
+  <p><strong>גישת Versioning מומלצת:</strong> התקן לא מגדיר שדה גרסה ב-Frontmatter, ולכן מקור האמת הוא מערכת הגרסאות. ל-Skills של פרויקט, היסטוריית ה-Git של תיקיית ה-Skill היא יומן הגרסאות; שינוי מהותי בהתנהגות ראוי ל-Commit נפרד עם הסבר. להפצה רחבה, עוטפים ב-Plugin ומנהלים גרסה ברמת ה-Plugin. ובזכות זיהוי השינויים החי, עדכון שהגיע ב-<code>git pull</code> נקלט גם ב-Sessions פתוחים.</p>
+
+  <h2 id="evaluate">הערכה ואיטרציה: skill-creator</h2>
+  <p>העובדה ש-Skill הופעל אומרת רק ש-Claude מצא אותו, לא שהוא עשה את מה שרציתם. התיעוד ממליץ למדוד שני דברים בנפרד: האם ה-Skill מופעל על ה-Prompts הנכונים, והאם הפלט תואם את הציפייה. השיטה: השוואת בסיס. אוספים כמה Prompts מציאותיים, מריצים כל אחד ב-Session נקי פעם עם ה-Skill ופעם כשהוא כבוי (דרך <code>skillOverrides</code>), ומשווים. Session נקי חשוב: הקשר שנשאר מכתיבת ה-Skill מסווה חורים בהוראות.</p>
+  <p>ה-Plugin הרשמי <bdi>skill-creator</bdi> עושה את הלולאה הזאת אוטומטית:</p>
+  <div class="terminal"><span class="p">&gt;</span> /plugin install skill-creator@claude-plugins-official
+<span class="p">&gt;</span> /reload-plugins
+<span class="p">&gt;</span> evaluate my test-generator skill with skill-creator</div>
+  <p>הוא מנהל מקרי בדיקה ב-<code>evals/evals.json</code> בתוך תיקיית ה-Skill, מריץ כל מקרה ב-Subagent נקי, כותב ציונים עם ראיות ל-<code>grading.json</code>, משווה "עם Skill מול בלי Skill" ב-<code>benchmark.json</code>, מריץ <bdi>A/B</bdi> עיוור בין שתי גרסאות של ה-Skill, ואף מכוונן את ה-<code>description</code>: מייצר Prompts שאמורים ושאינם אמורים להפעיל את ה-Skill, מודד את שיעור הפגיעה ומציע ניסוח משופר. אם ההתקנה נכשלת עם <bdi>Marketplace not found</bdi>, מוסיפים קודם: <code>/plugin marketplace add anthropics/claude-plugins-official</code>.</p>
+  <p>ל-Skill שמגיע בתוך <bdi>Plugin</bdi> יש מסלול נוסף: <code>claude plugin eval</code> מריץ כל מקרה ב-Session מבודד עם ה-Plugin ובלעדיו, מדרג את התוצאות, ויוצא עם קוד שגיאה מתחת לסף, כך שאפשר לחבר אותו ל-<bdi>CI</bdi>. שני הפורמטים, של skill-creator ושל <code>claude plugin eval</code>, אינם ניתנים להחלפה.</p>
+
+  <h2 id="troubleshooting">שגיאות נפוצות ו-Troubleshooting</h2>
+  <p>ארבע טעויות שחוזרות אצל מתחילים, וכולן נובעות מעובדות מתועדות שכבר פגשנו:</p>
+  <ul>
+    <li><strong>עריכת Skill באמצע Session וציפייה שההתנהגות תשתנה מיד.</strong> התוכן שכבר הופעל נשאר בהקשר כמו שהוא; הקובץ לא נקרא שוב. מפעילים את ה-Skill מחדש כדי לטעון את הגרסה החדשה.</li>
+    <li><strong>יצירת תיקיית <code>.claude/skills/</code> ראשונה בזמן ש-Session פתוח.</strong> תיקייה ראשית חדשה לא נצפית. מריצים <code>/reload-skills</code> כדי לטעון אותה, ושוב אחרי כל שינוי בה, או פותחים Session חדש.</li>
+    <li><strong>ציפייה ש-<code>allowed-tools</code> יחזיק לאורך השיחה.</strong> ההיתר פג בהודעה הבאה שלכם, גם כשתוכן ה-Skill עדיין בהקשר.</li>
+    <li><strong>הנחה ששינוי <code>name</code> משנה רק תווית.</strong> ב-Skill אישי או של פרויקט, <code>name</code> קובע את הפקודה בתפריט <code>/</code>, ושם התיקייה ממשיך להפעיל את ה-Skill גם הוא. אם פקודה אחרת כבר תופסת את השם שבחרתם, הפקודה לא תשתנה; ושם עם תווים אסורים לא מוצג ולא מפעיל דבר.</li>
+  </ul>
+  <p><strong>ה-Skill לא מופעל אוטומטית:</strong> ארבעה צעדים מהתיעוד, לפי הסדר:</p>
+  <ol>
+    <li>ודאו שה-<code>description</code> כולל מילים שמשתמשים באמת אומרים; שדה <code>when_to_use</code> עם ביטויי טריגר עוזר.</li>
+    <li>שאלו את Claude בתוך ה-Session: <code>What skills are available?</code> וּודאו שה-Skill מופיע.</li>
+    <li>נסחו מחדש את הבקשה קרוב יותר לתיאור.</li>
+    <li>הפעילו ישירות עם <code>/skill-name</code>. אם גם זה לא מזוהה, בדקו אם Claude Code דחה את השם.</li>
+  </ol>
+  <p>וזכרו את הטבלה בסעיף ההפעלה: <code>disable-model-invocation: true</code> מסיר את התיאור מההקשר לגמרי, כך שהפעלה אוטומטית בלתי אפשרית בהגדרה.</p>
+  <p><strong>YAML שבור:</strong> אם ה-Frontmatter לא תקין, Claude Code טוען את גוף ה-Skill עם מטא-נתונים ריקים: <code>/skill-name</code> עדיין עובד, אבל אין <code>description</code> ולכן אין הפעלה אוטומטית. הרצה עם <code>--debug</code> מציגה את שגיאת הפרסינג. זה מצב מבלבל במיוחד, כי "הפקודה עובדת" אבל "הקסם נעלם". כדי למצוא קבצים כאלה מראש, מריצים מהמסוף <code>claude plugin validate .claude/skills</code> (או <code>~/.claude/skills</code>), מ-<bdi>v2.1.233</bdi>.</p>
+  <p><strong>ה-Skill מופעל יותר מדי:</strong> חדדו את התיאור, או עברו ל-<code>disable-model-invocation: true</code> אם רציתם שליטה ידנית מלאה.</p>
+  <p><strong>Claude מפסיק לעקוב אחרי ה-Skill באמצע:</strong> כלל שחייב להתקיים בכל פעם עובר ל-Hook, ואפשר להגדיר אותו בשדה <code>hooks</code> של ה-Skill עצמו. הנחיה של שיקול דעת מנוסחת כהוראת קבע לכל המשימה ("הרץ בדיקות אחרי כל עריכה"). ואחרי <bdi>Compaction</bdi> מפעילים את ה-Skill שוב, כי ייתכן שנשמרה רק תחילתו.</p>
+  <p><strong>Skills אישיים נעלמו:</strong> חפשו ב-<code>~/.claude/skills/.trash/</code>. מחזירים תיקייה משם אל <code>~/.claude/skills/</code> לפני שהניקוי האוטומטי מוחק אותה, כברירת מחדל 30 יום אחרי שהועברה.</p>
+  <p><strong>תיאורים נחתכים:</strong> רשימת ה-Skills חיה בתקציב הקשר של 1% מחלון ההקשר של המודל. כשחורגים, Claude Code מקצץ תיאורים החל מה-Skills שהופעלו הכי מעט, ומילות מפתח קריטיות עלולות להיעלם. אבחון: <code>/doctor</code> מציג הערכת עלות ותורמים גדולים, ושורת <bdi>Skills</bdi> ב-<code>/context</code> מציגה את הגודל אחרי התקציב. פתרונות: הגדלת <code>skillListingBudgetFraction</code> (למשל <code>0.02</code>), קיצור תיאורים (התקרה לרשומה: 1,536 תווים, ניתנת לשינוי עם <code>skillListingMaxDescChars</code>), או הורדת Skills משניים ל-<code>"name-only"</code>.</p>
+  <p><strong>ניהול נראות בלי לערוך את הקובץ:</strong> תפריט <code>/skills</code> מציג את כל ה-Skills; המקש <bdi>t</bdi> ממיין לפי עלות Tokens. מסמנים Skill, מקישים <bdi>Space</bdi> למעבר בין מצבים ו-<bdi>Esc</bdi> לשמירה אל <code>.claude/settings.local.json</code> תחת ההגדרה <code>skillOverrides</code>:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>ערך</th><th>מוצג ל-Claude</th><th>בתפריט /</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>"on"</code></td><td>שם ותיאור</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>"name-only"</code></td><td>שם בלבד</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>"user-invocable-only"</code></td><td>מוסתר</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>"off"</code></td><td>מוסתר</td><td>מוסתר</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Skills של Plugins אינם מושפעים מ-<code>skillOverrides</code>; אותם מנהלים דרך <code>/plugin</code>.</p>
+  <div class="verify"><strong>אימות מהיר אחרי התקנת Skill:</strong> 1) <code>/skills</code> ובדיקה שהוא ברשימה. 2) <code>What skills are available?</code> ובדיקה שהתיאור מוצג כמצופה. 3) הפעלה ישירה <code>/skill-name</code> על מקרה קטן. 4) בקשה חופשית שאמורה להפעיל אותו אוטומטית. אם 3 עובד ו-4 לא, הבעיה ב-description, לא בגוף.</div>
+
+  <h2 id="legacy-commands">היחס ל-.claude/commands <span class="badge dep">Legacy</span></h2>
+  <p>לפני איחוד המנגנונים, פקודות מותאמות אישית נכתבו כקבצי <bdi>Markdown</bdi> בודדים ב-<code>.claude/commands/</code>. התיעוד הנוכחי קובע: <strong>Custom Commands מוזגו לתוך Skills</strong>. קובץ <code>.claude/commands/deploy.md</code> ותיקייה <code>.claude/skills/deploy/SKILL.md</code> שניהם יוצרים <code>/deploy</code> ועובדים אותו דבר, וקבצי commands קיימים ממשיכים לעבוד ותומכים באותו Frontmatter, חוץ מהשדות <code>name</code> ו-<code>paths</code>. ההמלצה הרשמית היא Skills, בגלל התוספות: תיקיית קבצים תומכים, שליטה במי מפעיל, וטעינה אוטומטית לפי הקשר. אם Skill וקובץ Command חולקים שם, ה-Skill גובר. למיגרציה: מעבירים את <code>deploy.md</code> אל <code>deploy/SKILL.md</code>, בלי שינוי תוכן נדרש.</p>
+
+  <h2 id="security">Security</h2>
+  <ul>
+    <li><strong>Skills הם קוד שרץ בהרשאותיכם.</strong> <code>allowed-tools</code> של Skill בפרויקט חל גם בתיקייה שלא אישרתם ב-<bdi>Workspace Trust</bdi>, אפילו בהרצת <code>-p</code>, ולכן Skill יכול להעניק לעצמו גישת כלים רחבה. סקרו Skills של Repository זר לפני שאתם עובדים בו. ארגונים יכולים להגדיר <code>allowManagedPermissionRulesOnly</code> ב-<bdi>Managed Settings</bdi> (מ-<bdi>v2.1.282</bdi>), ואז Claude Code מתעלם מ-<code>allowed-tools</code> של Skills אישיים ושל פרויקט; <code>/status</code> מציג על אילו Skills ההתעלמות חלה.</li>
+    <li><strong>הזרקת הקשר מריצה פקודות מעטפת אמיתיות</strong> ברגע טעינת ה-Skill, לפני כל שיקול דעת של המודל. בדקו כל <code>!`...`</code> ב-Skill שלא כתבתם. בארגונים: <code>disableSkillShellExecution</code> ב-Managed Settings. ב-Skills שמסונכרנים מ-claude.ai, Claude Code לא מריץ את הפקודות האלה במחשב המקומי בכלל.</li>
+    <li><strong>צמצום הרשאות מדויק:</strong> העדיפו כללים צרים (<code>Bash(git diff *)</code>) על פני היתר גורף, ו-<code>disallowed-tools</code> ל-Skills שלא אמורים לגעת בקבצים, כמו feature-plan שבנינו.</li>
+    <li><strong>חסימה מרכזית:</strong> Deny על <code>Skill</code> מכבה הפעלת Skills על ידי המודל; <code>Skill(deploy *)</code> חוסם נקודתית.</li>
+  </ul>
+
+  <h2 id="cost">Cost ו-Context</h2>
+  <p>שלושה מספרים מתועדים שכדאי לזכור: תקציב רשימת התיאורים הוא 1% מחלון ההקשר (ניתן לשינוי); כל רשומה ברשימה נחתכת ב-1,536 תווים; ואחרי <bdi>Compaction</bdi> כל Skill שהופעל נשמר עד 5,000 Tokens בתקציב משותף של 25,000. המשמעות המעשית: description תמציתי עם מילות המפתח בהתחלה, גוף קצר ומנוסח כהוראות קבע (כי הוא נשאר בהקשר), וחומר ארוך בקבצים תומכים שנקראים לפי דרישה. Skill יקר במיוחד להרצה, כמו סקירת קוד, עדיף עם <code>disable-model-invocation: true</code> כדי שאתם תשלטו מתי משלמים. כדי למדוד במקום לנחש: <code>/skill-doctor</code> (מ-<bdi>v2.1.252</bdi>) מציג כמה כל Skill עולה בהקשר וכמה פעמים הופעל, ומסמן Skills שמעולם לא הופעלו; התחילו לכבות מאלה שעולים הכי הרבה.</p>
+
+  <h2 id="best-practices">Best Practices ו-Anti-patterns</h2>
+  <ul class="check">
+    <li>description שעונה על שתיים: מה ה-Skill עושה, ומתי להשתמש בו, עם מילים שמשתמשים באמת מקלידים.</li>
+    <li>SKILL.md מתחת ל-500 שורות; חומר עזר בקבצים תומכים עם הפניה מפורשת.</li>
+    <li>כל Skill עושה דבר אחד; שרשור עם Stacking (<code>/write-tests /fix-issue 123</code>) עדיף על Skill ענק.</li>
+    <li>מדידה עם skill-creator לפני ואחרי כל שינוי מהותי.</li>
+  </ul>
+  <p><strong>Anti-patterns:</strong> Skill שמשכפל את <code>CLAUDE.md</code> (עלות כפולה, סתירות בהמשך); <code>context: fork</code> על Skill של הנחיות בלי משימה; הסתמכות על Skill לאכיפת חובה (המודל בוחר, Hook לא); description גנרי כמו "helps with code" שגורם להפעלות שגויות; ודריסת שם של Bundled Skill בלי כוונה מפורשת.</p>
+
+  <h2 id="exercise">תרגיל: Skill משלכם</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 21.1: commit-message</div>
+    <div class="body"><p>בנו Skill בשם <code>commit-message</code> ב-<code>.claude/skills/</code> של <bdi>TaskFlow</bdi> שמנסח הודעת <bdi>Commit</bdi> לשינויים שנמצאים כבר ב-<bdi>Staging</bdi>. דרישות: 1) רק אתם יכולים להפעיל אותו. 2) ה-Diff המדורג מוזרק לתוכן מראש. 3) פורמט קבוע: שורת נושא עד 72 תווים בציווי, שורה ריקה, גוף שמסביר מה ולמה. 4) ארגומנט אופציונלי עם הקשר נוסף, למשל מספר Issue. 5) ה-Skill מנסח בלבד ולא מריץ <code>git commit</code>. בדקו אותו אחרי <code>git add</code> על שינוי אמיתי, כולל מקרה הכשל של Staging ריק.</p></div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <div class="codeblock">
+        <div class="codehead">.claude/skills/commit-message/SKILL.md</div>
+        <pre><code>---
+name: commit-message
+description: Draft a commit message for the currently staged changes, with a 72-character imperative subject line and a body explaining what and why.
+argument-hint: "[optional context, e.g. issue number]"
+disable-model-invocation: true
+---
+
+# Commit message
+
+Draft a commit message for the staged changes below. Do not run `git commit`;
+output the message text only.
+
+Extra context from the user: $ARGUMENTS
+
+## Staged changes
+
+!`git diff --staged --stat`
+
+!`git diff --staged`
+
+## Format
+
+1. Subject: imperative mood, at most 72 characters, no trailing period.
+2. Blank line.
+3. Body: what changed and why, wrapped at 72 characters. Reference the
+   issue from the extra context if one was given.
+
+If the staged diff above is empty, reply "Nothing is staged; run git add
+first" and stop.</code></pre>
+      </div>
+      <p>ההסבר: <code>disable-model-invocation: true</code> ממלא את דרישה 1, כמתועד; שתי ההזרקות ממלאות את דרישה 2, כשה-<code>--stat</code> נותן תמונה מהירה וה-Diff המלא את הפרטים; הפורמט וההוראה "output the message text only" ממלאים את 3 ו-5; ו-<code>$ARGUMENTS</code> עם <code>argument-hint</code> את 4. מקרה הכשל מטופל בשורה האחרונה: הזרקה על Staging ריק מייצרת פלט ריק (<code>git diff</code> מחזיר קוד 0, ולכן ההפעלה לא מתבטלת), וההוראה אומרת ל-Claude לעצור. שדרוג אפשרי בהשראת code-review: הוספת <code>allowed-tools: Bash(git log *)</code> כדי ש-Claude יוכל ללמוד את סגנון ההודעות ההיסטורי בלי בקשת אישור.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p><bdi>Skill</bdi> הוא תיקייה עם <code>SKILL.md</code>: Frontmatter שקובע מתי ואיך הוא מופעל, וגוף הוראות שנטען רק בשימוש. הוא נטען מכמה מקומות (Enterprise, אישי, פרויקט, מקונן, Plugin וחשבון claude.ai) עם סדר דריסה ברור, מופעל אוטומטית לפי תיאור או ידנית עם <code>/name</code>, ומתחזק בעזרת ארגומנטים, קבצים תומכים, הזרקת הקשר דינמית, והרצה ב-Subagent עם <code>context: fork</code>. בנינו חמישה Skills שמדגימים את כל אלה על <bdi>TaskFlow</bdi>, ולמדנו למדוד אותם עם <bdi>skill-creator</bdi> ו-<code>/skill-doctor</code> ולאבחן תקלות עם <code>/skills</code>, <code>/context</code>, <code>claude plugin validate</code> ו-<code>--debug</code>. מי שרוצה לתרגל את כל המסלול בצעדים, כולל העלאה לאפליקציית Claude, ימצא אותו ב<a href="../interactive/skills-lomda.html">לומדה המשלימה</a>. בפרק הבא נעבור לצד הדטרמיניסטי של האוטומציה: <bdi>Hooks</bdi>.</p>
+
+  <div class="callout source"><span class="title">מקורות</span><p>
+    <a href="https://code.claude.com/docs/en/skills">Extend Claude with skills</a> |
+    <a href="https://code.claude.com/docs/en/commands">Commands reference (Bundled Skills)</a> |
+    <a href="https://code.claude.com/docs/en/code-review">Code Review (/code-review מקומי)</a> |
+    <a href="https://code.claude.com/docs/en/settings">Settings (disableBundledSkills, disableSkillShellExecution, syncClaudeAiSkills)</a> |
+    <a href="https://code.claude.com/docs/en/changelog">Changelog</a> |
+    <a href="https://support.claude.com/en/articles/12512180-use-skills-in-claude">Use skills in Claude (Help Center)</a> |
+    <a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices">Skill authoring best practices</a> |
+    <a href="https://github.com/anthropics/skills">anthropics/skills (מאגר רשמי)</a> |
+    <a href="https://github.com/anthropics/claude-plugins-official/tree/main/plugins/skill-creator">skill-creator plugin</a> |
+    <a href="https://agentskills.io">Agent Skills standard</a> (מאוזכר מהתיעוד הרשמי) |
+    נבדק לראשונה: 28.07.2026 | עודכן ונבדק מחדש: 15.10.2026, מול Claude Code <bdi>2.1.300</bdi>
+  </p></div>
+
+  <div class="chapnav">
+    <a href="ch20.html"><span class="lbl">הפרק הקודם</span>Security</a>
+    <a href="ch22.html"><span class="lbl">הפרק הבא</span>Hooks</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.1 | הפרק עודכן: 15.10.2026 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

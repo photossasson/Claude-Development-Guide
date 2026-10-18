@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 26: Plugins</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ה | פרק 26</p>
+  <h1>Plugins</h1>
+  <p class="lead">בפרקים הקודמים בניתם <bdi>Skills</bdi>, <bdi>Hooks</bdi>, <bdi>Subagents</bdi> וחיבורי <bdi>MCP</bdi>, כל אחד בנפרד. <bdi>Plugin</bdi> הוא מנגנון האריזה שמאגד את כולם ליחידה אחת עם שם, גרסה ומנגנון הפצה: התקנה בפקודה אחת, עדכונים מסודרים, ושיתוף עם צוות או קהילה דרך <bdi>Marketplace</bdi>. בפרק הזה נלמד את מבנה ה-Plugin על כל רכיביו, את ה-Manifest, את מסלולי ההתקנה והפיתוח, את עולם ה-Marketplaces, ניהול גרסאות וממשל צוותי, ונפרק לגורמים את <bdi>taskflow-toolkit</bdi>: ה-Plugin המלא שמצורף לחבילת המדריך.</p>
+
+  <div class="callout tip"><span class="title">לומדה אינטראקטיבית</span><p>לפרק יש לומדה משלימה על סוג Plugin חדש: <a href="../interactive/mods-lomda.html">בונים Mods ב-Claude Code</a>, עם Mod שנבדק בפועל ב-Claude Code 2.1.301, סימולטור של Hook ששומר על פקודות Bash, בודק אירועים ותוכנית אבטחה (16.10.2026).</p></div>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what">מה זה Plugin ואיזו בעיה הוא פותר</h2>
+  <p><bdi>Plugin</bdi> הוא תיקייה עצמאית של רכיבי הרחבה: <bdi>Skills</bdi>, <bdi>Agents</bdi>, <bdi>Hooks</bdi>, שרתי <bdi>MCP</bdi> ועוד, לצד קובץ <bdi>Manifest</bdi> אופציונלי בשם <code>plugin.json</code>. עד עכשיו, כשרציתם לשתף עמית ב-Skill מוצלח, הייתם מעתיקים קבצים ידנית ל-<code>.claude/</code> שלו, ובכל שיפור חוזרים על התהליך. Plugin פותר בדיוק את זה: ההרחבות מקבלות זהות (שם), מחזור חיים (גרסה ועדכונים) וערוץ הפצה (Marketplace).</p>
+  <p>ההשוואה הרשמית בין שתי הדרכים:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>גישה</th><th>שם ה-Skill</th><th>מתאים ל...</th></tr></thead>
+      <tbody>
+        <tr><td>Standalone (תיקיית <code>.claude/</code>)</td><td class="ltr"><code>/hello</code></td><td>תהליכי עבודה אישיים, התאמות לפרויקט בודד, ניסויים מהירים</td></tr>
+        <tr><td>Plugin (תיקייה עצמאית, אפשר עם Manifest)</td><td class="ltr"><code>/plugin-name:hello</code></td><td>שיתוף עם צוות, הפצה לקהילה, גרסאות מסודרות, שימוש חוזר בין פרויקטים</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>ההמלצה המתועדת: התחילו ב-Standalone לאיטרציה מהירה, והמירו ל-Plugin כשמגיע הזמן לשתף. שימו לב להשלכת מיסוד השם: רכיבי Plugin תמיד ממוספרים במרחב שמות (Namespace) של ה-Plugin, כדי למנוע התנגשויות בין Plugins שונים עם Skills באותו שם.</p>
+  <figure>
+    <img src="../diagrams/extensions-relationship.svg" alt="מפת ההרחבות של Claude Code: CLAUDE.md, Skills, Hooks, MCP, Connectors, Subagents ו-Plugin כמכולה שאורזת הכול">
+    <figcaption>תרשים 26.1: מפת ההרחבות. כל מנגנון מוסיף ממד אחר לליבה, וה-Plugin הוא המכולה שאורזת Skills, Hooks, Agents ושרתי MCP להפצה.</figcaption>
+  </figure>
+
+  <h2 id="when">מתי להשתמש, מתי לא, ואיך זה עובד מושגית</h2>
+  <p><strong>השתמשו ב-Plugin כאשר:</strong> אתם רוצים לשתף פונקציונליות עם צוות או קהילה; אתם צריכים את אותם Skills ו-Agents בכמה פרויקטים; אתם רוצים ניהול גרסאות ועדכונים מסודר; או שאתם מפיצים דרך Marketplace. <strong>הישארו ב-Standalone כאשר:</strong> ההתאמה היא לפרויקט בודד; התצורה אישית ולא צריכה שיתוף; אתם עדיין מתנסים; או שחשוב לכם שם קצר בלי Namespace (כמו <code>/deploy</code> במקום <code>/my-plugin:deploy</code>).</p>
+  <p>מושגית, חיי Plugin מותקן נראים כך: אתם רושמים <bdi>Marketplace</bdi> (קטלוג), בוחרים ממנו Plugin, ו-Claude Code מעתיק את תיקיית ה-Plugin ל-<bdi>Cache</bdi> מקומי בנתיב <code>~/.claude/plugins/cache</code>, משיקולי אבטחה ואימות. ההפעלה נרשמת כערך <code>plugin-name@marketplace-name</code> תחת המפתח <code>enabledPlugins</code> בקובץ ההגדרות של ה-Scope שבחרתם. בפתיחת Session, Claude Code טוען את הרכיבים של כל ה-Plugins הפעילים: תיאורי Skills ו-Agents נכנסים ל-Context, שרתי MCP ו-LSP עולים, ו-Hooks נרשמים לאירועים. שתי השלכות מעשיות של ההעתקה ל-Cache: אסור להפנות לקבצים מחוץ לתיקיית ה-Plugin (הם פשוט לא מועתקים), וכל עדכון גרסה מקבל תיקייה חדשה, כשהישנה נשמרת עוד כשבועיים לטובת Sessions פתוחים ואז נמחקת (כלי החיפוש של Claude מדלגים על תיקיות כאלה).</p>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>הפרק מניח היכרות עם Skills (<a href="ch21.html">פרק 21</a>), Hooks (<a href="ch22.html">פרק 22</a>), MCP (<a href="ch23.html">פרק 23</a>) ו-Subagents (<a href="ch25.html">פרק 25</a>), ועם קובצי ההגדרות וה-Scopes מ-<a href="ch06.html">פרק 6</a>. אם הפקודה <code>/plugin</code> לא מופיעה אצלכם, עדכנו את Claude Code לגרסה עדכנית.</p></div>
+
+  <h2 id="structure">מבנה Plugin: כל הרכיבים</h2>
+  <p>נכון למועד המחקר (28.07.2026, גרסה <bdi>2.1.220</bdi>), אלה הרכיבים המתועדים ומיקומם. כלל הברזל: רק <code>plugin.json</code> יושב בתוך <code>.claude-plugin/</code>; כל שאר התיקיות בשורש ה-Plugin.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>רכיב</th><th>מיקום ברירת מחדל</th><th>מה הוא מוסיף</th><th>סטטוס</th></tr></thead>
+      <tbody>
+        <tr><td>Manifest</td><td class="ltr"><code>.claude-plugin/plugin.json</code></td><td>מטא-נתונים ותצורה (אופציונלי)</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>Skills</td><td class="ltr"><code>skills/&lt;name&gt;/SKILL.md</code></td><td>נהלים והוראות; מופעלים כ-<code>/plugin:skill</code> או אוטומטית</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>Commands</td><td class="ltr"><code>commands/*.md</code></td><td>Skills כקובצי Markdown שטוחים; פורמט ישן, העדיפו <code>skills/</code></td><td><span class="badge dep">Legacy</span></td></tr>
+        <tr><td>Agents</td><td class="ltr"><code>agents/*.md</code></td><td>Subagents; מופיעים בשם <code>plugin:agent</code></td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>Hooks</td><td class="ltr"><code>hooks/hooks.json</code></td><td>מטפלי אירועים (<a href="ch22.html">פרק 22</a>)</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>MCP Servers</td><td class="ltr"><code>.mcp.json</code></td><td>שרתי MCP שעולים אוטומטית כשה-Plugin פעיל</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>LSP Servers</td><td class="ltr"><code>.lsp.json</code></td><td>אינטליגנציית קוד: דיאגנוסטיקה מיידית וניווט (Go to Definition)</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>Workflows</td><td class="ltr"><code>workflows/</code></td><td>סקריפטי Workflow</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>Output Styles</td><td class="ltr"><code>output-styles/*.md</code></td><td>סגנונות תגובה</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>Executables</td><td class="ltr"><code>bin/</code></td><td>קבצי הרצה שנוספים ל-PATH של הכלי Bash כשה-Plugin פעיל</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>Settings</td><td class="ltr"><code>settings.json</code></td><td>הגדרות ברירת מחדל; כרגע נתמכים רק המפתחות <code>agent</code> ו-<code>subagentStatusLine</code></td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>Monitors</td><td class="ltr"><code>monitors/monitors.json</code></td><td>תהליכי מעקב ברקע שמזרימים התראות ל-Claude</td><td><span class="badge exp">Experimental</span></td></tr>
+        <tr><td>Themes</td><td class="ltr"><code>themes/*.json</code></td><td>ערכות צבע שמופיעות ב-<code>/theme</code></td><td><span class="badge exp">Experimental</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn"><span class="title">אזהרה: הטעות הנפוצה ביותר</span><p>אל תשימו את <code>skills/</code>, <code>agents/</code>, <code>hooks/</code> או <code>commands/</code> בתוך <code>.claude-plugin/</code>. שם יושב רק ה-Manifest. שורש ה-Plugin הוא התיקייה שמכילה את <code>.claude-plugin/</code>, לא <code>~/.claude/</code>. וקובץ <code>CLAUDE.md</code> בשורש Plugin לא נטען כהקשר; הוראות שצריכות להיטען עוברות דרך Skill.</p></div>
+  <p>שני פרטים חשובים מהתיעוד: Plugin שמספק בדיוק Skill אחד יכול לשים <code>SKILL.md</code> ישירות בשורש (שדה ה-<code>name</code> ב-Frontmatter קובע את שם ההפעלה), ו-Agents של Plugin לא תומכים ב-<code>hooks</code>, <code>mcpServers</code> ו-<code>permissionMode</code> ב-Frontmatter, משיקולי אבטחה.</p>
+  <p>כמה מילים על הרכיבים הפחות מוכרים. <strong>LSP Servers:</strong> קובץ <code>.lsp.json</code> ממפה שרת שפה (למשל <code>gopls</code> ל-Go) לסיומות קבצים, ומעניק ל-Claude דיאגנוסטיקה מיידית אחרי כל עריכה וניווט קוד מדויק; את הבינארי של שרת השפה מתקינים בנפרד, וה-Plugin רק מגדיר את החיבור. לשפות הנפוצות עדיף להתקין את ה-Plugins המוכנים מהקטלוג הרשמי. <strong>Monitors:</strong> <span class="badge exp">Experimental</span> תהליכי רקע (למשל <code>tail -F</code> על לוג שגיאות) שכל שורת פלט שלהם מגיעה ל-Claude כהתראה; הם רצים רק ב-Sessions אינטראקטיביים, באותה רמת אמון כמו Hooks, והשבתת ה-Plugin באמצע Session לא עוצרת Monitor שכבר רץ. <strong>bin/:</strong> קבצי הרצה שנוספים ל-<code>PATH</code> של הכלי Bash כל עוד ה-Plugin פעיל, כך ש-Claude יכול לקרוא להם בשמם. <strong>settings.json:</strong> מאפשר ל-Plugin להחליף את התנהגות ברירת המחדל, למשל <code>{"agent": "security-reviewer"}</code> שמפעיל את אחד ה-Agents של ה-Plugin בתור ה-Thread הראשי.</p>
+
+  <h2 id="manifest">ה-Manifest: plugin.json</h2>
+  <p>ה-Manifest אופציונלי: בלעדיו, Claude Code מגלה רכיבים במיקומי ברירת המחדל וגוזר את השם משם התיקייה. כשיש Manifest, השדה היחיד שחובה הוא <code>name</code> (kebab-case, בלי רווחים), שמשמש גם כ-Namespace. סכמה מלאה:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude-plugin/plugin.json</div>
+    <pre><code>{
+  "name": "plugin-name",
+  "displayName": "Plugin Name",
+  "version": "1.2.0",
+  "description": "Brief plugin description",
+  "author": { "name": "Author Name", "email": "author@example.com" },
+  "homepage": "https://docs.example.com/plugin",
+  "repository": "https://github.com/author/plugin",
+  "license": "MIT",
+  "keywords": ["keyword1", "keyword2"],
+  "defaultEnabled": true,
+  "skills": "./custom/skills/",
+  "commands": ["./custom/commands/special.md"],
+  "agents": ["./custom/agents/reviewer.md"],
+  "hooks": "./config/hooks.json",
+  "mcpServers": "./mcp-config.json",
+  "lspServers": "./.lsp.json",
+  "outputStyles": "./styles/",
+  "userConfig": { },
+  "dependencies": [ { "name": "secrets-vault", "version": "~2.1.0" } ]
+}</code></pre>
+  </div>
+  <p>הסבר השדות המרכזיים: <code>version</code> אופציונלי אך קריטי להבנה: אם הגדרתם אותו, משתמשים מקבלים עדכון רק כשאתם מעלים אותו; אם השמטתם וה-Plugin מופץ דרך Git, כל Commit נחשב גרסה חדשה (ה-SHA הוא הגרסה). <code>displayName</code> הוא שם תצוגה בלבד. <code>defaultEnabled: false</code> מתקין את ה-Plugin כבוי עד שהמשתמש מפעיל. שדות הנתיבים (<code>skills</code>, <code>agents</code>, <code>hooks</code>...) דורסים או מרחיבים את מיקומי ברירת המחדל (חייבים להתחיל ב-<code>./</code>); <code>skills</code> יוצא דופן ומתווסף לסריקת <code>skills/</code> במקום להחליפה. <code>userConfig</code> מגדיר ערכים שהמשתמש מתבקש להזין בהפעלה (כולל שדות <code>sensitive</code> שנשמרים ב-Keychain), ו-<code>dependencies</code> מצהיר על Plugins אחרים שנדרשים. שדות לא מוכרים לא מפילים את הטעינה, אך <code>claude plugin validate</code> מציג עליהם אזהרות (ועם <code>--strict</code> גם נכשל, שימושי ב-CI).</p>
+  <p>שלושה משתני נתיב זמינים בכל תצורת Plugin: <code>${CLAUDE_PLUGIN_ROOT}</code> (תיקיית ההתקנה של ה-Plugin; משתנה בכל עדכון), <code>${CLAUDE_PLUGIN_DATA}</code> (תיקיית נתונים מתמדת ששורדת עדכונים, למשל ל-<code>node_modules</code>), ו-<code>${CLAUDE_PROJECT_DIR}</code> (שורש הפרויקט). ב-Hooks ושרתים של Plugin חובה להשתמש ב-<code>${CLAUDE_PLUGIN_ROOT}</code>, כי Plugins שמותקנים מ-Marketplace מועתקים ל-Cache מקומי (<code>~/.claude/plugins/cache</code>) ולא רצים מהמקור, ולכן גם אי אפשר להפנות לקבצים מחוץ לתיקיית ה-Plugin.</p>
+
+  <h3 id="userconfig">userConfig: תצורה אישית בלי לערוך JSON</h3>
+  <p>כש-Plugin צריך ערכים מהמשתמש (כתובת שרת, Token), אל תשלחו אנשים לערוך <code>settings.json</code> ידנית. הצהירו על השדות ב-<code>userConfig</code>, ו-Claude Code יציג טופס בזמן ההפעלה:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude-plugin/plugin.json (קטע)</div>
+    <pre><code>{
+  "userConfig": {
+    "api_endpoint": {
+      "type": "string",
+      "title": "API endpoint",
+      "description": "Your team's API endpoint",
+      "required": true
+    },
+    "api_token": {
+      "type": "string",
+      "title": "API token",
+      "description": "API authentication token",
+      "sensitive": true
+    }
+  }
+}</code></pre>
+  </div>
+  <p>סוגי השדות: <code>string</code>, <code>number</code>, <code>boolean</code>, <code>directory</code>, <code>file</code>, עם <code>default</code>, <code>required</code> ו-<code>multiple</code>. ערכים מסומנים <code>sensitive</code> מוסתרים בהקלדה ונשמרים באחסון מאובטח (Keychain ב-macOS) במקום בקובץ ההגדרות. הערכים זמינים להחלפה כ-<code>${user_config.KEY}</code> בתצורות MCP ו-LSP, ומיוצאים לתהליכי Hooks כמשתני סביבה <code>CLAUDE_PLUGIN_OPTION_&lt;KEY&gt;</code>. הגבלת אבטחה חשובה (מגרסה 2.1.207): פקודות שרצות דרך Shell (Hook בצורת Shell, Monitors) לא יכולות להשתמש ב-<code>${user_config.*}</code> ישירות, כדי שערך מוזרק לא יריץ קוד; קראו את הערך ממשתנה הסביבה במקום.</p>
+
+  <h2 id="namespacing">Namespacing: איך קוראים לרכיבים</h2>
+  <ul>
+    <li>Skill בשם <code>hello</code> ב-Plugin בשם <code>my-plugin</code> מופעל כ-<code>/my-plugin:hello</code>.</li>
+    <li>Agent בשם <code>reviewer</code> מופיע ב-@-mention כ-<code>my-plugin:reviewer</code>.</li>
+    <li>כלי של שרת MCP מצורף ממוען ב-Hooks וב-Permissions כ-<code>mcp__plugin_my-plugin_server__tool</code>.</li>
+  </ul>
+  <p>כך שני Plugins עם Skill בשם <code>deploy</code> חיים זה לצד זה. שינוי ה-Namespace נעשה דרך שדה ה-<code>name</code> ב-Manifest, אבל זכרו: שינוי שם שובר התקנות קיימות (ראו <code>renames</code> בהמשך).</p>
+
+  <h2 id="install">התקנה והפעלה: שלושה מסלולים</h2>
+
+  <h3 id="install-ui">מסלול 1: ממשק /plugin</h3>
+  <p>הפקודה <code>/plugin</code> פותחת מנהל Plugins עם ארבע לשוניות (מעבר עם <bdi>Tab</bdi>): <strong>Discover</strong> (עיון בכל ה-Marketplaces שהוספתם), <strong>Installed</strong> (ניהול, השבתה, הסרה), <strong>Marketplaces</strong> (הוספה, עדכון, הסרה), ו-<strong>Errors</strong> (שגיאות טעינה). בחירת Plugin מציגה את פרטיו לפני ההתקנה: עלות ה-Context המשוערת ב-Tokens, תאריך עדכון אחרון, ורשימת "Will install" של כל הרכיבים שיתווספו. ההתקנה מסתיימת בבחירת Scope:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Scope</th><th>קובץ ההגדרות</th><th>למי</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>user</code></td><td class="ltr"><code>~/.claude/settings.json</code></td><td>לכם, בכל הפרויקטים (ברירת מחדל)</td></tr>
+        <tr><td class="ltr"><code>project</code></td><td class="ltr"><code>.claude/settings.json</code></td><td>לכל מי שמשכפל את ה-Repository</td></tr>
+        <tr><td class="ltr"><code>local</code></td><td class="ltr"><code>.claude/settings.local.json</code></td><td>לכם, בפרויקט הזה בלבד</td></tr>
+        <tr><td class="ltr"><code>managed</code></td><td>Managed Settings</td><td>מותקן על ידי Admin, לקריאה בלבד</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="install-cli">מסלול 2: פקודות ישירות</h3>
+  <div class="terminal"><span class="p">$</span> claude plugin install formatter@my-marketplace
+<span class="out"># התקנה ל-user scope (ברירת המחדל)</span>
+<span class="p">$</span> claude plugin install formatter@my-marketplace --scope project
+<span class="out"># התקנה משותפת לצוות דרך .claude/settings.json</span>
+<span class="p">$</span> claude plugin list
+<span class="out"># רשימת המותקנים עם גרסה, מקור וסטטוס (גם --json)</span>
+<span class="p">$</span> claude plugin details taskflow-toolkit
+<span class="out"># מלאי רכיבים ועלות Tokens משוערת</span>
+<span class="p">$</span> claude plugin disable formatter@my-marketplace
+<span class="p">$</span> claude plugin enable formatter@my-marketplace
+<span class="p">$</span> claude plugin update formatter@my-marketplace
+<span class="p">$</span> claude plugin uninstall formatter@my-marketplace</div>
+  <p>לכל הפקודות יש מקבילת <code>/plugin ...</code> בתוך Session אינטראקטיבי. פקודות עזר נוספות: <code>claude plugin validate &lt;path&gt;</code> (בדיקת Manifest, Frontmatter ו-<code>hooks.json</code>; הריצו לפני כל פרסום), <code>claude plugin init &lt;name&gt;</code> (פיגום Plugin חדש בתיקיית ה-Skills, עם <code>--with skills agents hooks mcp lsp</code> לרכיבי התחלה), <code>claude plugin tag</code> (תיוג גרסה ב-Git) ו-<code>claude plugin prune</code> (ניקוי תלויות יתומות). אחרי שינוי מצב Plugins באמצע Session, הריצו <code>/reload-plugins</code> כדי להחיל בלי הפעלה מחדש.</p>
+
+  <h3 id="install-dev">מסלול 3: מצב פיתוח עם --plugin-dir</h3>
+  <p>בזמן פיתוח, טוענים Plugin ישירות מהדיסק בלי התקנה:</p>
+  <div class="terminal"><span class="p">$</span> claude --plugin-dir ./my-plugin
+<span class="out"># נטען ל-Session הזה בלבד; אפשר לחזור על הדגל לכמה Plugins</span>
+<span class="p">$</span> claude --plugin-dir ./my-plugin.zip
+<span class="out"># גם ארכיון zip נתמך (מגרסה 2.1.128)</span>
+<span class="p">$</span> claude --plugin-url https://example.com/my-plugin.zip
+<span class="out"># טעינת ארכיון מ-URL ל-Session בלבד, למשל Artifact של CI</span></div>
+  <p>כש-Plugin שנטען עם <code>--plugin-dir</code> חולק שם עם Plugin מותקן, העותק המקומי גובר לאותו Session, וזה מאפשר לבדוק שינויים בלי להסיר את המותקן. בזמן פיתוח, <code>/reload-plugins</code> קולט שינויים ברוב הרכיבים בלי הפעלה מחדש. מסלול רביעי, קל משקל: כל תיקייה תחת <code>~/.claude/skills/</code> (או <code>.claude/skills/</code> של הפרויקט, אחרי אישור Trust) שמכילה <code>.claude-plugin/plugin.json</code> נטענת אוטומטית כ-Plugin בשם <code>&lt;name&gt;@skills-dir</code>, בלי Marketplace ובלי התקנה.</p>
+
+  <h2 id="marketplaces">Marketplaces: הפצה</h2>
+  <p><bdi>Marketplace</bdi> הוא קטלוג: קובץ <code>.claude-plugin/marketplace.json</code> ב-Repository שמונה Plugins והיכן להשיגם. הוספת Marketplace רק רושמת את הקטלוג; ההתקנה של כל Plugin היא צעד נפרד ומפורש.</p>
+  <div class="codeblock">
+    <div class="codehead">.claude-plugin/marketplace.json</div>
+    <pre><code>{
+  "name": "company-tools",
+  "owner": { "name": "DevTools Team", "email": "devtools@example.com" },
+  "plugins": [
+    {
+      "name": "taskflow-toolkit",
+      "source": "./plugins/taskflow-toolkit",
+      "description": "TaskFlow team toolkit",
+      "version": "1.0.0"
+    },
+    {
+      "name": "deployment-tools",
+      "source": { "source": "github", "repo": "company/deploy-plugin", "ref": "v2.0.0" },
+      "description": "Deployment automation tools"
+    }
+  ]
+}</code></pre>
+  </div>
+  <p>שדות החובה: <code>name</code> (מזהה ה-Marketplace; שמות רשמיים של Anthropic שמורים וחסומים לחיקוי), <code>owner</code>, ו-<code>plugins</code>. שדה ה-<code>source</code> של כל רשומה תומך בחמש צורות: נתיב יחסי בתוך ה-Repository של ה-Marketplace (חייב להתחיל ב-<code>./</code>), <code>github</code> (עם <code>repo</code>, ואופציונלית <code>ref</code> ו-<code>sha</code> לנעילה), <code>url</code> (כל Git URL), <code>git-subdir</code> (תת-תיקייה ב-Monorepo, עם Clone חסכוני), ו-<code>npm</code> (חבילת npm, גם מ-Registry פרטי). רשומת Plugin יכולה לכלול גם <code>strict: false</code>, שהופך את רשומת ה-Marketplace להגדרה המלאה של ה-Plugin במקום <code>plugin.json</code>.</p>
+
+  <h3 id="official">ה-Marketplaces הרשמיים של Anthropic</h3>
+  <ul>
+    <li><strong><code>claude-plugins-official</code>:</strong> הקטלוג האוצר של Anthropic, נרשם אוטומטית בהפעלה האינטראקטיבית הראשונה. כולל בין השאר Plugins של אינטליגנציית קוד (<code>typescript-lsp</code>, <code>pyright-lsp</code>, <code>rust-analyzer-lsp</code> ועוד), אינטגרציות MCP מוכנות (<code>github</code>, <code>gitlab</code>, <code>atlassian</code>, <code>linear</code>, <code>figma</code>, <code>slack</code>, <code>sentry</code> ועוד), סקירת אבטחה אוטומטית (<code>security-guidance</code>), וכלי Workflow (<code>commit-commands</code>, <code>pr-review-toolkit</code>, <code>plugin-dev</code>). התקנה: <code>/plugin install github@claude-plugins-official</code>. הקטלוג גם זמין לעיון ב-<a href="https://claude.com/plugins">claude.com/plugins</a>.</li>
+    <li><strong><code>claude-community</code>:</strong> קטלוג הקהילה, שאליו מגיעות הגשות צד שלישי אחרי סינון בטיחות אוטומטי; כל Plugin נעול ל-SHA. מוסיפים ידנית: <code>/plugin marketplace add anthropics/claude-plugins-community</code>.</li>
+    <li><strong><code>claude-code-plugins</code>:</strong> קטלוג הדגמה ב-Repository של Claude Code עצמו: <code>/plugin marketplace add anthropics/claude-code</code>.</li>
+  </ul>
+
+  <h3 id="community-submit">הגשת Plugin לקטלוג הקהילה</h3>
+  <p>רוצים שה-Plugin שלכם יהיה זמין לכולם? מסלול ההגשה המתועד: מריצים <code>claude plugin validate</code> מקומית, ואז מגישים דרך אחד הטפסים: ב-<bdi>claude.ai</bdi> (דורש ארגון Team או Enterprise עם הרשאות ניהול Directory) או ב-<bdi>Console</bdi> בכתובת <code>platform.claude.com/plugins/submit</code> (פתוח ליוצרים עצמאיים). צינור הביקורת מריץ את אותה ולידציה בתוספת סינון בטיחות אוטומטי. Plugin שאושר ננעל ל-Commit SHA בקטלוג <code>anthropics/claude-plugins-community</code>, וה-CI מעדכן את הנעילה אוטומטית עם כל דחיפה שלכם. חשוב לדייק: הטפסים מוסיפים לקטלוג הקהילה, לא לקטלוג הרשמי; ה-Marketplace הרשמי נאצר על ידי Anthropic לפי שיקול דעתה ואין אליו תהליך הגשה.</p>
+
+  <h3 id="private">Marketplace פרטי לצוות</h3>
+  <p>כל אחסון Git עובד. יוצרים Repository עם <code>.claude-plugin/marketplace.json</code>, והצוות מוסיף:</p>
+  <div class="terminal"><span class="p">$</span> claude plugin marketplace add your-org/claude-plugins
+<span class="out"># GitHub בקיצור owner/repo; נעילה לענף עם @ref</span>
+<span class="p">$</span> claude plugin marketplace add https://gitlab.example.com/team/plugins.git
+<span class="out"># כל שרת Git עם URL מלא (חובה כולל https://)</span>
+<span class="p">$</span> claude plugin marketplace add ./my-marketplace
+<span class="out"># תיקייה מקומית, לבדיקות</span>
+<span class="p">$</span> claude plugin marketplace list
+<span class="p">$</span> claude plugin marketplace update company-tools
+<span class="p">$</span> claude plugin marketplace remove company-tools
+<span class="out"># זהירות: הסרה מה-Scope האחרון מסירה גם את ה-Plugins שהותקנו ממנו</span></div>
+  <p>עבור Repositories פרטיים, התקנה ידנית משתמשת ב-Credential Helpers הקיימים של Git (למשל <code>gh auth setup-git</code>) או ב-SSH עם מפתח טעון ב-<code>ssh-agent</code>. עדכוני רקע אוטומטיים מוגבלים יותר: כברירת מחדל ה-Pull ברקע רץ בלי Credential Helpers, ולכן ב-HTTPS פרטי כדאי להגדיר <code>CLAUDE_CODE_PLUGIN_KEEP_MARKETPLACE_ON_FAILURE=1</code> כדי לשמור על העותק הקיים כשה-Pull נכשל, או לעדכן ידנית עם <code>/plugin marketplace update</code>. הערה חשובה מהתיעוד: Marketplace שנוסף מ-URL ישיר לקובץ <code>marketplace.json</code> מוריד רק את הקובץ, ולכן רשומות עם נתיב יחסי לא יעבדו בו; העדיפו הפצה מבוססת Git.</p>
+
+  <h2 id="versioning">גרסאות ועדכונים</h2>
+  <p>הגרסה היא מפתח ה-Cache שקובע אם יש עדכון. סדר ההכרעה המתועד: (1) <code>version</code> ב-<code>plugin.json</code>; (2) <code>version</code> ברשומת ה-Marketplace; (3) ה-Commit SHA של מקור ה-Plugin; (4) <code>unknown</code>. מכאן שתי אסטרטגיות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>אסטרטגיה</th><th>איך</th><th>מתי מתאים</th></tr></thead>
+      <tbody>
+        <tr><td>גרסה מפורשת</td><td><code>"version": "2.1.0"</code> ב-Manifest, ומקפידים להעלות בכל Release (Semantic Versioning + CHANGELOG)</td><td>Plugins מפורסמים עם מחזורי הפצה מסודרים</td></tr>
+        <tr><td>גרסת Commit</td><td>משמיטים <code>version</code> משני המקומות; כל Commit הוא גרסה</td><td>Plugins פנימיים בפיתוח פעיל</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn"><span class="title">אזהרה</span><p>אם קבעתם <code>version</code> ושכחתם להעלות אותו, דחיפת Commits חדשים לא תגיע לאף משתמש: Claude Code יראה את אותה מחרוזת גרסה וישמור על העותק שב-Cache. אל תקבעו <code>version</code> גם ב-Manifest וגם ברשומת ה-Marketplace; ערך ה-Manifest גובר בשקט.</p></div>
+  <p>עדכונים: <code>/plugin update</code> ידני, או עדכון אוטומטי ברקע (מופעל כברירת מחדל ל-Marketplaces רשמיים, כבוי לצד שלישי; מיתוג פר-Marketplace דרך <code>/plugin</code>). הבדיקה רצה אחרי פתיחת ה-Session עם השהיה אקראית של עד עשר דקות, כך שה-Session הרץ ממשיך עם הגרסאות שנטענו; עדכון שהגיע באמצע נטען רק אחרי <code>/reload-plugins</code> או בהפעלה הבאה. לכיבוי גורף של עדכונים אוטומטיים משמש משתנה הסביבה <code>DISABLE_AUTOUPDATER</code>, ועם <code>FORCE_AUTOUPDATE_PLUGINS=1</code> אפשר להשאיר עדכוני Plugins פעילים גם כשעדכוני Claude Code עצמם כבויים. לשינוי שם או הסרה של Plugin מהקטלוג, השדה <code>renames</code> ב-<code>marketplace.json</code> ממפה שם ישן לחדש (או ל-<code>null</code>) כדי שמשתמשים קיימים יעברו אוטומטית במקום לקבל שגיאת <code>plugin-not-found</code>.</p>
+  <p>שני דפוסים מתקדמים מהתיעוד: <strong>ערוצי הפצה (Release Channels):</strong> כדי לתת לחלק מהצוות גרסת "stable" ולחלק "latest", מקימים שני Marketplaces שמצביעים על אותו Repository ב-<code>ref</code> שונה (ענף <code>stable</code> מול <code>latest</code>) ומחלקים אותם לקבוצות משתמשים דרך Managed Settings; רק ודאו שכל ערוץ באמת נפתר לגרסה שונה. <strong>תלויות בין Plugins:</strong> השדה <code>dependencies</code> ב-Manifest מצהיר על Plugins נדרשים, אופציונלית עם טווח גרסאות Semver (<code>"version": "~2.1.0"</code>); Claude Code מתקין ומפעיל אותם יחד, מונע השבתה של תלות בזמן שתלוי בה פעיל, ו-<code>claude plugin prune</code> מנקה תלויות שהתייתמו.</p>
+
+  <h2 id="governance">ממשל צוותי וארגוני</h2>
+  <p>שלוש רמות שליטה, מהקלה לכבדה:</p>
+  <ol>
+    <li><strong>רמת Repository:</strong> הוסיפו ל-<code>.claude/settings.json</code> של הפרויקט את ה-Marketplace ואת ה-Plugins שהצוות צריך. כשחבר צוות משכפל את ה-Repository ומאשר Trust, Claude Code מציע לו להתקין אותם (התקנה מפורשת נדרשת למקורות חיצוניים, מגרסה 2.1.195):
+      <div class="codeblock">
+        <div class="codehead">.claude/settings.json</div>
+        <pre><code>{
+  "extraKnownMarketplaces": {
+    "company-tools": {
+      "source": { "source": "github", "repo": "your-org/claude-plugins" }
+    }
+  },
+  "enabledPlugins": {
+    "taskflow-toolkit@company-tools": true,
+    "code-formatter@company-tools": true
+  }
+}</code></pre>
+      </div></li>
+    <li><strong>רמת Scope:</strong> התקנה עם <code>--scope project</code> כותבת ל-<code>enabledPlugins</code> המשותף; <code>--scope local</code> נשאר אישי. השבתה אישית של Plugin צוותי נכתבת כ-Override ב-<code>settings.local.json</code> בלי להשפיע על השאר.</li>
+    <li><strong>רמה מנוהלת (Managed Settings):</strong> Admin יכול להגביל אילו Marketplaces מותר להוסיף עם <code>strictKnownMarketplaces</code> (מערך ריק = נעילה מלאה; רשימה = Allowlist מדויק, כולל תבניות <code>hostPattern</code> ו-<code>pathPattern</code> לשרתים פנימיים), לחסום דגלי Sideload עם <code>disableSideloadFlags</code>, לקבוע אילו Marketplaces רשאים להציע Plugins הקשריים עם <code>pluginSuggestionMarketplaces</code>, ולכפות הפעלה או השבתה של Plugins ספציפיים. הגדרות מנוהלות גוברות תמיד, ו-<code>--plugin-dir</code> לא עוקף אותן.</li>
+  </ol>
+  <p>דוגמה לנעילה ארגונית שמתירה רק את הקטלוג הפנימי:</p>
+  <div class="codeblock">
+    <div class="codehead">managed-settings.json (בשליטת Admin)</div>
+    <pre><code>{
+  "strictKnownMarketplaces": [
+    { "source": "github", "repo": "acme-corp/approved-plugins" }
+  ],
+  "extraKnownMarketplaces": {
+    "acme-approved": {
+      "source": { "source": "github", "repo": "acme-corp/approved-plugins" },
+      "autoUpdate": true
+    }
+  }
+}</code></pre>
+  </div>
+  <p>שימו לב לשילוב המתועד: <code>strictKnownMarketplaces</code> רק מגביל מה מותר להוסיף, ולא רושם שום דבר בעצמו; לכן מצמידים אליו <code>extraKnownMarketplaces</code> באותו קובץ, כדי שהקטלוג המאושר יהיה זמין אוטומטית בלי שכל משתמש יריץ פקודת הוספה. ההגבלות נבדקות בכל פעולה (הוספה, התקנה, עדכון), כך שגם Marketplace שנוסף לפני החלת המדיניות מפסיק לעבוד אם אינו ברשימה. לסביבות מנותקות ולקונטיינרים של CI קיים מנגנון Seed: משתנה הסביבה <code>CLAUDE_CODE_PLUGIN_SEED_DIR</code> מצביע על עותק מוכן מראש של תיקיית ה-Plugins שנבנה בזמן בניית ה-Image, ו-Claude Code קורא ממנו בלי לשכפל דבר בזמן ריצה.</p>
+
+  <h2 id="security">אבטחה: לסקור לפני שמתקינים</h2>
+  <div class="callout danger"><span class="title">סכנה</span><p>התיעוד הרשמי מנסח חד: Plugins ו-Marketplaces הם רכיבים בעלי אמון גבוה שיכולים להריץ קוד שרירותי על המכונה שלכם עם הרשאות המשתמש. Anthropic לא שולטת בתוכן של Plugins צד שלישי ולא מאמתת שהם פועלים כמוצהר. התקינו רק ממקורות שאתם בוטחים בהם.</p></div>
+  <p>סדר סקירה מומלץ לפני התקנה, בהמשך לעקרונות <a href="ch20.html">פרק 20</a>:</p>
+  <ul class="check">
+    <li>פתחו את פרטי ה-Plugin (לשונית Discover או <code>claude plugin details</code>) וקראו את רשימת "Will install": אילו Hooks, שרתי MCP ו-Agents נכנסים?</li>
+    <li>קראו את קוד ה-Hooks והסקריפטים ב-Repository של ה-Plugin; Hooks רצים אוטומטית על כל אירוע תואם (<a href="ch22.html">פרק 22</a>).</li>
+    <li>בדקו אילו שרתי MCP מוצהרים ב-<code>.mcp.json</code> ולאן הם מתחברים; שרת MCP מקבל את מה שה-Session רואה.</li>
+    <li>העדיפו מקורות נעולים ל-<code>sha</code> או ל-<code>version</code>, כדי שעדכון זדוני עתידי לא יזלוג אליכם אוטומטית.</li>
+    <li>בארגון: רכזו התקנות דרך Marketplace פנימי סקור, ונעלו עם <code>strictKnownMarketplaces</code>.</li>
+  </ul>
+  <p>חשוב להבין את ההבדל בין רכיבי ה-Plugin מבחינת מודל הסיכון. Skill הוא טקסט הוראות: הוא לא מריץ דבר בעצמו, אבל הוא מנחה את Claude, ולכן Skill זדוני יכול להנדס את המודל לפעולות מסוכנות. Hook ו-Monitor הם קוד שרץ אוטומטית בלי שאלות. שרת MCP הוא תהליך חי עם גישה למה שהגדרתם לו, ו-Agent מקבל את הכלים שהוצהרו לו. לכן סדר העדיפויות בסקירה: קודם Hooks וסקריפטים, אחר כך שרתי MCP והרשאותיהם, ורק אז תוכן ההוראות. והקפידו על היגיינת עדכונים: Plugin שהיה בטוח אתמול יכול להתעדכן היום; נעילת SHA וסקירת Diff בין גרסאות בקטלוג הפנימי הן המקבילה של Lock Files בעולם התלויות.</p>
+
+  <h2 id="migration">המרה מ-Standalone ל-Plugin: לפני ואחרי</h2>
+  <p>יש לכם כבר Skills ו-Hooks עובדים בתיקיית <code>.claude/</code>? ההמרה היא בעיקר העברת קבצים. כך נראה המעבר:</p>
+  <div class="codeblock">
+    <div class="codehead">מבנה: לפני (Standalone) / אחרי (Plugin)</div>
+    <pre><code># לפני                              # אחרי
+taskflow/                            my-plugin/
+├── .claude/                         ├── .claude-plugin/
+│   ├── settings.json  # עם hooks   │   └── plugin.json
+│   ├── skills/                      ├── skills/
+│   │   └── pr-ready/SKILL.md        │   └── pr-ready/SKILL.md
+│   ├── agents/                      ├── agents/
+│   │   └── db-reviewer.md           │   └── db-reviewer.md
+│   └── hooks/                       ├── hooks/
+│       └── secrets_scan.py          │   └── hooks.json   # הועתק מ-settings.json
+└── ...                              └── scripts/
+                                         └── secrets_scan.py</code></pre>
+  </div>
+  <p>הצעדים: יוצרים את תיקיית ה-Plugin עם Manifest; מעתיקים את <code>skills/</code>, <code>agents/</code> וסקריפטים; מעבירים את אובייקט ה-<code>hooks</code> מ-<code>settings.json</code> אל <code>hooks/hooks.json</code> (הפורמט זהה, רק הנתיבים עוברים ל-<code>${CLAUDE_PLUGIN_ROOT}</code>); ובודקים עם <code>--plugin-dir</code>. מה משתנה בפועל: התצורה הופכת משותפת וניתנת להתקנה בפקודה אחת במקום העתקה ידנית, וה-Skills מקבלים Namespace. אחרי שההפצה עובדת, מחקו את המקור מ-<code>.claude/</code>: Agents מקומיים דורסים Agents של Plugin באותו שם, ו-Skills מקומיים ממשיכים לחיות לצד העותק הארוז ומייצרים כפילות מבלבלת.</p>
+
+  <h2 id="taskflow">הדוגמה המלאה: taskflow-toolkit</h2>
+  <p>חבילת המדריך כוללת Plugin שלם בתיקייה <code>plugins/taskflow-toolkit/</code>, שאורז שלושה רכיבים שבנינו בפרקים קודמים: Skill לבדיקת מוכנות ל-PR, ה-Hook לסריקת סודות מ-<a href="ch22.html#hook-secrets">פרק 22</a>, וגרסת Plugin של ה-Subagent לביקורת Database מ-<a href="ch25.html">פרק 25</a>.</p>
+  <div class="codeblock">
+    <div class="codehead">plugins/taskflow-toolkit (מבנה)</div>
+    <pre><code>taskflow-toolkit/
+├── .claude-plugin/
+│   └── plugin.json          # Manifest
+├── skills/
+│   └── pr-ready/
+│       └── SKILL.md         # /taskflow-toolkit:pr-ready
+├── agents/
+│   └── db-reviewer.md       # @taskflow-toolkit:db-reviewer
+├── hooks/
+│   └── hooks.json           # PreToolUse על Write|Edit
+├── scripts/
+│   └── secrets_scan.py      # הסקריפט שה-Hook מריץ
+└── README.md</code></pre>
+  </div>
+  <h3 id="taskflow-files">הקבצים, אחד-אחד</h3>
+  <div class="codeblock">
+    <div class="codehead">.claude-plugin/plugin.json</div>
+    <pre><code>{
+  "name": "taskflow-toolkit",
+  "description": "TaskFlow team toolkit: PR readiness skill, secrets scanning hook, and a read-only database review agent",
+  "version": "1.0.0",
+  "author": { "name": "TaskFlow Team", "email": "dev@taskflow.example.com" },
+  "license": "MIT",
+  "keywords": ["workflow", "security", "database", "code-review"]
+}</code></pre>
+  </div>
+  <p>ה-Skill: תיקייה <code>skills/pr-ready/</code> עם <code>SKILL.md</code>. ה-Frontmatter מכיל <code>name</code> ו-<code>description</code> (ה-description הוא מה שמאפשר ל-Claude להפעיל את ה-Skill אוטומטית כששואלים "האם ה-Branch מוכן ל-PR?"). הגוף מגדיר חמישה צעדים דטרמיניסטיים: מצב ה-Branch, בדיקות (pytest / npm test), Lint (ruff / eslint), עדכון <code>CHANGELOG.md</code> ביחס ל-main, ושאריות Debug (<code>console.log</code>, <code>debugger</code>), עם פורמט דוח קבוע שמסתיים ב-<code>READY FOR PR</code> או <code>NOT READY</code>.</p>
+  <div class="codeblock">
+    <div class="codehead">skills/pr-ready/SKILL.md (פתיחה)</div>
+    <pre><code>---
+name: pr-ready
+description: Check whether the current branch is ready for a Pull Request. Verifies that tests pass, lint is clean, the changelog is updated, and no debug leftovers remain. Use before opening a PR or whenever asked if the branch is PR-ready.
+---
+
+# PR Readiness Check
+
+Run a full readiness check on the current branch and report a clear
+GO / NO-GO verdict. Perform the steps below in order. Never fix issues
+during this check; only report them.
+...</code></pre>
+  </div>
+  <p>ה-Hook: אותו <code>secrets_scan.py</code> בדיוק מפרק 22, אבל שימו לב לשינוי היחיד והמהותי ב-<code>hooks.json</code>: הנתיב עובר דרך <code>${CLAUDE_PLUGIN_ROOT}</code>, כי אחרי התקנה ה-Plugin רץ מה-Cache ולא מהמקור:</p>
+  <div class="codeblock">
+    <div class="codehead">hooks/hooks.json</div>
+    <pre><code>{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/secrets_scan.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}</code></pre>
+  </div>
+  <p>ה-Agent: קובץ Markdown שטוח <code>agents/db-reviewer.md</code>, לפי פריסת ה-<code>agents/*.md</code> המתועדת ל-Plugins. זו גרסה מותאמת של <code>database-reviewer</code> מפרק 25, עם שני שינויים מחויבי-תיעוד: הוסר ה-Frontmatter של <code>hooks:</code> (לא נתמך ב-Agents של Plugin משיקולי אבטחה), ובעקבות זאת הוסר גם הכלי <code>Bash</code> מרשימת ה-<code>tools</code>: בלי ה-Hook שאכף שאילתות קריאה בלבד, אין להשאיר ל-Agent גישת Shell. זו דוגמה מייצגת לחשיבה שנדרשת בהמרת רכיב Standalone ל-Plugin: לא רק העתקה, אלא התאמת מודל האבטחה.</p>
+  <div class="codeblock">
+    <div class="codehead">agents/db-reviewer.md (Frontmatter)</div>
+    <pre><code>---
+name: db-reviewer
+description: Reviews database schemas, migrations, and SQL queries for correctness, performance, and safety. Read-only. Use proactively when migrations, ORM models, or raw SQL change.
+model: sonnet
+maxTurns: 20
+tools: Read, Grep, Glob
+---</code></pre>
+  </div>
+  <h3 id="taskflow-walkthrough">התקנה מודרכת ובדיקת התנהגות</h3>
+  <div class="terminal"><span class="p">$</span> claude plugin validate ./taskflow-toolkit
+<span class="out">Validating plugin manifest: .../taskflow-toolkit/.claude-plugin/plugin.json
+√ Validation passed</span>
+<span class="p">$</span> cd ~/projects/taskflow
+<span class="p">$</span> claude --plugin-dir /path/to/guide/plugins/taskflow-toolkit</div>
+  <p>בתוך ה-Session, בדקו את שלושת הרכיבים:</p>
+  <ol>
+    <li><strong>Skill:</strong> הריצו <code>/taskflow-toolkit:pr-ready</code> (או שאלו "is this branch PR-ready?"). התוצאה הצפויה: טבלת PASS/FAIL/WARN וסיכום GO או NO-GO. ב-TaskFlow עם <code>console.log</code> שנשתל בקוד, הדוח יסמן אותו כממצא חוסם.</li>
+    <li><strong>Hook:</strong> הריצו <code>/hooks</code> וודאו שמופיע PreToolUse עם מקור Plugin. אחר כך בקשו מ-Claude לכתוב לקובץ ערך שנראה כמו מפתח (למשל מחרוזת שמתחילה ב-<code>AKIA</code>). הצפוי: הכתיבה נדחית והנימוק מופיע בשיחה.</li>
+    <li><strong>Agent:</strong> בדקו ב-<code>/context</code> שה-Agent מופיע תחת Custom Agents, או הפעילו במפורש: <code>@taskflow-toolkit:db-reviewer review the pending migration</code>.</li>
+  </ol>
+  <p>מה צפוי לקרות בפועל, צעד אחר צעד: מיד אחרי הטעינה, <code>/help</code> יציג את <code>/taskflow-toolkit:pr-ready</code> תחת קבוצת ה-Plugin. הפעלת ה-Skill תריץ את חמשת הצעדים ותחזיר דוח; ב-TaskFlow הנקי הדוח אמור להיות <code>READY FOR PR</code> עם PASS בכל השורות, ואחרי שתשתלו <code>console.log("debug")</code> באחד מקובצי ה-Frontend ותבצעו לו Stage, הריצה הבאה תסתיים ב-<code>NOT READY: 1 blocking findings</code>. ניסיון של Claude לכתוב מחרוזת שנראית כמו מפתח AWS ייחסם עוד לפני דיאלוג ההרשאות, והנימוק (שם הדפוס ומספר השורה, בלי הערך עצמו) יופיע בשיחה. ואם תבקשו "review the schema changes", Claude אמור לבחור ב-<code>db-reviewer</code> אוטומטית בזכות ה-description שלו; הדוח שיחזור לא יכלול שום עריכת קובץ, כי ל-Agent אין כלי כתיבה.</p>
+  <div class="verify"><p><strong>אימות שבוצע (28.07.2026, גרסה 2.1.220):</strong> <code>claude plugin validate ./taskflow-toolkit</code> החזיר "Validation passed"; שלושת קובצי ה-JSON של ה-Plugin נותחו עם jq בהצלחה; <code>secrets_scan.py</code> עבר <code>python3 -m py_compile</code> והרצות מבחן עם קלט מדומה (פירוט מלא בפרק 22). ה-Plugin נבנה לפי פריסת הרכיבים המתועדת ב-Plugins Reference: Manifest ב-<code>.claude-plugin/</code>, וכל הרכיבים בשורש.</p></div>
+  <p>להפצה לצוות, מוסיפים את ה-Plugin ל-<code>marketplace.json</code> של הארגון כפי שראינו למעלה, והצוות מתקין עם <code>claude plugin install taskflow-toolkit@company-tools --scope project</code>. מרגע שזה ב-<code>enabledPlugins</code> המשותף, כל מי שמשכפל את ה-Repository ומאשר Trust מקבל את שלושת הרכיבים, כולל ה-Hook: זו בדיוק הנקודה שבה סקירת קוד על שינויי ה-Plugin הופכת חובה ולא המלצה.</p>
+
+  <h2 id="mods">עדכון 16.10.2026: Mods, Plugin עם קוד שרץ בתוך Claude Code</h2>
+  <div class="callout note"><span class="title">עדכון 16.10.2026</span><p>מגרסה 2.1.287 קיים סוג חדש של רכיב Plugin: <bdi>Mod</bdi>. הפרק נכתב לפני כן, ולכן הסעיף הזה הוא השלמה קצרה; ההסבר המלא, עם דוגמה שנבדקה, נמצא ב<a href="../interactive/mods-lomda.html">לומדה על Mods</a>.</p></div>
+  <p><bdi>Mod</bdi> הוא Plugin שקובץ <code>hooks/hooks.json</code> שלו מכיל מפתח <code>modules</code> עם נתיב לקובץ JavaScript או TypeScript. הקובץ מייצא פונקציה <code>register(on)</code>, ו-Claude Code קורא לפונקציות שהיא רושמת כשאירוע קורה: קריאה לכלי (<code>tool.call</code>), פרומפט שנשלח (<code>prompt.submit</code>), פקודת <code>/</code> (<code>command.run</code>) או ציור של חלק בממשק (<code>ui.render</code>). כל פונקציה יכולה לצפות באירוע, לשכתב אותו או לענות במקום Claude Code, וכך Mod יכול לחסום קריאה, להוסיף פקודה, לצייר פאנל או פס מעל הפרומפט, ולשמור State בין Hooks. בתיעוד, Hooks מהסוג שבפרק 22 נקראים מעכשיו <strong>Settings hooks</strong>, כדי להבדיל ביניהם.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>נושא</th><th>Mod</th><th>Settings hook (פרק 22)</th></tr></thead>
+      <tbody>
+        <tr><td>איך כותבים</td><td>פונקציות JavaScript או TypeScript בתוך Plugin</td><td>פקודת Shell, HTTP או פרומפט ב-<code>settings.json</code></td></tr>
+        <tr><td>איפה רץ</td><td>בתוך התהליך של Claude Code, בלי Sandbox</td><td>כתהליך נפרד</td></tr>
+        <tr><td>ציור בממשק</td><td>כן, בטרמינל ובאפליקציית Desktop</td><td>לא</td></tr>
+        <tr><td>בדיקה</td><td><code>claude plugin validate</code> ו-<code>claude plugin test</code></td><td>הרצה ידנית עם JSON ב-stdin</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>שלושה דברים שחשוב לדעת כבר בפרק הזה. ראשית, <code>claude plugin validate</code> מדפיס ל-Mod שורות <code>hooks:</code> ו-<code>calls:</code> שמפרטות על אילו אירועים הוא יושב ומה הוא קורא, ולכן זו הבדיקה הראשונה לפני התקנה של כל Mod. שנית, Mod רץ עם ההרשאות שלכם, יכול לאשר קריאה שכלל <code>ask</code> היה שואל עליה, ו-<code>$.fs</code> ו-<code>$.process</code> שלו לא כפופים לכללי ההרשאות; הסקירה שבסעיף האבטחה למעלה חלה עליו במלואה. שלישית, ארגון שולט ב-Mods דרך השומר המובנה <code>cc-plugin-sec-default@builtin</code> בהגדרות מנוהלות, למשל עם <code>allowManagedModsOnly</code>.</p>
+
+  <h2 id="troubleshooting">שגיאות נפוצות ו-Troubleshooting</h2>
+  <ul>
+    <li><strong>ה-Plugin נטען אבל רכיבים חסרים:</strong> כמעט תמיד התיקיות יושבות בטעות בתוך <code>.claude-plugin/</code>. העבירו אותן לשורש ה-Plugin.</li>
+    <li><strong>שגיאת Manifest:</strong> הריצו <code>claude plugin validate &lt;path&gt;</code>; הוא מדווח שגיאות JSON, שדות חסרים, Frontmatter שבור ב-Skills/Agents ושגיאות ב-<code>hooks.json</code> (קובץ <code>hooks.json</code> פגום מונע את טעינת ה-Plugin כולו).</li>
+    <li><strong>Hook של Plugin לא רץ:</strong> ודאו הרשאת הרצה לסקריפט, ושכל נתיב עובר דרך <code>${CLAUDE_PLUGIN_ROOT}</code>. נתיבים מוחלטים או <code>../</code> נשברים אחרי התקנה בגלל ההעתקה ל-Cache.</li>
+    <li><strong>"path not found" בהתקנה מ-Marketplace שהתווסף מ-URL:</strong> רשומות עם נתיב יחסי לא נתמכות ב-URL ישיר; עברו למקור github/git/npm או ל-Marketplace מבוסס Git.</li>
+    <li><strong>Skills לא מופיעים אחרי עדכון:</strong> הריצו <code>/reload-plugins</code>; במקרה עיקש נקו את ה-Cache (<code>rm -rf ~/.claude/plugins/cache</code>) והתקינו מחדש.</li>
+    <li><strong>LSP Plugin עם "Executable not found in $PATH":</strong> ה-Plugin מגדיר רק את החיבור; את שרת השפה עצמו מתקינים בנפרד (למשל <code>npm install -g typescript-language-server typescript</code>).</li>
+    <li><strong>אבחון כללי:</strong> <code>claude --debug</code> מציג את טעינת ה-Plugins, רישום הרכיבים ושגיאות; לשונית Errors ב-<code>/plugin</code> מרכזת שגיאות טעינה.</li>
+  </ul>
+
+  <h2 id="cost">עלות ו-Context</h2>
+  <p>כל Plugin פעיל מוסיף עלות קבועה לכל Session: תיאורי ה-Skills, תיאורי ה-Agents ושמות הפקודות נטענים תמיד (Always-on), והפעלת רכיב מוסיפה את העלות שלו (On-invoke). לפני התקנה, בדקו את אומדן ה-Context בלשונית Discover; אחרי התקנה, <code>claude plugin details &lt;name&gt;</code> מפרט עלות פר-רכיב. לשונית Installed גם מסמנת Plugins שלא היו בשימוש שבועיים ומעלה ("Not used recently"): השביתו או הסירו אותם, כי הם ממשיכים לשלם עלות Context בכל Session. זכרו גם ש-<code>/reload-plugins</code> באמצע Session עשוי לשבור את ה-Prompt Cache כשמעורבים שרתי MCP, ולייקר את הבקשה הבאה.</p>
+
+  <h2 id="best-practices">Best Practices ו-Anti-Patterns</h2>
+  <ul class="check">
+    <li>התחילו Standalone, ארזו כ-Plugin רק כשיש צורך אמיתי בשיתוף; המבנה זהה כמעט אחד לאחד.</li>
+    <li>Plugin אחד לנושא אחד, עם <code>description</code> ו-README ברורים; אל תבנו "Plugin של הכול".</li>
+    <li>הריצו <code>claude plugin validate --strict</code> ב-CI של ה-Repository שמפיץ את ה-Plugin.</li>
+    <li>בחרו אסטרטגיית גרסה במודע: מפורשת ל-Releases, מבוססת SHA לפיתוח פנימי שוטף.</li>
+    <li>נעלו מקורות (sha/version) בקטלוגים ארגוניים, וסקרו כל עדכון כמו Code Review.</li>
+  </ul>
+  <p><strong>Anti-Patterns:</strong> רכיבים בתוך <code>.claude-plugin/</code>; נתיבים מוחלטים או <code>../</code> בתצורות; <code>version</code> קבוע שלא מתעדכן (משתמשים תקועים על גרסה ישנה בלי לדעת); העתקת Agent עם <code>permissionMode</code> או <code>hooks</code> ב-Frontmatter לתוך Plugin (השדות לא נתמכים ויתעלמו או ייכשלו); ו-Plugins מיותרים שנשארים פעילים ומנפחים את ה-Context.</p>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 26.1: אריזת Skill מפרק 21 כ-Plugin</div>
+    <div class="body"><p>בחרו Skill אחד שבניתם ב-<a href="ch21.html">פרק 21</a> ב-<code>.claude/skills/</code> של TaskFlow, וארזו אותו כ-Plugin בשם <code>taskflow-skills</code>. דרישות: (1) מבנה תקין עם Manifest; (2) גרסה מפורשת 1.0.0; (3) טעינה ובדיקה במצב פיתוח עם <code>--plugin-dir</code>; (4) הפעלת ה-Skill בשמו הממוסף; (5) אימות עם <code>claude plugin validate</code>. שאלת בונוס: מה יקרה לשם ההפעלה של ה-Skill המקורי שנשאר ב-<code>.claude/skills/</code>, ואיך תימנעו מכפילות?</p></div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <div class="terminal"><span class="p">$</span> mkdir -p taskflow-skills/.claude-plugin taskflow-skills/skills
+<span class="p">$</span> cp -r .claude/skills/api-endpoint taskflow-skills/skills/
+<span class="out"># החליפו api-endpoint בשם ה-Skill שבחרתם</span></div>
+      <div class="codeblock">
+        <div class="codehead">taskflow-skills/.claude-plugin/plugin.json</div>
+        <pre><code>{
+  "name": "taskflow-skills",
+  "description": "TaskFlow project skills packaged for team distribution",
+  "version": "1.0.0",
+  "author": { "name": "Your Name" }
+}</code></pre>
+      </div>
+      <div class="terminal"><span class="p">$</span> claude plugin validate ./taskflow-skills
+<span class="out">√ Validation passed</span>
+<span class="p">$</span> claude --plugin-dir ./taskflow-skills
+<span class="out"># בתוך ה-Session:</span>
+<span class="p">&gt;</span> /taskflow-skills:api-endpoint users
+<span class="out"># ה-Skill רץ תחת ה-Namespace של ה-Plugin; /help מציג אותו תחת הקבוצה</span></div>
+      <p>נקודות המפתח: (1) ה-Skill עובר כתיקייה שלמה, כולל קבצים נלווים אם יש, אל <code>skills/&lt;name&gt;/</code> בשורש ה-Plugin; שם התיקייה הופך לשם ה-Skill. (2) ה-Manifest מינימלי: רק <code>name</code> חובה, אבל <code>version</code> מפורש עונה לדרישה ומכין את ה-Plugin להפצה מסודרת. (3) <code>--plugin-dir</code> טוען בלי התקנה, ו-<code>/reload-plugins</code> קולט תיקונים תוך כדי. (4) לשאלת הבונוס: התיעוד קובע שה-Skill המקורי (<code>/api-endpoint</code>) והעותק הארוז (<code>/taskflow-skills:api-endpoint</code>) ממשיכים להתקיים זה לצד זה, בלי שאחד דורס את השני; לכן אחרי שההפצה דרך ה-Plugin מתחילה, מוחקים את המקור מ-<code>.claude/skills/</code> כדי למנוע בלבול וכפילות ב-Context. להפצה אמיתית, השלב הבא הוא הוספת ה-Plugin ל-<code>marketplace.json</code> צוותי והצהרה עליו ב-<code>enabledPlugins</code> של הפרויקט.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>Plugin הוא שכבת האריזה של כל מה שלמדתם בחלק הזה: תיקייה עם Manifest שאוגדת Skills, Agents, Hooks, שרתי MCP ו-LSP ורכיבים נוספים תחת שם וגרסה אחת. למדנו את המבנה (והטעות הקלאסית של <code>.claude-plugin/</code>), את שדות ה-Manifest ואת משתני הנתיב עם <code>${CLAUDE_PLUGIN_ROOT}</code> וה-Cache; את שלושת מסלולי ההתקנה (ממשק <code>/plugin</code>, פקודות CLI עם Scopes, ו-<code>--plugin-dir</code> לפיתוח); את עולם ה-Marketplaces מהקטלוג הרשמי של Anthropic ועד Repository פרטי של הצוות; ניהול גרסאות מפורש מול מבוסס SHA; ממשל צוותי עם <code>extraKnownMarketplaces</code>, <code>enabledPlugins</code> ונעילות Managed; ואת כלל הזהב של האבטחה: Plugin מריץ קוד בהרשאות שלכם, סוקרים לפני שמתקינים. את הכול ראינו בשר ודם ב-<bdi>taskflow-toolkit</bdi>. בפרק הבא נעזוב את הטרמינל הטהור ונראה איך כל זה פוגש את ה-IDE: Claude Code בתוך VS Code ו-JetBrains.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/plugins">Create plugins</a> |
+      <a href="https://code.claude.com/docs/en/plugins-reference">Plugins reference</a> |
+      <a href="https://code.claude.com/docs/en/plugin-marketplaces">Create and distribute a plugin marketplace</a> |
+      <a href="https://code.claude.com/docs/en/discover-plugins">Discover and install prebuilt plugins</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">CLI reference (claude plugin, --plugin-dir, --plugin-url)</a> |
+      <a href="https://code.claude.com/docs/en/hooks">Hooks reference</a> |
+      <a href="https://code.claude.com/docs/en/plugins/mods/overview">Mods overview</a> (נבדק: 16.10.2026) |
+      <a href="https://code.claude.com/docs/en/plugins/mods/admin">Manage mods for your organization</a> (נבדק: 16.10.2026)
+      | נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch25.html"><span class="lbl">הפרק הקודם</span>Subagents</a>
+    <a href="ch27.html"><span class="lbl">הפרק הבא</span>Claude Code בתוך VS Code ו-JetBrains</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.2 | הפרק עודכן: 16.10.2026 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

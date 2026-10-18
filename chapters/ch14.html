@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 14: Context Window ו-Session Management</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ג | פרק 14</p>
+  <h1>Context Window ו-Session Management</h1>
+  <p class="lead">ה-<bdi>Context Window</bdi> הוא המשאב היקר ביותר בעבודה עם <bdi>Claude Code</bdi>: הוא קובע כמה Claude "זוכר", כמה מהר הוא מגיב וכמה כל הודעה עולה. בפרק הזה נבין מה בדיוק נכנס לחלון, איך הוא מתמלא בלי שנשים לב, מה קורה ב-<bdi>Compaction</bdi> אוטומטי וידני, מתי עדיף <code>/clear</code>, איך <bdi>Prompt Caching</bdi> הופך היגיינת <bdi>Context</bdi> לחיסכון כספי ישיר, ואיך מנהלים כמה <bdi>Sessions</bdi> במקביל: המשך, מתן שמות, פיצול, וכתיבת <bdi>Handoff Summary</bdi> מסודר בין משימות.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-is-context">מה זה Context Window</h2>
+  <p>מודל שפה לא "זוכר" שום דבר בין בקשות. בכל פעם שאתם שולחים הודעה, <bdi>Claude Code</bdi> שולח ל-<bdi>API</bdi> את כל מה שהמודל צריך לדעת: הוראות המערכת, הוראות הפרויקט, כל השיחה עד עכשיו, וכל תוצאה של כל כלי שהופעל. הכמות הכוללת הזאת, שנמדדת ב-<bdi>Tokens</bdi>, חייבת להיכנס לתוך ה-<bdi>Context Window</bdi>: חלון הקלט המקסימלי של המודל.</p>
+  <p>גודל החלון תלוי במודל. ברוב המודלים החלון הסטנדרטי הוא 200 אלף <bdi>Tokens</bdi> (בערך 150 אלף מילים באנגלית, פחות בעברית). לפי התיעוד הרשמי, המודלים <bdi>Fable 5</bdi>, <bdi>Sonnet 5</bdi>, <bdi>Opus 4.6</bdi> ואילך ו-<bdi>Sonnet 4.6</bdi> תומכים גם בחלון של מיליון <bdi>Tokens</bdi>; <bdi>Sonnet 5</bdi> רץ על מיליון כברירת מחדל, ובשאר בוחרים וריאנט <code>[1m]</code> בהתאם לזמינות בתוכנית שלכם. חלון גדול יותר לא מבטל את הצורך בניהול: הוא רק דוחה את הרגע שבו תצטרכו אותו, וכפי שנראה בהמשך, <bdi>Context</bdi> גדול עולה יותר בכל הודעה.</p>
+  <p>שתי מסקנות מעשיות נובעות מהמכניקה הזאת:</p>
+  <ul>
+    <li><strong>ה-Context הוא מצטבר.</strong> כל קובץ ש-Claude קרא, כל פלט של בדיקה שרצה, כל תשובה שהוא כתב, כולם נשארים בחלון וממשיכים להישלח שוב ושוב עם כל הודעה חדשה.</li>
+    <li><strong>ה-Context הוא תקציב.</strong> שאלה של שורה אחת ב-<bdi>Session</bdi> שפתוח כבר שעות שולחת את כל ההיסטוריה, לא רק את השורה. לכן ניהול החלון הוא גם ניהול עלויות.</li>
+  </ul>
+
+  <h2 id="what-enters">מה נכנס לחלון: אנטומיה של Context</h2>
+  <p>עוד לפני שהקלדתם את המילה הראשונה, החלון כבר אינו ריק. התיעוד הרשמי מפרט מה נטען אוטומטית בפתיחת <bdi>Session</bdi> ומה מצטרף תוך כדי עבודה. אלה הקטגוריות, לפי סדר הופעתן:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>רכיב</th><th>מתי נטען</th><th>מה יש בו</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>System Prompt</bdi></td><td>תמיד, ראשון</td><td>הוראות הליבה של Claude Code: התנהגות, שימוש בכלים, פורמט תשובות, ופרטי סביבה (תיקייה, מערכת הפעלה, מצב Git). אתם לא רואים אותו אף פעם</td></tr>
+        <tr><td><bdi>Auto Memory</bdi></td><td>בפתיחה</td><td>הערות ש-Claude כתב לעצמו ב-Sessions קודמים. נטענות עד 200 השורות הראשונות או 25KB של <code>MEMORY.md</code>, המוקדם מביניהם (פירוט בפרק 16)</td></tr>
+        <tr><td>קובצי <bdi>CLAUDE.md</bdi></td><td>בפתיחה</td><td>הוראות ברמת ארגון, משתמש ופרויקט, כולל <bdi>Rules</bdi> לא ממוקדים (פירוט מלא בפרק 15)</td></tr>
+        <tr><td>כלי <bdi>MCP</bdi></td><td>בפתיחה (שמות בלבד)</td><td>כברירת מחדל נטענים רק שמות הכלים; ההגדרות המלאות (Schemas) נטענות לפי דרישה דרך Tool Search</td></tr>
+        <tr><td>תיאורי <bdi>Skills</bdi></td><td>בפתיחה</td><td>שורת תיאור אחת לכל Skill זמין. התוכן המלא נטען רק כשה-Skill מופעל</td></tr>
+        <tr><td>ההודעות שלכם</td><td>תוך כדי שיחה</td><td>כל Prompt שהקלדתם, כולל פלט של פקודות <code>!</code> שמצורף להודעה</td></tr>
+        <tr><td>קריאת קבצים</td><td>תוך כדי שיחה</td><td>התוכן המלא של כל קובץ ש-Claude קורא. בטרמינל רואים רק שורת "Read", אבל כל התוכן נכנס לחלון</td></tr>
+        <tr><td>פלט כלים ופקודות</td><td>תוך כדי שיחה</td><td>תוצאות חיפוש, פלט בדיקות, הודעות שגיאה, פלט Build. גם כאן, בטרמינל מוצג תקציר אבל בחלון יושב הפלט המלא</td></tr>
+        <tr><td><bdi>Rules</bdi> ממוקדי נתיב ו-<bdi>CLAUDE.md</bdi> מקוננים</td><td>לפי דרישה</td><td>נטענים אוטומטית ברגע ש-Claude קורא קובץ שמתאים לתבנית או נמצא בתת-התיקייה</td></tr>
+        <tr><td>פלט <bdi>Hooks</bdi></td><td>לפי אירוע</td><td>רק מה ש-Hook מחזיר בשדה <code>additionalContext</code> נכנס לחלון; פלט רגיל הולך ליומן Debug בלבד</td></tr>
+        <tr><td>תשובות Claude</td><td>תוך כדי שיחה</td><td>כל ניתוח, הסבר ו-Diff שהוא מציג, וגם סיכומים שחוזרים מ-Subagents</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout note"><span class="title">הערה</span><p>שימו לב לפער בין מה שאתם רואים למה שהמודל רואה: רוב מה שממלא את החלון (תוכן קבצים, פלט פקודות, הוראות שנטענו) מוצג בטרמינל כשורה אחת או לא מוצג בכלל. זו הסיבה שהחלון מתמלא "בהפתעה". הפקודה <code>/context</code>, שנראה מיד, סוגרת את הפער הזה.</p></div>
+
+  <figure>
+    <img src="../diagrams/context-lifecycle.svg" alt="תרשים מחזור החיים של ה-Context: מילוי, אזהרה, Compact או Clear, והמשך או פיצול Session">
+    <figcaption>מחזור החיים של ה-Context: החלון מתמלא, מתקבלת אזהרה, ואז בוחרים בין Compact (המשך אותו Session עם סיכום), Clear (התחלה נקייה) או יציאה, שאחריה אפשר להמשיך או לפצל.</figcaption>
+  </figure>
+
+  <h2 id="how-it-fills">איך החלון מתמלא בפועל</h2>
+  <p>לפי התיעוד, קריאת קבצים היא הצרכן הדומיננטי של <bdi>Context</bdi> ברוב ה-<bdi>Sessions</bdi>. אבל היא לא לבד. אלה המקורות שממלאים חלון מהר יותר מכל דבר אחר:</p>
+  <ul>
+    <li><strong>קבצים גדולים.</strong> קובץ של 2,000 שורות יכול לשקול 15 עד 25 אלף <bdi>Tokens</bdi>. בקשה כללית מדי ("תבין את הפרויקט") גוררת קריאה של עשרות קבצים.</li>
+    <li><strong>לוגים ופלט פקודות.</strong> הרצת חבילת בדיקות מלאה, פלט <bdi>Build</bdi> מפורט או קובץ לוג של אלפי שורות נכנסים לחלון במלואם, גם כשרק שלוש שורות מתוכם רלוונטיות.</li>
+    <li><strong>הדבקות ארוכות.</strong> כשאתם מדביקים <bdi>Stack Trace</bdi> שלם, JSON ענק או פלט טרמינל גולמי לתוך ה-<bdi>Prompt</bdi>, הכול נשאר בהיסטוריה לתמיד.</li>
+    <li><strong>כלי MCP.</strong> כברירת מחדל רק שמות הכלים נטענים מראש, אבל שרתים שמוגדרים <code>alwaysLoad</code>, או סביבות שבהן <bdi>Tool Search</bdi> כבוי, טוענים את כל ההגדרות מראש. הפקודה <code>/mcp</code> מציגה את העלות פר שרת.</li>
+    <li><strong>שיחה ארוכה בלי מטרה.</strong> עשר משימות שונות באותו <bdi>Session</bdi> משאירות בחלון שאריות של תשע משימות שכבר הסתיימו.</li>
+  </ul>
+
+  <h2 id="context-cmd">בדיקת מצב עם /context</h2>
+  <p>הפקודה <code>/context</code> רצה בתוך ה-<bdi>Session</bdi> ומציגה תמונת מצב חיה של החלון: רשת צבעונית שממחישה כמה מקום תופסת כל קטגוריה (הוראות מערכת, כלים, קובצי <bdi>Memory</bdi>, הודעות), אילו קובצי <bdi>CLAUDE.md</bdi> ו-<bdi>Auto Memory</bdi> נטענו בפועל, והצעות ייעול: כלים כבדים, קובצי הוראות מנופחים ואזהרות קיבולת. במסך מלא אפשר להקליד <code>/context all</code> כדי להרחיב את הפירוט המלא.</p>
+  <div class="terminal"><span class="p">$</span> claude
+<span class="p">&gt;</span> /context</div>
+  <p>מתי להריץ? שלושה רגעים קלאסיים: בתחילת <bdi>Session</bdi> חדש (כדי לוודא שקובצי ההוראות הנכונים נטענו), כשהתגובות נהיות איטיות או שטוחות (כדי לראות מי אשם), ולפני החלטה בין <code>/compact</code> ל-<code>/clear</code>. אם השיחה חרגה מהחלון, הפלט כולל אזהרה שמציינת בכמה חרגתם ואיזו פקודה תפנה מקום (החל מגרסה 2.1.216).</p>
+  <div class="verify">
+    <p><strong>אימות:</strong> הריצו <code>/context</code> בפרויקט <bdi>TaskFlow</bdi> מיד אחרי פתיחת <code>claude</code>. תחת רשימת קובצי ה-<bdi>Memory</bdi> אמור להופיע <code>CLAUDE.md</code> של הפרויקט. אם הוא חסר, בדקו שהפעלתם את Claude Code משורש הפרויקט.</p>
+  </div>
+
+  <h2 id="compaction">Compaction: אוטומטי וידני</h2>
+  <h3 id="auto-compact">מה קורה אוטומטית</h3>
+  <p>כשמתקרבים לגבול החלון, <bdi>Claude Code</bdi> מנהל את המקום בעצמו, בשני שלבים מתועדים: קודם הוא מפנה פלטי כלים ישנים, ואם זה לא מספיק, הוא מסכם את השיחה כולה. הסיכום שומר את הבקשות שלכם ואת קטעי הקוד המרכזיים; הוראות מפורטות מתחילת השיחה עלולות ללכת לאיבוד. המסקנה המתועדת: כלל שחייב לשרוד לאורך זמן שייך ל-<bdi>CLAUDE.md</bdi>, לא לשיחה.</p>
+  <p>יש גם מנגנון הגנה: אם קובץ בודד או פלט ענק ממלאים את החלון מחדש מיד אחרי כל סיכום, Claude Code מפסיק לנסות אחרי כמה ניסיונות ומציג שגיאת <bdi>Thrashing</bdi> במקום להיכנס ללולאה אינסופית.</p>
+  <h3 id="what-survives">מה שורד את ה-Compaction</h3>
+  <p>לא הכול נמחק. התיעוד מפרט בדיוק מה קורה לכל מנגנון, וזה שווה שינון כי הוא מסביר התנהגויות "מוזרות" רבות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מנגנון</th><th>אחרי Compaction</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>System Prompt</bdi> ו-<bdi>Output Style</bdi></td><td>ללא שינוי; הם לא חלק מהיסטוריית ההודעות</td></tr>
+        <tr><td><bdi>CLAUDE.md</bdi> של שורש הפרויקט ו-Rules לא ממוקדים</td><td>נטענים מחדש מהדיסק</td></tr>
+        <tr><td><bdi>Auto Memory</bdi></td><td>נטען מחדש מהדיסק</td></tr>
+        <tr><td><bdi>Rules</bdi> עם <code>paths:</code></td><td>הולכים לאיבוד עד שקובץ מתאים ייקרא שוב</td></tr>
+        <tr><td><bdi>CLAUDE.md</bdi> מקונן בתת-תיקייה</td><td>הולך לאיבוד עד שקובץ בתיקייה ייקרא שוב</td></tr>
+        <tr><td>תוכן <bdi>Skills</bdi> שהופעלו</td><td>נטען מחדש, עד 5,000 Tokens לכל Skill ועד 25,000 בסך הכול; הישנים ביותר נזרקים ראשונים</td></tr>
+        <tr><td>רשימת תיאורי ה-<bdi>Skills</bdi></td><td>לא נטענת מחדש; רק Skills שהופעלו בפועל נשמרים</td></tr>
+        <tr><td><bdi>Hooks</bdi></td><td>לא רלוונטי; הם רצים כקוד, לא כ-Context</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3 id="manual-compact">/compact ידני עם הוראות מיקוד</h3>
+  <p>הפקודה <code>/compact</code> מפעילה את אותו סיכום, אבל בתזמון וברמת שליטה שלכם. אפשר, ומומלץ, לצרף הוראות מיקוד:</p>
+  <div class="codeblock">
+    <div class="codehead">בתוך Session פעיל</div>
+    <pre><code>/compact focus on the whitespace-title bug fix and the failing tests
+/compact keep the API design decisions and drop the exploration</code></pre>
+  </div>
+  <p>ההוראה קובעת מה הסיכום ישמור, במקום שהמעבר האוטומטי ינחש מה חשוב. ב-<bdi>Session</bdi> טרי הפקודה תחזיר <code>Not enough messages to compact.</code>, כי אין עדיין מה לסכם. טיפ מתועד נוסף: אפשר לקבוע התנהגות קבועה על ידי סעיף <code>Compact instructions</code> בתוך <bdi>CLAUDE.md</bdi> של הפרויקט, למשל הנחיה לשמור תמיד פלט בדיקות ושינויי קוד.</p>
+  <div class="callout tip"><span class="title">Best Practice</span><p>הריצו <code>/compact</code> בהפסקה טבעית בין משימות, לא באמצע משימה. כך אתם בוחרים מתי לשלם את מחיר הסיכום, והסיכום עצמו נעשה כשקל להגדיר מה חשוב לשמור. אם ירדתם למסלול שאתם רוצים לנטוש לגמרי, <code>/rewind</code> לנקודה מוקדמת זול יותר מ-Compaction, כי הוא חוזר ל-Context שכבר שמור ב-Cache.</p></div>
+
+  <h2 id="compact-vs-clear">/compact מול /clear: ניתוח עלות ותועלת</h2>
+  <p>שתי הפקודות מפנות מקום, אבל הן כלים שונים לחלוטין:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th></th><th><code>/compact</code></th><th><code>/clear</code></th></tr></thead>
+      <tbody>
+        <tr><td>מה נשאר</td><td>סיכום מובנה של השיחה + כל תוכן הפתיחה שנטען מחדש</td><td>רק תוכן הפתיחה (System Prompt, CLAUDE.md, Memory); היסטוריה ריקה</td></tr>
+        <tr><td>רציפות</td><td>אותה שיחה נמשכת; Claude "זוכר" את עיקרי העבודה</td><td>שיחה חדשה; Claude לא זוכר דבר מהקודמת</td></tr>
+        <tr><td>עלות</td><td>בקשת סיכום שקוראת את כל השיחה: ככל שהחלון גדול, היא יקרה יותר (רובה מוגש מה-Cache)</td><td>ללא עלות; שום דבר לא נשלח למודל</td></tr>
+        <tr><td>מה קורה לשיחה הישנה</td><td>מוחלפת בסיכום בתוך אותו Session</td><td>נשמרת בדיסק; חוזרים אליה עם <code>/resume</code> או מתפריט ה-Rewind (בגרסה 2.1.191 ואילך)</td></tr>
+        <tr><td>מתי להשתמש</td><td>ממשיכים את אותה משימה ארוכה וצריך את ההקשר</td><td>עוברים למשימה לא קשורה; ההיסטוריה רק תפריע ותעלה כסף</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>ל-<code>/clear</code> יש תוספת שימושית: <code>/clear [name]</code> נותן שם לשיחה שסיימתם, כך שקל למצוא אותה אחר כך בבורר של <code>/resume</code>. הכינויים <code>/reset</code> ו-<code>/new</code> עושים אותו דבר. כלל אצבע מהתיעוד הרשמי: כשרוצים התחלה נקייה ולא רציפות, <code>/clear</code> עדיף, כי הוא לא עולה כלום.</p>
+  <div class="terminal"><span class="p">&gt;</span> /clear whitespace-bug-fix</div>
+  <p>אחרי הפקודה תיפתח שיחה חדשה עם Context ריק, והשיחה הקודמת תופיע בבורר של <code>/resume</code> תחת השם <code>whitespace-bug-fix</code>. שם שנתתם בעצמכם עם <code>--name</code> או <code>/rename</code> נשמר גם בשיחה החדשה; כותרת שנוצרה אוטומטית, לא.</p>
+
+  <h2 id="caching">Prompt Caching: למה היגיינת Context שווה כסף</h2>
+  <p><bdi>Prompt Caching</bdi> הוא המנגנון שהופך את המבנה המצטבר של השיחה לנסבל כלכלית. ה-<bdi>API</bdi> משווה את תחילת כל בקשה (ה-<bdi>Prefix</bdi>) לתוכן שהוא כבר עיבד לאחרונה; מה שזהה מוגש מה-<bdi>Cache</bdi> במקום להיות מעובד מחדש. לפי התיעוד, קריאה מה-Cache מחויבת בסביבות 10% ממחיר הקלט הרגיל, וכתיבה ל-Cache מחויבת בתעריף גבוה יותר מקלט רגיל. Claude Code מסדר את הבקשה בשלוש שכבות, מהיציב לתנודתי: <bdi>System Prompt</bdi>, הקשר הפרויקט (CLAUDE.md, Memory), והשיחה עצמה. שינוי בשכבה מוקדמת מבטל את ה-Cache של כל מה שאחריה.</p>
+  <p>מכאן נובעות שלוש עובדות שכל מפתח צריך להכיר:</p>
+  <ul>
+    <li><strong>ל-Cache יש שעון.</strong> על מנוי <bdi>Claude</bdi> (Pro/Max/Team/Enterprise) ה-Cache חי שעה בין הודעות; על מפתח <bdi>API</bdi> או ספק ענן, חמש דקות כברירת מחדל (אפשר להאריך עם <code>ENABLE_PROMPT_CACHING_1H=1</code>). ההודעה הראשונה אחרי הפסקה ארוכה מעבדת את כל החלון מחדש, ולכן דווקא היא היקרה והאיטית ביותר. וככל שהחלון גדול יותר, ההחמצה הזאת יקרה יותר. זה טיעון כלכלי ישיר בעד חלון רזה.</li>
+    <li><strong>פעולות מסוימות שוברות את ה-Cache.</strong> החלפת מודל עם <code>/model</code>, שינוי רמת <bdi>Effort</bdi>, הדלקת <bdi>Fast Mode</bdi>, התחברות או התנתקות של שרת <bdi>MCP</bdi> שכליו טעונים מראש, חסימת כלי שלם ב-<bdi>Permissions</bdi>, שדרוג גרסה, וכמובן ה-Compaction עצמו. אחרי כל אחת מאלה, התור הבא קורא את כל ההיסטוריה בלי Cache.</li>
+    <li><strong>פעולות אחרות בטוחות.</strong> עריכת קבצים בפרויקט, החלפת <bdi>Permission Mode</bdi>, הפעלת <bdi>Skills</bdi>, פקודת <code>/rewind</code> והרצת <bdi>Subagents</bdi> לא נוגעות ב-Prefix. שימו לב לפרט מתועד ומפתיע: עריכת <bdi>CLAUDE.md</bdi> באמצע Session לא שוברת את ה-Cache, אבל היא גם לא נכנסת לתוקף; הגרסה החדשה נטענת רק ב-<code>/clear</code>, ב-<code>/compact</code> או בהפעלה מחדש.</li>
+  </ul>
+  <div class="callout tip"><span class="title">Best Practice</span><p>בחרו מודל ורמת Effort בתחילת ה-Session ואל תחליפו באמצע משימה. כל החלפה כזאת היא תור אחד יקר ואיטי של בנייה מחדש של ה-Cache. את יחס ה-Cache אפשר לראות ב-<code>/usage</code>: יחס גבוה של קריאות Cache מול כתיבות אומר שהכול עובד כמו שצריך.</p></div>
+
+  <h2 id="sessions">ניהול Sessions: המשך, שמות ובורר</h2>
+  <p><bdi>Session</bdi> הוא שיחה שמורה שקשורה לתיקיית פרויקט. Claude Code שומר אותה לדיסק באופן רציף (קובצי <bdi>JSONL</bdi> תחת <code>~/.claude/projects/</code>, עם מחיקה אוטומטית אחרי 30 יום כברירת מחדל, שניתנת לשינוי בהגדרה <code>cleanupPeriodDays</code>). לכן יציאה מהטרמינל, ואפילו <code>/clear</code>, לא מאבדים כלום. אלה נקודות הכניסה המתועדות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פקודה</th><th>מה היא עושה</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>claude --continue</code> (או <code>claude -c</code>)</td><td>ממשיך את ה-Session האחרון בתיקייה הנוכחית</td></tr>
+        <tr><td class="ltr"><code>claude --resume</code> (או <code>claude -r</code>)</td><td>פותח בורר Sessions אינטראקטיבי</td></tr>
+        <tr><td class="ltr"><code>claude --resume &lt;name&gt;</code></td><td>ממשיך Session לפי שם או מזהה, ישירות</td></tr>
+        <tr><td class="ltr"><code>claude --from-pr &lt;number&gt;</code></td><td>בורר מסונן ל-Sessions שקשורים ל-Pull Request מסוים</td></tr>
+        <tr><td class="ltr"><code>/resume [name]</code></td><td>מעבר לשיחה אחרת מתוך Session פעיל</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>מה משוחזר? ההיסטוריה המלאה כולל קריאות כלים, המודל שבו השתמשתם (בכפוף לזמינות), ה-<bdi>Agent</bdi> אם הופעל, ו-<bdi>Permission Mode</bdi>, למעט <bdi>plan</bdi> ו-<bdi>bypassPermissions</bdi> שלעולם אינם משוחזרים אוטומטית, משיקולי בטיחות. דגלים כמו <code>--mcp-config</code> או <code>--add-dir</code> צריך להעביר שוב בהרצה.</p>
+  <h3 id="naming">שמות ל-Sessions</h3>
+  <p>כשעובדים על כמה משימות במקביל, שמות הם ההבדל בין סדר לכאוס. ארבע דרכים מתועדות:</p>
+  <ul>
+    <li>בהפעלה: <code>claude -n auth-refactor</code></li>
+    <li>תוך כדי עבודה: <code>/rename auth-refactor</code> (השם מוצג גם בשורת ה-Prompt)</li>
+    <li>בבורר: מקש <code>Ctrl+R</code> על Session מסומן</li>
+    <li>בסגירת שיחה: <code>/clear auth-refactor</code> נותן שם לשיחה שזה עתה סיימתם</li>
+  </ul>
+  <p>Session שלא קיבל שם מקבל כותרת אוטומטית שנוצרת ממודל מהיר על בסיס ה-<bdi>Prompt</bdi> הראשון. הכותרת הזאת מוצגת בבורר אבל אינה "ידית" להמשך: <code>claude --resume &lt;name&gt;</code> עובד רק עם שמות שנתתם בעצמכם.</p>
+  <h3 id="picker">קיצורים בבורר ה-Sessions</h3>
+  <p>בתוך הבורר (של <code>/resume</code> או <code>claude --resume</code>): חצים לניווט, <code>Space</code> לתצוגה מקדימה, <code>Ctrl+R</code> לשינוי שם, הקלדה חופשית לחיפוש (אפשר גם להדביק כתובת של <bdi>Pull Request</bdi> כדי למצוא את ה-Session שיצר אותו), <code>Ctrl+W</code> להרחבה לכל ה-<bdi>Worktrees</bdi>, <code>Ctrl+A</code> לכל הפרויקטים במחשב, ו-<code>Ctrl+B</code> לסינון לפי ה-<bdi>Branch</bdi> הנוכחי.</p>
+
+  <h2 id="forking">פיצול Session: branch, fork-session ו-fork</h2>
+  <p>שלושה מנגנונים דומים בשם ושונים בהתנהגות. חשוב להבדיל ביניהם:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מנגנון</th><th>מה הוא עושה</th><th>מתי להשתמש</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>/branch [name]</code></td><td>מעתיק את השיחה עד לנקודה הנוכחית, עובר אתכם לעותק ומשאיר את המקור ללא שינוי. רץ באותו תהליך, ולכן אישורי "Allow for this session" נשמרים</td><td>לנסות כיוון אחר בלי לאבד את המסלול הנוכחי</td></tr>
+        <tr><td class="ltr"><code>claude -c --fork-session</code><br><code>claude -r &lt;id&gt; --fork-session</code></td><td>ממשיך Session קיים אבל תחת Session ID חדש, בתהליך חדש. המקור נשאר כמו שהיה; אישורי ההרשאות לא עוברים</td><td>להמשיך שיחה ישנה בלי "ללכלך" אותה, או לפתוח שני המשכים שונים לאותה נקודה</td></tr>
+        <tr><td class="ltr"><code>/fork [prompt]</code></td><td>מעתיק את השיחה ל-Session רקע חדש שרץ במקביל ב-Agent View, בזמן שאתם ממשיכים לעבוד כאן. עם Prompt, העותק מתחיל לעבוד עליו מיד. דורש גרסה 2.1.212 ואילך</td><td>להריץ ניסוי מקביל שלם בלי לעזוב את השיחה הנוכחית</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>הבחנה מתועדת חשובה: המשך רגיל (<code>-c</code>, <code>-r</code>) מוסיף הודעות לאותו Session ID; פיצול יוצר Session ID חדש ומשאיר את המקור בדיוק כמו שהיה. ואם פותחים את אותו Session בשני טרמינלים בלי לפצל, ההודעות משני הצדדים משתרגות לאותו <bdi>Transcript</bdi>, מה שכמעט אף פעם אינו רצוי. יש גם <code>/subtask</code>, שמפצל את השיחה ל-<bdi>Subagent</bdi> שמדווח חזרה אליה; נרחיב עליו בפרק על Subagents.</p>
+
+  <h2 id="new-session">מתי לפתוח Session חדש ואיך לעשות Handoff</h2>
+  <p>הסימנים שהגיע הזמן ל-<code>/clear</code> או ל-Session חדש: המשימה הנוכחית הסתיימה ואתם עוברים לנושא לא קשור; Claude מתחיל "לשכוח" הנחיות מוקדמות או לערבב בין משימות; <code>/context</code> מראה שהיסטוריית השיחה גדולה פי כמה מכל השאר; או שעברתם כבר שני מחזורי Compaction באותה משימה, והסיכומים איבדו דיוק.</p>
+  <p>הבעיה בהתחלה נקייה היא אובדן ידע: הדברים שלמדתם בשיחה הנוכחית לא יעברו לבאה. הפתרון הוא <bdi>Handoff Summary</bdi>: לפני הסגירה מבקשים מ-Claude לסכם את מצב העבודה לקובץ, ובשיחה הבאה פותחים ממנו. זו טכניקה מעשית שאנחנו ממליצים עליה במדריך (היא אינה פקודה מובנית):</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt: לפני סגירת ה-Session</div>
+    <pre><code>Write a handoff summary to HANDOFF.md with exactly these sections:
+1. Goal: what we are trying to achieve overall
+2. Done: what was completed, with file paths
+3. In progress: current task and its exact state
+4. Next steps: ordered list of what remains
+5. Decisions: choices we made and why
+6. Gotchas: pitfalls, failing tests, things that look wrong but are intentional
+Keep it under 60 lines. Do not include code, only paths and facts.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">Prompt: בפתיחת ה-Session הבא</div>
+    <pre><code>Read HANDOFF.md and continue from "Next steps". Confirm your understanding
+of the current state in two sentences before touching any file.</code></pre>
+  </div>
+  <p>ואם הידע כללי ולא משימתי (מוסכמה חדשה, פקודת Build שהתגלתה), מקומו ב-<bdi>CLAUDE.md</bdi> או ב-<bdi>Auto Memory</bdi>, לא בקובץ Handoff. כך הוא יהיה זמין בכל Session עתידי אוטומטית.</p>
+
+  <h2 id="pollution">מניעת זיהום Context</h2>
+  <p>קל יותר לשמור על חלון נקי מאשר לנקות אותו. חמישה הרגלים:</p>
+  <ul>
+    <li><strong>נקו הדבקות לפני שליחה.</strong> אל תדביקו לוג שלם; הדביקו את 20 השורות סביב השגיאה. אל תדביקו JSON של 500 שורות; הדביקו את השדות הרלוונטיים. כל מה שנכנס להודעה נשאר בהיסטוריה עד ה-Compaction הבא.</li>
+    <li><strong>כוונו קריאות במקום סריקות.</strong> "תקן את הבאג ב-<code>models.py</code> בפונקציית הוולידציה" גורר קריאה של קובץ אחד; "תמצא למה הוולידציה שבורה" גורר סריקה של עשרה. אזכור מפורש עם <code>@</code> הוא הדרך המדויקת ביותר.</li>
+    <li><strong>בקשו פלט מסונן.</strong> במקום להריץ חבילת בדיקות שלמה לתוך החלון, בקשו "run the tests and show only failures". התיעוד מציע גם פתרון קבוע: <bdi>Hook</bdi> מסוג <bdi>PreToolUse</bdi> שמסנן פלט בדיקות לשורות הכישלון בלבד, עוד לפני ש-Claude רואה אותו (ראו פרק 22 על Hooks).</li>
+    <li><strong>העדיפו CLI על MCP כשיש ברירה.</strong> כלים כמו <code>gh</code> ו-<code>aws</code> לא מוסיפים שום רישום קבוע לחלון; שרת MCP מוסיף לפחות את שמות כליו. כבו שרתים שאינכם משתמשים בהם דרך <code>/mcp</code>.</li>
+    <li><strong>עקבו באופן רציף.</strong> אפשר להגדיר את שורת הסטטוס (Statusline) להציג את ניצול החלון כל הזמן, במקום להיזכר ב-<code>/context</code> כשכבר מאוחר.</li>
+  </ul>
+
+  <h2 id="subagent-isolation">בידוד מחקר עם Subagent</h2>
+  <p>הכלי החזק ביותר לשמירה על חלון נקי הוא ה-<bdi>Subagent</bdi>: עוזר משנה שמקבל חלון <bdi>Context</bdi> נפרד ונקי משלו. כשאתם מבקשים "use a subagent to research how sessions are handled", קריאת עשרות הקבצים קורית בחלון של ה-Subagent, ולחלון שלכם חוזר רק הסיכום הסופי עם מעט מטא-נתונים. בהדגמה שבתיעוד הרשמי, Subagent קרא 6,100 <bdi>Tokens</bdi> של קבצים והחזיר תוצאה של 420 בלבד.</p>
+  <p>מה ה-Subagent מקבל בפתיחה? את קובצי ה-<bdi>CLAUDE.md</bdi> ואת הגדרת המשימה שכתב לו Claude, אבל לא את היסטוריית השיחה שלכם ולא את ה-<bdi>Auto Memory</bdi> הראשי. השימוש הקלאסי, כלשון התיעוד, הוא בידוד פעולות עתירות פלט: הרצת בדיקות, משיכת תיעוד, עיבוד לוגים. נעמיק בהגדרת Subagents מותאמים אישית ב<a href="ch25.html">פרק 25: Subagents</a>.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt לדוגמה</div>
+    <pre><code>Use a subagent to run the full backend test suite and report only
+the failing tests with their error messages</code></pre>
+  </div>
+
+  <h2 id="pitfalls">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>"ערכתי את CLAUDE.md ו-Claude מתעלם."</strong> עריכה באמצע Session לא נטענת. הריצו <code>/clear</code>, <code>/compact</code> או פתחו Session חדש.</li>
+    <li><strong>"אחרי /compact נעלמו לי הוראות."</strong> אם הן היו בשיחה בלבד או ב-CLAUDE.md מקונן, זו התנהגות מתועדת. העבירו כללים קבועים ל-CLAUDE.md של שורש הפרויקט.</li>
+    <li><strong>"ההודעה הראשונה בבוקר איטית ויקרה."</strong> ה-Cache פג אחרי הפסקה ארוכה, וה-Context המלא עובר עיבוד מחדש. Session ארוך במיוחד מגדיל את המכה; שקלו לסגור עם Handoff בסוף היום.</li>
+    <li><strong>"Auto-compaction stops with a thrashing error."</strong> פלט או קובץ ענק ממלאים את החלון מחדש אחרי כל סיכום. הפתרון: <code>/clear</code>, ואז גישה ממוקדת יותר לאותו קובץ (או Subagent).</li>
+    <li><strong>"/compact עונה Not enough messages to compact."</strong> אין עדיין היסטוריה לסכם; זו אינה שגיאה.</li>
+  </ul>
+
+  <h2 id="security">שיקולי אבטחה בניהול Context ו-Sessions</h2>
+  <p>ה-<bdi>Context Window</bdi> וקובצי ה-<bdi>Session</bdi> הם מקום שבו סודות נוטים להצטבר בלי כוונה: פלט של <code>env</code>, לוגים עם <bdi>Tokens</bdi>, קובצי <code>.env</code> שנקראו. שלושה כללים: (1) התמלילים נשמרים מקומית תחת <code>~/.claude/projects/</code> ונמחקים אחרי <code>cleanupPeriodDays</code> (ברירת מחדל 30 יום), ולכן מי שחולק מחשב או מגבה תיקיית בית צריך להתייחס אליהם כמידע רגיש; (2) סיכום <bdi>Compaction</bdi> ו-<code>/export</code> עלולים לשאת איתם סוד שהופיע קודם בשיחה, אז לפני שיתוף תמליל או <bdi>Handoff</bdi> סרקו אותו; (3) חוקי <code>deny</code> על <code>Read(.env*)</code> (<a href="ch20.html">פרק 20</a>) מונעים מהסוד להיכנס ל-<bdi>Context</bdi> מלכתחילה, וזה עדיף על כל ניקוי בדיעבד. <bdi>Session</bdi> ממוקד וקצר הוא גם <bdi>Session</bdi> שקל יותר לבקר.</p>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 14.1: מחזור חיים מלא של Context</div>
+    <div class="body">
+      <p>בתיקיית <bdi>TaskFlow</bdi> (ראו פרק 3), בצעו את הרצף הבא ותעדו את התוצאות:</p>
+      <ol>
+        <li>פתחו <code>claude</code> והריצו <code>/context</code>. רשמו כמה תופסים קובצי ה-Memory וכמה חופשי.</li>
+        <li>בקשו: <code>read all files in backend/ and frontend/src/ and explain the data flow</code>. הריצו <code>/context</code> שוב והשוו.</li>
+        <li>הריצו <code>/compact focus on the data flow explanation</code> ואז <code>/context</code> שלישי. מה חזר ומה נעלם?</li>
+        <li>תנו שם עם <code>/rename context-lab</code>, צאו עם <code>/exit</code>, וחזרו עם <code>claude --resume context-lab</code>. ודאו שהסיכום עדיין שם.</li>
+        <li>לבסוף פצלו: <code>claude --resume context-lab --fork-session</code>, ובדקו בבורר של <code>/resume</code> ששני Sessions מופיעים.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>שלב 1:</strong> בחלון טרי רוב הצריכה היא System Prompt, כלים ו-CLAUDE.md; היסטוריית ההודעות כמעט ריקה. זו "עלות הבסיס" של כל Session.</p>
+      <p><strong>שלב 2:</strong> קריאת כל קובצי הפרויקט מקפיצה את קטגוריית ההודעות בעשרות אלפי Tokens. שימו לב שבטרמינל ראיתם רק שורות "Read" קצרות; ההבדל בין התצוגה למציאות הוא כל הפואנטה.</p>
+      <p><strong>שלב 3:</strong> אחרי ה-Compact, היסטוריית ההודעות מתכווצת לסיכום קטן, אבל CLAUDE.md ו-Auto Memory מופיעים שוב במלואם, כי הם נטענים מחדש מהדיסק. הסיכום ישמר את הסבר זרימת הנתונים, כי זה מה שביקשתם במיקוד.</p>
+      <p><strong>שלב 4:</strong> ההמשך בשם עובד כי <code>/rename</code> יצר "ידית" אמיתית. ההיסטוריה כוללת את הסיכום, לא את הקריאות המקוריות.</p>
+      <p><strong>שלב 5:</strong> הדגל <code>--fork-session</code> יצר Session ID חדש; בבורר תראו את המקור ואת העותק כשתי שורות (ייתכן שמקובצות יחד; מקש חץ פותח את הקבוצה). המקור נשאר בדיוק בנקודה שבה עזבתם אותו.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul class="check">
+    <li>ה-Context Window מכיל הרבה יותר ממה שרואים בטרמינל: הוראות, קבצים, פלטים ותשובות, וכולו נשלח מחדש בכל הודעה.</li>
+    <li>Compaction אוטומטי מפנה קודם פלטי כלים ישנים ואז מסכם; CLAUDE.md של השורש, Auto Memory ו-Skills שהופעלו שורדים, הוראות שיחה ותוכן ממוקד נתיב לא.</li>
+    <li><code>/compact</code> עם הוראות מיקוד שולט במה שנשמר; <code>/clear</code> חינמי ועדיף במעבר בין משימות לא קשורות, והשיחה הישנה תמיד נגישה ב-<code>/resume</code>.</li>
+    <li>Prompt Caching מוזיל קריאות חוזרות לכ-10% מהמחיר, אבל החלפת מודל, Effort או כלים שוברת אותו; היגיינת Context היא חיסכון ישיר.</li>
+    <li>המשך עם <code>claude -c</code> או <code>claude -r</code>; פיצול עם <code>/branch</code>, <code>--fork-session</code> או <code>/fork</code>; שמות עם <code>-n</code>, <code>/rename</code> ו-<code>/clear [name]</code>.</li>
+    <li>Handoff Summary מסודר מעביר ידע בין Sessions; ידע קבוע שייך ל-CLAUDE.md, שנלמד לעומק בפרק הבא.</li>
+  </ul>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/context-window">Explore the Context Window</a> |
+      <a href="https://code.claude.com/docs/en/how-claude-code-works">How Claude Code Works</a> |
+      <a href="https://code.claude.com/docs/en/sessions">Manage Sessions</a> |
+      <a href="https://code.claude.com/docs/en/commands">Slash Commands</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">CLI Reference</a> |
+      <a href="https://code.claude.com/docs/en/costs">Manage Costs Effectively</a> |
+      <a href="https://code.claude.com/docs/en/prompt-caching">How Claude Code Uses Prompt Caching</a> |
+      <a href="https://code.claude.com/docs/en/sub-agents">Subagents</a>
+      <br>נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch13.html"><span class="lbl">הפרק הקודם</span>פרק 13: Git ו-Pull Requests</a>
+    <a href="ch15.html"><span class="lbl">הפרק הבא</span>פרק 15: CLAUDE.md</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

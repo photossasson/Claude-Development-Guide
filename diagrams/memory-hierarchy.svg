@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 640" font-family="Segoe UI, Arial, sans-serif">
+  <style>
+    .org { fill:#e9e3f2; stroke:#7a6aa8; stroke-width:1.5; }
+    .team { fill:#dfeaf3; stroke:#4a7ba6; stroke-width:1.5; }
+    .personal { fill:#f3e3da; stroke:#b4552d; stroke-width:1.5; }
+    .auto { fill:#e4efe2; stroke:#558a42; stroke-width:1.5; }
+    .ondemand { fill:#ffffff; stroke:#c9c2b8; stroke-width:1.5; stroke-dasharray:7 5; }
+    .t { font-size:16px; fill:#1a1a1a; text-anchor:middle; direction:rtl; }
+    .s { font-size:12.5px; fill:#6b6b6b; text-anchor:middle; direction:rtl; }
+    .en { font-size:12.5px; fill:#555555; text-anchor:middle; }
+    .num { font-size:13px; fill:#ffffff; text-anchor:middle; font-weight:bold; }
+    .cap { font-size:13px; fill:#444444; text-anchor:middle; direction:rtl; }
+    .leg { font-size:12.5px; fill:#444444; direction:rtl; text-anchor:end; }
+  </style>
+  <text x="440" y="32" class="t" font-size="21" font-weight="bold">היררכיית ההוראות והזיכרון: מי נטען, מתי ולמי הוא שייך</text>
+
+  <!-- 1 managed -->
+  <rect x="60" y="60" width="760" height="62" rx="10" class="org"/>
+  <text x="440" y="85" class="t">Managed Policy: הוראות ארגוניות, נטען תמיד ולא ניתן לעקיפה</text>
+  <text x="440" y="107" class="en">/etc/claude-code/CLAUDE.md (Linux/WSL) · /Library/Application Support/ClaudeCode/CLAUDE.md (macOS)</text>
+  <circle cx="842" cy="91" r="12" fill="#7a6aa8"/><text x="842" y="96" class="num">1</text>
+
+  <!-- 2 user -->
+  <rect x="100" y="132" width="680" height="62" rx="10" class="personal"/>
+  <text x="440" y="157" class="t">User: העדפות אישיות לכל הפרויקטים במחשב</text>
+  <text x="440" y="179" class="en">~/.claude/CLAUDE.md + ~/.claude/rules/</text>
+  <circle cx="802" cy="163" r="12" fill="#b4552d"/><text x="802" y="168" class="num">2</text>
+
+  <!-- 3 project -->
+  <rect x="140" y="204" width="600" height="62" rx="10" class="team"/>
+  <text x="440" y="229" class="t">Project: הוראות הפרויקט, משותפות לצוות דרך Git</text>
+  <text x="440" y="251" class="en">./CLAUDE.md or ./.claude/CLAUDE.md + .claude/rules/</text>
+  <circle cx="762" cy="235" r="12" fill="#4a7ba6"/><text x="762" y="240" class="num">3</text>
+
+  <!-- 4 local -->
+  <rect x="180" y="276" width="520" height="62" rx="10" class="personal"/>
+  <text x="440" y="301" class="t">Local: אישי לפרויקט הזה, נכנס ל-gitignore.</text>
+  <text x="440" y="323" class="en">./CLAUDE.local.md</text>
+  <circle cx="722" cy="307" r="12" fill="#b4552d"/><text x="722" y="312" class="num">4</text>
+
+  <!-- 5 nested -->
+  <rect x="220" y="348" width="440" height="62" rx="10" class="ondemand"/>
+  <text x="440" y="373" class="t">תתי-תיקיות ו-Rules ממוקדים: נטענים לפי דרישה</text>
+  <text x="440" y="395" class="en">packages/api/CLAUDE.md · rules with paths:</text>
+  <circle cx="682" cy="379" r="12" fill="#8a8a8a"/><text x="682" y="384" class="num">5</text>
+
+  <!-- 6 auto memory -->
+  <rect x="260" y="420" width="360" height="62" rx="10" class="auto"/>
+  <text x="440" y="445" class="t">Auto Memory: הערות ש-Claude כותב לעצמו</text>
+  <text x="440" y="467" class="en">~/.claude/projects/&lt;project&gt;/memory/MEMORY.md</text>
+  <circle cx="642" cy="451" r="12" fill="#558a42"/><text x="642" y="456" class="num">6</text>
+
+  <!-- caption -->
+  <text x="440" y="516" class="cap">כל הרמות מצטרפות זו לזו (Concatenation), לפי סדר המספרים: מהרחב אל הספציפי.</text>
+  <text x="440" y="538" class="cap">ההוראות הקרובות ביותר לתיקיית העבודה נקראות אחרונות, ולכן בפועל ידן על העליונה.</text>
+
+  <!-- legend -->
+  <rect x="700" y="566" width="16" height="16" rx="4" class="org"/>
+  <text x="694" y="579" class="leg">ארגון (IT מפיץ, לא ניתן לביטול)</text>
+  <rect x="452" y="566" width="16" height="16" rx="4" class="team"/>
+  <text x="446" y="579" class="leg">צוות (משותף דרך Git)</text>
+  <rect x="256" y="566" width="16" height="16" rx="4" class="personal"/>
+  <text x="250" y="579" class="leg">אישי (מקומי בלבד)</text>
+  <rect x="90" y="566" width="16" height="16" rx="4" class="auto"/>
+  <text x="84" y="579" class="leg">אוטומטי</text>
+  <rect x="700" y="596" width="16" height="16" rx="4" class="ondemand"/>
+  <text x="694" y="609" class="leg">מסגרת מקווקוות: נטען רק כש-Claude קורא קובץ מתאים</text>
+</svg>

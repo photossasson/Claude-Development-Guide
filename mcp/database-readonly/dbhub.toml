@@ -1,0 +1,8 @@
+[[sources]]
+id = "taskflow"
+dsn = "${DSN}"
+
+[[tools]]
+name = "execute_sql"
+source = "taskflow"
+readonly = true

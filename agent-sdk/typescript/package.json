@@ -1,0 +1,19 @@
+{
+  "name": "claude-code-guide-agent-sdk-examples",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Claude Agent SDK examples for the Hebrew Claude Code guide (chapters 31-33)",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "quickstart": "tsx 01-quickstart.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.233"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 13: Git ו-Pull Requests</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ב | פרק 13</p>
+  <h1>Git ו-Pull Requests</h1>
+  <p class="lead"><bdi>Git</bdi> הוא רשת הביטחון האמיתית של עבודה עם <bdi>Agent</bdi> שכותב קוד. בפרק הזה נלמד איך <bdi>Claude Code</bdi> עובד עם <bdi>Git</bdi> מאחורי הקלעים, אילו פקודות רצות בלי אישור ואילו דורשות אותו, איך לנהל <bdi>Branches</bdi>, <bdi>Commits</bdi> ו-<bdi>Pull Requests</bdi> בעזרת Claude, איך לפתור <bdi>Merge Conflicts</bdi> בצורה בטוחה, מתי להשתמש ב-<bdi>Rebase</bdi> וב-<bdi>Cherry-pick</bdi>, איך <bdi>Worktrees</bdi> מאפשרים כמה <bdi>Sessions</bdi> במקביל בלי התנגשויות, ולמה <bdi>Checkpoints</bdi> הם לא תחליף ל-<bdi>Git</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="how-git-works">איך Claude Code עובד עם Git</h2>
+  <p>אין ל-<bdi>Claude Code</bdi> "מנוע Git" נסתר. כשאתם מבקשים ממנו ליצור <bdi>Branch</bdi> או לבצע <bdi>Commit</bdi>, הוא מריץ את אותן פקודות <code>git</code> שאתם הייתם מריצים, דרך כלי ה-<bdi>Bash</bdi> שלו, בתיקיית העבודה של ה-<bdi>Session</bdi>. זה אומר שלושה דברים חשובים: כל מה שאתם יודעים על <bdi>Git</bdi> תקף גם כאן; כל מה ש-Claude עושה נרשם בהיסטוריית ה-<bdi>Git</bdi> הרגילה וניתן לבדיקה; ומנגנון ההרשאות של <bdi>Claude Code</bdi> (שראינו בפעולה כבר ב<a href="ch03.html">פרק 3</a>) הוא שקובע מה ירוץ מיד ומה יחכה לאישור שלכם.</p>
+  <h3 id="readonly-vs-mutating">פקודות קריאה לעומת פקודות שינוי</h3>
+  <p>לפי התיעוד הרשמי של מערכת ההרשאות, <bdi>Claude Code</bdi> מזהה קבוצה מובנית של פקודות <bdi>Bash</bdi> כפקודות קריאה בלבד ומריץ אותן בלי בקשת אישור, בכל מצב הרשאות. הקבוצה כוללת פקודות כמו <code>ls</code>, <code>cat</code> ו-<code>grep</code>, וגם "צורות לקריאה בלבד של <bdi>git</bdi>". בפועל: כש-Claude מריץ <code>git status</code>, <code>git log</code> או <code>git diff</code>, זה קורה בשקט. לעומת זאת, כל פקודת <bdi>git</bdi> שמשנה מצב, כמו <code>git add</code>, <code>git commit</code>, <code>git checkout</code>, <code>git merge</code> או <code>git push</code>, מציגה בקשת הרשאה במצב ברירת המחדל.</p>
+  <p>שני חריגים מתועדים שכדאי להכיר, כי הם מפתיעים בפעם הראשונה:</p>
+  <ul>
+    <li><strong>Glob לא מצוטט:</strong> פקודת <bdi>git</bdi> שמכילה תבנית כמו <code>*</code> לא מצוטטת תבקש אישור גם אם היא נראית "קריאה", כי התבנית עלולה להתרחב לדגל מסוכן.</li>
+    <li><strong>שילוב <code>cd</code> עם <code>git</code>:</strong> פקודה משולבת שעוברת לתיקייה אחרת ואז מריצה <bdi>git</bdi> תבקש אישור, כי הרצת <bdi>git</bdi> בתיקייה חדשה יכולה להפעיל <bdi>Hooks</bdi> של אותה תיקייה.</li>
+  </ul>
+  <p>בחלון בקשת ההרשאה של פקודת <bdi>Bash</bdi> אפשר ללחוץ <code>Ctrl+E</code> כדי לקבל הסבר של הפקודה: מה היא עושה, למה Claude מריץ אותה, ומה עלול להשתבש, עם תווית סיכון. זה שימושי במיוחד לפקודות <bdi>git</bdi> מורכבות שאתם לא בטוחים לגביהן.</p>
+  <h3 id="git-permission-rules">חוקי הרשאות לפקודות Git</h3>
+  <p>כשאתם בוחרים "Yes, don't ask again" לפקודת <bdi>Bash</bdi>, החוק נשמר לצמיתות בקובץ <code>.claude/settings.local.json</code> בשורש ה-<bdi>Repository</bdi>, וחל על כל ה-<bdi>Sessions</bdi> העתידיים בו, כולל בתיקיות משנה וב-<bdi>Worktrees</bdi>. אפשר גם להגדיר חוקים ידנית. הדוגמה הבאה, המבוססת על התיעוד הרשמי, מאפשרת <bdi>Commits</bdi> בלי אישור אבל חוסמת <bdi>Push</bdi> לחלוטין:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/settings.json</div>
+    <pre><code>{
+  "permissions": {
+    "allow": [
+      "Bash(git commit *)"
+    ],
+    "ask": [
+      "Bash(git checkout *)"
+    ],
+    "deny": [
+      "Bash(git push *)"
+    ]
+  }
+}</code></pre>
+  </div>
+  <p>סדר ההערכה מתועד וקבוע: קודם <bdi>deny</bdi>, אחר כך <bdi>ask</bdi>, ורק בסוף <bdi>allow</bdi>. חוק <code>deny</code> רחב כמו <code>Bash(git push *)</code> גובר על כל חוק <code>allow</code> צר יותר, ולכן הוא דרך אמינה למנוע מה-<bdi>Agent</bdi> לדחוף קוד בלי מעורבות שלכם. התו <code>*</code> תופס כל רצף תווים כולל רווחים, כך ש-<code>Bash(git commit *)</code> מכסה גם <code>git commit -m "fix"</code> וגם <code>git commit --amend</code>.</p>
+  <h3 id="ask-summaries">לשאול במקום להריץ בעצמכם</h3>
+  <p>מכיוון שפקודות הקריאה של <bdi>git</bdi> רצות בלי חיכוך, הדרך הנוחה ביותר להתמצא במצב ה-<bdi>Repository</bdi> היא פשוט לשאול:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompts</div>
+    <pre><code>what's the current git status? summarize what changed and what's untracked
+summarize the diff since main, grouped by feature
+look through the git history of backend/app/models.py and explain how it evolved</code></pre>
+  </div>
+  <p>היתרון על פני הרצה ידנית: Claude לא רק מדפיס פלט, הוא מפרש אותו. סיכום של <bdi>Diff</bdi> גדול לפי נושאים, או הסבר של היסטוריית קובץ, חוסכים לכם קריאה של מאות שורות. התיעוד הרשמי אף ממליץ על תבנית "look through the git history" כדרך לענות על שאלות "למה הקוד הזה נראה ככה".</p>
+
+  <h2 id="daily-flows">זרימות עבודה יומיומיות</h2>
+  <h3 id="branches">יצירת Branch ועבודה עליו</h3>
+  <p>התחילו כל משימה ב-<bdi>Branch</bdi> ייעודי. אפשר לבקש זאת כחלק מהמשימה עצמה:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>create a new branch called feature/task-priority off main,
+then implement a priority field for tasks (low/medium/high) in the backend models.
+Don't commit yet, I want to review first.</code></pre>
+  </div>
+  <p>Claude יריץ <code>git checkout -b feature/task-priority main</code> (או <code>git switch -c</code>), יבקש אישור כי זו פקודת שינוי, ואז ייגש לקוד. שימו לב לחצי השני של ה-<bdi>Prompt</bdi>: אמירה מפורשת "אל תבצע Commit עדיין" שומרת את שלב הסקירה בידיים שלכם. אם יש לכם מוסכמות שמות ל-<bdi>Branches</bdi> (למשל <code>feature/</code>, <code>fix/</code>, <code>chore/</code>), כתבו אותן ב-<bdi>CLAUDE.md</bdi>; התיעוד הרשמי מציין במפורש "Repository etiquette (branch naming, PR conventions)" כתוכן מומלץ לקובץ הזה.</p>
+  <h3 id="staging-commits">Staging ו-Commit עם הודעה טובה</h3>
+  <p>אחרי שסקרתם את השינויים, בקשו <bdi>Commit</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>stage only the backend changes and commit with a descriptive message
+following Conventional Commits. Don't include the frontend files.</code></pre>
+  </div>
+  <p>Claude יריץ <code>git add</code> על הקבצים הרלוונטיים בלבד, ינסח הודעת <bdi>Commit</bdi> על סמך ה-<bdi>Diff</bdi> בפועל, ויריץ <code>git commit</code> אחרי אישורכם. הודעות שנוצרות כך טובות בדרך כלל מהממוצע האנושי, כי הן נכתבות מול ה-<bdi>Diff</bdi> המלא, אבל חובה לסקור אותן לפני אישור, משתי סיבות: ראשית, Claude מתאר את מה שהקוד עושה, לא בהכרח את הסיבה העסקית שבגללה ביקשתם את השינוי; אם ההקשר חשוב (מספר <bdi>Issue</bdi>, החלטת מוצר), הוסיפו אותו. שנית, הודעת ה-<bdi>Commit</bdi> היא תיעוד קבוע; טעות בה מביכה יותר מטעות בקוד שאפשר לתקן בשקט.</p>
+  <p>מוסכמה מקובלת ושווה לאימוץ היא <bdi>Conventional Commits</bdi>: קידומת סוג (<code>feat:</code>, <code>fix:</code>, <code>docs:</code>, <code>refactor:</code>), תיאור קצר בזמן הווה, ובמידת הצורך גוף הודעה עם ההקשר. אם תציינו זאת ב-<bdi>CLAUDE.md</bdi> פעם אחת, כל ה-<bdi>Commits</bdi> בפרויקט יהיו עקביים.</p>
+  <div class="callout note"><span class="title">שורת ה-Attribution</span><p>כברירת מחדל <bdi>Claude Code</bdi> מוסיף שורת ייחוס ל-<bdi>Commits</bdi> ול-<bdi>Pull Requests</bdi> שהוא יוצר. אפשר להתאים או לרוקן אותה דרך ההגדרה <code>attribution</code> ב-<code>settings.json</code>, למשל <code>{"commit": "", "pr": ""}</code> כדי לבטל. בצוותים רבים דווקא משאירים אותה, כי היא מסמנת בשקיפות אילו שינויים נוצרו בעזרת <bdi>Agent</bdi>.</p></div>
+  <h3 id="amend">תיקון ה-Commit האחרון</h3>
+  <p>שכחתם קובץ או שההודעה לא מדויקת? בקשו <code>git commit --amend</code>:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>I forgot to include the test file in the last commit.
+Amend the commit to add backend/tests/test_tasks.py, keep the same message.</code></pre>
+  </div>
+  <p><strong>הסיכון:</strong> <code>--amend</code> משכתב את ה-<bdi>Commit</bdi> האחרון (מזהה ה-<bdi>Hash</bdi> משתנה). זה בטוח לחלוטין כל עוד ה-<bdi>Commit</bdi> לא נדחף ל-<bdi>Remote</bdi>. אם הוא כבר נדחף, תיקון ידרוש <bdi>Force Push</bdi>, וזה תרחיש שנרצה להימנע ממנו (ראו <a href="#anti-patterns">Anti-patterns</a>). כלל אצבע: <bdi>Amend</bdi> רק על עבודה מקומית.</p>
+  <h3 id="viewing-diffs">צפייה בשינויים: /diff ו-git diff</h3>
+  <p>לפני כל אישור <bdi>Commit</bdi>, תסתכלו על השינויים. יש לכם שתי דרכים משלימות:</p>
+  <ul>
+    <li><strong><code>/diff</code>:</strong> פותח מציג <bdi>Diff</bdi> אינטראקטיבי בתוך ה-<bdi>Session</bdi>, שמציג גם את השינויים הלא מקובעים (uncommitted) וגם <bdi>Diff</bdi> לכל תור של Claude בנפרד. חצים ימינה ושמאלה מחליפים בין תצוגת ה-<bdi>git diff</bdi> הנוכחית לתורות בודדים, חצים למעלה ולמטה עוברים בין קבצים, <bdi>Enter</bdi> פותח את ה-<bdi>Diff</bdi> של הקובץ הנבחר, ו-<code>Esc</code> חוזר לרשימה. התצוגה מתעדכנת אוטומטית כשמצב ה-<bdi>Git</bdi> משתנה מחוץ ל-<bdi>Session</bdi>.</li>
+    <li><strong><code>git diff</code> דרך Claude:</strong> בקשו "show me the diff and explain the risky parts" כדי לקבל לא רק את השינויים אלא גם פירוש שלהם. ל-<bdi>Diff</bdi> גדול, <code>git diff --stat</code> נותן תמונת מבט מהירה בזול (ראו <a href="#cost">הערת עלות</a>).</li>
+  </ul>
+
+  <h2 id="pull-requests">Pull Requests עם Claude</h2>
+  <h3 id="gh-setup">דרישה מוקדמת: gh CLI מחובר</h3>
+  <p>הדרך המתועדת והמומלצת לעבודה מול <bdi>GitHub</bdi> היא כלי ה-CLI הרשמי <code>gh</code>. התיעוד של <bdi>Claude Code</bdi> קובע במפורש: התקינו את <code>gh</code> ו-Claude ידע להשתמש בו ליצירת <bdi>Issues</bdi>, פתיחת <bdi>Pull Requests</bdi> וקריאת תגובות. בלעדיו Claude יכול לפנות ל-<bdi>GitHub API</bdi> ישירות, אבל בקשות לא מאומתות נתקלות מהר ב-<bdi>Rate Limits</bdi>. ההתחברות נעשית פעם אחת, מחוץ ל-<bdi>Session</bdi> או בתוכו:</p>
+  <div class="terminal"><span class="p">$</span> gh auth login
+<span class="out">? Where do you use GitHub? GitHub.com
+? What is your preferred protocol for Git operations? HTTPS
+... (זרימת אימות בדפדפן)</span>
+<span class="p">$</span> gh auth status
+<span class="out">github.com: Logged in to github.com account your-username</span></div>
+  <p>האימות של <code>gh</code> הוא של המשתמש שלכם ברמת מערכת ההפעלה; Claude פשוט מריץ את הפקודות תחת אותו אימות. לכן ההרשאות שיש לכם ב-<bdi>GitHub</bdi> הן בדיוק ההרשאות שיש ל-<bdi>Agent</bdi>, וזה עוד טעם לחוקי <bdi>deny</bdi> על פעולות מסוכנות.</p>
+  <h3 id="create-pr">יצירת PR</h3>
+  <p>לפי התיעוד הרשמי אפשר לבקש ישירות "create a pr for my changes", או להוביל בשלבים:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompts (זרימה מהתיעוד הרשמי)</div>
+    <pre><code>summarize the changes I've made to the authentication module
+create a pr
+enhance the PR description with more context about the security improvements</code></pre>
+  </div>
+  <p>מאחורי הקלעים Claude ידחוף את ה-<bdi>Branch</bdi> (באישורכם) ויריץ <code>gh pr create</code> עם כותרת ותיאור שהוא מנסח מתוך ה-<bdi>Commits</bdi> וה-<bdi>Diff</bdi>. תכונה מתועדת ושימושית: כשה-<bdi>PR</bdi> נוצר עם <code>gh pr create</code>, ה-<bdi>Session</bdi> מקושר אליו אוטומטית. כדי לחזור אליו בעתיד מריצים <code>claude --from-pr 1234</code> (עם המספר שלכם), שפותח את בוחר ה-<bdi>Sessions</bdi> מסונן לאותו <bdi>PR</bdi>, או מדביקים את כתובת ה-<bdi>PR</bdi> בחיפוש של <code>/resume</code>.</p>
+  <p>תיאור <bdi>PR</bdi> טוב הוא מסמך שיווקי פנימי: הוא צריך לומר מה השתנה, למה, איך בדקתם, ומה הסיכונים. Claude מנסח היטב את "מה", אבל את "למה" רק אתם יודעים. ההמלצה הרשמית: סקרו את ה-<bdi>PR</bdi> שנוצר לפני שליחה ובקשו מ-Claude להדגיש סיכונים ושיקולים.</p>
+  <h3 id="review-comments">מענה לתגובות סקירה</h3>
+  <p>כשה-<bdi>PR</bdi> חוזר עם הערות, אפשר לתת ל-Claude לקרוא אותן ולטפל בהן:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>read the review comments on PR #42 with gh, address each one,
+push the fixes, and draft a short reply for every comment explaining what changed</code></pre>
+  </div>
+  <p>Claude ישתמש בפקודות כמו <code>gh pr view 42 --comments</code> כדי למשוך את ההערות, יתקן, ויכין תשובות. כלל חשוב: אל תיתנו ל-<bdi>Agent</bdi> לפרסם תשובות בשמכם בלי לקרוא אותן. בקשו טיוטות ("draft a reply") ופרסמו בעצמכם, לפחות עד שתבנו ביטחון בזרימה.</p>
+  <h3 id="code-review-skill">סקירה מקומית עם /code-review</h3>
+  <p>לפני שדוחפים, שווה להריץ סקירה עצמית. <code>/code-review</code> הוא <bdi>Skill</bdi> מובנה שסוקר את ה-<bdi>Diff</bdi> הנוכחי לאיתור באגים של נכונות והזדמנויות ניקוי. התחביר המתועד:</p>
+  <div class="terminal"><span class="p">$</span> /code-review [low|medium|high|xhigh|max|ultra] [--fix] [--comment] [target]</div>
+  <p>מה חשוב לדעת, לפי התיעוד העדכני:</p>
+  <ul>
+    <li><strong>מה נסקר כברירת מחדל:</strong> ה-<bdi>Commits</bdi> של ה-<bdi>Branch</bdi> שלכם שמעבר ל-<bdi>Upstream</bdi>, ועוד השינויים הלא מקובעים. אפשר להעביר יעד אחר: נתיב קובץ, מספר <bdi>PR</bdi>, שם <bdi>Branch</bdi>, או טווח כמו <code>main...my-feature</code>.</li>
+    <li><strong>רמות מאמץ:</strong> <code>low</code> ו-<code>medium</code> מדווחות רק על הממצאים בעלי הביטחון הגבוה ביותר (פחות אזעקות שווא); <code>high</code> עד <code>max</code> פורשות רשת רחבה יותר וייתכנו ממצאים פחות ודאיים. בלי ארגומנט, הסקירה משתמשת ברמת המאמץ הנוכחית של ה-<bdi>Session</bdi>.</li>
+    <li><strong>דגלים:</strong> <code>--fix</code> מיישם את הממצאים על עץ העבודה; <code>--comment</code> מפרסם אותם כתגובות <bdi>Inline</bdi> על ה-<bdi>PR</bdi> ב-<bdi>GitHub</bdi> (דורש <code>gh</code> מחובר).</li>
+    <li><strong>איפה זה רץ:</strong> הסקירה רצה כ-<bdi>Subagent</bdi> ברקע עם <bdi>Context Window</bdi> משלה, והממצאים מגיעים לשיחה בסיומה. חשוב: תיקוני <code>--fix</code> של סקירת רקע מוחלים מחוץ ל-<bdi>Checkpoints</bdi> של ה-<bdi>Session</bdi>, ולכן <code>/rewind</code> לא מבטל אותם; לביטול משתמשים ב-<bdi>Git</bdi>.</li>
+    <li><strong><code>ultra</code>:</strong> מריץ סקירת ענן עמוקה (ultrareview) שמחויבת ב-<bdi>Usage Credits</bdi>. דורש חשבון <bdi>claude.ai</bdi> ואינו זמין ב-<bdi>Bedrock</bdi>, ב-<bdi>Agent Platform</bdi> של Google Cloud, ב-<bdi>Microsoft Foundry</bdi> או בארגונים עם <bdi>Zero Data Retention</bdi>.</li>
+  </ul>
+  <div class="callout note"><span class="title">Code Review בענן <span class="badge preview">Research Preview</span></span><p>בנפרד מהפקודה המקומית, קיים שירות <bdi>Code Review</bdi> מנוהל שסוקר <bdi>PRs</bdi> אוטומטית ב-<bdi>GitHub</bdi> ומפרסם ממצאים כתגובות <bdi>Inline</bdi>, עם רמות חומרה. הוא ב-<bdi>Research Preview</bdi>, זמין למינויי <bdi>Team</bdi> ו-<bdi>Enterprise</bdi>, ומופעל עם <code>@claude review</code> בתגובת <bdi>PR</bdi>. הסקירה המקומית עם <code>/code-review</code> זמינה בכל התוכניות.</p></div>
+
+  <h2 id="merge-conflicts">Merge Conflicts: פתרון בטוח</h2>
+  <p><bdi>Merge Conflict</bdi> נוצר כששני <bdi>Branches</bdi> שינו את אותן שורות, ו-<bdi>Git</bdi> לא יכול להכריע לבד. זו אחת המשימות שבהן Claude מצטיין, כי פתרון טוב דורש להבין את הכוונה של שני הצדדים, לא רק את הטקסט. האסטרטגיה המומלצת בארבעה שלבים:</p>
+  <ol>
+    <li><strong>תמונת מצב לפני הכול.</strong> ודאו שעץ העבודה נקי (<code>git status</code>). אל תתחילו <bdi>Merge</bdi> עם שינויים לא מקובעים; אם משהו ישתבש, יהיה קשה להפריד בין השינויים שלכם לשל ה-<bdi>Merge</bdi>.</li>
+    <li><strong>ניתוח שני הצדדים לפני פתרון.</strong> אחרי ש-<code>git merge</code> נעצר על <bdi>Conflict</bdi>, בקשו ניתוח, לא תיקון:</li>
+  </ol>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>we have merge conflicts. For each conflicted file, explain what our branch
+changed, what their branch changed, and what the intent of each side was.
+Don't resolve anything yet.</code></pre>
+  </div>
+  <ol start="3">
+    <li><strong>פתרון מונחה כוונה.</strong> עכשיו בקשו פתרון עם קריטריון מפורש, למשל: "resolve the conflicts keeping both behaviors: our validation logic and their new status field. Show me each resolution before staging". Claude יערוך את הקבצים, יסיר את סמני ה-<bdi>Conflict</bdi> (<code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>=======</code>, <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>), ויציג לכם כל החלטה.</li>
+    <li><strong>אימות אחרי פתרון.</strong> פתרון <bdi>Conflict</bdi> הוא כתיבת קוד חדש לכל דבר, ולכן חובה לאמת: הריצו את הבדיקות, בקשו <code>git diff</code> מול שני ההורים, וּודאו שאין סמני <bdi>Conflict</bdi> שנשכחו (<code>grep -rn "&lt;&lt;&lt;&lt;&lt;&lt;&lt;" .</code> תופס אותם). רק אז אשרו את ה-<bdi>Commit</bdi> של ה-<bdi>Merge</bdi>.</li>
+  </ol>
+  <div class="callout tip"><span class="title">דלת המילוט</span><p>בכל שלב לפני ה-<bdi>Commit</bdi>, הפקודה <code>git merge --abort</code> מחזירה את ה-<bdi>Repository</bdi> למצב שלפני ה-<bdi>Merge</bdi>. אם הפתרון מסתבך, עדיף לבטל, למשוך את Claude לניתוח רגוע, ולנסות שוב, מאשר לתקן פתרון גרוע.</p></div>
+  <p><strong>מתי לא לתת ל-Claude להכריע:</strong> כשה-<bdi>Conflict</bdi> נוגע להחלטה עסקית (איזו התנהגות משתי גרסאות היא הנכונה), ההכרעה שלכם. Claude מנתח מצוין, אבל הוא לא יודע מה סוכם בישיבת המוצר. בקשו ממנו להציג את האפשרויות והשלכותיהן, והחליטו בעצמכם.</p>
+
+  <h2 id="rebase-cherrypick">Rebase ו-Cherry-pick עם Claude</h2>
+  <h3 id="rebase">Rebase: מתי ואיך בבטחה</h3>
+  <p><code>git rebase</code> "משתיל" מחדש את ה-<bdi>Commits</bdi> של ה-<bdi>Branch</bdi> שלכם על קצה <bdi>Branch</bdi> אחר, ויוצר היסטוריה ליניארית ונקייה. המחיר: הוא משכתב היסטוריה. כל ה-<bdi>Commits</bdi> מקבלים מזהים חדשים. מכאן נגזר הכלל החשוב ביותר: <strong>לעולם לא עושים Rebase ל-Branch שנדחף ואנשים אחרים עובדים עליו.</strong> נוהל בטוח לעבודה עם Claude:</p>
+    <div class="codeblock">
+    <div class="codehead">Prompt (נוהל Rebase בטוח)</div>
+    <pre><code>1. create a backup branch pointing at my current HEAD (backup/pre-rebase)
+2. rebase feature/task-priority onto the latest main
+3. if there are conflicts, stop and analyze both sides before resolving
+4. after the rebase, run the backend tests and show me git log --oneline main..HEAD</code></pre>
+  </div>
+  <p>ה-<bdi>Branch</bdi> הגיבוי בצעד 1 הופך את כל התהליך להפיך: אם משהו נשבר, <code>git reset --hard backup/pre-rebase</code> מחזיר אתכם לנקודת ההתחלה. במהלך ה-<bdi>Rebase</bdi>, <bdi>Conflicts</bdi> מטופלים כמו בסעיף הקודם, עם הבדל אחד: הם עלולים לחזור <bdi>Commit</bdi> אחרי <bdi>Commit</bdi>, ודלת המילוט היא <code>git rebase --abort</code>.</p>
+  <div class="callout warn"><span class="title">הימנעו מ-Rebase אינטראקטיבי בתוך Session</span><p><code>git rebase -i</code> פותח עורך טקסט אינטראקטיבי, וסביבת ההרצה של פקודות ב-<bdi>Claude Code</bdi> אינה מיועדת לעורכים אינטראקטיביים. זו הנחיה פרקטית של המדריך (לא מגבלה מתועדת פורמלית): בקשו מ-Claude להשיג את אותה תוצאה בדרכים לא אינטראקטיביות, למשל <code>git rebase</code> רגיל, <code>git commit --amend</code>, או איחוד <bdi>Commits</bdi> עם <code>git reset --soft</code> ו-<bdi>Commit</bdi> חדש.</p></div>
+  <h3 id="cherrypick">Cherry-pick: העברת Commit בודד</h3>
+  <p><code>git cherry-pick</code> מעתיק <bdi>Commit</bdi> ספציפי מ-<bdi>Branch</bdi> אחד לאחר. השימוש הקלאסי: תיקון דחוף שנעשה ב-<bdi>Branch</bdi> פיתוח וצריך להגיע ל-<bdi>Branch</bdi> תחזוקה. עם Claude זה נוח במיוחד, כי הוא מוצא בשבילכם את ה-<bdi>Commit</bdi> הנכון:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>find the commit on feature/task-priority that fixed the title validation
+(only that fix, not the feature work), and cherry-pick it onto main.
+Show me the commit you picked before applying.</code></pre>
+  </div>
+  <p><strong>הסיכונים:</strong> <bdi>Cherry-pick</bdi> יוצר <bdi>Commit</bdi> חדש עם תוכן זהה אך מזהה שונה, מה שעלול לגרום ל-<bdi>Conflicts</bdi> עתידיים כשה-<bdi>Branches</bdi> יתמזגו; ו-<bdi>Commit</bdi> שנבחר לא נכון עלול לגרור תלות חסרה (הקוד מסתמך על שינוי מ-<bdi>Commit</bdi> קודם שלא הועבר). לכן תמיד בקשו לראות את ה-<bdi>Commit</bdi> לפני היישום, והריצו בדיקות אחרי.</p>
+
+  <h2 id="worktrees">Worktrees: עבודה מקבילית אמיתית</h2>
+  <h3 id="worktrees-what">מה זה ולמה זה חשוב</h3>
+  <p><bdi>Git Worktree</bdi> הוא תיקיית עבודה נוספת של אותו <bdi>Repository</bdi>: קבצים משלה ו-<bdi>Branch</bdi> משלה, אבל אותה היסטוריה ואותו <bdi>Remote</bdi>. בשביל <bdi>Claude Code</bdi> זו התשתית לעבודה מקבילית: שני <bdi>Sessions</bdi> שרצים באותה תיקייה דורכים זה לזה על הקבצים; שני <bdi>Sessions</bdi> בשני <bdi>Worktrees</bdi> מבודדים לחלוטין. אחד בונה פיצ'ר בזמן שהשני מתקן באג, ואף עריכה של האחד לא נוגעת בקבצים של השני.</p>
+  <h3 id="worktrees-flow">התמיכה המובנית: הדגל --worktree</h3>
+  <p>לפי תיעוד ה-<bdi>Worktrees</bdi> הרשמי, מפעילים <bdi>Session</bdi> מבודד עם הדגל <code>--worktree</code> (או <code>-w</code>) ושם:</p>
+  <div class="terminal"><span class="p">$</span> claude --worktree feature-auth</div>
+  <p>מה קורה, כפי שמתועד:</p>
+  <ul>
+    <li>ה-<bdi>Worktree</bdi> נוצר כברירת מחדל תחת <code>.claude/worktrees/&lt;name&gt;/</code> בשורש ה-<bdi>Repository</bdi>, על <bdi>Branch</bdi> חדש בשם <code>worktree-&lt;name&gt;</code>. בלי שם, Claude מגריל שם כמו <code>bright-running-fox</code>.</li>
+    <li>הרצה של אותה פקודה עם שם אחר בטרמינל שני פותחת <bdi>Session</bdi> מקביל ומבודד.</li>
+    <li>ה-<bdi>Repository</bdi> חייב לפחות <bdi>Commit</bdi> אחד; בלעדיו הפקודה נכשלת עם שגיאת <code>Failed to resolve base branch "HEAD"</code>.</li>
+    <li>כברירת מחדל (<code>worktree.baseRef</code> בערך <code>"fresh"</code>) ה-<bdi>Branch</bdi> החדש נגזר מ-<bdi>Branch</bdi> ברירת המחדל של ה-<bdi>Remote</bdi>, בדרך כלל <code>main</code>. הערך <code>"head"</code> גוזר מה-<bdi>HEAD</bdi> המקומי הנוכחי, כולל <bdi>Commits</bdi> שלא נדחפו.</li>
+    <li>אפשר להיכנס ישירות ל-<bdi>Worktree</bdi> של <bdi>PR</bdi>: <code>claude --worktree "#1234"</code> (במרכאות, כדי שה-<bdi>Shell</bdi> לא יפרש את <code>#</code> כהערה).</li>
+    <li>גם באמצע <bdi>Session</bdi> אפשר לבקש מ-Claude בשפה חופשית "work in a worktree", והוא ייצור אחד עם הכלי המובנה <bdi>EnterWorktree</bdi>.</li>
+  </ul>
+  <p><bdi>Worktree</bdi> הוא <bdi>Checkout</bdi> טרי, ולכן קבצים שאינם במעקב <bdi>Git</bdi>, כמו <code>.env</code>, לא נמצאים בו. הפתרון המתועד: קובץ <code>.worktreeinclude</code> בשורש הפרויקט, בתחביר <code>.gitignore</code>, שמפרט אילו קבצים מתעלמי-<bdi>Git</bdi> יועתקו אוטומטית לכל <bdi>Worktree</bdi> חדש:</p>
+  <div class="codeblock">
+    <div class="codehead">.worktreeinclude</div>
+    <pre><code>.env
+.env.local</code></pre>
+  </div>
+  <p>ביציאה מ-<bdi>Session</bdi> אינטראקטיבי, Claude בודק אם יש ב-<bdi>Worktree</bdi> עבודה שתאבד: אם הוא נקי, <bdi>Session</bdi> ללא שם מוסר אוטומטית (כולל ה-<bdi>Branch</bdi>); אם יש בו שינויים או <bdi>Commits</bdi> חדשים, תישאלו אם לשמור או להסיר. חזרה ל-<bdi>Session</bdi> עם <code>/resume</code> או <code>--resume</code> מחזירה אתכם לאותו <bdi>Worktree</bdi>. שלושה דברים משותפים לכל ה-<bdi>Worktrees</bdi> של אותו <bdi>Repository</bdi>: תיקיית ה-<code>.git</code>, תוספי <bdi>Plugins</bdi> ברמת הפרויקט, ואישורי הרשאות שמורים.</p>
+  <div class="callout tip"><span class="title">Best Practice</span><p>הוסיפו את <code>.claude/worktrees/</code> ל-<code>.gitignore</code>, כפי שממליץ התיעוד, כדי שתכני ה-<bdi>Worktrees</bdi> לא יופיעו כקבצים לא במעקב ב-<bdi>Checkout</bdi> הראשי.</p></div>
+  <h3 id="worktrees-coordination">חוקי תיאום: בעלים אחד לכל Branch</h3>
+  <p>הבידוד של <bdi>Worktrees</bdi> פותר התנגשויות קבצים, אבל לא התנגשויות כוונה. שלושה חוקים פשוטים סוגרים את הפער:</p>
+  <ul>
+    <li><strong>בעלים אחד לכל <bdi>Branch</bdi>.</strong> <bdi>Agent</bdi> אחד (או אדם אחד) עובד על <bdi>Branch</bdi> נתון בכל רגע. <bdi>Git</bdi> עצמו עוזר לאכוף זאת: הוא מסרב לבצע <bdi>Checkout</bdi> של <bdi>Branch</bdi> שכבר משוחרר ב-<bdi>Worktree</bdi> אחר.</li>
+    <li><strong>חלוקה לפי אזורים.</strong> כשמריצים שני <bdi>Sessions</bdi> על אותו פרויקט, חלקו משימות שנוגעות בקבצים שונים (אחד ב-<bdi>Backend</bdi>, אחד ב-<bdi>Frontend</bdi>). אחרת תיפגשו ב-<bdi>Merge</bdi> עם <bdi>Conflicts</bdi> מיותרים.</li>
+    <li><strong>מיזוג דרך נקודה אחת.</strong> כל ה-<bdi>Branches</bdi> מתמזגים ל-<code>main</code> דרככם, אחד אחרי השני, עם בדיקות בין לבין. אל תיתנו לשני <bdi>Agents</bdi> למזג במקביל.</li>
+  </ul>
+  <p>ל-<bdi>Subagents</bdi> יש בידוד מתועד משלהם: הוספת <code>isolation: worktree</code> ל-<bdi>Frontmatter</bdi> של <bdi>Subagent</bdi> מותאם גורמת לו לרוץ תמיד ב-<bdi>Worktree</bdi> זמני משלו. נרחיב על כך בפרק על <bdi>Subagents</bdi>.</p>
+
+  <h2 id="undoing">שחזור: revert, reset, ולמה Checkpoints הם לא Git</h2>
+  <h3 id="revert-vs-reset">git revert לעומת git reset</h3>
+  <p>שתי דרכים לבטל <bdi>Commit</bdi>, עם הבדל קריטי:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פקודה</th><th>מה היא עושה</th><th>מתי בטוחה</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>git revert &lt;hash&gt;</code></td><td>יוצרת <bdi>Commit</bdi> חדש שמבטל את השינוי. ההיסטוריה נשמרת</td><td>תמיד, כולל על <bdi>Branches</bdi> משותפים שנדחפו</td></tr>
+        <tr><td class="ltr"><code>git reset --hard &lt;hash&gt;</code></td><td>מזיזה את ה-<bdi>Branch</bdi> אחורה ומוחקת את השינויים מעץ העבודה. ההיסטוריה משוכתבת</td><td>רק על עבודה מקומית שלא נדחפה</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>כלל אצבע לעבודה עם <bdi>Agent</bdi>: כשמבקשים מ-Claude לבטל משהו, אמרו לו באיזו שיטה להשתמש. "revert the commit that added the priority field" הוא בטוח; "reset" הוא כלי חד שמוחק עבודה, וטוב שהוא דורש אישור הרשאה. אם אתם לא בטוחים, בקשו: "what's the safest way to undo commit abc123 given that it was already pushed?"</p>
+  <h3 id="checkpoints-vs-git">ההבחנה הקריטית: Checkpoints/Rewind לעומת Git</h3>
+  <p>ל-<bdi>Claude Code</bdi> יש מנגנון <bdi>Checkpoints</bdi> מובנה: לפני כל <bdi>Prompt</bdi> נשמר מצב הקבצים, ו-<code>/rewind</code> (או <code>Esc Esc</code>) משחזר קוד, שיחה או שניהם (הכרנו אותו בקצרה ב<a href="ch03.html">פרק 3</a>, ונעמיק בו ב<a href="ch19.html">פרק 19</a>). קל להתבלבל ולחשוב שזה "Git קטן". זו טעות מסוכנת. אלה ההבדלים המתועדים:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מאפיין</th><th>Checkpoints / Rewind</th><th>Git</th></tr></thead>
+      <tbody>
+        <tr><td>רמת פעולה</td><td>ברמת ה-<bdi>Session</bdi>: "ביטול מקומי" של צעדי השיחה</td><td>היסטוריה קבועה של הפרויקט, לשיתוף פעולה</td></tr>
+        <tr><td>מה נעקב</td><td>רק עריכות שנעשו בכלי העריכה של Claude</td><td>כל שינוי בקבצים במעקב, מכל מקור</td></tr>
+        <tr><td>שינויים מפקודות <bdi>Bash</bdi> (<code>rm</code>, <code>mv</code>, <code>cp</code>)</td><td>לא נעקבים. לא ניתנים לשחזור ב-<bdi>Rewind</bdi></td><td>נעקבים כרגיל</td></tr>
+        <tr><td>עריכות של <bdi>Subagents</bdi> (כולל <code>/code-review --fix</code> ברקע)</td><td>לא משוחזרות ב-<bdi>Rewind</bdi></td><td>נעקבות כרגיל</td></tr>
+        <tr><td>שינויים ידניים שלכם מחוץ ל-<bdi>Session</bdi></td><td>לא נעקבים בדרך כלל</td><td>נעקבים כרגיל</td></tr>
+        <tr><td>תוקף</td><td>נשמרים עם השיחה; מנוקים אחרי 30 יום כברירת מחדל (הגדרת <code>cleanupPeriodDays</code>), ותמונות קבצים נשמרות ל-100 ה-<bdi>Checkpoints</bdi> האחרונים ב-<bdi>Session</bdi></td><td>לצמיתות</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout danger"><span class="title">Checkpoints הם לא תחליף ל-Git</span><p>התיעוד הרשמי מנסח זאת במפורש: חשבו על <bdi>Checkpoints</bdi> כעל "local undo" ועל <bdi>Git</bdi> כעל "permanent history". פרויקט שמנוהל רק עם <bdi>Checkpoints</bdi> הוא פרויקט בלי גיבוי: מחיקת קובץ ב-<code>rm</code> על ידי ה-<bdi>Agent</bdi> לא ניתנת לשחזור ב-<bdi>Rewind</bdi>, ואחרי 30 יום גם ה-<bdi>Checkpoints</bdi> עצמם נעלמים. תמיד עבדו בתוך <bdi>Repository</bdi> עם <bdi>Commits</bdi> תכופים.</p></div>
+
+  <h2 id="parallel-safety">עבודה מקבילית בטוחה: הכללים</h2>
+  <p>נסכם את משטר העבודה כשכמה <bdi>Sessions</bdi> או <bdi>Agents</bdi> פועלים על אותו פרויקט:</p>
+  <ul class="check">
+    <li><bdi>Worktree</bdi> נפרד לכל <bdi>Session</bdi> (<code>claude --worktree</code>), לעולם לא שני <bdi>Sessions</bdi> כותבים באותה תיקייה.</li>
+    <li>בעלים אחד לכל <bdi>Branch</bdi>: אף פעם לא שני <bdi>Agents</bdi> על אותו <bdi>Branch</bdi>.</li>
+    <li><bdi>Commits</bdi> קטנים ותכופים: כל יחידת עבודה שעוברת בדיקות מקובעת מיד. <bdi>Commit</bdi> קטן קל לסקור, קל לבטל עם <code>revert</code>, וממזער את שטח ה-<bdi>Conflicts</bdi>.</li>
+    <li>מיזוג סדרתי דרך אדם: אתם נקודת האינטגרציה, לא ה-<bdi>Agents</bdi>.</li>
+    <li>משיכת <code>main</code> עדכני לפני כל משימה חדשה, כדי לצמצם סטייה בין <bdi>Branches</bdi>.</li>
+  </ul>
+  <p>תבנית עבודה מתועדת ששווה לאמץ: <bdi>Writer/Reviewer</bdi>. <bdi>Session</bdi> אחד מממש, ו-<bdi>Session</bdi> שני עם הקשר נקי סוקר את התוצאה. התיעוד מציין שהקשר טרי משפר סקירה, כי המודל לא מוטה לטובת קוד שהוא עצמו כתב זה עתה.</p>
+
+  <h2 id="common-mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>קיבוע Secrets.</strong> קובץ <code>.env</code> עם מפתחות אמיתיים שנכנס ל-<bdi>Commit</bdi> הוא דליפה לצמיתות: גם אחרי מחיקה הוא נשאר בהיסטוריה. הגנות: <code>.gitignore</code> שכולל את קובצי הסודות, חוק <code>Read(.env)</code> ברשימת ה-<bdi>deny</bdi>, ובקשה מ-Claude לסרוק את ה-<bdi>Diff</bdi> לפני <bdi>Commit</bdi>: "check the staged diff for anything that looks like a secret or API key". הרחבה על ניהול סודות ב<a href="ch20.html">פרק 20</a>.</li>
+    <li><strong>Commits ענקיים.</strong> "תבנה את כל הפיצ'ר ואז תעשה Commit אחד" מייצר <bdi>Diff</bdi> של אלפי שורות שאי אפשר לסקור באמת. בקשו מ-Claude לקבע בשלבים לוגיים: מודלים, אחר כך <bdi>Routes</bdi>, אחר כך בדיקות.</li>
+    <li><strong>לתת ל-Agent לעשות Force Push.</strong> <code>git push --force</code> מוחק היסטוריה משותפת ויכול לדרוס עבודה של אחרים. אל תאשרו אותו כבדרך אגב, ושקלו חוק <code>deny</code> על <code>Bash(git push --force*)</code> או על <code>Bash(git push *)</code> כולו. אם באמת צריך (אחרי <bdi>Rebase</bdi> של <bdi>Branch</bdi> אישי), העדיפו <code>git push --force-with-lease</code>, שנכשל אם ה-<bdi>Remote</bdi> התקדם מאז המשיכה האחרונה, והריצו אותו בעצמכם.</li>
+    <li><strong>קיבוע זבל של סביבת העבודה.</strong> תיקיות כמו <code>.claude/worktrees/</code>, <code>__pycache__</code> או <code>node_modules</code> שמגיעות ל-<bdi>Commit</bdi> כי אף אחד לא עדכן <code>.gitignore</code>. בקשו מ-Claude לתחזק את הקובץ כחלק מהקמת פרויקט.</li>
+    <li><strong>אישור אוטומטי של הודעות Commit.</strong> ההודעה היא התיעוד הקבוע של ההחלטה. שלוש שניות של קריאה לפני האישור חוסכות ארכיאולוגיה עתידית.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <ul>
+    <li><strong>יצירת PR נכשלת עם שגיאת אימות.</strong> תסמין: <code>gh</code> מחזיר שגיאה בסגנון "authentication required" או "HTTP 401/403". בדקו עם <code>gh auth status</code>; אם אין התחברות, הריצו <code>gh auth login</code> והשלימו את זרימת הדפדפן. אם ההתחברות קיימת אבל הפעולה נכשלת, בדקו שיש לכם הרשאת כתיבה ל-<bdi>Repository</bdi> (ב-<bdi>Fork</bdi>, ה-<bdi>PR</bdi> נפתח מה-<bdi>Fork</bdi> אל המקור).</li>
+    <li><strong>Detached HEAD.</strong> תסמין: <code>git status</code> מציג "HEAD detached at ...". זה קורה אחרי <bdi>Checkout</bdi> של <bdi>Hash</bdi> ספציפי, וזה מצב מסוכן רק אם יוצרים בו <bdi>Commits</bdi> בלי <bdi>Branch</bdi>. אם לא שיניתם כלום: <code>git switch main</code> (או ה-<bdi>Branch</bdi> הקודם עם <code>git switch -</code>). אם כבר יש <bdi>Commits</bdi> שאתם רוצים לשמור: <code>git switch -c rescue-branch</code> ואז מיזוג רגיל. אפשר גם פשוט לתאר את המצב ל-Claude ("git says detached HEAD, I don't know why, help me get back safely without losing work"); זו בדיוק משימת האבחון שהוא טוב בה.</li>
+    <li><strong>לולאת Conflicts ב-Rebase.</strong> תסמין: כל <bdi>Commit</bdi> ב-<bdi>Rebase</bdi> נעצר על אותם <bdi>Conflicts</bdi>. סיבה שכיחה: ה-<bdi>Branch</bdi> ארוך מדי וסטה רחוק מ-<code>main</code>. פתרונות בסדר עדיפות: <code>git rebase --abort</code> ומעבר ל-<bdi>Merge</bdi> רגיל (Conflict אחד גדול במקום רבים קטנים); או איחוד ה-<bdi>Branch</bdi> ל-<bdi>Commit</bdi> אחד לפני ה-<bdi>Rebase</bdi> (<code>git reset --soft</code> על נקודת הפיצול ו-<bdi>Commit</bdi> חדש); ולמניעה עתידית, הפעלת <code>git config rerere.enabled true</code>, שמלמד את <bdi>Git</bdi> לזכור פתרונות <bdi>Conflict</bdi> ולהחיל אותם שוב אוטומטית.</li>
+    <li><strong><code>claude --worktree</code> נכשל.</strong> שגיאת <code>Failed to resolve base branch "HEAD"</code> פירושה <bdi>Repository</bdi> בלי אף <bdi>Commit</bdi>; צרו <bdi>Commit</bdi> ראשון. שגיאה על <bdi>Trust</bdi> פירושה שטרם אישרתם את התיקייה: הריצו <code>claude</code> רגיל פעם אחת בתיקייה ואשרו.</li>
+    <li><strong>ה-Push נדחה על ידי השרת.</strong> תסמין: "protected branch" או "push declined due to repository rule violations". זו לא תקלה אלא מדיניות: ה-<bdi>Branch</bdi> מוגן ודורש <bdi>PR</bdi>. הזרימה הנכונה היא <bdi>Branch</bdi> נפרד ו-<code>gh pr create</code>.</li>
+  </ul>
+
+  <h2 id="security">אבטחה</h2>
+  <ul>
+    <li><strong>אישורי גישה (Credentials).</strong> Claude פועל תחת האימות שלכם: ה-<bdi>Credential Helper</bdi> של <bdi>Git</bdi> וה-<bdi>Token</bdi> של <code>gh</code>. לעולם אל תדביקו <bdi>Personal Access Token</bdi> בתוך <bdi>Prompt</bdi> ואל תבקשו מ-Claude לכתוב אותו לקובץ; השתמשו ב-<code>gh auth login</code> ובמנהלי סודות ייעודיים. זכרו שכל מה שמודבק ב-<bdi>Session</bdi> נשמר בתמלול המקומי שלו.</li>
+    <li><strong>Branches מוגנים.</strong> הגדירו <bdi>Branch Protection</bdi> ב-<bdi>GitHub</bdi> על <code>main</code>: חובת <bdi>PR</bdi>, חובת <bdi>CI</bdi> ירוק, איסור <bdi>Force Push</bdi>. זו שכבת הגנה בצד השרת שלא תלויה בשום הגדרה מקומית של <bdi>Claude Code</bdi>, ולכן היא עוצרת גם טעות של <bdi>Agent</bdi> וגם טעות שלכם.</li>
+    <li><strong>חוקי deny כקו הגנה שני.</strong> <code>Bash(git push *)</code> ב-<bdi>deny</bdi> בפרויקטים רגישים, לצד <code>Read(.env)</code> ודומיו. זכרו את המגבלה המתועדת: תבניות שמנסות להגביל ארגומנטים הן שבירות, ולכן חוק רחב וברור עדיף על חוק "חכם" וצר.</li>
+    <li><strong>זהירות עם <code>bypassPermissions</code>.</strong> התיעוד מציין שהמצב הזה מדלג על כל בקשות האישור, כולל כתיבות לתיקיות רגישות כמו <code>.git</code>. השתמשו בו רק בסביבות מבודדות (Containers, VMs) שבהן נזק אינו אפשרי.</li>
+    <li><strong>Git Hooks של תיקיות זרות.</strong> זו הסיבה שהשילוב <code>cd</code> + <code>git</code> מבקש אישור: הרצת <bdi>git</bdi> בתיקייה לא מוכרת יכולה להפעיל <bdi>Hooks</bdi> שמישהו אחר כתב. אל תאשרו את השילוב הזה על תיקיות שלא אתם שולטים בהן.</li>
+  </ul>
+
+  <h2 id="cost">הערת עלות ו-Context</h2>
+  <p>פקודות <bdi>Git</bdi> עצמן זולות, אבל הפלט שלהן נכנס ל-<bdi>Context Window</bdi> ונשאר שם. <bdi>Diff</bdi> של 3,000 שורות ששולף Claude הוא אלפי <bdi>Tokens</bdi> שמכבידים על כל המשך ה-<bdi>Session</bdi>. הרגלים חוסכים: בקשו <code>git diff --stat</code> או <code>git log --oneline</code> לפני צלילה לקבצים ספציפיים; העדיפו <bdi>Commits</bdi> קטנים שמייצרים <bdi>Diffs</bdi> קטנים; והשתמשו ב-<code>/code-review</code>, שרץ כ-<bdi>Subagent</bdi> ברקע עם הקשר משלו ומחזיר רק ממצאים. לגבי כסף אמיתי: סקירת <code>ultra</code> מחויבת ב-<bdi>Usage Credits</bdi> עם חלון אישור, ושירות ה-<bdi>Code Review</bdi> הענני לארגונים עולה לפי התיעוד הרשמי 15 עד 25 דולר בממוצע לסקירה, לפי גודל ה-<bdi>PR</bdi> ומורכבותו (נכון ל-28.07.2026). עוד על ניהול <bdi>Context</bdi> בפרק הבא.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul>
+    <li>עבדו תמיד בתוך <bdi>Repository</bdi> עם <bdi>Commit</bdi> התחלתי, גם בניסויים. זה תנאי ל-<bdi>Worktrees</bdi> ורשת הביטחון היחידה מפני פקודות <bdi>Bash</bdi> הרסניות.</li>
+    <li><bdi>Branch</bdi> לכל משימה, <bdi>Commit</bdi> לכל יחידת עבודה ירוקה, <bdi>PR</bdi> לכל מיזוג ל-<code>main</code>.</li>
+    <li>כתבו את מוסכמות ה-<bdi>Git</bdi> של הצוות (שמות <bdi>Branches</bdi>, פורמט הודעות, שפת <bdi>PR</bdi>) ב-<bdi>CLAUDE.md</bdi> פעם אחת, במקום לחזור עליהן בכל <bdi>Prompt</bdi>.</li>
+    <li>סקרו כל הודעת <bdi>Commit</bdi> וכל תיאור <bdi>PR</bdi> שנוצרו עבורכם, והוסיפו את ה"למה" שרק אתם יודעים.</li>
+    <li>הריצו <code>/code-review</code> לפני פתיחת <bdi>PR</bdi>; זול יותר לתקן לפני שעיני הצוות רואות.</li>
+    <li>לפני <bdi>Rebase</bdi> או פעולה משכתבת היסטוריה: <bdi>Branch</bdi> גיבוי. אחרי <bdi>Merge</bdi> או פתרון <bdi>Conflict</bdi>: בדיקות.</li>
+    <li>נצלו את קישור ה-<bdi>Session</bdi> ל-<bdi>PR</bdi>: <code>claude --from-pr</code> מחזיר אתכם להקשר המלא של העבודה כשהסקירה חוזרת.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>"YOLO merge":</strong> אישור פתרון <bdi>Conflicts</bdi> בלי לקרוא אותו ובלי להריץ בדיקות. פתרון <bdi>Conflict</bdi> שגוי הוא באג שמוסתר בתוך <bdi>Commit</bdi> של <bdi>Merge</bdi>, המקום האחרון שבו מחפשים.</li>
+    <li><strong>עבודה שבועית על Branch אחד בלי משיכת <code>main</code>:</strong> מתכון ללולאת <bdi>Conflicts</bdi>. מזגו או עשו <bdi>Rebase</bdi> מ-<code>main</code> בתדירות גבוהה.</li>
+    <li><strong>שני Agents על אותו Branch "כי זה מהיר יותר":</strong> זה לא. הם ידרסו זה את זה ואתם תשלמו בזמן איחוי.</li>
+    <li><strong>שימוש ב-<code>git reset --hard</code> כפתרון ברירת מחדל לכל בעיה:</strong> הוא מוחק עבודה ללא אפשרות חזרה פשוטה. קודם <code>git status</code> והבנה, ורק אז החלטה מודעת בין <code>revert</code>, <code>reset</code> ו-<code>stash</code>.</li>
+    <li><strong>הסתמכות על Rewind כגיבוי:</strong> כפי שראינו, שינויים מפקודות <bdi>Bash</bdi> ועריכות של <bdi>Subagents</bdi> לא משוחזרים, וההיסטוריה נמחקת אחרי 30 יום.</li>
+    <li><strong><code>--dangerously-skip-permissions</code> על Repository עם גישת Push לסביבות אמיתיות:</strong> ביטול כל הבלמים בדיוק במקום שבו הם הכי נחוצים.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 13.1: Branch, שינוי מקביל ופתרון Conflict על TaskFlow</div>
+    <div class="body">
+      <p>נעבוד על עותק ה-<bdi>TaskFlow</bdi> מ<a href="ch03.html#taskflow-setup">פרק 3</a> (ודאו ש-<code>git init</code> ו-<bdi>Commit</bdi> התחלתי בוצעו). ניצור בכוונה <bdi>Conflict</bdi> ונפתור אותו עם Claude:</p>
+      <ol>
+        <li>פתחו <code>claude</code> בתיקיית הפרויקט ובקשו: "create a branch feature/title-length off main, change the title max_length in backend/app/models.py from 200 to 120, run the backend tests, and commit with a conventional message".</li>
+        <li>חזרו ל-<code>main</code> (בקשו: "switch back to main") וצרו <bdi>Branch</bdi> שני: "create a branch feature/title-trim off main, and in backend/app/models.py change the title field so leading/trailing whitespace is stripped before validation. Run the tests and commit".</li>
+        <li>עכשיו מזגו: "merge feature/title-length into feature/title-trim". שני ה-<bdi>Branches</bdi> נגעו באותה שורת <code>title</code>, אז צפוי <bdi>Conflict</bdi>.</li>
+        <li>בקשו ניתוח לפני פתרון: "explain both sides of the conflict and their intent, don't resolve yet".</li>
+        <li>בקשו פתרון שמשלב את שתי הכוונות: "resolve keeping both: max_length 120 and the whitespace stripping. Show me the resolution before staging".</li>
+        <li>אמתו: הריצו את הבדיקות, בדקו ב-<code>/diff</code> שאין סמני <bdi>Conflict</bdi>, ואשרו את ה-<bdi>Commit</bdi> של ה-<bdi>Merge</bdi>.</li>
+        <li>סיום: בקשו "show me git log --oneline --graph for the last 6 commits" וּודאו שאתם מבינים את הגרף שנוצר.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>שלבים 1 ו-2:</strong> כל <bdi>Branch</bdi> נגזר מ-<code>main</code> בנפרד, ולכן שניהם מכילים גרסאות שונות של אותה שורה: <code>title: str = Field(min_length=1, max_length=200)</code> הופכת בענף אחד ל-<code>max_length=120</code> ובשני מקבלת לוגיקת <bdi>Strip</bdi> (למשל <bdi>Validator</bdi> של <bdi>Pydantic</bdi> או <code>str_strip_whitespace</code>). שימו לב שכל פקודת שינוי (checkout, add, commit) ביקשה אישור, בעוד <code>git status</code> ו-<code>git diff</code> רצו בשקט; זה בדיוק ההבדל בין פקודות קריאה לפקודות שינוי מהסעיף הראשון.</p>
+      <p><strong>שלב 3:</strong> ה-<bdi>Merge</bdi> נעצר עם הודעת <bdi>CONFLICT</bdi> על <code>models.py</code>. זה המצב הרצוי בתרגיל. אם במקרה לא נוצר <bdi>Conflict</bdi> (למשל כי Claude מימש את ה-<bdi>Strip</bdi> בשורות אחרות לגמרי), אפשר לגרום לו במכוון: בקשו בשני ה-<bdi>Branches</bdi> שינוי של אותה שורת <code>Field</code> עצמה.</p>
+      <p><strong>שלבים 4 ו-5:</strong> ההפרדה בין ניתוח לפתרון היא לב התרגיל. בניתוח, Claude צריך לזהות ששני הצדדים אינם סותרים באמת: אחד מקשיח אורך, השני מנקה רווחים, ואפשר לשלב. הפתרון הנכון הוא שדה <code>title</code> עם <code>max_length=120</code> וגם ניקוי רווחים, בלי שום סמן <bdi>Conflict</bdi> בקובץ. אם Claude מציע לבחור צד אחד בלבד, תקנו אותו: הכוונה של שני הצדדים צריכה להישמר, וזו בדיוק ההכרעה שאסור להשאיר ל-<bdi>Agent</bdi> בלי קריטריון מפורש.</p>
+      <p><strong>שלב 6:</strong> הבדיקות הן האימות האמיתי: ודאו שבדיקת יצירת משימה עם כותרת ארוכה מ-120 נכשלת כמצופה ושכותרת עם רווחים מנוקה. אם אין בדיקות כאלה, זה הרגע לבקש: "add a test for a 121-character title and a test for a title with surrounding whitespace, then run them". <bdi>Commit</bdi> ה-<bdi>Merge</bdi> מאושר רק אחרי ירוק מלא.</p>
+      <p><strong>שלב 7:</strong> הגרף אמור להציג את שני הענפים מתפצלים מ-<code>main</code> ומתאחדים ב-<bdi>Commit</bdi> ה-<bdi>Merge</bdi>. אם אתם רואים קו ישר בלבד, ה-<bdi>Merge</bdi> בוצע כ-<bdi>Fast-forward</bdi>, כלומר לא באמת היה פיצול; חזרו ובדקו ששני ה-<bdi>Branches</bdi> אכן נגזרו מ-<code>main</code> ולא זה מזה.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p><bdi>Claude Code</bdi> עובד עם <bdi>Git</bdi> בדיוק כמוכם: אותן פקודות, אותה היסטוריה, עם מנגנון הרשאות שמריץ פקודות קריאה בשקט ועוצר פקודות שינוי לאישור. למדנו לנהל את הזרימה היומית (Branches, הודעות <bdi>Commit</bdi> שחובה לסקור, <code>/diff</code>), לפתוח ולנהל <bdi>Pull Requests</bdi> עם <code>gh</code> ולסקור אותם מקומית עם <code>/code-review</code>, לפתור <bdi>Conflicts</bdi> בשיטת "ניתוח לפני פתרון, אימות אחרי", לבצע <bdi>Rebase</bdi> ו-<bdi>Cherry-pick</bdi> עם <bdi>Branch</bdi> גיבוי, ולהריץ <bdi>Sessions</bdi> מקבילים ב-<bdi>Worktrees</bdi> עם בעלים אחד לכל <bdi>Branch</bdi>. והחשוב מכול: <bdi>Checkpoints</bdi> הם כפתור ביטול נוח בתוך ה-<bdi>Session</bdi>, אבל רק <bdi>Git</bdi>, עם <bdi>Commits</bdi> קטנים ותכופים, הוא היסטוריה אמיתית. בפרק הבא נטפל במשאב היקר ביותר של כל <bdi>Session</bdi>: ה-<bdi>Context Window</bdi>.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/common-workflows">Common workflows (PRs, worktrees, git history prompts)</a> |
+      <a href="https://code.claude.com/docs/en/permissions">Permissions (read-only git, rules, deny/ask/allow)</a> |
+      <a href="https://code.claude.com/docs/en/worktrees">Worktrees (--worktree, cleanup, baseRef, .worktreeinclude)</a> |
+      <a href="https://code.claude.com/docs/en/checkpointing">Checkpointing (limitations, not a git replacement)</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (gh CLI, CLAUDE.md, parallel sessions)</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands (/diff, /code-review, /rewind)</a> |
+      <a href="https://code.claude.com/docs/en/code-review">Code Review (/code-review syntax, levels, pricing)</a> |
+      <a href="https://code.claude.com/docs/en/settings">Settings (attribution, cleanupPeriodDays)</a>
+      | נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch12.html"><span class="lbl">הפרק הקודם</span>פרק 12: Refactoring</a>
+    <a href="ch14.html"><span class="lbl">הפרק הבא</span>פרק 14: Context Window ו-Session Management</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

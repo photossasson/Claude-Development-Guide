@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "taskflow-db": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@bytebase/dbhub@1.0.0",
+        "--transport",
+        "stdio",
+        "--config",
+        "${CLAUDE_PROJECT_DIR:-.}/mcp/database-readonly/dbhub.toml"
+      ],
+      "env": {
+        "DSN": "${TASKFLOW_DB_RO_DSN}"
+      }
+    }
+  }
+}

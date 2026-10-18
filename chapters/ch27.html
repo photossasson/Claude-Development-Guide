@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 27: Claude Code בתוך VS Code ו-JetBrains</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ו | פרק 27</p>
+  <h1>Claude Code בתוך VS Code ו-JetBrains</h1>
+  <p class="lead">עד עכשיו עבדנו עם <bdi>Claude Code</bdi> בעיקר בטרמינל. בפרק הזה נעביר אותו אל תוך ה-<bdi>IDE</bdi>: תוסף <bdi>VS Code</bdi> עם פאנל גרפי מלא, תוספת <bdi>JetBrains</bdi> שמתחברת ל-<bdi>IntelliJ</bdi>, <bdi>PyCharm</bdi> ו-<bdi>WebStorm</bdi>, ונבין מתי כל ממשק מנצח. נכסה התקנה, אזכורי <code>@</code> עם טווחי שורות, תצוגות <bdi>Diff</bdi>, סקירת תוכניות, <bdi>Checkpoints</bdi>, קיצורי מקלדת, חיבור לדפדפן עם <code>@browser</code>, וטבלת השוואה מלאה בין כל המשטחים.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="why-ide">למה להריץ את Claude Code בתוך ה-IDE</h2>
+  <p><bdi>Claude Code</bdi> הוא אותו מנוע בכל מקום: אותם מודלים, אותם כלים, אותם קובצי <bdi>CLAUDE.md</bdi> והגדרות. מה שמשתנה בין המשטחים הוא הממשק והאינטגרציה עם סביבת העבודה. כשמריצים אותו בתוך ה-<bdi>IDE</bdi> מקבלים שלושה יתרונות שהטרמינל לבדו לא נותן:</p>
+  <ul>
+    <li><strong>הקשר אוטומטי מהעורך.</strong> הטקסט שסימנתם בעורך משותף עם Claude אוטומטית, כולל נתיב הקובץ ומספרי השורות. אין צורך להדביק קוד או לתאר "הפונקציה בערך באמצע הקובץ".</li>
+    <li><strong>תצוגות Diff מקוריות.</strong> שינויים מוצגים במציג ה-<bdi>Diff</bdi> של ה-IDE, זה לצד זה, במקום כטקסט בטרמינל.</li>
+    <li><strong>שיתוף Diagnostics.</strong> שגיאות <bdi>Lint</bdi> ו-<bdi>Syntax</bdi> שה-IDE מזהה זורמות ל-Claude בלי שתצטרכו להעתיק אותן.</li>
+  </ul>
+  <p><strong>מתי זה פחות מתאים:</strong> אוטומציה וסקריפטים (<code>claude -p</code>), עבודה על שרת מרוחק דרך <bdi>SSH</bdi> בלבד, או כשצריך פקודות שקיימות רק ב-CLI. בהמשך הפרק נראה שקל לשלב: אפשר לעבוד ב-CLI בתוך הטרמינל המשולב של ה-IDE וליהנות משני העולמות.</p>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>התקנה עובדת של <bdi>Claude Code CLI</bdi> וחיבור לחשבון (<a href="ch02.html">פרק 2</a>). נדרש מנוי בתשלום (<bdi>Pro</bdi>, <bdi>Max</bdi>, <bdi>Team</bdi> או <bdi>Enterprise</bdi>) או חשבון <bdi>Claude Console</bdi>; אין צורך במפתח API. היכרות עם מצבי הרשאות (<a href="ch18.html">פרק 18</a>) ועם <bdi>Checkpoints</bdi> (<a href="ch19.html">פרק 19</a>) תעזור.</p></div>
+
+  <h2 id="vscode-install">VS Code: התקנה ודרישות</h2>
+  <p>תוסף <bdi>VS Code</bdi> הוא הדרך המומלצת רשמית להשתמש ב-<bdi>Claude Code</bdi> בתוך <bdi>VS Code</bdi>: פאנל גרפי מלא, לא עוד טרמינל בתוך חלון. הדרישות:</p>
+  <ul>
+    <li><bdi>VS Code</bdi> בגרסה <bdi>1.94.0</bdi> ומעלה.</li>
+    <li>חשבון <bdi>Anthropic</bdi>: מנוי בתשלום או חשבון <bdi>Console</bdi>. מתחברים דרך הדפדפן בפתיחה הראשונה.</li>
+  </ul>
+  <p>ההתקנה: פתחו את תצוגת ה-<bdi>Extensions</bdi> (<code>Ctrl+Shift+X</code> ב-Windows/Linux, <code>Cmd+Shift+X</code> ב-Mac), חפשו <code>Claude Code</code> ולחצו <bdi>Install</bdi>. התוסף עובד גם ב-<bdi>Cursor</bdi> ובפיצולי <bdi>VS Code</bdi> אחרים (כמו <bdi>Kiro</bdi>), כולל התקנה מ-<bdi>Open VSX</bdi>. אם התוסף לא מופיע אחרי ההתקנה, הריצו <bdi>Developer: Reload Window</bdi> מה-<bdi>Command Palette</bdi>.</p>
+  <div class="callout note"><span class="title">התוסף וה-CLI הם שתי התקנות נפרדות</span><p>התוסף מגיע עם עותק פרטי של ה-CLI עבור פאנל הצ'אט בלבד, והוא לא מוסיף את <code>claude</code> ל-<bdi>PATH</bdi>. כדי להריץ <code>claude</code> בטרמינל המשולב צריך גם את ההתקנה העצמאית של ה-CLI מ<a href="ch02.html">פרק 2</a>. בכיוון ההפוך: הרצת <code>claude</code> בטרמינל המשולב מתקינה את התוסף אוטומטית אם הוא חסר (אפשר לכבות עם ההגדרה <code>autoInstallIdeExtension</code> או משתנה הסביבה <code>CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL=1</code>).</p></div>
+  <p>אחרי ההתקנה, סמל ה-<bdi>Spark</bdi> (ניצוץ) מייצג את <bdi>Claude Code</bdi> בכל רחבי <bdi>VS Code</bdi>. ארבע דרכים לפתוח את הפאנל:</p>
+  <ul>
+    <li><strong>Editor Toolbar:</strong> סמל ה-Spark בפינת העורך (מופיע רק כשקובץ פתוח).</li>
+    <li><strong>Activity Bar:</strong> סמל ה-Spark בסרגל הצד פותח את רשימת ה-<bdi>Sessions</bdi>.</li>
+    <li><strong>Command Palette:</strong> הקלידו <code>Claude Code</code> ובחרו פעולה כמו <bdi>Open in New Tab</bdi>.</li>
+    <li><strong>Status Bar:</strong> לחיצה על <bdi>Claude Code</bdi> בפינה התחתונה, עובד גם בלי קובץ פתוח.</li>
+  </ul>
+  <p>בפתיחה הראשונה מופיע מסך התחברות; לחצו <bdi>Sign in</bdi> והשלימו את האישור בדפדפן. אחרי ההתחברות מופיעה רשימת <bdi>Learn Claude Code</bdi> עם סיור מודרך; אפשר גם להריץ <bdi>Claude Code: Open Walkthrough</bdi> מה-<bdi>Command Palette</bdi> בכל שלב.</p>
+  <p><strong>לאן לעגן את הפאנל:</strong> גררו את הפאנל לכל מקום: <bdi>Secondary Sidebar</bdi> (צד ימין, Claude נשאר גלוי בזמן שאתם מקודדים), <bdi>Primary Sidebar</bdi>, או כלשונית באזור העורך. אפשר לפתוח כמה שיחות במקביל עם <bdi>Open in New Tab</bdi> או <bdi>Open in New Window</bdi>; נקודה צבעונית על סמל ה-Spark מסמנת סטטוס: כחול פירושו בקשת הרשאה ממתינה, כתום פירושו ש-Claude סיים בזמן שהלשונית הייתה מוסתרת.</p>
+
+  <h2 id="vscode-panel">VS Code: עבודה בפאנל</h2>
+  <p>תיבת ה-<bdi>Prompt</bdi> היא מרכז השליטה. מחוון המצב בתחתית התיבה מחליף בין מצבי הרשאות בלחיצה:</p>
+  <ul>
+    <li><strong>Manual:</strong> Claude מבקש אישור לפני עריכות ורוב פקודות ה-<bdi>Shell</bdi>.</li>
+    <li><strong>Plan:</strong> Claude מתאר מה יעשה וממתין לאישור. <bdi>VS Code</bdi> פותח את התוכנית אוטומטית כמסמך <bdi>Markdown</bdi> מלא שבו אפשר להוסיף הערות <bdi>Inline</bdi> כמשוב לפני שהעבודה מתחילה. זו חוויית סקירת התוכניות החזקה ביותר מבין כל המשטחים.</li>
+    <li><strong>Edit automatically:</strong> עריכות מתבצעות בלי לשאול (מקביל ל-<bdi>acceptEdits</bdi>).</li>
+  </ul>
+  <p>ברירת המחדל לשיחות חדשות נקבעת בהגדרה <code>claudeCode.initialPermissionMode</code> (ערכים: <code>default</code>, <code>plan</code>, <code>acceptEdits</code>, <code>bypassPermissions</code>). עוד בתיבה: הקלדת <code>/</code> פותחת את תפריט הפקודות (צירוף קבצים, החלפת מודל, <bdi>Extended Thinking</bdi>, <code>/usage</code>, ניהול MCP, Hooks, Memory ו-Plugins), מחוון ה-<bdi>Context</bdi> מציג כמה מחלון ההקשר מנוצל, ו-<code>Shift+Enter</code> יורד שורה בלי לשלוח.</p>
+
+  <h3 id="vscode-mentions">אזכורי @ עם טווחי שורות</h3>
+  <p>אזכור עם <code>@</code> מוסיף קובץ או תיקייה להקשר, עם התאמה מקורבת (<bdi>Fuzzy Matching</bdi>):</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Explain the logic in @auth        (מתאים ל-auth.js, AuthService.ts וכו')
+What's in @src/components/        (לוכסן בסוף עבור תיקייה)</code></pre>
+  </div>
+  <p>החלק החזק באמת: <strong>בחירת טקסט בעורך משותפת עם Claude אוטומטית.</strong> כותרת תיבת ה-Prompt מציגה כמה שורות מסומנות, ולחיצה על המחוון מסתירה את הבחירה מ-Claude (סמל עין חצויה). לחיצה על <code>Option+K</code> ב-Mac או <code>Alt+K</code> ב-Windows/Linux מוסיפה אזכור מפורש עם נתיב וטווח שורות, למשל <code>@app.ts#5-10</code>. אפשר גם לגרור קבצים לתיבה תוך החזקת <code>Shift</code> כדי לצרפם, לבקש עמודים ספציפיים מ-PDF גדול, ולהפנות לפלט טרמינל עם <code>@terminal:name</code> (כאשר <code>name</code> הוא כותרת הטרמינל), בלי העתקות.</p>
+
+  <h3 id="vscode-diffs">אישור שינויים עם Diff</h3>
+  <p>כש-Claude רוצה לערוך קובץ, מופיעה השוואה זה לצד זה של המקור וההצעה, ואז בקשת הרשאה: לאשר, לדחות, או להגיד ל-Claude מה לעשות במקום. טריק שימושי ומתועד: אם תערכו את התוכן המוצע ישירות בתצוגת ה-Diff לפני האישור, Claude מקבל הודעה שהתוכן שונה, כך שהוא לא מניח שהקובץ תואם להצעה המקורית שלו.</p>
+
+  <h3 id="vscode-checkpoints">Checkpoints ו-Rewind בתוסף</h3>
+  <p>התוסף תומך ב-<bdi>Checkpoints</bdi> באופן מלא. רחפו מעל כל הודעה בשיחה כדי לחשוף את כפתור ה-<bdi>Rewind</bdi>, עם שלוש אפשרויות:</p>
+  <ul>
+    <li><strong>Fork conversation from here:</strong> ענף שיחה חדש מנקודה זו, שינויי הקוד נשארים.</li>
+    <li><strong>Rewind code to here:</strong> החזרת הקבצים למצבם בנקודה זו, השיחה נשמרת במלואה.</li>
+    <li><strong>Fork conversation and rewind code:</strong> שניהם יחד.</li>
+  </ul>
+  <p>המגבלות זהות לאלה של ה-CLI (ראו <a href="ch19.html">פרק 19</a>): Checkpoints עוקבים אחרי עריכות של Claude, לא אחרי כל שינוי בפרויקט.</p>
+
+  <h3 id="vscode-history">היסטוריה והמשך שיחות מהענן</h3>
+  <p>כפתור <bdi>Session history</bdi> בראש הפאנל פותח חיפוש ודפדוף בכל השיחות, עם שמות שנוצרים אוטומטית, שינוי שם ומחיקה. יש שתי לשוניות: <bdi>Local</bdi> ו-<bdi>Web</bdi>. לשונית <bdi>Web</bdi> מציגה Sessions מ-<bdi>Claude Code on the web</bdi> ומאפשרת להוריד אותם ולהמשיך מקומית; זה דורש התחברות עם מנוי <bdi>Claude.ai</bdi> (לא <bdi>Console</bdi>), מציג רק Sessions שנפתחו עם Repository של GitHub, והשינויים לא מסונכרנים חזרה לענן. התוסף וה-CLI חולקים היסטוריית שיחות: <code>claude --resume</code> בטרמינל פותח בוחר שבו אפשר להמשיך שיחה שהתחילה בתוסף.</p>
+
+  <h2 id="vscode-shortcuts">קיצורי מקלדת ופקודות VS Code</h2>
+  <p>חלק מהקיצורים תלויים במיקוד: כשהסמן בקובץ, העורך ממוקד; כשהסמן בתיבת ה-Prompt, Claude ממוקד. הקיצורים המרכזיים, כפי שמתועדים רשמית:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פעולה</th><th>Mac</th><th>Windows / Linux</th></tr></thead>
+      <tbody>
+        <tr><td>החלפת מיקוד בין העורך ל-Claude</td><td class="ltr"><code>Cmd+Esc</code></td><td class="ltr"><code>Ctrl+Esc</code></td></tr>
+        <tr><td>שיחה חדשה בלשונית עורך</td><td class="ltr"><code>Cmd+Shift+Esc</code></td><td class="ltr"><code>Ctrl+Shift+Esc</code></td></tr>
+        <tr><td>הוספת אזכור <code>@file#range</code> מהבחירה</td><td class="ltr"><code>Option+K</code></td><td class="ltr"><code>Alt+K</code></td></tr>
+        <tr><td>פתיחה מחדש של Session שנסגר</td><td class="ltr"><code>Cmd+Shift+T</code></td><td class="ltr"><code>Ctrl+Shift+T</code></td></tr>
+        <tr><td>Focus View (הסתרת פעולות כלים)</td><td class="ltr"><code>Ctrl+Option+F</code></td><td class="ltr"><code>Ctrl+Alt+F</code></td></tr>
+        <tr><td>שיחה חדשה (דורש הפעלה בהגדרות)</td><td class="ltr"><code>Cmd+N</code></td><td class="ltr"><code>Ctrl+N</code></td></tr>
+        <tr><td>שורה חדשה בלי לשלוח</td><td class="ltr"><code>Shift+Enter</code></td><td class="ltr"><code>Shift+Enter</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn"><span class="title">Cmd+Esc לא עובד ב-macOS?</span><p>ב-<bdi>macOS Tahoe</bdi> ומעלה, קיצור ה-<bdi>Game Overlay</bdi> של המערכת תופס את <code>Cmd+Esc</code> לפני שהוא מגיע ל-VS Code. הפתרון: <bdi>System Settings</bdi> ואז <bdi>Keyboard</bdi>, <bdi>Keyboard Shortcuts</bdi>, <bdi>Game Controllers</bdi>, ובטלו את <bdi>Game Overlay</bdi>. לחלופין קשרו מחדש את <bdi>Claude Code: Focus input</bdi> למקש אחר.</p></div>
+
+  <h2 id="vscode-settings">הגדרות התוסף ומצב Terminal</h2>
+  <p>יש שתי שכבות הגדרות: הגדרות התוסף ב-VS Code (התנהגות בתוך העורך) והגדרות <bdi>Claude Code</bdi> ב-<code>~/.claude/settings.json</code>, המשותפות לתוסף ול-CLI (הרשאות, Hooks, MCP; ראו <a href="ch17.html">פרק 17</a>). ההגדרות המרכזיות של התוסף:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>הגדרה</th><th>ברירת מחדל</th><th>מה היא עושה</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>useTerminal</code></td><td class="ltr"><code>false</code></td><td>מפעיל את Claude במצב Terminal (ממשק CLI) במקום הפאנל הגרפי</td></tr>
+        <tr><td class="ltr"><code>initialPermissionMode</code></td><td class="ltr"><code>default</code></td><td>מצב ההרשאות לשיחות חדשות: <code>default</code>, <code>plan</code>, <code>acceptEdits</code>, <code>bypassPermissions</code></td></tr>
+        <tr><td class="ltr"><code>preferredLocation</code></td><td class="ltr"><code>panel</code></td><td>איפה Claude נפתח: <code>sidebar</code> או <code>panel</code></td></tr>
+        <tr><td class="ltr"><code>autosave</code></td><td class="ltr"><code>true</code></td><td>שמירת קבצים אוטומטית לפני ש-Claude קורא או כותב אותם</td></tr>
+        <tr><td class="ltr"><code>respectGitIgnore</code></td><td class="ltr"><code>true</code></td><td>החרגת תבניות <code>.gitignore</code> מחיפושי קבצים</td></tr>
+        <tr><td class="ltr"><code>usePythonEnvironment</code></td><td class="ltr"><code>true</code></td><td>הפעלת סביבת ה-Python של ה-Workspace (דורש את תוסף Python)</td></tr>
+        <tr><td class="ltr"><code>disableLoginPrompt</code></td><td class="ltr"><code>false</code></td><td>דילוג על מסך ההתחברות (לתצורות של ספקי צד שלישי)</td></tr>
+        <tr><td class="ltr"><code>allowDangerouslySkipPermissions</code></td><td class="ltr"><code>false</code></td><td>מוסיף מצב Bypass permissions לבורר המצבים. רק ב-Sandbox בלי אינטרנט</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>מצב Terminal:</strong> מי שמעדיף את ממשק ה-CLI המלא בתוך VS Code מסמן את <bdi>Use Terminal</bdi> בהגדרות (Extensions ואז Claude Code). כך מקבלים את כל פקודות ה-CLI, כולל קיצור ה-<code>!</code> ו-<bdi>Tab Completion</bdi>, שאינם זמינים בפאנל הגרפי.</p>
+  <p><strong>ספקי צד שלישי:</strong> אם הארגון עובד מול <bdi>Amazon Bedrock</bdi>, <bdi>Google Cloud's Agent Platform</bdi> או <bdi>Microsoft Foundry</bdi>: סמנו את <bdi>Disable Login Prompt</bdi> בהגדרות התוסף, והגדירו את הספק ב-<code>~/.claude/settings.json</code> לפי מדריך הספק, כך שהתצורה משותפת לתוסף ול-CLI.</p>
+  <p><strong>Plugins ו-MCP:</strong> הקלדת <code>/plugins</code> בפאנל פותחת ממשק גרפי לניהול Plugins ו-Marketplaces (עם בחירת Scope: משתמש, פרויקט או מקומי; ראו <a href="ch26.html">פרק 26</a>). הוספת שרתי MCP נעשית דרך ה-CLI בטרמינל המשולב (<code>claude mcp add</code>), וניהול שרתים קיימים עם <code>/mcp</code> בפאנל.</p>
+  <p><strong>דפדפן עם <code>@browser</code>:</strong> אם מותקן תוסף <bdi>Claude in Chrome</bdi> (גרסה <bdi>1.0.36</bdi> ומעלה), הקלידו <code>@browser</code> בתיבת ה-Prompt ואחריו את המשימה, למשל <code>@browser go to localhost:3000 and check the console for errors</code>. בניגוד ל-CLI, בתוסף VS Code אין צורך בדגל <code>--chrome</code>. פירוט בהמשך הפרק.</p>
+
+  <h2 id="jetbrains">JetBrains: התקנה ותצורה</h2>
+  <p>תוספת ה-<bdi>JetBrains</bdi> <span class="badge beta">Beta</span> עובדת עם רוב סביבות <bdi>JetBrains</bdi>, כולל <bdi>IntelliJ IDEA</bdi>, <bdi>PyCharm</bdi>, <bdi>Android Studio</bdi>, <bdi>WebStorm</bdi>, <bdi>PhpStorm</bdi> ו-<bdi>GoLand</bdi>. ההבדל המהותי מהתוסף של VS Code: התוספת <strong>לא מכילה עותק של ה-CLI</strong>. היא מריצה את הפקודה <code>claude</code> בטרמינל המשולב של ה-IDE ומתחברת אליה, ולכן חובה להתקין את שני החלקים:</p>
+  <ol>
+    <li>התקינו את <bdi>Claude Code CLI</bdi> (אם עוד לא; <a href="ch02.html">פרק 2</a>). בלעדיו התוספת תציג הודעת <bdi>Cannot launch Claude Code</bdi>.</li>
+    <li>התקינו את <bdi>Claude Code [Beta]</bdi> מה-<bdi>JetBrains Marketplace</bdi> והפעילו את ה-IDE מחדש (לפעמים נדרשת הפעלה מחדש מלאה, אפילו יותר מפעם אחת).</li>
+  </ol>
+  <p>היכולות המרכזיות של האינטגרציה:</p>
+  <ul>
+    <li><strong>Quick Launch:</strong> <code>Cmd+Esc</code> ב-Mac או <code>Ctrl+Esc</code> ב-Windows/Linux פותחים את Claude Code ישירות מהעורך.</li>
+    <li><strong>Diff Viewer:</strong> שינויים נפתחים במציג ה-Diff של ה-IDE במקום בטרמינל. נשלט דרך הגדרת <bdi>Diff tool</bdi> ב-<code>/config</code> (הערך <code>auto</code> מציג ב-IDE, <code>terminal</code> משאיר בטרמינל). ההגדרה מופיעה ב-<code>/config</code> רק כשיש חיבור פעיל ל-IDE.</li>
+    <li><strong>שיתוף בחירה:</strong> הבחירה או הלשונית הנוכחית ב-IDE משותפות עם Claude אוטומטית. חוקי <bdi>Deny</bdi> על <bdi>Read</bdi> חוסמים שיתוף עבור קבצים רגישים.</li>
+    <li><strong>קיצור אזכור קובץ:</strong> <code>Cmd+Option+K</code> ב-Mac או <code>Alt+Ctrl+K</code> ב-Windows/Linux מוסיפים אזכור כמו <code>@src/auth.ts#L1-99</code>.</li>
+    <li><strong>שיתוף Diagnostics:</strong> שגיאות Lint ו-Syntax מה-IDE משותפות עם Claude תוך כדי עבודה.</li>
+  </ul>
+  <p>הגדרות התוספת נמצאות ב-<bdi>Settings</bdi> ואז <bdi>Tools</bdi> ואז <bdi>Claude Code [Beta]</bdi>. השדה החשוב ביותר הוא <bdi>Claude command</bdi>: נתיב או פקודה מותאמים להרצת Claude, למשל <code>/usr/local/bin/claude</code> או <code>npx @anthropic-ai/claude-code</code>. למשתמשי <bdi>WSL</bdi> התיעוד ממליץ להגדיר שם: <code>wsl -d Ubuntu -- bash -lic "claude"</code> (החליפו <code>Ubuntu</code> בשם ההפצה שלכם). עוד בהגדרות: השתקת התראות על פקודה חסרה, הפעלת <code>Option+Enter</code> לשורות מרובות ב-macOS, ועדכוני תוספת אוטומטיים.</p>
+
+  <h3 id="jetbrains-esc">תיקון בעיית ה-ESC</h3>
+  <p>בעיה ידועה ומתועדת: מקש <code>Esc</code> לא עוצר את Claude Code בטרמינל של JetBrains, כי ה-IDE תופס אותו כדי להחזיר מיקוד לעורך. התיקון:</p>
+  <ol>
+    <li>פתחו <bdi>Settings</bdi> ואז <bdi>Tools</bdi> ואז <bdi>Terminal</bdi>.</li>
+    <li>בטלו את הסימון של <bdi>Move focus to the editor with Escape</bdi>, או לחצו <bdi>Configure terminal keybindings</bdi> ומחקו את הקיצור <bdi>Switch focus to Editor</bdi>.</li>
+    <li>החילו את השינויים. מעכשיו <code>Esc</code> יעצור את Claude כרגיל.</li>
+  </ol>
+
+  <h3 id="jetbrains-remote">Remote Development ו-WSL2</h3>
+  <div class="callout warn"><span class="title">Remote Development: התוספת מותקנת על ה-Host</span><p>בעבודה עם <bdi>JetBrains Remote Development</bdi> חובה להתקין את התוספת על המחשב המרוחק דרך <bdi>Settings</bdi> ואז <bdi>Plugin (Host)</bdi>, לא על המכונה המקומית. זו הסיבה הנפוצה ביותר לכך שהאינטגרציה "לא עובדת" בסביבות מרוחקות.</p></div>
+  <p><strong>WSL2:</strong> אם Claude Code רץ בתוך <bdi>WSL2</bdi> וה-IDE על Windows, ייתכן ש-<code>/ide</code> יציג <bdi>No available IDEs detected</bdi>. הגורם הרגיל: רשת ה-<bdi>NAT</bdi> של WSL2 או <bdi>Windows Firewall</bdi> חוסמים את החיבור. שני תיקונים מתועדים:</p>
+  <p><strong>תיקון 1 (מומלץ): חוק Firewall.</strong> מצאו את הכתובת עם <code>hostname -I</code> בתוך WSL, גזרו את ה-Subnet (שני המקטעים הראשונים ואז <code>.0.0/16</code>), והריצו ב-PowerShell כמנהל:</p>
+  <div class="codeblock">
+    <div class="codehead">PowerShell (Administrator)</div>
+    <pre><code>New-NetFirewallRule -DisplayName "Allow WSL2 Internal Traffic" `
+  -Direction Inbound -Protocol TCP -Action Allow `
+  -RemoteAddress 172.21.0.0/16 -LocalAddress 172.21.0.0/16</code></pre>
+  </div>
+  <p>התאימו את טווח הכתובות ל-Subnet שלכם, ואז הפעילו מחדש את ה-IDE ואת Claude Code.</p>
+  <p><strong>תיקון 2: Mirrored Networking</strong> (דורש <bdi>Windows 11 22H2</bdi> ומעלה). הוסיפו לקובץ <code>.wslconfig</code> בתיקיית המשתמש ב-Windows:</p>
+  <div class="codeblock">
+    <div class="codehead">%USERPROFILE%\.wslconfig</div>
+    <pre><code>[wsl2]
+networkingMode=mirrored</code></pre>
+  </div>
+  <p>ואז <code>wsl --shutdown</code> מ-PowerShell והפעלה מחדש. התיעוד מעדיף את המצב הזה על פני פתיחת ההאזנה לכל הרשת (ראו סעיף האבטחה).</p>
+
+  <h2 id="ide-vs-cli">IDE מול CLI: מתי כל אחד, ואיך עוברים באמצע</h2>
+  <p>העיקרון: <strong>הפאנל של VS Code מצטיין בסקירה ויזואלית ובעבודה יומיומית; ה-CLI מצטיין בשליטה מלאה ובאוטומציה.</strong> טבלת ההבדלים המתועדת בין ה-CLI לתוסף VS Code:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>יכולת</th><th>CLI</th><th>תוסף VS Code</th></tr></thead>
+      <tbody>
+        <tr><td>פקודות ו-Skills</td><td>הכול</td><td>תת-קבוצה (הקלידו <code>/</code> לרשימה)</td></tr>
+        <tr><td>תצורת MCP</td><td>מלאה</td><td>חלקית: הוספה דרך CLI, ניהול עם <code>/mcp</code></td></tr>
+        <tr><td>Checkpoints</td><td>כן</td><td>כן</td></tr>
+        <tr><td>קיצור <code>!</code> ל-Bash</td><td>כן</td><td>לא</td></tr>
+        <tr><td>Tab Completion</td><td>כן</td><td>לא</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>שלוש דרכים לשלב בין העולמות:</p>
+  <ul>
+    <li><strong>CLI בתוך ה-IDE:</strong> פתחו את הטרמינל המשולב (<code>Ctrl+`</code> או <code>Cmd+`</code>) והריצו <code>claude</code>. ה-CLI מתחבר ל-IDE אוטומטית ומקבל את תצוגות ה-Diff ושיתוף ה-Diagnostics.</li>
+    <li><strong>חיבור מטרמינל חיצוני עם <code>/ide</code>:</strong> הפקודה <code>/ide</code> מנהלת את חיבורי ה-IDE ומציגה סטטוס. הריצו אותה מכל טרמינל כדי לחבר Session רץ ל-VS Code או ל-JetBrains; בהצלחה תופיע הודעה כמו <bdi>Connected to IntelliJ IDEA</bdi>. אם Claude Code מזהה IDE רץ בלי התוספת, <code>/ide</code> אף מתקין אותה עבורכם ומבקש הפעלה מחדש.</li>
+    <li><strong>המשך שיחה בין ממשקים:</strong> <code>claude --resume</code> בטרמינל ממשיך שיחה שהתחילה בפאנל של VS Code, ולהפך; ההיסטוריה משותפת.</li>
+  </ul>
+  <p><strong>תהליכי רקע:</strong> כש-Claude מריץ פקודות ארוכות בפאנל של VS Code, ההתקדמות מוצגת ב-<bdi>Status Bar</bdi>, אבל הנראות של משימות רקע מוגבלת לעומת ה-CLI. הטיפ המתועד: בקשו מ-Claude להדפיס את הפקודה והריצו אותה בעצמכם בטרמינל המשולב כשחשוב לכם לראות פלט חי.</p>
+
+  <h3 id="ide-git">Git בתוך ה-IDE</h3>
+  <p>עבודת ה-<bdi>Git</bdi> זהה לזו שלמדתם בפרקי היסוד, רק בלי לעזוב את העורך: בקשו <code>commit my changes with a descriptive message</code> או <code>create a pr for this feature</code>, ו-Claude יכין <bdi>Commit</bdi> או <bdi>Pull Request</bdi> עם תיאור המבוסס על השינויים בפועל. למשימות מקבילות, הדגל <code>--worktree</code> (בקיצור <code>-w</code>) מפעיל את Claude ב-<bdi>Git Worktree</bdi> מבודד עם קבצים ו-Branch משלו:</p>
+  <div class="terminal"><span class="p">$</span> claude --worktree feature-auth</div>
+  <p>כך כמה מופעי Claude בטרמינלים שונים של אותו חלון VS Code לא דורכים זה על זה.</p>
+
+  <h2 id="desktop-chrome">שני משטחים משלימים: Desktop ו-Chrome</h2>
+  <p>שני משטחים נוספים משיקים לעבודת ה-IDE ומכוסים בהרחבה בפרקים אחרים; הנה מפת הדרכים בקצרה.</p>
+  <p><strong>אפליקציית Desktop, לשונית Code:</strong> אפליקציית <bdi>Claude Desktop</bdi> (ל-macOS ו-Windows; גרסת <bdi>Linux</bdi> ב-<span class="badge beta">Beta</span>) כוללת לשונית <bdi>Code</bdi> שהיא סביבת פיתוח גרפית מלאה: Sessions מקביליים עם בידוד אוטומטי באמצעות <bdi>Git Worktrees</bdi>, תצוגת Diff עם הערות Inline, כפתור <bdi>Review code</bdi>, פאנל דפדפן לתצוגה מקדימה של האפליקציה, טרמינל משולב, ומעקב אחרי Pull Requests עם <bdi>Auto-fix</bdi> ו-<bdi>Auto-merge</bdi>. ה-Desktop וה-CLI חולקים את אותם קובצי תצורה (<bdi>CLAUDE.md</bdi>, <code>settings.json</code>, MCP). מעבר מה-CLI: הפקודה <code>/desktop</code> שומרת את ה-Session הנוכחי ופותחת אותו באפליקציה (זמינה ב-macOS וב-Windows x64 עם מנוי Claude; לא עם מפתח API או ספקי צד שלישי). ההשוואה המלאה בהמשך; הצלילה העמוקה בפרק על משטחי העבודה הנוספים.</p>
+  <p><strong>אינטגרציית Chrome (<code>@browser</code>):</strong> תוסף <bdi>Claude in Chrome</bdi> מחבר את Claude Code לדפדפן שלכם: בדיקת אפליקציות Web, קריאת שגיאות Console, מילוי טפסים, חילוץ נתונים והקלטת GIF. עובד עם <bdi>Chrome</bdi>, <bdi>Edge</bdi> ודפדפני Chromium נוספים (<bdi>Brave</bdi>, <bdi>Arc</bdi>, <bdi>Vivaldi</bdi>, <bdi>Opera</bdi>); לא נתמך ב-WSL. דרישות: תוסף בגרסה <bdi>1.0.36</bdi> ומעלה, תוכנית ישירה של Anthropic (Pro, Max, Team או Enterprise) והתחברות עם <code>/login</code>; לא זמין עם מפתח API, עם <code>claude setup-token</code>, או דרך Bedrock, Agent Platform ו-Foundry. ב-CLI מפעילים עם <code>claude --chrome</code> ובודקים סטטוס עם <code>/chrome</code>; בתוסף VS Code פשוט כותבים <code>@browser</code> בתיבת ה-Prompt. חשוב להבין את מודל האמון: Claude פותח לשוניות חדשות <strong>ומשתף את מצב ההתחברות של הדפדפן שלכם</strong>, כלומר ניגש לאתרים שאתם מחוברים אליהם. בעמידה בפני דף התחברות או CAPTCHA הוא עוצר ומבקש מכם להמשיך ידנית.</p>
+
+  <h2 id="comparison">טבלת השוואה: כל המשטחים</h2>
+  <p>הטבלה מסכמת את היכולות המתועדות של חמשת המשטחים. "דרך CLI" בעמודת JetBrains פירושו שהתוספת מריצה את ה-CLI בטרמינל המשולב, ולכן היכולת זהה ל-CLI.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>יכולת</th><th>CLI</th><th>VS Code</th><th>JetBrains</th><th>Desktop (Code)</th><th>Web</th></tr></thead>
+      <tbody>
+        <tr><td>ממשק</td><td>Terminal</td><td>פאנל גרפי (או Terminal)</td><td>CLI בטרמינל ה-IDE + אינטגרציה</td><td>אפליקציה גרפית</td><td>דפדפן ומובייל</td></tr>
+        <tr><td>סביבת ריצה</td><td>מקומית</td><td>מקומית</td><td>מקומית</td><td>מקומית, Cloud או SSH</td><td>Cloud מנוהל</td></tr>
+        <tr><td>פקודות ו-Skills</td><td>הכול</td><td>תת-קבוצה</td><td>הכול (דרך CLI)</td><td>Skills דרך תפריט <code>/</code>; פקודות דיאלוג-טרמינל לא זמינות</td><td>תת-קבוצה</td></tr>
+        <tr><td>Checkpoints / Rewind</td><td>כן</td><td>כן</td><td>כן (דרך CLI)</td><td>Diff ו-Git</td><td>Diff ו-Git</td></tr>
+        <tr><td>תצוגת Diff</td><td>בטרמינל, או ב-IDE בחיבור</td><td>מציג Diff מקורי</td><td>מציג Diff של ה-IDE</td><td>תצוגת Diff עם הערות Inline</td><td>תצוגת Diff עם הערות Inline</td></tr>
+        <tr><td>Sessions מקבילים</td><td>טרמינלים + <code>--worktree</code></td><td>לשוניות וחלונות</td><td>טרמינלים + <code>--worktree</code></td><td>Sidebar עם Worktrees אוטומטיים</td><td>Sessions מקביליים בענן</td></tr>
+        <tr><td>אוטומציה וסקריפטים</td><td><code>-p</code>, Agent SDK</td><td>לא</td><td>דרך CLI</td><td>לא</td><td>הפעלה עם <code>claude --cloud</code></td></tr>
+        <tr><td>ספקי צד שלישי (Bedrock וכו')</td><td>כן</td><td>כן, דרך settings</td><td>כן (דרך CLI)</td><td>API של Anthropic כברירת מחדל; חריגים בפריסות Enterprise</td><td>לא</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>לצפות ש-<code>claude</code> יעבוד בטרמינל אחרי התקנת התוסף בלבד.</strong> התוסף של VS Code לא מוסיף את ה-CLI ל-PATH; נדרשת התקנה עצמאית.</li>
+    <li><strong>ההפך ב-JetBrains: להתקין רק את התוספת.</strong> שם אין CLI מובנה כלל, ובלי התקנת CLI תופיע שגיאת <bdi>Cannot launch Claude Code</bdi>.</li>
+    <li><strong>להפעיל את Claude מתיקייה שאינה שורש הפרויקט של ה-IDE.</strong> האינטגרציה מניחה שהתיקיות תואמות; הפעילו את <code>claude</code> מאותה תיקייה שה-IDE פתח.</li>
+    <li><strong>לחפש את סמל ה-Spark בלי קובץ פתוח.</strong> סמל ה-Editor Toolbar מופיע רק כשקובץ פתוח; השתמשו ב-Status Bar או ב-Command Palette.</li>
+    <li><strong>לשכוח שהבחירה בעורך משותפת אוטומטית.</strong> אם סימנתם קוד רגיש, הוא נשלח כהקשר. השתמשו במחוון הבחירה או בחוקי Deny (ראו אבטחה).</li>
+    <li><strong>לצפות שהתקנת Plugin בתוסף תשפיע רק על VS Code.</strong> ניהול ה-Plugins בתוסף משתמש באותן פקודות CLI מתחת למכסה; ההגדרה משותפת לשני הממשקים.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <p><strong>התוסף לא מתחבר או שסמל ה-Spark לא מופיע:</strong> ודאו VS Code בגרסה 1.94.0 ומעלה (Help ואז About), פתחו קובץ כלשהו, הריצו <bdi>Developer: Reload Window</bdi>, נטרלו זמנית תוספי AI מתחרים (<bdi>Cline</bdi>, <bdi>Continue</bdi> וכדומה), וודאו שה-Workspace אינו ב-<bdi>Restricted Mode</bdi>: התוסף לא עובד שם. אם Claude לא מגיב לפניות, הריצו <code>claude</code> בטרמינל כדי לקבל הודעות שגיאה מפורטות יותר.</p>
+  <p><strong><code>/ide</code> מציג "No available IDEs detected":</strong> ודאו שהתוספת מותקנת ומופעלת, הפעילו את ה-IDE מחדש לגמרי, וודאו שהרצתם את <code>claude</code> מהטרמינל המשולב אם ציפיתם לחיבור אוטומטי. ב-WSL2 עברו על סעיף ה-Firewall וה-Mirrored Networking למעלה.</p>
+  <p><strong>JetBrains Remote Development לא עובד:</strong> כמעט תמיד התוספת מותקנת בצד הלא נכון. התקינו אותה על ה-Host המרוחק (<bdi>Settings</bdi> ואז <bdi>Plugin (Host)</bdi>) והפעילו מחדש.</p>
+  <p><strong>לחיצה על סמל Claude ב-JetBrains מציגה "command not found":</strong> ודאו עם <code>claude --version</code> בטרמינל שה-CLI מותקן, ואז הגדירו את הנתיב המלא בשדה <bdi>Claude command</bdi> בהגדרות התוספת. ב-WSL השתמשו בתבנית <code>wsl -d &lt;distro&gt; -- bash -lic "claude"</code>.</p>
+  <p><strong>ה-Diff לא נפתח ב-IDE:</strong> הריצו <code>/config</code> וודאו ש-<bdi>Diff tool</bdi> על <code>auto</code>. זכרו שהערך מופיע רק כשיש חיבור IDE פעיל, אז קודם <code>/ide</code>.</p>
+
+  <h2 id="security">אבטחה</h2>
+  <div class="callout danger"><span class="title">עריכה אוטומטית יכולה לשנות קבצים שה-IDE מריץ</span><p>במצב עריכה אוטומטית (acceptEdits), Claude יכול לשנות קובצי תצורה של העורך שה-IDE עלול להריץ אוטומטית: ב-VS Code למשל <code>settings.json</code> או <code>tasks.json</code>, וב-JetBrains קובצי תצורת IDE מקבילים. זה עלול לעקוף בפועל את בקשות האישור להרצת Bash. עם קוד לא מהימן: עבדו במצב Manual, הפעילו <bdi>VS Code Restricted Mode</bdi> ל-Workspaces לא מהימנים, וסקרו שינויים לפני אישור.</p></div>
+  <p><strong>שיתוף בחירה וקבצים רגישים:</strong> בזמן חיבור ל-IDE, ה-CLI מוסיף לכל Prompt את הבחירה הנוכחית ואת נתיב הקובץ הפעיל (מופיע ב-Transcript כשורת <code>Selected N lines from ...</code>). כדי להחריג קובץ רגיש כמו <code>.env</code>, הוסיפו חוק Deny על <bdi>Read</bdi> לנתיב שלו; החוק חוסם גם את הטקסט הנבחר וגם את ציון הקובץ הפתוח.</p>
+  <p><strong>שרת ה-MCP הפנימי של ה-IDE:</strong> שני התוספים מריצים שרת MCP מקומי בשם <code>ide</code> שה-CLI מתחבר אליו (הוא מוסתר מ-<code>/mcp</code>). האימות: Token אקראי חדש בכל הפעלה, בקובץ נעילה ב-<code>~/.claude/ide/&lt;port&gt;.lock</code> עם הרשאות מתאימות. ב-VS Code השרת חשוף למודל בשני כלים בלבד: <code>mcp__ide__getDiagnostics</code> (קריאה בלבד) ו-<code>mcp__ide__executeCode</code> (הרצת Python ב-Jupyter Notebook, תמיד עם חלון אישור מקורי ב-VS Code שאי אפשר לדלג עליו). ב-JetBrains נחשף רק <code>mcp__ide__getDiagnostics</code>, ואין כלי הרצת קוד.</p>
+  <div class="callout warn"><span class="title">JetBrains: אל תפתחו את ההאזנה לכל הרשת בלי צורך</span><p>ההגדרה <bdi>Accept connections from all network interfaces</bdi> (תחת <bdi>Networking (Advanced)</bdi>) חושפת את פורט ה-MCP של ה-IDE לרשת המקומית, והתעבורה אינה מוצפנת (<code>ws://</code>). הפעילו אותה רק כשחיבור Loopback באמת לא אפשרי; ל-WSL2 העדיפו Mirrored Networking.</p></div>
+
+  <h2 id="cost">עלות ו-Context</h2>
+  <p>העבודה ב-IDE לא מתומחרת אחרת: אותם Tokens, אותו מנוי. שלוש נקודות בכל זאת רלוונטיות:</p>
+  <ul>
+    <li><strong>הבחירה בעורך נוספת להקשר.</strong> בחירה גדולה בכל Prompt מגדילה את צריכת ה-Context. אם סימנתם אלפי שורות בלי כוונה, הסתירו את הבחירה במחוון.</li>
+    <li><strong>הפעלת Chrome כברירת מחדל טוענת את כלי הדפדפן תמיד</strong>, מה שמגדיל את צריכת ה-Context גם כשלא גולשים. אם שמתם לב לעלייה, כבו את ברירת המחדל והשתמשו ב-<code>--chrome</code> רק כשצריך.</li>
+    <li><strong>מעקב:</strong> <code>/usage</code> בפאנל של VS Code פותח את דוח החשבון והשימוש, כולל פירוק של מה תורם למגבלות התוכנית וטיפים לצמצום.</li>
+  </ul>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>עגנו את Claude ב-<bdi>Secondary Sidebar</bdi> לשיחה הראשית, ופתחו לשוניות נוספות למשימות צד.</li>
+    <li>סמנו קוד ולחצו <code>Option+K</code> / <code>Alt+K</code> במקום לתאר מיקומים במילים; אזכור עם טווח שורות מדויק חוסך סבבי הבהרה.</li>
+    <li>התחילו משימות גדולות במצב <bdi>Plan</bdi> ונצלו את מסמך ה-Markdown של התוכנית להערות Inline לפני שמאשרים.</li>
+    <li>הוסיפו <code>"$schema": "https://json.schemastore.org/claude-code-settings.json"</code> ל-<code>settings.json</code> כדי לקבל השלמות ואימות בתוך VS Code.</li>
+    <li>ב-JetBrains, טפלו בבעיית ה-ESC מיד אחרי ההתקנה; עצירה אמינה היא בקרת הבטיחות הבסיסית ביותר.</li>
+    <li>השתמשו ב-<code>@terminal:name</code> כדי להזין פלט פקודות ל-Claude במקום להדביק לוגים ידנית.</li>
+    <li>כשצריך פקודה שקיימת רק ב-CLI, אל תוותרו עליה: פתחו את הטרמינל המשולב, הריצו <code>claude --resume</code> והמשיכו את אותה שיחה שם.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>להפעיל <bdi>Bypass permissions</bdi> בתוסף על מכונת פיתוח רגילה.</strong> ההגדרה <code>allowDangerouslySkipPermissions</code> מיועדת ל-Sandbox בלי גישה לאינטרנט, לא לנוחות יומיומית.</li>
+    <li><strong>לעבוד עם acceptEdits על Repository זר שהורדתם עכשיו.</strong> בשילוב עם קובצי תצורת IDE שמורצים אוטומטית, זה מתכון לעקיפת הרשאות.</li>
+    <li><strong>לנהל שני מקורות אמת להגדרות.</strong> אל תגדירו משתני סביבה ב-<code>environmentVariables</code> של התוסף אם אותה תצורה צריכה לשרת גם את ה-CLI; שימו אותה ב-<code>~/.claude/settings.json</code> המשותף.</li>
+    <li><strong>להשאיר בחירה ענקית פעילה לאורך שיחה שלמה.</strong> ההקשר מתנפח בכל הודעה. בטלו את הסימון או הסתירו את הבחירה כשסיימתם איתה.</li>
+    <li><strong>להקליט GIF של דפדפן עם חשבונות מחוברים ולשתף אותו החוצה.</strong> ההקלטה תופסת כל מה שנראה בדפדפן, כולל פרטי חשבון.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 27.1: מסלול IDE מלא על TaskFlow</div>
+    <div class="body">
+      <p>פתחו את פרויקט <bdi>TaskFlow</bdi> (<code>examples/taskflow</code>) ב-VS Code (או ב-IDE של JetBrains אם זו הסביבה שלכם) ובצעו:</p>
+      <ol>
+        <li>התקינו את תוסף Claude Code והתחברו.</li>
+        <li>פתחו את <code>backend/app/routers/tasks.py</code>, סמנו את פונקציית יצירת המשימה בלבד, והוסיפו אזכור עם <code>Option+K</code> / <code>Alt+K</code>. בקשו מ-Claude להסביר מה הפונקציה עושה ואילו קלטים היא לא מוודאת.</li>
+        <li>עברו למצב <bdi>Plan</bdi> ובקשו תוכנית להוספת שדה <code>due_date</code> אופציונלי למשימות. הוסיפו לפחות הערת Inline אחת במסמך התוכנית לפני האישור.</li>
+        <li>אשרו את התוכנית, עברו ל-Manual, ואשרו את העריכות דרך תצוגת ה-Diff. באחד הקבצים, ערכו משהו קטן ישירות בתצוגת ה-Diff לפני האישור.</li>
+        <li>השתמשו ב-Rewind (ריחוף מעל הודעה) כדי להחזיר את הקוד לנקודה שלפני השינוי, ואז החזירו אותו קדימה עם בקשה חוזרת או Fork.</li>
+        <li>לסיום: פתחו את הטרמינל המשולב, הריצו <code>claude --resume</code>, ובחרו את השיחה שניהלתם בפאנל. ודאו שההיסטוריה מלאה.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>שלב 2:</strong> אחרי הסימון ולחיצת הקיצור יופיע בתיבת ה-Prompt אזכור בסגנון <code>@backend/app/routers/tasks.py#12-24</code> (המספרים אצלכם יהיו שונים). Claude יסביר את ה-Endpoint ויציין בין השאר את בעיית האימות של כותרת מרווחים בלבד שהכרנו בפרק 3, אם היא עדיין קיימת אצלכם.</p>
+      <p><strong>שלב 3:</strong> במצב Plan, VS Code פותח את התוכנית כלשונית Markdown. הערה טובה לדוגמה: לבקש שהשדה יהיה <code>Optional[date]</code> עם ברירת מחדל <code>None</code>, ושה-Frontend לא ייכלל בשלב הזה. Claude יעדכן את התוכנית לפי ההערות לפני שמתחיל.</p>
+      <p><strong>שלב 4:</strong> כשעורכים את ההצעה ישירות בתצוגת ה-Diff, Claude מקבל על כך הודעה. שימו לב שהוא מתייחס לגרסה שאישרתם, לא לזו שהציע.</p>
+      <p><strong>שלב 5:</strong> ריחוף מעל ההודעה שקדמה לעריכות, לחיצה על כפתור ה-Rewind ובחירת <bdi>Rewind code to here</bdi> מחזירה את הקבצים בלי לאבד את השיחה. <bdi>Fork conversation and rewind code</bdi> יוצר ענף נקי אם תרצו לנסות גישה אחרת.</p>
+      <p><strong>שלב 6:</strong> הבוחר של <code>--resume</code> מציג את השיחה עם השם שנוצר לה אוטומטית. זה מדגים שהתוסף וה-CLI חולקים היסטוריה, ולכן אפשר להתחיל בפאנל ולהמשיך בטרמינל כשצריך פקודת CLI ייחודית.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul>
+    <li>תוסף <bdi>VS Code</bdi> הוא פאנל גרפי מלא עם CLI מובנה משלו: Diffs מקוריים, אזכורי <code>@</code> עם טווחי שורות מהבחירה, סקירת תוכניות במסמך Markdown עם הערות, Checkpoints עם Rewind, והיסטוריה משותפת עם ה-CLI.</li>
+    <li>תוספת <bdi>JetBrains</bdi> (Beta) מריצה את ה-CLI בטרמינל ה-IDE ומוסיפה מציג Diff, שיתוף בחירה ו-Diagnostics; דורשת התקנת CLI נפרדת, ובסביבות Remote מותקנת על ה-Host.</li>
+    <li><code>/ide</code> מחבר Session מכל טרמינל ל-IDE רץ; <code>claude --resume</code> ממשיך שיחות בין הפאנל לטרמינל; <code>--worktree</code> מבודד משימות מקבילות.</li>
+    <li>Desktop מוסיף Sessions מקביליים גרפיים ומעקב PR; אינטגרציית Chrome (<code>@browser</code>) מביאה את הדפדפן לזרימת העבודה, עם מודל אמון שחשוב להכיר.</li>
+    <li>אבטחה: במצבי אישור אוטומטי Claude יכול לערוך קובצי תצורה שה-IDE מריץ; חוקי Deny על Read מגנים על קבצים רגישים משיתוף הבחירה.</li>
+  </ul>
+  <p>בפרק הבא נעביר את Claude Code מהמחשב שלכם אל ה-CI: <bdi>GitHub Actions</bdi>, אזכורי <code>@claude</code> ב-Pull Requests, וסקירת קוד אוטומטית.</p>
+
+  <div class="callout source"><span class="title">מקורות</span><p>
+    <a href="https://code.claude.com/docs/en/vs-code">Claude Code in VS Code</a> |
+    <a href="https://code.claude.com/docs/en/jetbrains">JetBrains IDEs</a> |
+    <a href="https://code.claude.com/docs/en/desktop">Desktop application</a> |
+    <a href="https://code.claude.com/docs/en/chrome">Use Claude Code with Chrome</a> |
+    <a href="https://code.claude.com/docs/en/commands">Commands (/ide, /desktop)</a> |
+    נבדק: 29.07.2026
+  </p></div>
+
+  <div class="chapnav">
+    <a href="ch26.html"><span class="lbl">הפרק הקודם</span>Plugins</a>
+    <a href="ch28.html"><span class="lbl">הפרק הבא</span>GitHub Actions ו-Code Review</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

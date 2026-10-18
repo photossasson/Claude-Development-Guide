@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 38: Multi-Agent Development</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ח | פרק 38</p>
+  <h1>Multi-Agent Development</h1>
+  <p class="lead">כשמשימה גדולה מתפרקת ליחידות עצמאיות, אפשר להריץ כמה סוכני <bdi>Claude Code</bdi> במקביל: אחד על ה-<bdi>Backend</bdi>, אחד על ה-<bdi>Frontend</bdi>, אחד על הבדיקות ואחד על התיעוד. זה מהיר, וזה גם הדרך הקלה ביותר ליצור בלגן: שני סוכנים שעורכים אותו קובץ, חוזה <bdi>API</bdi> שכל אחד מפרש אחרת, ותקציב שנשרף בלי שאיש שם לב. בפרק הזה נלמד מתי מקבול משתלם ומתי לא, איך מפרקים משימה, איך קובעים חוזים משותפים ובעלות על קבצים, איך <bdi>Git Worktrees</bdi> מבודדים כל סוכן, אילו מנגנונים <bdi>Claude Code</bdi> מספק (<bdi>Subagents</bdi>, <code>/batch</code>, <code>/fork</code>, <code>/background</code>, <code>claude -p</code>, ו-<bdi>Agent Teams</bdi> הניסיוני), ואיך שולטים בעלות ובתנאי העצירה. הכול מודגם על <bdi>Feature</bdi> התגובות של <bdi>TaskFlow</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what">מהו Multi-Agent Development ואיזו בעיה הוא פותר</h2>
+  <p><bdi>Multi-Agent Development</bdi> הוא פיצול של עבודת פיתוח בין כמה מופעים של Claude שרצים במקביל, כאשר כל אחד מחזיק <bdi>Context Window</bdi> משלו, אחראי על חלק מוגדר, ותוצריו מתמזגים בסוף לפי תוכנית. הבעיה שהוא פותר היא כפולה: זמן קיר (ארבע יחידות עבודה עצמאיות שרצות במקביל מסתיימות מהר יותר מארבע שרצות בטור), ו-<bdi>Context</bdi> (סוכן שאחראי רק על בדיקות לא צריך לשאת בזיכרונו את כל ה-<bdi>Frontend</bdi>). התיעוד הרשמי מציין את זה כעיקרון: ביצועים יורדים ככל שה-<bdi>Context</bdi> מתמלא, ולכן פיצול לסוכנים ממוקדים משפר איכות, לא רק מהירות.</p>
+  <p>המחיר הוא תיאום. כל סוכן נוסף מכפיל את צריכת ה-<bdi>Tokens</bdi>, מוסיף נקודת כשל, ודורש שמישהו (אתם או סוכן מתזמר) יגדיר מראש מי עושה מה ומה נחשב סיום. הפרק הזה עוסק בעיקר בתיאום הזה.</p>
+
+  <h2 id="when">מתי מקבול עוזר ומתי הוא מזיק</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מקבול עוזר כאשר</th><th>מקבול מזיק כאשר</th></tr></thead>
+      <tbody>
+        <tr><td>היחידות עצמאיות: כל אחת יכולה להסתיים בלי לחכות לאחרת</td><td>היחידות תלויות בטור: ב' לא יכולה להתחיל לפני שא' סיימה</td></tr>
+        <tr><td>יש חוזה ברור בין היחידות (סכמה, טיפוסים, ממשק) שנקבע מראש</td><td>החוזה "יתברר תוך כדי", וכל סוכן ממציא גרסה משלו</td></tr>
+        <tr><td>כל סוכן עובד על קבצים שונים, ויש מטריצת בעלות</td><td>שני סוכנים או יותר צריכים לערוך אותו קובץ</td></tr>
+        <tr><td>יש מבחן אינטגרציה שמוכיח שהחלקים מתחברים</td><td>אין דרך אוטומטית לדעת שהחיבור עובד</td></tr>
+        <tr><td>המשימה גדולה מספיק שהתקורה של תיאום משתלמת</td><td>המשימה קטנה: סוכן אחד יסיים לפני שתסיימו לכתוב את מטריצת הבעלות</td></tr>
+        <tr><td>סקירה או מחקר: זוויות שונות על אותו קוד (אבטחה, ביצועים, בדיקות)</td><td>עריכת אותם קבצים משלוש זוויות שונות</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>התיעוד הרשמי של <bdi>Agent Teams</bdi> מנסח את זה בקצרה: לעבודה סדרתית, לעריכות באותם קבצים או לעבודה עם תלויות רבות, <bdi>Session</bdi> יחיד או <bdi>Subagents</bdi> יעילים יותר. אם אינכם בטוחים, התחילו במשימות שאינן כותבות קוד: סקירה, מחקר, חקירת <bdi>Bug</bdi>. שם המקבול מראה את ערכו בלי סיכוני מיזוג.</p>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>הפרק מניח היכרות עם <bdi>Subagents</bdi> (<a href="ch25.html">פרק 25</a>), עם <bdi>Git</bdi> ו-<bdi>Pull Requests</bdi> (<a href="ch13.html">פרק 13</a>), עם הרצה לא-אינטראקטיבית (<a href="ch33.html">פרק 33</a>) ועם סקירת תוכנית לפני יישום (<a href="ch37.html">פרק 37</a>). הדוגמאות רצות על <bdi>TaskFlow</bdi> בתוך <bdi>Repository</bdi> של <bdi>Git</bdi>.</p></div>
+
+  <h2 id="how">איך זה עובד מושגית</h2>
+  <figure>
+    <img src="../diagrams/multi-agent.svg" alt="תרשים: מפתח מגדיר מטרה, חוזה ובעלות; Orchestrator מפרק ומקצה לשלושה סוכנים מבודדים (Docs, Tester, Reviewer), כל אחד ב-Worktree נפרד; התוצרים עוברים שער אישור אנושי לפני מיזוג, וממצאים חוזרים למפתח.">
+    <figcaption>מבנה עבודה מרובה-סוכנים: מתזמר, סוכנים מבודדים, ושער אישור אנושי לפני המיזוג. לכל סוכן תקציב ותנאי עצירה.</figcaption>
+  </figure>
+  <p>ארבעה רכיבים חוזרים בכל תצורה, בלי קשר למנגנון הטכני שבחרתם:</p>
+  <ol>
+    <li><strong>מתזמר (Orchestrator).</strong> אתם, או ה-<bdi>Session</bdi> הראשי שלכם. הוא מחזיק את התמונה הכוללת: המטרה, החוזה, מטריצת הבעלות וסדר האינטגרציה. הוא לא כותב קוד של יחידה; הוא מפרק, מקצה, אוסף וממזג.</li>
+    <li><strong>סוכנים מבודדים.</strong> כל אחד עם <bdi>Context Window</bdi> משלו, קבוצת קבצים משלו, ובאופן אידיאלי <bdi>Worktree</bdi> משלו, כך שעריכה אצל אחד לא נראית אצל אחר עד למיזוג.</li>
+    <li><strong>חוזה משותף.</strong> קובץ (או כמה) שמוגדר לפני שהעבודה מתפצלת ושכל הסוכנים קוראים: סכמת <bdi>API</bdi>, טיפוסים, שמות <bdi>Endpoints</bdi>, קודי שגיאה.</li>
+    <li><strong>שער אישור אנושי.</strong> המיזוג ל-<code>main</code> נעשה על ידי אדם, בסדר שנקבע מראש, אחרי בדיקות אינטגרציה. הסוכנים מציעים <bdi>Pull Requests</bdi>; הם לא ממזגים.</li>
+  </ol>
+
+  <h2 id="decompose">שלב 1: פירוק המשימה</h2>
+  <p>פירוק טוב מייצר יחידות שכל אחת מהן: (א) ניתנת לתיאור במשפט; (ב) נוגעת בקבוצת קבצים שאינה חופפת ליחידה אחרת; (ג) יש לה בדיקה שמוכיחה סיום. אפשר לתת ל-Claude לעשות את הפירוק הראשוני ב-<bdi>Plan Mode</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">prompt (plan mode)</div>
+    <pre><code>We are adding a "comments on tasks" feature to TaskFlow.
+Decompose it into independent work units suitable for parallel agents.
+For each unit: name, one-sentence goal, files it will create or edit
+(exact paths), files it must NOT touch, the test that proves it is done,
+and which other unit it depends on (or "none"). Then propose the shared
+contract that must exist before any unit starts. Do not implement.</code></pre>
+  </div>
+  <p>אם התוצאה מכילה יחידות שחולקות קובץ, זה סימן שהפירוק אינו נכון עדיין: או שמאחדים את היחידות, או שמוציאים את הקובץ המשותף לשלב החוזה שנעשה מראש. הכלל של התיעוד הרשמי פשוט: "Two teammates editing the same file leads to overwrites. Break the work so each teammate owns a different set of files."</p>
+
+  <h2 id="contract">שלב 2: חוזים משותפים קודם</h2>
+  <p>לפני שמפצלים, מבצעים <bdi>Commit</bdi> לחוזה. ב-<bdi>TaskFlow</bdi>, חוזה לפיצ'ר התגובות הוא קובץ אחד קריא לאדם ולמודל, ועוד שני קבצי טיפוסים ריקים-כמעט שמקבעים שמות:</p>
+  <div class="codeblock">
+    <div class="codehead">docs/contracts/comments-api.md</div>
+    <pre><code># Contract: Task comments (v1)
+
+## Endpoints
+- GET    /tasks/{task_id}/comments          -&gt; 200 list[Comment]
+- POST   /tasks/{task_id}/comments          -&gt; 201 Comment
+- DELETE /tasks/{task_id}/comments/{id}     -&gt; 204
+- 404 when task or comment does not exist; 422 on invalid body
+
+## Comment
+- id: int
+- task_id: int
+- body: str (1..2000 chars)
+- created_at: str (ISO 8601, UTC)
+
+## Ownership of this file
+- Owned by the orchestrator (human). Agents may propose changes via PR
+  comments only. Any change bumps "v1" and notifies all agents.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">frontend/src/types.ts (תוספת שנכנסת לפני הפיצול)</div>
+    <pre><code>export interface Comment {
+  id: number;
+  task_id: number;
+  body: string;
+  created_at: string;
+}</code></pre>
+  </div>
+  <p>אותו דבר ב-<bdi>Backend</bdi>: מודל <code>Comment</code> ו-<code>CommentCreate</code> ב-<code>models.py</code> נכנסים בשלב החוזה, לפני שסוכן ה-<bdi>Backend</bdi> מתחיל לכתוב <bdi>Router</bdi>. כך סוכן הבדיקות יכול לכתוב בדיקות מול טיפוסים קיימים, וסוכן ה-<bdi>Frontend</bdi> יכול לבנות רכיב מול <code>Comment</code> בלי לחכות. החוזה הוא הקובץ היחיד ש"שייך לכולם", ולכן הוא היחיד שאסור לאף סוכן לערוך.</p>
+
+  <h2 id="ownership">שלב 3: מטריצת בעלות ו-Git Worktrees</h2>
+  <h3>מטריצת בעלות</h3>
+  <p>מטריצת בעלות היא טבלה קצרה שנכנסת ל-<bdi>Prompt</bdi> של כל סוכן, ומצוינת בה גם רשימת ה"אסור לגעת". דוגמה מלאה בסעיף הדוגמה המציאותית. העיקרון: כל נתיב מופיע בשורה אחת בלבד, ואין נתיב שמופיע בשתי שורות.</p>
+  <h3>Worktree לכל סוכן</h3>
+  <p><bdi>Git Worktree</bdi> הוא תיקיית עבודה נפרדת עם <bdi>Branch</bdi> משלה, שחולקת את ההיסטוריה עם ה-<bdi>Repository</bdi> הראשי. זה המנגנון שהופך את "בעלות על קבצים" מהסכמה לאכיפה: סוכן שרץ ב-<bdi>Worktree</bdi> משלו פשוט לא רואה את העריכות של האחרים עד למיזוג. <bdi>Claude Code</bdi> תומך בזה ישירות:</p>
+  <div class="terminal"><span class="p">$</span> cd examples/taskflow
+<span class="p">$</span> claude --worktree backend-comments
+<span class="out">המחשה: נוצר .claude/worktrees/backend-comments/ על branch בשם worktree-backend-comments</span></div>
+  <p>הסבר: הדגל <code>--worktree</code> (או <code>-w</code>) עם שם יוצר <bdi>Worktree</bdi> תחת <code>.claude/worktrees/&lt;name&gt;/</code> בשורש ה-<bdi>Repository</bdi>, על <bdi>Branch</bdi> חדש בשם <code>worktree-&lt;name&gt;</code>, ומפעיל שם את Claude. הרצה נוספת עם שם אחר ב-<bdi>Terminal</bdi> אחר פותחת <bdi>Session</bdi> מבודד שני. ללא שם, Claude מגריל שם. הפעלה אינטראקטיבית דורשת שכבר אישרתם <bdi>Trust</bdi> לתיקייה (הריצו <code>claude</code> פעם אחת בשורש). כשיוצאים מ-<bdi>Session</bdi> כזה, Claude בודק אם נשארה עבודה לא ממוזגת ושואל אם לשמור או למחוק את ה-<bdi>Worktree</bdi>.</p>
+  <p>שלוש הגדרות שכדאי להכיר:</p>
+  <ul>
+    <li><code>.worktreeinclude</code> בשורש הפרויקט: רשימת קבצים שאינם ב-<bdi>Git</bdi> (כמו <code>.env</code>) שיועתקו אוטומטית לכל <bdi>Worktree</bdi> חדש. בלעדיו, ה-<bdi>Worktree</bdi> הוא <bdi>Checkout</bdi> נקי ללא סודות מקומיים.</li>
+    <li><code>worktree.baseRef</code> ב-<code>settings.json</code>: ברירת המחדל <code>"fresh"</code> מסתעפת מ-<bdi>Branch</bdi> ברירת המחדל של ה-<bdi>Remote</bdi>; <code>"head"</code> מסתעף מה-<code>HEAD</code> המקומי הנוכחי (שימושי כשהחוזה עדיין לא נדחף).</li>
+    <li>הוסיפו <code>.claude/worktrees/</code> ל-<code>.gitignore</code>, כפי שהתיעוד ממליץ.</li>
+  </ul>
+  <p>אפשר גם ידנית, למי שמעדיף שליטה מלאה או <bdi>Branch</bdi> קיים:</p>
+  <div class="terminal"><span class="p">$</span> git worktree add ../taskflow-frontend -b feature/comments-frontend
+<span class="p">$</span> cd ../taskflow-frontend &amp;&amp; claude
+<span class="p">$</span> git worktree list
+<span class="p">$</span> git worktree remove ../taskflow-frontend</div>
+  <p>ולבסוף, <bdi>Subagents</bdi> יכולים לקבל <bdi>Worktree</bdi> משלהם באמצעות השדה <code>isolation: worktree</code> בהגדרה (ראו בהמשך). בכל המקרים, בזמן שהסוכן ב-<bdi>Worktree</bdi>, <bdi>Claude Code</bdi> חוסם עריכות ופקודות שמכוונות ל-<bdi>Checkout</bdi> הראשי; זו אכיפה, לא בקשה.</p>
+
+  <h2 id="roles">שלב 4: סוכני תפקיד</h2>
+  <p>מלבד סוכני "יחידה" שכותבים קוד, כדאי להגדיר סוכני תפקיד רוחביים. שלושה שימושיים במיוחד:</p>
+  <ul>
+    <li><strong>Review agent.</strong> קריאה-בלבד, <bdi>Context</bdi> טרי, בודק כל <bdi>PR</bdi> מול החוזה ומדווח פערים. במדריך: <code>architecture-reviewer</code> ו-<code>security-reviewer</code> (<a href="ch37.html">פרק 37</a>).</li>
+    <li><strong>Test agent.</strong> בעלים של <code>tests/</code> בלבד. כותב בדיקות מול החוזה, לא מול המימוש, ולכן יכול לעבוד במקביל לסוכן ה-<bdi>Backend</bdi>. במדריך: <code>test-specialist</code>.</li>
+    <li><strong>Architecture agent.</strong> מבקר את תוכנית הפירוק לפני הפיצול ואת סדר האינטגרציה אחריו. גם הוא קריאה-בלבד.</li>
+  </ul>
+  <p>הגדרת סוכן יחידה עם בידוד, מגבלת סבבים ומודל זול יותר נראית כך:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/agents/backend-implementer.md</div>
+    <pre><code>---
+name: backend-implementer
+description: Implements a single backend work unit against docs/contracts. Use only when given an explicit unit and file ownership list.
+tools: Read, Grep, Glob, Edit, Write, Bash
+model: sonnet
+isolation: worktree
+maxTurns: 40
+---
+
+You implement exactly one work unit in TaskFlow's backend.
+Read docs/contracts/*.md first and treat it as immutable.
+Edit only the files listed under "owns" in your task. If you believe
+another file must change, stop and report; do not edit it.
+Run `cd backend &amp;&amp; pytest -q` before reporting done.
+Report: files changed, tests run, anything blocked.</code></pre>
+  </div>
+  <p>השדות מאומתים מול התיעוד: <code>tools</code> מגביל כלים; <code>model</code> מקבל כינוי כמו <code>sonnet</code>, <code>opus</code>, <code>haiku</code> או <code>inherit</code>; <code>isolation: worktree</code> מריץ ב-<bdi>Worktree</bdi> זמני שנמחק אוטומטית אם לא נעשו שינויים; <code>maxTurns</code> מגביל סבבים. שימו לב שהתיאור מדגיש "only when given an explicit unit", כדי שהסוכן לא ייבחר אוטומטית למשימות כלליות.</p>
+
+  <h2 id="integration">שלב 5: אסטרטגיית אינטגרציה</h2>
+  <p>אינטגרציה היא החלק שרוב הצוותים שוכחים לתכנן, ואז מגלים ביום האחרון. חמישה כללים:</p>
+  <ol>
+    <li><strong>מי ממזג: אדם.</strong> הסוכנים פותחים <bdi>PRs</bdi> קטנים; המתזמר האנושי סוקר וממזג. אין מיזוג אוטומטי ל-<code>main</code>.</li>
+    <li><strong>באיזה סדר: לפי גרף התלויות.</strong> קודם החוזה (כבר ב-<code>main</code>), אחר כך ה-<bdi>Backend</bdi> (כי הבדיקות וה-<bdi>Frontend</bdi> נבדקים מולו), אחר כך הבדיקות, אחר כך ה-<bdi>Frontend</bdi>, ולבסוף התיעוד. אם סוכן הבדיקות סיים ראשון, ה-<bdi>PR</bdi> שלו ממתין.</li>
+    <li><strong>PRs קטנים.</strong> יחידה אחת ל-<bdi>PR</bdi>. <bdi>PR</bdi> של סוכן שנוגע ב-30 קבצים הוא סימן שהיחידה גדולה מדי.</li>
+    <li><strong>משמעת Rebase.</strong> לפני שסוכן מסמן "מוכן", הוא (או אתם) מבצעים <code>git rebase main</code> ב-<bdi>Worktree</bdi> שלו ומריצים שוב את הבדיקות. כך ההתנגשויות מתגלות אצל הבעלים ולא אצל המתזמר.</li>
+    <li><strong>מבחן אינטגרציה.</strong> בדיקה אחת לפחות שעוברת רק כשכל החלקים מחוברים: למשל, בדיקת <bdi>API</bdi> שיוצרת משימה, מוסיפה תגובה ומוחקת אותה, פלוס <code>npm run typecheck</code> ב-<bdi>Frontend</bdi> מול הטיפוסים הסופיים.</li>
+  </ol>
+
+  <h2 id="mechanisms">המנגנונים ב-Claude Code</h2>
+  <p>ישנן כמה דרכים טכניות להריץ כמה סוכנים. הן שונות ברמת האוטומציה, בבידוד ובבשלות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מנגנון</th><th>מה זה</th><th>בידוד קבצים</th><th>תקשורת בין סוכנים</th><th>סטטוס</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>Subagents</bdi> (מקבילים, ברקע)</td><td>סוכני עזר בתוך <bdi>Session</bdi> אחד, מחזירים תוצאה למי שקרא להם</td><td>אופציונלי: <code>isolation: worktree</code></td><td>רק חזרה לשיחה הראשית</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/batch</code></td><td><bdi>Skill</bdi> מובנה: מפרק שינוי גדול ל-5 עד 30 יחידות, סוכן רקע ב-<bdi>Worktree</bdi> לכל יחידה, <bdi>PR</bdi> לכל יחידה</td><td>כן, <bdi>Worktree</bdi> לכל יחידה</td><td>אין; המתזמר הוא ה-<bdi>Session</bdi> שלכם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/fork</code>, <code>/background</code>, <code>claude --bg</code></td><td><bdi>Sessions</bdi> מלאים שרצים ברקע ללא <bdi>Terminal</bdi>, מנוהלים ב-<code>claude agents</code></td><td>כן, ב-<bdi>Repository</bdi> של <bdi>Git</bdi> נכנסים ל-<bdi>Worktree</bdi> לפני עריכה (ניתן לכיבוי)</td><td>אין ישירה; אתם המתאמים</td><td><span class="badge preview">Research Preview</span> (Agent view)</td></tr>
+        <tr><td class="ltr"><code>claude -p</code> מסקריפט</td><td>לולאת <bdi>Shell</bdi> שמריצה מופע לכל יחידה</td><td>מה שתגדירו: <bdi>Worktree</bdi> ידני או <code>-p --worktree</code></td><td>אין; הסקריפט הוא המתזמר</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td><bdi>Agent Teams</bdi></td><td>מנהיג ו-<bdi>Teammates</bdi> עם רשימת משימות משותפת ותיבות דואר</td><td>לא מובנה; יש להקצות קבצים ב-<bdi>Prompt</bdi></td><td>כן, ישירה בין <bdi>Teammates</bdi></td><td><span class="badge exp">Experimental</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Subagents: מקבילים, ברקע, מקוננים, ניתנים לחידוש</h3>
+  <p>הבסיס נלמד ב-<a href="ch25.html">פרק 25</a>; כאן העובדות הרלוונטיות למקבול, כפי שמופיעות בתיעוד:</p>
+  <ul>
+    <li><strong>מקביליות.</strong> Claude יכול להריץ עד 20 <bdi>Subagents</bdi> במקביל כברירת מחדל; מעבר לכך תופיע השגיאה <code>Concurrent subagent limit reached</code>. משנים עם משתנה הסביבה <code>CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS</code>. בקשה כמו <code>Research the auth, database and API modules in parallel using separate subagents</code> מפעילה כמה במקביל.</li>
+    <li><strong>רקע.</strong> <bdi>Subagent</bdi> שרץ ברקע אינו חוסם את השיחה. <code>Ctrl+B</code> מעביר משימה שרצה בחזית לרקע; השדה <code>background: true</code> בהגדרה משאיר סוכן ברקע תמיד. בקשות הרשאה של סוכן רקע מופיעות בשיחה הראשית עם שמו.</li>
+    <li><strong>קינון.</strong> <bdi>Subagents</bdi> יכולים להפעיל <bdi>Subagents</bdi> משלהם עד עומק שלוש שכבות מתחת לשיחה הראשית (<code>CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH</code>; הערך <code>1</code> מבטל קינון). כדי למנוע מסוכן ספציפי להפעיל אחרים, פשוט אל תכללו <code>Agent</code> ב-<code>tools</code> שלו.</li>
+    <li><strong>חידוש.</strong> Claude יכול להמשיך <bdi>Subagent</bdi> שהסתיים באמצעות <code>SendMessage</code>, בשם שניתן לו, עם היסטוריית השיחה המלאה שלו. תמלילי <bdi>Subagents</bdi> נשמרים תחת <code>~/.claude/projects/&lt;project&gt;/&lt;sessionId&gt;/subagents/</code>.</li>
+    <li><strong>ניטור.</strong> <code>/tasks</code> מציג את כל עבודת הרקע של ה-<bdi>Session</bdi>: <bdi>Subagents</bdi> רצים, שהסתיימו ושנכשלו. בחירת שורה ולחיצה על <code>x</code> עוצרת סוכן.</li>
+  </ul>
+
+  <h3>/batch: פירוק אוטומטי ל-Worktrees ו-PRs</h3>
+  <p><code>/batch &lt;instruction&gt;</code> הוא <bdi>Skill</bdi> מובנה שמיועד בדיוק לשינויים רחבים ועצמאיים. לפי התיעוד: הוא חוקר את ה-<bdi>Codebase</bdi>, מפרק את העבודה ל-5 עד 30 יחידות עצמאיות ומציג תוכנית; אחרי אישורכם הוא מפעיל <bdi>Subagent</bdi> רקע אחד לכל יחידה ב-<bdi>Worktree</bdi> מבודד, וכל <bdi>Subagent</bdi> מיישם, מריץ בדיקות ופותח <bdi>Pull Request</bdi>. נדרש <bdi>Repository</bdi> של <bdi>Git</bdi>. דוגמה מהתיעוד: <code>/batch migrate src/ from Solid to React</code>. זה כלי מצוין ל-<bdi>Migration</bdi> מכני (<a href="ch35.html">פרק 35</a>) ופחות מתאים ל-<bdi>Feature</bdi> שיחידותיו תלויות זו בזו: <code>/batch</code> מניח עצמאות, ולא ינהל עבורכם סדר אינטגרציה.</p>
+
+  <h3>/fork, /background ו-claude --bg: Sessions מלאים ברקע</h3>
+  <p>לפעמים אתם רוצים סוכן שהוא <bdi>Session</bdi> שלם, לא <bdi>Subagent</bdi>: כזה שאפשר להיכנס אליו, לענות לו ולעזוב. שלוש דרכים, כולן מנוהלות בלוח <code>claude agents</code> (מצב <bdi>Research Preview</bdi>):</p>
+  <ul>
+    <li><code>/background [prompt]</code> (או <code>/bg</code>): מנתק את ה-<bdi>Session</bdi> הנוכחי לרקע ומשחרר את ה-<bdi>Terminal</bdi>.</li>
+    <li><code>/fork [prompt]</code>: מעתיק את השיחה הנוכחית ל-<bdi>Session</bdi> רקע חדש וממשיך לעבוד כאן. לפי התיעוד, ההעתק מונחה ליצור <bdi>Worktree</bdi> משלו לפני שינויי קוד (דורש גרסה 2.1.221 ומעלה). זה שימושי כשהשיחה כבר צברה הקשר יקר ואתם רוצים לפצל ממנה שני כיווני עבודה.</li>
+    <li><code>claude --bg "prompt"</code> מה-<bdi>Shell</bdi>: מפעיל <bdi>Session</bdi> רקע חדש ומחזיר מיד. אפשר לשלב <code>--agent &lt;name&gt;</code> ו-<code>--name</code>. הדגל אינו משתלב עם <code>-p</code>.</li>
+  </ul>
+  <p>ב-<bdi>Repository</bdi> של <bdi>Git</bdi>, <bdi>Sessions</bdi> רקע נכנסים אוטומטית ל-<bdi>Worktree</bdi> תחת <code>.claude/worktrees/</code> לפני עריכת קבצים; אפשר לבטל עם <code>"worktree": {"bgIsolation": "none"}</code>, אבל אז חוזרים לסיכון של דריסה הדדית. מהלוח: <code>claude agents --json</code> מדפיס רשימה, <code>claude attach &lt;id&gt;</code> נכנס ל-<bdi>Session</bdi>, <code>claude stop &lt;id&gt;</code> עוצר. זכרו את ההערה מהתיעוד: עשרה <bdi>Sessions</bdi> מקבילים צורכים בערך פי עשרה מכסה.</p>
+
+  <h3>claude -p מסקריפט: Fan-out מבוקר</h3>
+  <p>הדרך השקופה ביותר, ומי שרוצה שליטה מלאה בעלות ובסדר יבחר בה. הדפוס מהתיעוד ("Fan out across files"): מייצרים רשימת משימות לקובץ, ואז לולאה שמפעילה <code>claude -p</code> לכל אחת:</p>
+  <div class="codeblock">
+    <div class="codehead">scripts/fanout.sh</div>
+    <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+# one line per unit: &lt;worktree-name&gt;|&lt;prompt-file&gt;
+while IFS='|' read -r name promptfile; do
+  claude -p "$(cat "$promptfile")" \
+    --worktree "$name" \
+    --allowedTools "Read,Grep,Glob,Edit,Write,Bash(cd *),Bash(pytest *),Bash(npm run *),Bash(git add *),Bash(git commit *)" \
+    --max-turns 40 \
+    --max-budget-usd 3 \
+    --output-format json &gt; "reports/$name.json" &amp;
+done &lt; units.txt
+wait
+jq -r '[.total_cost_usd, .result] | @tsv' reports/*.json</code></pre>
+  </div>
+  <p>הסבר: <code>-p</code> מריץ ללא ממשק; <code>--worktree</code> עם <code>-p</code> יוצר <bdi>Worktree</bdi> בלי דיאלוג <bdi>Trust</bdi> (ובלי ניקוי ביציאה; מנקים ידנית עם <code>git worktree remove</code>); <code>--allowedTools</code> מגדיר בדיוק מה מותר, בתחביר כללי ההרשאות; <code>--max-turns</code> ו-<code>--max-budget-usd</code> הם תקרות קשיחות שזמינות רק ב-<code>-p</code>; <code>--output-format json</code> מחזיר גם <code>total_cost_usd</code> (אומדן צד-לקוח). ה-<code>&amp;</code> וה-<code>wait</code> הם מה שהופך את זה למקבול; ל-<bdi>CI</bdi> ראו <a href="ch33.html">פרק 33</a>, כולל <code>--bare</code> לריצה דטרמיניסטית. הסקריפט הזה הוא המחשה: התאימו את רשימת הכלים למה שהיחידות שלכם באמת צריכות, ותמיד הריצו קודם על יחידה אחת.</p>
+
+  <h3>Agent Teams <span class="badge exp">Experimental</span></h3>
+  <p><bdi>Agent Teams</bdi> הוא המנגנון היחיד שבו הסוכנים מדברים זה עם זה. לפי התיעוד הרשמי, הוא ניסיוני וכבוי כברירת מחדל; מפעילים אותו עם משתנה הסביבה <code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code>, למשל ב-<code>settings.json</code>:</p>
+  <div class="codeblock">
+    <div class="codehead">~/.claude/settings.json</div>
+    <pre><code>{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}</code></pre>
+  </div>
+  <p>מה זה נותן: <bdi>Session</bdi> אחד הוא <bdi>Team Lead</bdi>; הוא מפעיל <bdi>Teammates</bdi>, כל אחד <bdi>Session</bdi> עצמאי עם <bdi>Context Window</bdi> משלו; יש רשימת משימות משותפת (עם תלויות ונעילת קבצים למניעת מרוץ) ותיבות דואר להודעות ישירות בין חברי הצוות. אפשר להשתמש בהגדרות <bdi>Subagent</bdi> קיימות כתפקידי <bdi>Teammates</bdi> ("Spawn a teammate using the security-reviewer agent type"), לדרוש אישור תוכנית מהמנהיג לפני שינויים, ולאכוף שערי איכות עם ה-<bdi>Hooks</bdi> <code>TeammateIdle</code>, <code>TaskCreated</code> ו-<code>TaskCompleted</code>. תצוגה: <code>teammateMode</code> עם הערכים <code>in-process</code> (ברירת מחדל, בכל <bdi>Terminal</bdi>), <code>auto</code>, <code>tmux</code> או <code>iterm2</code> (חלוניות מפוצלות, דורש <bdi>tmux</bdi> או <bdi>iTerm2</bdi>); או הדגל <code>--teammate-mode</code>.</p>
+  <p>המגבלות המתועדות, וכדאי לקרוא אותן לפני שמסתמכים על זה בעבודה אמיתית:</p>
+  <ul>
+    <li>אין חידוש <bdi>Session</bdi> עם <bdi>Teammates</bdi> במצב <code>in-process</code>: <code>/resume</code> ו-<code>/rewind</code> אינם משחזרים אותם.</li>
+    <li>סטטוס משימות עלול לפגר; <bdi>Teammates</bdi> לפעמים לא מסמנים משימה כהושלמה, וזה חוסם תלויות.</li>
+    <li>צוות אחד ל-<bdi>Session</bdi>; אין צוותים מקוננים (<bdi>Teammate</bdi> לא יכול להקים צוות משלו); המנהיג קבוע.</li>
+    <li>הרשאות נקבעות בזמן ההפעלה: כל ה-<bdi>Teammates</bdi> מתחילים עם מצב ההרשאות של המנהיג. אם המנהיג רץ עם <code>--dangerously-skip-permissions</code>, כולם רצים כך.</li>
+    <li>לא נוצרים <bdi>Teammates</bdi> במצב <code>-p</code> או ב-<bdi>Agent SDK</bdi>.</li>
+    <li>כשהתכונה מופעלת, <bdi>Subagent</bdi> ש-Claude נותן לו שם עשוי לרוץ כ-<bdi>Teammate</bdi> גם בלי שביקשתם צוות; מכבים עם הערך <code>0</code>.</li>
+    <li>העלות גבוהה משמעותית מ-<bdi>Session</bdi> יחיד; התיעוד ממליץ להתחיל ב-3 עד 5 <bdi>Teammates</bdi> ובמשימות סקירה ומחקר.</li>
+  </ul>
+  <div class="callout warn"><span class="title">אזהרה</span><p><bdi>Agent Teams</bdi> אינו מבודד קבצים בעצמו. אם תפעילו צוות על <bdi>Feature</bdi> בלי מטריצת בעלות ב-<bdi>Prompt</bdi>, תקבלו דריסות. התיעוד אומר זאת במפורש. השתמשו בו קודם כול לסקירה מקבילית ולחקירת <bdi>Bugs</bdi> עם השערות מתחרות, ורק אחר כך לפיתוח.</p></div>
+
+  <h2 id="cost-controls">בקרת עלויות ותנאי עצירה</h2>
+  <p>עבודה מרובת-סוכנים ללא תקרות היא הדרך הבטוחה להפתעה בחשבון. שלוש שכבות בקרה:</p>
+  <ul>
+    <li><strong>תקציב לכל סוכן.</strong> ב-<code>claude -p</code>: <code>--max-budget-usd</code> ו-<code>--max-turns</code>. ב-<bdi>Subagents</bdi>: <code>maxTurns</code> בהגדרה. ב-<bdi>Sessions</bdi> אינטראקטיביים: <code>/cost</code> לבדיקה, וסוכן ניטור אנושי (אתם) שבודק את <code>claude agents</code> כל כמה דקות.</li>
+    <li><strong>דרגות מודל לפי תפקיד.</strong> סוכן קריאה-בלבד שסורק הרבה קבצים יכול לרוץ על מודל זול; סוכן שכותב קוד עדין או ממזג ראוי למודל חזק. בהגדרת <bdi>Subagent</bdi>: <code>model: haiku</code> / <code>sonnet</code> / <code>opus</code>. ל-<bdi>Teammates</bdi> ולסוכני משנה: משתנה הסביבה <code>CLAUDE_CODE_SUBAGENT_MODEL</code>, או ציון המודל ב-<bdi>Prompt</bdi>. שמות מודלים ספציפיים ומחירים משתנים; בדקו בדף המודלים הרשמי לפני שאתם מקבעים תצורה.</li>
+    <li><strong>תנאי עצירה והסלמה.</strong> כל סוכן צריך לדעת מתי לעצור: זמן (למשל 30 דקות), סבבים (<code>maxTurns</code>), תקציב, וגם תנאי לוגי: "אם צריך לגעת בקובץ שאינו בבעלותך, עצור ודווח". כל עצירה כזו מסלימה לאדם. סוכן שמנסה "לפתור בעצמו" חסימת בעלות הוא סוכן שיוצר התנגשות.</li>
+  </ul>
+  <div class="callout tip"><span class="title">Best Practice</span><p>לפני הרצה מקבילית, הריצו יחידה אחת בבדידות, מדדו את העלות ב-<code>total_cost_usd</code> או ב-<code>/cost</code>, והכפילו במספר היחידות. אם המספר מפתיע, צמצמו את ההיקף או החליפו דרגת מודל לפני שאתם מפעילים את כולם.</p></div>
+
+  <h2 id="example">דוגמה מציאותית: Feature התגובות של TaskFlow</h2>
+  <p>נשלב את הכול. המטרה: להוסיף תגובות למשימות. המתזמר הוא אתם, ב-<bdi>Session</bdi> ראשי בשורש הפרויקט. ארבעה סוכנים.</p>
+  <h3>מטריצת בעלות</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>סוכן</th><th>בעלים על</th><th>אסור לגעת</th><th>מבחן סיום</th><th>תלוי ב</th></tr></thead>
+      <tbody>
+        <tr><td>backend</td><td class="ltr">backend/app/routers/comments.py (new), backend/app/database.py (comments table only), backend/app/main.py (router include only)</td><td class="ltr">models.py, tests/, frontend/, docs/</td><td class="ltr">pytest -q passes; manual curl per contract</td><td>חוזה</td></tr>
+        <tr><td>tests</td><td class="ltr">backend/tests/test_comments.py (new)</td><td class="ltr">everything under app/, frontend/, docs/</td><td class="ltr">tests written against contract; skip-marked until backend merges</td><td>חוזה</td></tr>
+        <tr><td>frontend</td><td class="ltr">frontend/src/Comments.tsx (new), frontend/src/api.ts (add 3 functions), frontend/src/App.tsx (mount only)</td><td class="ltr">types.ts, backend/, docs/</td><td class="ltr">npm run typecheck passes</td><td>חוזה</td></tr>
+        <tr><td>docs</td><td class="ltr">README.md (Comments section), docs/api.md (new)</td><td class="ltr">all code</td><td class="ltr">links resolve; matches contract</td><td>חוזה</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>שימו לב ש-<code>models.py</code> ו-<code>types.ts</code> אינם בבעלות אף סוכן: הם השתנו בשלב החוזה ונעולים. <code>database.py</code> ו-<code>main.py</code> בבעלות סוכן אחד בלבד, עם היקף מצומצם.</p>
+  <h3>הפעלה</h3>
+  <p>אחרי <bdi>Commit</bdi> של החוזה ל-<code>main</code>, מהשיחה הראשית:</p>
+  <div class="codeblock">
+    <div class="codehead">prompt (orchestrator session)</div>
+    <pre><code>Read docs/contracts/comments-api.md and docs/ownership.md.
+Launch four subagents in parallel, each in its own worktree:
+- backend-implementer for the "backend" row
+- test-specialist for the "tests" row
+- frontend-implementer for the "frontend" row
+- documentation-specialist for the "docs" row
+Give each one only its row (owns / must not touch / done test) plus the
+contract. Tell each to commit on its worktree branch and stop; do not
+merge. When all four report, summarize: files changed per agent, tests
+run, and any agent that reported a blocked file.</code></pre>
+  </div>
+  <h3>סדר אינטגרציה</h3>
+  <ol>
+    <li>סקירת <bdi>PR</bdi> של backend על ידי <code>security-reviewer</code> (קלט חיצוני חדש: גוף התגובה) ועל ידיכם; <bdi>Rebase</bdi>; מיזוג.</li>
+    <li>הסרת סימוני <code>skip</code> מבדיקות התגובות; הרצה מול ה-<bdi>Backend</bdi> הממוזג; מיזוג.</li>
+    <li><bdi>Frontend</bdi>: <code>npm run typecheck</code> מול <code>main</code> העדכני; בדיקה ידנית מול השרת; מיזוג.</li>
+    <li>תיעוד: בדיקה מול ההתנהגות בפועל (דוח סטייה קצר, <a href="ch37.html">פרק 37</a>); מיזוג.</li>
+    <li>מבחן אינטגרציה: משימה, תגובה, מחיקה, מקצה לקצה. רק אחריו ה-<bdi>Feature</bdi> נחשב סגור.</li>
+  </ol>
+  <h3>ציר זמן (המחשה)</h3>
+  <div class="terminal"><span class="out">המחשה: ציר זמן אפשרי, לא מדידה
+00:00  contract committed to main; ownership.md committed
+00:02  orchestrator launches 4 subagents (4 worktrees under .claude/worktrees/)
+00:14  docs agent done (smallest unit)
+00:19  tests agent done (12 tests, all skip-marked)
+00:27  frontend agent done; typecheck passes
+00:31  backend agent done; 9 tests pass; reports: "wanted to add max_length
+       to CommentCreate in models.py; blocked by ownership; please decide"
+00:35  human: accepts models.py change as a contract bump (v1.1), applies it
+00:40  backend PR reviewed by security-reviewer + human; rebased; merged
+00:46  tests un-skipped, run green; merged
+00:52  frontend rebased, typecheck green; merged
+00:55  docs merged; integration test green; feature closed</span></div>
+  <p>הנקודה המעניינת בציר הזמן היא דקה 31: סוכן ה-<bdi>Backend</bdi> רצה לגעת בקובץ שאינו בבעלותו, עצר ודיווח. זה בדיוק ההתנהגות הרצויה. ההחלטה (לעדכן את החוזה) התקבלה על ידי אדם, ורק אז יושמה.</p>
+
+  <div class="verify"><strong>אימות:</strong> אחרי מיזוג הכול, בדקו: (1) <code>git worktree list</code> מציג רק את ה-<bdi>Checkout</bdi> הראשי (או <bdi>Worktrees</bdi> שהחלטתם לשמור); (2) <code>cd backend &amp;&amp; pytest -q</code> ו-<code>cd frontend &amp;&amp; npm run typecheck</code> ירוקים על <code>main</code>; (3) אין קובץ שנגעו בו שני <bdi>PRs</bdi> שונים (<code>git log --stat</code>); (4) סכום העלויות של הסוכנים תואם את מה שהערכתם מראש.</div>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>שני סוכנים עורכים אותו קובץ.</strong> תוצאה: דריסה או התנגשות מיזוג. תיקון: מטריצת בעלות + <bdi>Worktree</bdi> לכל סוכן; קובץ משותף עובר לשלב החוזה.</li>
+    <li><strong>אין חוזה לפני הפיצול.</strong> תוצאה: ה-<bdi>Frontend</bdi> קורא ל-<code>/comments</code> וה-<bdi>Backend</bdi> חשף <code>/tasks/{id}/comments</code>. תיקון: החוזה ב-<code>main</code> לפני שסוכן אחד מתחיל.</li>
+    <li><strong>תקציב לא מוגבל.</strong> סוכן שנתקע בלולאת "תקן בדיקה, שבור אחרת" יכול לרוץ שעה. תיקון: <code>maxTurns</code>, <code>--max-budget-usd</code>, וניטור.</li>
+    <li><strong>המתזמר מתחיל לממש בעצמו.</strong> התיעוד מציין שזה קורה גם למנהיג צוות. תיקון: "Wait for your subagents/teammates to complete their tasks before proceeding".</li>
+    <li><strong>מיזוג לפי סדר הסיום ולא לפי סדר התלויות.</strong> תיקון: סדר אינטגרציה כתוב מראש.</li>
+    <li><strong>הסתמכות על סוכני רקע ב-<code>-p</code> בלי לחכות.</strong> <code>claude -p</code> ממתין ל-<bdi>Subagents</bdi> ברקע עד תקרה של עשר דקות כברירת מחדל (<code>CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS</code>). סוכן איטי יותר ייקטע.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>סיבה סבירה</th><th>פתרון</th></tr></thead>
+      <tbody>
+        <tr><td>התנגשויות מיזוג בין <bdi>PRs</bdi> של סוכנים</td><td>בעלות חופפת או חוזה שהשתנה באמצע</td><td>זהו את הקובץ, קבעו בעלים יחיד; <bdi>Rebase</bdi> אצל הבעלים; אם החוזה השתנה, עדכנו את כל הסוכנים והריצו מחדש את המושפעים</td></tr>
+        <tr><td><bdi>Worktrees</bdi> יתומים תחת <code>.claude/worktrees/</code></td><td>הרצות <code>-p</code> אינן מנקות; <bdi>Session</bdi> שנהרג השאיר נעילה</td><td><code>git worktree list</code>; <code>git worktree remove &lt;path&gt;</code> (עם <code>--force</code> אם יש שינויים שאתם מוותרים עליהם); אם נעול: <code>git worktree unlock &lt;path&gt;</code> קודם. סריקה תקופתית מסירה <bdi>Worktrees</bdi> ישנים ללא עבודה לפי <code>cleanupPeriodDays</code>, ולעולם לא כאלה שנוצרו עם <code>--worktree</code></td></tr>
+        <tr><td><bdi>Session</bdi> רקע "נעלם"</td><td>התהליך יצא או המחשה כבה; התמליל נשמר</td><td><code>claude agents</code> מציג גם <bdi>Sessions</bdi> שהסתיימו; <code>claude --resume &lt;id&gt;</code> או <code>claude attach &lt;id&gt;</code>; <code>claude respawn &lt;id&gt;</code> מפעיל מחדש עם השיחה</td></tr>
+        <tr><td><code>Concurrent subagent limit reached</code></td><td>יותר מ-20 <bdi>Subagents</bdi> בו-זמנית</td><td>הקטינו את מספר היחידות במקביל, או הגדילו את <code>CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS</code> בזהירות</td></tr>
+        <tr><td><bdi>Teammates</bdi> לא מופיעים / משימות תקועות (<bdi>Agent Teams</bdi>)</td><td>מגבלות ניסיוניות מתועדות</td><td>בדקו את הלוח מתחת לשורת הקלט; בקשו מהמנהיג להקים <bdi>Teammates</bdi> חדשים; עדכנו סטטוס משימה ידנית</td></tr>
+        <tr><td>סוכן ב-<bdi>Worktree</bdi> מקבל שגיאת חסימה על פקודה</td><td>אכיפת הבידוד: הפקודה מכוונת ל-<bdi>Checkout</bdi> הראשי או שאינה ניתנת לניתוח סטטי</td><td>זה מכוון. פצלו לפקודות פשוטות בתוך ה-<bdi>Worktree</bdi>; אל תעקפו</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="security">Security</h2>
+  <ul>
+    <li><strong>הרשאות מינימליות לכל סוכן.</strong> סוכן תיעוד לא צריך <code>Bash</code>; סוכן סקירה לא צריך <code>Edit</code>. הגדירו <code>tools</code> בהגדרה ו-<code>--allowedTools</code> ב-<code>-p</code>.</li>
+    <li><strong>אל תריצו מתזמר עם <code>--dangerously-skip-permissions</code>.</strong> ב-<bdi>Agent Teams</bdi> כל ה-<bdi>Teammates</bdi> יורשים את זה. גם <bdi>Subagents</bdi> כפופים להרשאות של השיחה הראשית.</li>
+    <li><strong>הודעות בין סוכנים אינן אישור.</strong> לפי התיעוד, סוכן אינו יכול לאשר בקשת הרשאה בשם המשתמש, וסוכן שנחסם אינו יכול לעקוף דרך סוכן אחר. אל תבנו זרימה שמניחה אחרת.</li>
+    <li><strong>סודות ב-<bdi>Worktrees</bdi>.</strong> <code>.worktreeinclude</code> מעתיק קבצי <code>.env</code> לכל <bdi>Worktree</bdi>; ודאו שרק מה שנחוץ מועתק, ושהמחיקה של <bdi>Worktree</bdi> לא משאירה עותקים במקומות לא צפויים.</li>
+    <li><strong>הרצת <code>-p</code> ללא <code>--bare</code> טוענת <bdi>Hooks</bdi> ו-<bdi>MCP</bdi> של הפרויקט בלי דיאלוג <bdi>Trust</bdi>.</strong> בסקריפטי fan-out על <bdi>Repositories</bdi> שאינם שלכם, השתמשו ב-<code>--bare</code> (<a href="ch33.html">פרק 33</a>).</li>
+  </ul>
+
+  <h2 id="cost">Cost ו-Context</h2>
+  <p>העלות גדלה כמעט ליניארית עם מספר הסוכנים; כל אחד טוען <code>CLAUDE.md</code>, קורא את החוזה ואת הקבצים שלו. שלוש דרכים לצמצם: (1) יחידות ממוקדות עם <bdi>Prompt</bdi> שכולל רק את שורת הבעלות והחוזה, לא את כל התוכנית; (2) דרגת מודל לפי תפקיד; (3) סוכני קריאה-בלבד שמחזירים סיכום קצר במקום פלט מלא. ב-<bdi>Context</bdi>: המתזמר צריך להישאר רזה. אל תבקשו מכל סוכן להחזיר את כל ה-<bdi>Diff</bdi> לשיחה הראשית; בקשו רשימת קבצים ותוצאת בדיקות, ובדקו את ה-<bdi>Diff</bdi> ב-<bdi>PR</bdi>.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>התחילו במקבול של סקירה ומחקר; רק אחר כך פיתוח.</li>
+    <li>חוזה ב-<code>main</code> לפני שסוכן אחד מתחיל.</li>
+    <li>מטריצת בעלות: כל נתיב בשורה אחת, ורשימת "אסור לגעת" מפורשת.</li>
+    <li><bdi>Worktree</bdi> לכל סוכן, אוטומטי או ידני.</li>
+    <li>תקרות: <code>maxTurns</code>, <code>--max-budget-usd</code>, זמן; והסלמה לאדם על חסימת בעלות.</li>
+    <li>סדר אינטגרציה כתוב מראש; אדם ממזג; מבחן אינטגרציה סוגר.</li>
+    <li>סוקר טרי על כל <bdi>PR</bdi> של סוכן לפני מיזוג.</li>
+    <li>יחידה אחת בבדידות קודם, מדידת עלות, ואז כולם.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>"תפצל לבד ותמזג לבד".</strong> מתזמר שמקבל גם סמכות מיזוג ל-<code>main</code> מבטל את שער האישור האנושי.</li>
+    <li><strong>צוות של עשרה על משימה של שניים.</strong> תקורת התיאום עולה על התועלת; התיעוד ממליץ על 3 עד 5.</li>
+    <li><strong>חוזה שמתעדכן "בשקט".</strong> שינוי חוזה בלי גרסה והודעה לכל הסוכנים שקול לביטול החוזה.</li>
+    <li><strong>הצגת מנגנון ניסיוני כיציב.</strong> <bdi>Agent Teams</bdi> הוא <bdi>Experimental</bdi>; אל תבנו עליו תהליך ייצור בלי תוכנית גיבוי.</li>
+    <li><strong>סוכן שמתעלם מחסימת בעלות "כדי לסיים".</strong></li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 38.1: מקבול Feature התגובות בשלושה סוכנים</div>
+    <div class="body">
+      <p>בעותק של <bdi>TaskFlow</bdi> (בתוך <bdi>Repository</bdi> של <bdi>Git</bdi>):</p>
+      <ol>
+        <li>כתבו והכניסו ל-<bdi>Commit</bdi> את החוזה <code>docs/contracts/comments-api.md</code> ואת שינויי הטיפוסים ב-<code>models.py</code> ו-<code>types.ts</code>.</li>
+        <li>כתבו <code>docs/ownership.md</code> עם שלוש שורות: backend, tests, docs (בלי frontend, כדי לקצר).</li>
+        <li>הריצו את שלושת הסוכנים במקביל באחת משתי דרכים: (א) <bdi>Subagents</bdi> עם <code>isolation: worktree</code> מהשיחה הראשית; או (ב) שלושה <bdi>Terminals</bdi> עם <code>claude --worktree &lt;name&gt;</code> ו-<bdi>Prompt</bdi> ידני לכל אחד.</li>
+        <li>אספו את הדיווחים, מזגו בסדר backend, tests, docs, והריצו מבחן אינטגרציה.</li>
+        <li>תעדו: כמה זמן לקח, כמה עלה (לפי <code>/cost</code> או <code>total_cost_usd</code>), והאם היה סוכן שנחסם על בעלות.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>שלב 1 ו-2.</strong> החוזה מהסעיף "חוזים משותפים" מספיק. ב-<code>models.py</code> מוסיפים <code>Comment</code> ו-<code>CommentCreate</code> (Pydantic, עם <code>body: str</code> ומגבלת אורך 1 עד 2000). ב-<code>types.ts</code> מוסיפים את הממשק <code>Comment</code>. <code>ownership.md</code> הוא הטבלה מהדוגמה המציאותית ללא שורת frontend. הכול נכנס ל-<bdi>Commit</bdi> אחד: "contract: task comments v1".</p>
+      <p><strong>שלב 3, דרך א.</strong> העתיקו את <code>backend-implementer.md</code> מהפרק, ואת <code>test-specialist.md</code> ו-<code>documentation-specialist.md</code> מתיקיית <code>subagents/</code> של המדריך, ל-<code>.claude/agents/</code>. הוסיפו לשניים האחרונים <code>isolation: worktree</code> ו-<code>maxTurns: 30</code>. הריצו את ה-<bdi>Prompt</bdi> של המתזמר מהדוגמה, מותאם לשלושה סוכנים. עקבו ב-<code>/tasks</code>. צפוי: שלושה <bdi>Worktrees</bdi> זמניים תחת <code>.claude/worktrees/</code>, שלושה דיווחים, ואולי חסימה אחת (סוכן ה-<bdi>Backend</bdi> ירצה לגעת ב-<code>models.py</code> או ב-<code>tests/</code>).</p>
+      <p><strong>שלב 3, דרך ב.</strong> שלושה <bdi>Terminals</bdi>: <code>claude --worktree backend-comments</code>, <code>claude --worktree tests-comments</code>, <code>claude --worktree docs-comments</code>. בכל אחד הדביקו את שורת הבעלות שלו ואת החוזה, והוסיפו: "commit on this branch when done and stop; do not merge". ביציאה, בחרו "keep" כדי לשמור את ה-<bdi>Branch</bdi> למיזוג.</p>
+      <p><strong>שלב 4.</strong> מה-<bdi>Checkout</bdi> הראשי: <code>git log --oneline --all</code> מראה שלושה <bdi>Branches</bdi>. מזגו את backend קודם (<code>git merge worktree-backend-comments</code> או דרך <bdi>PR</bdi>), הריצו <code>pytest -q</code>; אחר כך tests, הסירו <code>skip</code>, הריצו שוב; אחר כך docs. מבחן אינטגרציה: <code>curl</code> שיוצר משימה, מוסיף תגובה, קורא את הרשימה ומוחק, מול <code>uvicorn</code> מקומי.</p>
+      <p><strong>שלב 5.</strong> תוצאה אופיינית (המחשה, לא מדידה): 15 עד 30 דקות קיר לעומת 40 עד 60 בטור, עלות כוללת גבוהה ב-30 עד 60 אחוז מהרצה סדרתית בגלל טעינה כפולה של הקשר, וחסימת בעלות אחת שהוסלמה לאדם. אם לא הייתה חסימה, בדקו שוב: ייתכן שסוכן ערך קובץ מחוץ לבעלותו בלי לדווח (<code>git diff --stat</code> על כל <bdi>Branch</bdi>). זו בדיוק הסיבה שמבצעים סקירה לפני מיזוג.</p>
+      <p>ניקוי: <code>git worktree list</code>, ואז <code>git worktree remove</code> לכל מה שנשאר.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p><bdi>Multi-Agent Development</bdi> משתלם כשהיחידות עצמאיות, החוזה נקבע מראש, לכל קובץ בעלים יחיד ויש מבחן אינטגרציה. הכלים ב-<bdi>Claude Code</bdi> נעים מהקל לכבד: <bdi>Subagents</bdi> מקבילים וברקע (עד 20, עם <code>isolation: worktree</code>), <code>/batch</code> לפירוק אוטומטי ל-<bdi>Worktrees</bdi> ו-<bdi>PRs</bdi>, <bdi>Sessions</bdi> רקע דרך <code>/fork</code>, <code>/background</code> ו-<code>claude --bg</code>, fan-out מבוקר עם <code>claude -p</code> ותקרות <code>--max-turns</code> ו-<code>--max-budget-usd</code>, ו-<bdi>Agent Teams</bdi> הניסיוני שבו סוכנים מדברים זה עם זה. בכל תצורה, המבנה זהה: מתזמר, סוכנים מבודדים, חוזה משותף, ושער אישור אנושי לפני המיזוג. בפרק הבא נאסוף את כל מה שיכול להשתבש לאורך המדריך למדריך <bdi>Troubleshooting</bdi> מקיף.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/agent-teams">Orchestrate teams of Claude Code sessions (Agent teams, Experimental)</a> |
+      <a href="https://code.claude.com/docs/en/sub-agents">Subagents (parallel, background, nesting, resume, isolation)</a> |
+      <a href="https://code.claude.com/docs/en/worktrees">Run parallel sessions with worktrees</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (Run multiple sessions, Fan out across files, Adversarial review)</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands (/batch, /background, /fork, /tasks)</a> |
+      <a href="https://code.claude.com/docs/en/agent-view">Background sessions and agent view</a> |
+      <a href="https://code.claude.com/docs/en/headless">Run Claude Code programmatically</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">CLI reference</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch37.html"><span class="lbl">הפרק הקודם</span>Architecture ו-Design Review</a>
+    <a href="ch39.html"><span class="lbl">הפרק הבא</span>Troubleshooting מקיף</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

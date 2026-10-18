@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 5: כיצד לדבר עם Claude Code | מדריך פיתוח ב-Claude Code</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק א | פרק 5</p>
+  <h1>כיצד לדבר עם Claude Code</h1>
+  <p class="lead">איכות התוצאה של <bdi>Claude Code</bdi> נקבעת במידה רבה על ידי איכות ה-<bdi>Prompt</bdi> שלכם. בפרק הזה נלמד שיטה מסודרת לניסוח הנחיות: מבנה מומלץ עם <bdi>Context</bdi>, <bdi>Objective</bdi>, <bdi>Constraints</bdi> ו-<bdi>Acceptance Criteria</bdi>, השוואה בין <bdi>Prompt</bdi> חלש, סביר ומקצועי על פרויקט <bdi>TaskFlow</bdi>, וספריית תבניות מוכנות להעתקה לשנים עשר סוגי משימות: מהסבר <bdi>Codebase</bdi> ועד <bdi>Migration</bdi> ושדרוג <bdi>Dependencies</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="why">מדוע ניסוח ה-Prompt קובע את איכות התוצאה</h2>
+  <p>ראינו בפרק 1 שכל משימה מתחילה בהנחיה שלכם, וממנה נגזר כל מה שהכלי יעשה: אילו קבצים יקרא, מה יחפש, מה ישנה ואיך יבדוק את עצמו. התיעוד הרשמי מדגיש שתי נקודות שנראות סותרות אך משלימות זו את זו:</p>
+  <ul>
+    <li><strong>זו שיחה, לא טופס.</strong> אינכם חייבים <bdi>Prompt</bdi> מושלם. אפשר להתחיל, לראות מה קורה, ולתקן: "זה לא בדיוק זה, הבעיה בטיפול ב-<bdi>Session</bdi>". Claude Code בנוי לאיטרציה, ואפשר לעצור ולכוון אותו בכל רגע.</li>
+    <li><strong>דיוק מראש חוסך תיקונים.</strong> ככל שההנחיה הראשונית מדויקת יותר, כך תידרשו לפחות סיבובי תיקון. הנחיה שמפנה לקבצים ספציפיים, מציינת אילוצים ומגדירה מה נחשב הצלחה, מצליחה לעיתים קרובות כבר בניסיון הראשון.</li>
+  </ul>
+  <p>יש גם סיבה כלכלית: כל סיבוב תיקון ממלא את ה-<bdi>Context Window</bdi> בניסיונות כושלים, וביצועי המודל יורדים ככל שהחלון מתמלא (פרק 14 עוסק בכך לעומק). ההמלצה הרשמית חד משמעית: אחרי שני תיקונים כושלים באותו נושא, עדיף להריץ <code>/clear</code> ולנסח מחדש הנחיה טובה יותר שמשלבת את מה שלמדתם, מאשר להמשיך לתקן בתוך <bdi>Session</bdi> עמוס. במילים אחרות: ההשקעה בניסוח היא הדרך הזולה ביותר לשפר תוצאות.</p>
+  <p>כדי להבין למה כל רכיב בהנחיה משפיע, כדאי לחזור רגע ל-<bdi>Agentic Loop</bdi> מפרק 1 ולראות מה כל חלק של ההנחיה עושה בתוכה:</p>
+  <ul>
+    <li><strong>הקשר ומיקום</strong> מקצרים את שלב איסוף ה-<bdi>Context</bdi>: במקום לסרוק את הפרויקט, הכלי ניגש ישר לקבצים הנכונים. פחות קריאות מיותרות פירושו גם <bdi>Context Window</bdi> פנוי יותר לעבודה עצמה.</li>
+    <li><strong>מטרה וגבולות</strong> מכווננים את שלב הפעולה: הם קובעים כמה רחב יהיה ה-<bdi>Diff</bdi> ומונעים "שיפורים" אגביים שלא ביקשתם, שהם אחת הסיבות הנפוצות ל-<bdi>Diffs</bdi> שקשה לאשר.</li>
+    <li><strong>קריטריונים ואימות</strong> מפעילים את שלב הבדיקה: הם נותנים ללולאה תנאי עצירה אמיתי במקום "נראה גמור", ומאפשרים לכלי לתקן את עצמו לפני שהוא חוזר אליכם.</li>
+    <li><strong>הגדרת תוצר</strong> משפרת את מה שחוזר אליכם בסוף: תשובה בפורמט שביקשתם נסקרת מהר יותר, וזה החלק שחוסך לכם, לא לכלי, את רוב הזמן.</li>
+  </ul>
+
+  <h2 id="three-levels">שלוש רמות של Prompt: חלש, סביר, מקצועי</h2>
+  <p>נמחיש את ההבדל על תרחיש מציאותי בפרויקט <bdi>TaskFlow</bdi>. נניח שהתקבל דיווח: משתמשים מעדכנים סטטוס של משימה דרך ה-<bdi>API</bdi>, מקבלים תשובת הצלחה, אבל הרשימה ממשיכה להציג את הסטטוס הישן. הקוד הרלוונטי נמצא ב-<code>backend/app/routers/tasks.py</code>.</p>
+
+  <h3 id="weak">רמה 1: Prompt חלש</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>fix the bug in tasks</code></pre>
+  </div>
+  <p>מה חסר כאן? הכול. איזה <bdi>Bug</bdi>? באיזה קובץ? מה התסמין? מה נחשב "מתוקן"? Claude ייאלץ לנחש: הוא יקרא קבצים רבים בחיפוש אחר משהו חשוד, אולי "יתקן" משהו שאינו קשור, ואתם תגלו זאת רק בסוף. הנחיה כזו אינה אסורה: היא לגיטימית כשאתם עצמכם עוד לא יודעים מה הבעיה ורוצים חקירה פתוחה. אבל אם יש לכם מידע, להסתיר אותו מהכלי זה בזבוז.</p>
+
+  <h3 id="reasonable">רמה 2: Prompt סביר</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Users report that PATCH /tasks/{id} returns 200 but GET /tasks
+still shows the old status afterwards. Find the root cause in
+backend/app/routers/tasks.py and fix it.</code></pre>
+  </div>
+  <p>כבר הרבה יותר טוב: יש תסמין מדויק (<bdi>Endpoint</bdi>, קוד תשובה, התנהגות שגויה) ומיקום משוער. Claude יכול לגשת ישר לקוד הרלוונטי. מה עדיין חסר? דרך אימות (איך נדע שהתיקון עובד ולא רק "נראה נכון"), גבולות (מה מותר לשנות), והגדרת תוצר (מה אנחנו רוצים לקבל בסוף).</p>
+
+  <h3 id="professional">רמה 3: Prompt מקצועי</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Context: TaskFlow backend, FastAPI + SQLite. Task routes live in
+backend/app/routers/tasks.py, tests in backend/tests/test_tasks.py.
+
+Bug report: PATCH /tasks/{id} with {"status": "done"} returns 200,
+but GET /tasks afterwards still shows the old status.
+
+Objective: find and fix the root cause.
+
+Process:
+1. Write a failing test in backend/tests/test_tasks.py that
+   reproduces the report before touching any code.
+2. Investigate and explain the root cause to me before fixing.
+3. Fix the root cause. Do not suppress the error or special-case
+   the test.
+
+Constraints: no new dependencies, keep the public API unchanged,
+follow the existing code style.
+
+Verification: run the full pytest suite and show the output.
+Out of scope: the frontend, and any refactoring beyond the fix.
+
+Required output: root cause explanation, the diff, and the final
+test results.</code></pre>
+  </div>
+  <p>ההנחיה הזו ארוכה יותר, אבל כל שורה בה עובדת: היא מבוססת על שני עקרונות רשמיים שנרחיב עליהם בהמשך, "כתוב קודם <bdi>Test</bdi> נכשל שמשחזר את הבעיה" ו"תקן את שורש הבעיה, אל תסתיר את השגיאה". נשווה את שלוש הרמות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>היבט</th><th>חלש</th><th>סביר</th><th>מקצועי</th></tr></thead>
+      <tbody>
+        <tr><td>זמן חקירה של הכלי</td><td>גבוה: סריקה עיוורת של הפרויקט</td><td>נמוך: יעד ברור</td><td>נמוך: יעד ותהליך ברורים</td></tr>
+        <tr><td>סיכון לתיקון שגוי</td><td>גבוה</td><td>בינוני: אין אימות מוגדר</td><td>נמוך: <bdi>Test</bdi> משחזר לפני תיקון</td></tr>
+        <tr><td>צריכת <bdi>Context</bdi></td><td>גבוהה: קריאת קבצים מיותרים</td><td>בינונית</td><td>נמוכה יחסית למשימה</td></tr>
+        <tr><td>יכולת שלכם לבדוק את התוצאה</td><td>אין: לא הוגדר מה נחשב הצלחה</td><td>חלקית</td><td>מלאה: פלט <bdi>Tests</bdi> והסבר שורש הבעיה</td></tr>
+        <tr><td>מתי מתאים</td><td>חקירה פתוחה בלבד</td><td>משימות קטנות ומוכרות</td><td>כל משימה עם השלכות אמיתיות</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout note"><span class="title">הערה</span><p>לא כל משימה מצדיקה את הרמה השלישית. ההמלצה הרשמית: אם אפשר לתאר את ה-<bdi>Diff</bdi> הצפוי במשפט אחד (תיקון שגיאת כתיב, הוספת שורת <bdi>Log</bdi>, שינוי שם משתנה), בקשו זאת ישירות בלי טקס. המבנה המלא נועד למשימות שבהן טעות עולה ביוקר.</p></div>
+
+  <h2 id="structure">מבנה Prompt מומלץ: שמונת הרכיבים</h2>
+  <p>למשימות משמעותיות, המדריך ממליץ על מבנה קבוע של שמונה רכיבים. אין חובה למלא את כולם בכל פעם, אבל כדאי לעבור עליהם בראש כרשימת בדיקה: כל רכיב שמושמט הוא החלטה שהעברתם לכלי בלי לשים לב.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>רכיב</th><th>עונה על השאלה</th><th>דוגמה</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>Context</bdi></td><td>מה הכלי צריך לדעת על הסביבה</td><td>ה-<bdi>Stack</bdi>, קבצים רלוונטיים, החלטות עבר, דיווח התקלה</td></tr>
+        <tr><td><bdi>Objective</bdi></td><td>מה צריך להיות נכון בסוף, במשפט אחד</td><td>"עדכון סטטוס נשמר ומוחזר ב-<bdi>GET</bdi>"</td></tr>
+        <tr><td><bdi>Scope</bdi></td><td>באילו קבצים ואזורים מותר לגעת</td><td>"רק <code>backend/app</code> ו-<code>backend/tests</code>"</td></tr>
+        <tr><td><bdi>Constraints</bdi></td><td>אילו כללים אסור להפר</td><td>ללא <bdi>Dependencies</bdi> חדשים, שמירת תאימות <bdi>API</bdi>, סגנון קיים</td></tr>
+        <tr><td><bdi>Acceptance Criteria</bdi></td><td>אילו טענות ניתנות לבדיקה יגדירו הצלחה</td><td>רשימת תנאים שכל אחד מהם ניתן לאימות</td></tr>
+        <tr><td><bdi>Verification</bdi></td><td>אילו פקודות ירוצו ומה פלט תקין</td><td><code>pytest -q</code> עובר; <code>npm run typecheck</code> נקי</td></tr>
+        <tr><td><bdi>Out of Scope</bdi></td><td>מה לא לעשות, גם אם מתחשק</td><td>"בלי <bdi>Refactoring</bdi> אגבי, בלי לגעת ב-<bdi>Frontend</bdi>"</td></tr>
+        <tr><td><bdi>Required Output</bdi></td><td>מה אתם רוצים לקבל בסוף</td><td>הסבר, <bdi>Diff</bdi>, פלט <bdi>Tests</bdi>, שאלות פתוחות</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>והנה תבנית מלאה להעתקה. שמרו אותה בצד והתאימו לכל משימה:</p>
+  <div class="codeblock">
+    <div class="codehead">prompt-template.txt</div>
+    <pre><code>## Context
+[Stack, relevant files and directories, prior decisions,
+error reports or logs. Reference files with @path when useful.]
+
+## Objective
+[One sentence: what should be true when the task is done.]
+
+## Scope
+[Files and areas that may change.]
+
+## Constraints
+[Style rules, dependency policy, compatibility requirements,
+process rules such as "plan first" or "small steps with diffs".]
+
+## Acceptance Criteria
+- [Verifiable statement 1]
+- [Verifiable statement 2]
+
+## Verification
+[Exact commands to run and what output counts as success.]
+
+## Out of Scope
+[What must not change, even if it looks tempting to "improve".]
+
+## Required Output
+[What to hand back: explanation, diff, test output, open questions.]</code></pre>
+  </div>
+  <div class="callout tip"><span class="title">Best Practice</span><p>שני הרכיבים שמשפרים תוצאות יותר מכל השאר הם <bdi>Acceptance Criteria</bdi> ו-<bdi>Verification</bdi>. ההסבר הרשמי: Claude עוצר כשהעבודה "נראית גמורה". כשאתם נותנים לו בדיקה שהוא יכול להריץ בעצמו (חבילת <bdi>Tests</bdi>, <bdi>Build</bdi>, <bdi>Linter</bdi>, השוואת צילום מסך), הלולאה נסגרת לבד: הוא עובד, בודק, קורא את התוצאה ומתקן עד שהבדיקה עוברת. בלי זה, אתם לולאת האימות.</p></div>
+  <div class="verify">
+    <p><strong>בדיקה עצמית לפני שליחת Prompt משמעותי:</strong></p>
+    <ul class="check">
+      <li>האם ציינתי את הקבצים או התיקיות הרלוונטיים, במקום לתת לכלי לנחש?</li>
+      <li>האם המטרה מנוסחת כמצב סופי שניתן לבדוק, ולא כפעולה עמומה ("לשפר", "לסדר")?</li>
+      <li>האם הגדרתי לפחות בדיקה אחת שהכלי יכול להריץ בעצמו, ומה נחשב פלט תקין?</li>
+      <li>האם אמרתי מה אסור לשנות?</li>
+      <li>האם ההנחיה עוסקת במשימה אחת בלבד?</li>
+    </ul>
+  </div>
+
+  <h2 id="principles">עקרונות מהתיעוד הרשמי</h2>
+  <p>מעבר למבנה, ארבעה עקרונות מה-<bdi>Best Practices</bdi> הרשמיים שכדאי להטמיע:</p>
+  <ul>
+    <li><strong>ספקו הקשר עשיר בדרכים חכמות.</strong> הפניה לקובץ עם <code>@src/utils/auth.js</code> מכניסה את תוכנו לשיחה; אפשר להדביק צילומי מסך ותמונות ישירות; לתת כתובות <bdi>URL</bdi> של תיעוד; ולהזרים נתונים עם <bdi>Pipe</bdi>, למשל <code>cat error.log | claude</code>.</li>
+    <li><strong>הפרידו מחקר מביצוע.</strong> במשימות מורכבות, קודם בקשו קריאה והבנה (או עבדו ב-<bdi>Plan Mode</bdi>, פרק 7), סקרו את התוכנית, ורק אז אשרו ביצוע. גישה דו שלבית מניבה תוצאות טובות יותר מקפיצה ישר לקוד.</li>
+    <li><strong>הצביעו על דוגמאות קיימות.</strong> "ראה איך ממומש ה-<bdi>Widget</bdi> הקיים ולך לפי אותה תבנית" עדיף על תיאור מופשט של התבנית. הקוד שלכם הוא מפרט מצוין.</li>
+    <li><strong>תנו לו לראיין אתכם.</strong> ל-<bdi>Feature</bdi> גדול, ההמלצה הרשמית היא להתחיל מהנחיה מינימלית ולבקש: <code>Interview me in detail using the AskUserQuestion tool</code>, עד לכתיבת מפרט מלא ל-<code>SPEC.md</code>. ואז מתחילים <bdi>Session</bdi> נקי לביצוע המפרט.</li>
+  </ul>
+
+  <h2 id="library">ספריית Prompts לפי סוג משימה</h2>
+  <p>לכל אחד משנים עשר סוגי המשימות הנפוצים, הנה תבנית מלאה להעתקה, מותאמת לפרויקט <bdi>TaskFlow</bdi> וניתנת להתאמה לכל פרויקט. התבניות מבוססות על הדפוסים שבתיעוד הרשמי (<bdi>Common Workflows</bdi>, <bdi>Best Practices</bdi> ו-<bdi>Prompt Library</bdi>), עם הרחבות של המדריך. הנחיות נכתבות כאן באנגלית, כפי שמקובל בעבודה מול כלי פיתוח; אפשר לכתוב ל-Claude Code גם בעברית, אבל שמות קבצים, פקודות ומונחים טכניים נשארים באנגלית בכל מקרה.</p>
+
+  <h3 id="p-explain">1. הסבר Codebase</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Give me an overview of this codebase: architecture, key
+directories, and how the pieces connect. Then trace one request
+end to end: what happens when the frontend creates a new task,
+from the React component to the SQLite database. Do not change
+any files.</code></pre>
+  </div>
+  <p>מתחילים רחב ואז מצרים: סקירה כללית, ואז מעקב אחר זרימה אחת קונקרטית. השורה האחרונה קובעת שזו משימת קריאה בלבד. השאלה הפותחת לקוחה כלשונה מספריית ה-<bdi>Prompts</bdi> הרשמית. התוצאה הצפויה: תיאור מבנה התיקיות, הרכיבים המרכזיים והקשרים ביניהם, ואחריו מעקב שלב אחר שלב אחרי הבקשה. ההמלצה הרשמית להמשך: לשאול שאלות המשך כמו שהייתם שואלים מהנדס ותיק בצוות, בלי טקסיות: "איך עובד ה-<bdi>Logging</bdi> כאן?", "אילו מקרי קצה מטופלים בפונקציה הזו?". פרק 6 מקדיש לטכניקות האלה דיון שלם.</p>
+
+  <h3 id="p-research">2. מחקר לפני שינוי</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Research only, do not edit any files.
+I plan to add user authentication to TaskFlow. Map everything the
+change would touch: routers, models, database schema, frontend
+API calls, and tests. List each affected file with one line on
+why it matters, then finish with the open questions I should
+answer before we plan the implementation.</code></pre>
+  </div>
+  <p>מחקר ממוקד עם תוצר מוגדר: רשימת קבצים מושפעים ושאלות פתוחות. שימו לב שהשאלה תחומה לשינוי מסוים; "תחקור את המערכת" בלי גבול הוא האנטי דפוס שהתיעוד מכנה חקירה אין סופית. אם המחקר צפוי להיות רחב מאוד, עטפו אותו ב-<bdi>Subagent</bdi> ("use a subagent to investigate...") כדי שקריאת עשרות הקבצים לא תמלא את ה-<bdi>Context</bdi> הראשי שלכם: ה-<bdi>Subagent</bdi> קורא בחלון נפרד ומחזיר סיכום בלבד. זו המלצה רשמית שנרחיב עליה בפרק 25.</p>
+
+  <h3 id="p-plan">3. תכנון Feature</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>I want to add due dates to tasks in TaskFlow.
+
+Context: backend is FastAPI + SQLite (backend/app), frontend is
+React + TypeScript (frontend/src). The Task model lives in
+backend/app/models.py.
+
+Create an implementation plan: files to change, API changes,
+database schema change, frontend changes, and the tests we need.
+Include trade-offs for storing the date as TEXT vs INTEGER in
+SQLite, and recommend one. Do not write any code yet.</code></pre>
+  </div>
+  <p>הנחיית תכנון טובה מבקשת גם חלופות ו-<bdi>Trade-offs</bdi>, לא רק תוכנית אחת. את ההנחיה הזו טבעי להריץ ב-<bdi>Plan Mode</bdi>, שמבטיח ברמת המערכת שקבצי המקור לא ישתנו בשלב התכנון (פרק 7). התוצר הצפוי הוא תוכנית שאתם קוראים, מתקנים ומאשרים לפני שנכתבת שורת קוד אחת: זו הנקודה הזולה ביותר לתקן בה טעות תכנון. הטעות הנפוצה כאן היא לאשר תוכנית בלי לקרוא אותה באמת, ואז לגלות את הבעיות ב-<bdi>Diff</bdi>.</p>
+
+  <h3 id="p-bug">4. תיקון Bug</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Users report that deleting a task twice crashes the client: the
+second DELETE /tasks/{id} should return 404 but the client sees a
+different error. Reproduce first: write a failing test in
+backend/tests/test_tasks.py that captures the report. Then find
+the root cause in backend/app/routers/tasks.py, explain it to me,
+and fix it. Address the root cause, do not suppress the error.
+Run the full test suite and show the output.</code></pre>
+  </div>
+  <p>שלושת המרכיבים הקריטיים, כולם מההמלצות הרשמיות: תסמין מדויק (עדיף עם הודעת השגיאה המלאה מודבקת), <bdi>Test</bdi> נכשל שמשחזר את הבעיה לפני התיקון, ודרישה מפורשת לטפל בשורש ולא בתסמין. טיפים רשמיים נוספים: ציינו את הפקודה שמשחזרת את הבעיה ואת צעדי השחזור, וכתבו אם השגיאה עקבית או מופיעה לסירוגין; ב-<bdi>Bug</bdi> לסירוגין הכלי יחפש גורמים אחרים לגמרי (תזמון, מצב משותף) מאשר ב-Bug דטרמיניסטי. פרק 10 מרחיב על <bdi>Debugging</bdi> שיטתי.</p>
+
+  <h3 id="p-refactor">5. Refactoring</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Refactor backend/app/routers/tasks.py to move all SQL access into
+a separate repository module, without changing behavior.
+
+Constraints: keep the public API and response shapes identical,
+keep type hints, no new dependencies.
+Acceptance criteria: all existing tests in backend/tests pass
+unchanged. Work in small steps and show me the diff after each
+step before continuing.</code></pre>
+  </div>
+  <p>ב-<bdi>Refactoring</bdi>, ה-<bdi>Acceptance Criteria</bdi> החשוב ביותר הוא "ה-<bdi>Tests</bdi> הקיימים עוברים ללא שינוי": שינוי ב-Tests פירושו שינוי התנהגות, וזה כבר לא Refactoring. הדרישה לצעדים קטנים עם <bdi>Diff</bdi> ביניהם שומרת עליכם בעמדת בקרה, וההמלצה הרשמית תואמת: לבצע Refactoring במנות קטנות וברות בדיקה. אם האזור שאתם משנים אינו מכוסה ב-Tests כלל, הפכו את זה לצעד הראשון בהנחיה: קודם בדיקות שמקבעות את ההתנהגות הקיימת, רק אחר כך שינוי מבנה. פרק 12 מוקדש לנושא.</p>
+
+  <h3 id="p-tests">6. כתיבת Tests</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Write tests for backend/app/routers/tasks.py, run them, and fix
+any failures. Cover these cases: creating a task with an empty
+title returns 422, updating a non-existent task returns 404,
+deleting a task twice returns 404 on the second call, and
+GET /tasks returns tasks ordered by id. Follow the style of the
+existing tests in backend/tests/test_tasks.py and avoid mocks.</code></pre>
+  </div>
+  <p>הבסיס "write tests for X, run them, and fix any failures" לקוח מספריית ה-<bdi>Prompts</bdi> הרשמית; התוספת החשובה היא רשימת מקרים מפורשת. בלי זה תקבלו לרוב בדיקות ל"מסלול המאושר" בלבד. ציון סגנון קיים והעדפה לגבי <bdi>Mocks</bdi> חוסך סיבוב תיקונים שלם: לפי התיעוד, Claude בוחן ממילא את קובצי ה-<bdi>Tests</bdi> הקיימים כדי להתאים את עצמו למסגרת ולסגנון, אבל העדפות שאינן כתובות בקוד צריכות להיאמר. אפשר גם לבקש ממנו להציע מקרי קצה שפספסתם: תנאי שגיאה, ערכי גבול וקלטים לא צפויים. הסיכון המרכזי בבדיקות שנכתבות אחרי הקוד הוא שהן "מתאימות את עצמן" למימוש הקיים; פרק 11 מציג את הדרכים להתגונן מכך.</p>
+
+  <h3 id="p-review">7. Code Review</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Review my uncommitted changes and flag anything that looks risky
+before I commit. Focus on correctness, error handling, and
+consistency with the existing patterns in backend/app. Report the
+findings as a list ordered by severity, with file and line for
+each finding. Do not edit any files.</code></pre>
+  </div>
+  <p>המשפט הפותח הוא תבנית רשמית מספריית ה-Prompts. חשוב להגדיר מוקדי סקירה ותוצר (רשימה לפי חומרה), ולנעול עריכה: סקירה שמתקנת תוך כדי מערבבת שני תפקידים. קיים גם <bdi>Skill</bdi> מובנה בשם <code>/code-review</code> שסוקר את ה-<bdi>Diff</bdi> הנוכחי ב-<bdi>Subagent</bdi> נפרד; ראו פרק 4 להפעלתו. אזהרה מהתיעוד הרשמי שכדאי להפנים: סוקר שמתבקש למצוא בעיות ימצא בעיות כמעט תמיד, גם כשהקוד תקין. הנחו אותו לדווח רק על ממצאים שמשפיעים על נכונות או על הדרישות, והתייחסו לשאר כהצעות אופציונליות, אחרת תמצאו את עצמכם מוסיפים שכבות הגנה מיותרות.</p>
+
+  <h3 id="p-security">8. Security Review</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Use a subagent to review backend/app/ for security issues and
+report what it finds. Look specifically for: SQL built from user
+input, missing input validation, secrets in code, and error
+responses that leak internal details. For each finding report
+file, line, severity, and a suggested fix. Read-only: do not
+change any files.</code></pre>
+  </div>
+  <p>הפתיחה מבוססת על התבנית הרשמית "use a subagent to review {path} for security issues". ה-<bdi>Subagent</bdi> נותן לסקירה הקשר נקי, שאינו "מזוהם" בהנחות מהשיחה הנוכחית: יתרון של ממש כשסוקרים קוד ש-Claude עצמו כתב. רשימת המוקדים מכוונת את הסקירה לסיכונים המרכזיים של ה-<bdi>Stack</bdi> שלכם. וחשוב לומר בפירוש: סקירה כזו היא שכבת הגנה מוקדמת וזולה, לא תחליף לתהליכי אבטחה של הארגון, ל-<bdi>Code Review</bdi> אנושי או לכלי סריקה ייעודיים. פרק 20 מוקדש לאבטחה, כולל סקירות אבטחה מובנות בתהליך העבודה.</p>
+
+  <h3 id="p-perf">9. ניתוח Performance</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Optimize GET /tasks to bring its response time with 10,000 tasks
+in the database from about 800ms down to under 200ms.
+
+Measure first: write a small script that seeds 10,000 tasks and
+times the endpoint, and record the baseline. Then profile,
+explain the bottleneck, and propose options with trade-offs
+before implementing the one I approve.
+Verification: rerun the measurement script and show before/after
+numbers.</code></pre>
+  </div>
+  <p>עבודת ביצועים בלי מדידה היא ניחוש. המבנה הרשמי המומלץ הוא יעד מדיד: "להוריד את {metric} מ-{current} אל מתחת ל-{goal}". שימו לב לסדר המחייב: מדידה, אבחון, חלופות, אישור שלכם, מימוש, ומדידה חוזרת. כך לא תקבלו "אופטימיזציה" שאי אפשר להוכיח. הטעות הנפוצה היא לדלג על שלב המדידה ולבקש ישר "תעשה את זה מהיר יותר": בלי <bdi>Baseline</bdi> אין דרך לדעת אם השינוי עזר, הזיק או סתם סיבך את הקוד, וצווארי בקבוק אמיתיים נמצאים לעיתים קרובות במקום אחר לגמרי ממה שנדמה.</p>
+
+  <h3 id="p-docs">10. Documentation</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Find the public functions in backend/app/ without docstrings and
+add them, matching the style already used in the file. Then add a
+short API reference section to README.md covering the /tasks
+endpoints: method, path, request body, and possible responses.
+Do not change any code behavior.</code></pre>
+  </div>
+  <p>מבוסס על התבנית הרשמית לתיעוד: איתור קוד לא מתועד, הוספה בסגנון הקיים. הגבלת "בלי שינוי התנהגות" חשובה: משימות תיעוד הן הזדמנות מפתה ל"שיפורים" אגביים בקוד, ואתם רוצים <bdi>Diff</bdi> שכולו תיעוד, שקל לאשר בביטחון. הטיפים הרשמיים הנוספים: ציינו את סגנון התיעוד המבוקש (<bdi>JSDoc</bdi>, <bdi>Docstrings</bdi> וכדומה), בקשו דוגמאות שימוש בתוך התיעוד, ואחרי היצירה בקשו בדיקה שהתיעוד עומד בתקן של הפרויקט. תיעוד שנוצר אוטומטית דורש קריאה ביקורתית: הוא משקף את מה שהקוד עושה, כולל באגים, לא בהכרח את מה שהקוד אמור לעשות.</p>
+
+  <h3 id="p-migration">11. Migration</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Migrate everything from raw sqlite3 access to SQLAlchemy Core:
+identify every place that needs to change, then make the changes.
+
+Scope: backend/app/database.py and backend/app/routers/tasks.py.
+Constraints: keep the public API identical, keep SQLite as the
+engine, one commit per logical step.
+Acceptance criteria: all tests in backend/tests pass, and no raw
+SQL strings remain outside the new data layer.
+Start with a written plan and wait for my approval before editing
+any file.</code></pre>
+  </div>
+  <p>הנוסחה הרשמית ל-<bdi>Migration</bdi> היא "identify every place that needs to change, then make the changes": קודם מיפוי מלא, אחר כך ביצוע. התוספות שלנו: <bdi>Commit</bdi> לכל צעד לוגי (כדי שאפשר יהיה לחזור אחורה), וקריטריון סיום שניתן לבדיקה מכנית (אין <bdi>SQL</bdi> גולמי מחוץ לשכבה). התוצאה הצפויה משלב המיפוי היא רשימה מלאה של נקודות שינוי; אם הרשימה נראית חסרה, עצרו ותקנו אותה לפני הביצוע, כי מיפוי חסר הוא הכשל המרכזי של Migrations. ב-Migrations גדולים באמת, שאינם נכנסים ל-<bdi>Session</bdi> אחד, פרק 35 מציג עבודה בשלבים ובמקביל, כולל פיזור העבודה על פני הרצות נפרדות.</p>
+
+  <h3 id="p-deps">12. שדרוג Dependencies</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Upgrade fastapi and pydantic in backend/requirements.txt to the
+latest stable versions.
+
+Before changing anything, list: current versions, target
+versions, and any breaking changes between them that affect our
+code (check the official changelogs). Then apply the upgrade, fix
+any deprecation warnings our code triggers, and run the full test
+suite. If a breaking change requires a design decision, stop and
+ask me instead of guessing.</code></pre>
+  </div>
+  <p>שדרוג <bdi>Dependencies</bdi> הוא משימה ש-Claude Code מצטיין בה, בתנאי שמחייבים אותו לבדוק את פערי הגרסאות לפני הנגיעה בקוד: הכלי יכול להביא את ה-<bdi>Changelogs</bdi> הרשמיים עם <bdi>WebFetch</bdi>. השורה האחרונה חשובה במיוחד: היא מגדירה נקודת עצירה במקום ניחוש בהחלטות תכנון. שימו לב שהרצת ההתקנה עצמה (<code>pip install</code>) תבקש את אישורכם, כמו כל פקודת <bdi>Bash</bdi> משנה.</p>
+
+  <h2 id="free-vs-slash">מתי Prompt חופשי ומתי Slash Command</h2>
+  <p>בפרק 4 הכרנו את פקודות ה-<bdi>/</bdi>: פקודות מובנות (כמו <code>/clear</code> ו-<code>/model</code>) ו-<bdi>Skills</bdi> שמופעלים בפקודה (כמו <code>/code-review</code>). מתי בוחרים בפקודה ומתי בהנחיה חופשית?</p>
+  <ul>
+    <li><strong>פעולות על הכלי עצמו: תמיד פקודה.</strong> ניקוי <bdi>Context</bdi>, החלפת מודל, בדיקת הרשאות: אלה פעולות מערכת, לא בקשות מהמודל, ויש להן פקודות ייעודיות (<a href="ch04.html">פרק 4</a>).</li>
+    <li><strong>משימה חד פעמית או ייחודית: Prompt חופשי.</strong> כל מה שראינו בפרק הזה. הגמישות של שפה חופשית היא בדיוק היתרון.</li>
+    <li><strong>משימה שחוזרת על עצמה: הפכו אותה ל-Skill.</strong> הכלל הרשמי: אם אתם מקלידים את אותה הנחיה בפעם השלישית, שמרו אותה כ-<bdi>Skill</bdi> שמופעל ב-<code>/name</code>. כך התהליך מקבל שם, גרסה, ושיתוף עם הצוות (פרק 21).</li>
+    <li><strong>כלל שחייב לחול תמיד: לא Prompt בכלל.</strong> הנחיה היא בקשה, לא אכיפה. כלל כמו "לעולם אל תערוך את <code>.env</code>" שייך ל-<bdi>Hook</bdi> או לכלל <bdi>Permissions</bdi>, שפועלים באופן דטרמיניסטי (פרקים 18 ו-22).</li>
+  </ul>
+
+  <h2 id="cost-context">שיקולי Context ועלות בניסוח</h2>
+  <p>הנחיה טובה היא גם הנחיה חסכונית. כמה כללי אצבע, כולם נגזרים מהעיקרון הרשמי שה-<bdi>Context Window</bdi> הוא המשאב החשוב ביותר לניהול:</p>
+  <ul>
+    <li><strong>הנחיה ארוכה זולה מאיטרציה מיותרת.</strong> תוספת של עשרים שורות מבנה להנחיה היא זניחה לעומת סיבוב תיקון שלם, שגורר קריאות קבצים, הרצות פקודות ופלטים שכולם נשארים בחלון.</li>
+    <li><strong>הפניית <code>@</code> טוענת את הקובץ כולו לשיחה.</strong> זה מצוין לקובץ שהמשימה באמת עוסקת בו, ובזבוז לקבצים "אולי רלוונטיים". כשאינכם בטוחים, תנו לכלי לאתר לבד עם <bdi>Grep</bdi> ו-<bdi>Glob</bdi>: הוא יקרא רק את מה שנחוץ.</li>
+    <li><strong>קצצו לוגים לפני הדבקה.</strong> במקום להדביק קובץ לוג שלם, הזרימו את הסוף הרלוונטי, למשל <code>tail -200 app.log | claude -p "..."</code> בהרצה לא אינטראקטיבית, או הדביקו רק את קטע השגיאה.</li>
+    <li><strong>מחקר רחב שייך ל-Subagent.</strong> כפי שראינו: חקירה שקוראת עשרות קבצים ממלאת את החלון הראשי; <bdi>Subagent</bdi> מחזיר סיכום בלבד.</li>
+    <li><strong>שאלת אגב לא חייבת להיכנס להיסטוריה.</strong> לשאלה צדדית תוך כדי עבודה קיימת הפקודה <code>/btw</code>: התשובה מוצגת בשכבה נפרדת ואינה נכנסת להיסטוריית השיחה, כך שהיא אינה צורכת <bdi>Context</bdi> מהמשימה המרכזית.</li>
+    <li><strong>עקבו אחרי המילוי.</strong> הפקודה <code>/context</code> מציגה מה תופס מקום בחלון. אם אתם מתקרבים לקצה באמצע משימה, עדיף לסכם ולפתוח <bdi>Session</bdi> נקי מאשר להיאבק בחלון מלא (פרק 14).</li>
+  </ul>
+
+  <h2 id="mistakes">שגיאות נפוצות בניסוח, וכיצד לתקן</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>שגיאה</th><th>איך היא נראית</th><th>התיקון</th></tr></thead>
+      <tbody>
+        <tr><td>בקשה עמומה</td><td class="ltr"><code>improve the code</code></td><td>הגדירו תסמין, יעד ומדד: מה בדיוק לא טוב היום, ומה ייחשב טוב</td></tr>
+        <tr><td>Prompt "כיור מטבח"</td><td>תיקון <bdi>Bug</bdi> + <bdi>Refactoring</bdi> + שדרוג + תיעוד בהנחיה אחת</td><td>משימה אחת בכל פעם; בין משימות לא קשורות הריצו <code>/clear</code></td></tr>
+        <tr><td>בלי Acceptance Criteria</td><td>"תוסיף <bdi>Validation</bdi>" בלי להגדיר מה תקין ומה לא</td><td>רשימת טענות ניתנות לבדיקה, עדיף כ-<bdi>Test Cases</bdi> קונקרטיים</td></tr>
+        <tr><td>בלי דרך אימות</td><td>הכלי מסיים ואתם "מקווים שזה עובד"</td><td>ציינו פקודת בדיקה ופלט צפוי; דרשו לראות את הפלט</td></tr>
+        <tr><td>תיקונים אין סופיים</td><td>סיבוב תיקון שלישי על אותה בעיה באותו <bdi>Session</bdi></td><td>אחרי שני כישלונות: <code>/clear</code> והנחיה חדשה שמשלבת את הלקחים</td></tr>
+        <tr><td>חקירה בלי גבולות</td><td>"תחקור את המערכת" שממלא את ה-<bdi>Context</bdi> בעשרות קבצים</td><td>צמצמו את שאלת המחקר, או האצילו ל-<bdi>Subagent</bdi></td></tr>
+        <tr><td>הסתרת מידע שיש לכם</td><td>יש לכם <bdi>Stack Trace</bdi> ולא הדבקתם אותו</td><td>הדביקו שגיאות, לוגים וצילומי מסך; הפנו לקבצים עם <code>@</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn"><span class="title">אזהרה</span><p>גם ה-<bdi>Prompt</bdi> המושלם אינו פוטר אתכם מקריאת ה-<bdi>Diff</bdi>. מבנה מקצועי מקטין את הסיכוי לטעות, אבל האחריות על מה שנכנס ל-<bdi>Repository</bdi> נשארת שלכם, כפי שראינו בפרק 1.</p></div>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 5.1: מחלש למקצועי</div>
+    <div class="body">
+      <p>לפניכם הנחיה שמפתח שלח ל-Claude Code בפרויקט <bdi>TaskFlow</bdi>:</p>
+      <pre><code>make the tasks API faster and also clean up the code</code></pre>
+      <p>1. זהו לפחות ארבע בעיות בהנחיה הזו, על סמך הפרק.</p>
+      <p>2. כתבו מחדש את החלק של הביצועים בלבד כ-<bdi>Prompt</bdi> מקצועי מלא לפי מבנה שמונת הרכיבים. הניחו שמדדתם: <code>GET /tasks</code> עם 10,000 משימות לוקח כ-900ms, והיעד הוא מתחת ל-250ms.</p>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>חלק 1: הבעיות.</strong> (א) שתי משימות לא קשורות בהנחיה אחת: אופטימיזציה ו"ניקוי קוד" הן עבודות שונות עם קריטריונים שונים, וה-<bdi>Diff</bdi> המשולב יהיה קשה לסקירה. (ב) "faster" בלי מדד: אין <bdi>Baseline</bdi>, אין יעד, ואי אפשר לדעת אם הצלחנו. (ג) "clean up" עמום לחלוטין: לפי איזה קריטריון? (ד) אין <bdi>Scope</bdi>: לא ברור באילו קבצים מותר לגעת. (ה) אין <bdi>Verification</bdi>: לא הוגדרה שום בדיקה. (ו) אין <bdi>Out of Scope</bdi>: הכלי עלול "לשפר" גם את מה שעובד.</p>
+      <p><strong>חלק 2: ניסוח מקצועי אפשרי.</strong></p>
+      <pre><code>## Context
+TaskFlow backend: FastAPI + SQLite. Routes in
+backend/app/routers/tasks.py, DB access in backend/app/database.py.
+Measured baseline: GET /tasks with 10,000 tasks takes ~900ms.
+
+## Objective
+GET /tasks responds in under 250ms with 10,000 tasks.
+
+## Scope
+backend/app only. Tests may be added under backend/tests.
+
+## Constraints
+No new dependencies. Keep SQLite. Keep the response shape
+identical. Propose options with trade-offs before implementing.
+
+## Acceptance Criteria
+- Measurement script shows p95 under 250ms with 10,000 tasks.
+- All existing tests in backend/tests still pass.
+
+## Verification
+Run the measurement script before and after, run pytest -q,
+and show both outputs.
+
+## Out of Scope
+Code style cleanups, the frontend, and any API changes.
+
+## Required Output
+Bottleneck analysis, chosen option and why, the diff, and the
+before/after numbers.</code></pre>
+      <p>שימו לב ששאלת "ניקוי הקוד" לא נעלמה: היא פשוט תנוסח כמשימת <bdi>Refactoring</bdi> נפרדת (סעיף 5 בספריית התבניות), שתרוץ אחרי שמשימת הביצועים הושלמה ואומתה, רצוי אחרי <code>/clear</code>.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul class="check">
+    <li>Claude Code בנוי לשיחה איטרטיבית, אבל דיוק מראש חוסך סיבובי תיקון ושומר על <bdi>Context</bdi> נקי. אחרי שני תיקונים כושלים: <code>/clear</code> והנחיה טובה יותר.</li>
+    <li>מבנה מומלץ למשימות משמעותיות: <bdi>Context</bdi>, <bdi>Objective</bdi>, <bdi>Scope</bdi>, <bdi>Constraints</bdi>, <bdi>Acceptance Criteria</bdi>, <bdi>Verification</bdi>, <bdi>Out of Scope</bdi>, <bdi>Required Output</bdi>.</li>
+    <li>הרכיבים החזקים ביותר הם קריטריוני הצלחה ודרך אימות: בדיקה שהכלי יכול להריץ בעצמו סוגרת את הלולאה בלי שתהפכו למנגנון הבקרה היחיד.</li>
+    <li>לכל סוג משימה יש תבנית: מהסבר <bdi>Codebase</bdi> ומחקר, דרך <bdi>Bug</bdi>, <bdi>Refactoring</bdi> ו-<bdi>Tests</bdi>, ועד <bdi>Security</bdi>, <bdi>Performance</bdi>, <bdi>Migration</bdi> ושדרוג <bdi>Dependencies</bdi>. התאימו את התבניות לפרויקט שלכם.</li>
+    <li>הנחיה חוזרת הופכת ל-<bdi>Skill</bdi>; פעולה על הכלי עצמו היא פקודת <bdi>/</bdi>; כלל שחייב לחול תמיד שייך ל-<bdi>Hook</bdi> או ל-<bdi>Permissions</bdi>, לא ל-<bdi>Prompt</bdi>.</li>
+    <li>בפרק הבא ניישם את כל זה על משימת הבנה: קריאת <bdi>Repository</bdi> שלם ומיפוי הארכיטקטורה שלו.</li>
+  </ul>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/best-practices">Best Practices for Claude Code</a> |
+      <a href="https://code.claude.com/docs/en/common-workflows">Common Workflows</a> |
+      <a href="https://code.claude.com/docs/en/prompt-library">Prompt Library</a> |
+      <a href="https://code.claude.com/docs/en/how-claude-code-works">How Claude Code Works</a>
+      <br>נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch04.html"><span class="lbl">הפרק הקודם</span>פרק 4: פקודות בסיסיות ו-Slash Commands</a>
+    <a href="ch06.html"><span class="lbl">הפרק הבא</span>פרק 6: קריאת Repository והבנת Architecture</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

@@ -1,0 +1,359 @@
+/* =========================================================
+   claude-code-guide: guide.css
+   RTL Hebrew guide stylesheet. Code/commands/paths are LTR.
+   ========================================================= */
+
+:root {
+  --bg: #faf9f7;
+  --bg-alt: #ffffff;
+  --ink: #1a1a1a;
+  --ink-soft: #444444;
+  --muted: #6b6b6b;
+  --accent: #b4552d;        /* terracotta */
+  --accent-soft: #f3e3da;
+  --line: #e4e0da;
+  --code-bg: #f4f2ef;
+  --code-border: #e0dcd5;
+  --note-bg: #eef3f7;  --note-border: #4a7ba6;
+  --tip-bg: #eef5ee;   --tip-border: #4c7f52;
+  --warn-bg: #fdf3e2;  --warn-border: #c98a2b;
+  --danger-bg: #faeae8;--danger-border: #b0392e;
+  --src-bg: #f4f0fa;   --src-border: #6e5aa0;
+  --radius: 10px;
+  --content-width: 860px;
+  --font-he: "Segoe UI", "Helvetica Neue", Arial, "Noto Sans Hebrew", "David Libre", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  direction: rtl;
+  text-align: right;
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-he);
+  font-size: 17px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- layout ---------- */
+.page {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+
+header.site {
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+header.site .inner {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+header.site .brand {
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 1.02em;
+}
+header.site nav a {
+  color: var(--ink-soft);
+  text-decoration: none;
+  margin-inline-start: 18px;
+  font-size: .95em;
+}
+header.site nav a:hover { color: var(--accent); }
+
+/* ---------- typography ---------- */
+h1, h2, h3, h4 { line-height: 1.35; color: var(--ink); }
+h1 { font-size: 1.9em; margin: 1.2em 0 .4em; }
+h2 {
+  font-size: 1.45em;
+  margin: 2em 0 .5em;
+  padding-bottom: .25em;
+  border-bottom: 2px solid var(--accent-soft);
+}
+h3 { font-size: 1.18em; margin: 1.6em 0 .4em; }
+h4 { font-size: 1.02em; margin: 1.3em 0 .3em; color: var(--ink-soft); }
+
+p { margin: .8em 0; }
+a { color: var(--accent); }
+a:hover { text-decoration: none; }
+
+.kicker {
+  color: var(--muted);
+  font-size: .9em;
+  letter-spacing: .02em;
+  margin-bottom: .2em;
+}
+.lead { font-size: 1.08em; color: var(--ink-soft); }
+
+ul, ol { padding-inline-start: 1.6em; padding-inline-end: 0; }
+li { margin: .35em 0; }
+
+hr { border: 0; border-top: 1px solid var(--line); margin: 2.5em 0; }
+
+/* ---------- LTR: code, commands, paths ---------- */
+pre, code, kbd, samp, .terminal, .ltr {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: embed;
+  font-family: var(--font-mono);
+}
+
+code, kbd {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 5px;
+  padding: .08em .38em;
+  font-size: .86em;
+  unicode-bidi: isolate;   /* keeps punctuation on the correct side inside RTL text */
+  overflow-wrap: anywhere; /* long inline commands may break instead of overflowing on narrow screens */
+}
+pre code { overflow-wrap: normal; white-space: pre; }
+
+kbd {
+  background: #fff;
+  border-bottom-width: 2px;
+  box-shadow: inset 0 -1px 0 var(--code-border);
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  overflow-x: auto;
+  font-size: .84em;
+  line-height: 1.55;
+}
+pre code { background: none; border: 0; padding: 0; font-size: 1em; }
+
+.codeblock { margin: 1.1em 0; }
+.codeblock .codehead {
+  direction: ltr;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: .74em;
+  color: var(--muted);
+  background: #ece9e4;
+  border: 1px solid var(--code-border);
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 6px 14px;
+}
+.codeblock .codehead + pre { border-radius: 0 0 var(--radius) var(--radius); margin-top: 0; }
+
+.terminal {
+  background: #23211e;
+  color: #e8e4dd;
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  overflow-x: auto;
+  font-size: .84em;
+  line-height: 1.55;
+}
+.terminal .p { color: #8fc7a6; }        /* prompt */
+.terminal .out { color: #b9b3a9; }      /* output */
+
+/* English term inside Hebrew sentence */
+bdi, .en { unicode-bidi: isolate; }
+
+/* ---------- callouts ---------- */
+.callout {
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin: 1.3em 0;
+  border-inline-start: 4px solid;
+}
+.callout > .title { font-weight: 700; margin-bottom: .3em; display: block; }
+.callout p:first-child { margin-top: 0; }
+.callout p:last-child { margin-bottom: 0; }
+.callout.note   { background: var(--note-bg);   border-color: var(--note-border); }
+.callout.tip    { background: var(--tip-bg);    border-color: var(--tip-border); }
+.callout.warn   { background: var(--warn-bg);   border-color: var(--warn-border); }
+.callout.danger { background: var(--danger-bg); border-color: var(--danger-border); }
+.callout.source { background: var(--src-bg);    border-color: var(--src-border); font-size: .92em; }
+
+/* status badges */
+.badge {
+  display: inline-block;
+  font-size: .72em;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: .1em .7em;
+  vertical-align: middle;
+  unicode-bidi: isolate;
+}
+.badge.stable  { background: #e3efe4; color: #2c5e33; }
+.badge.beta    { background: #fdf0d7; color: #8a5a12; }
+.badge.preview { background: #e8e2f5; color: #4d3a85; }
+.badge.exp     { background: #fbe5e0; color: #93362b; }
+.badge.dep     { background: #eeeeee; color: #666666; }
+
+/* ---------- tables ---------- */
+.tablewrap { overflow-x: auto; margin: 1.2em 0; border-radius: var(--radius); border: 1px solid var(--line); }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: var(--bg-alt);
+  font-size: .92em;
+}
+th, td {
+  border-bottom: 1px solid var(--line);
+  padding: 9px 14px;
+  text-align: right;
+  vertical-align: top;
+}
+th { background: #f1eee9; font-weight: 700; }
+tr:last-child td { border-bottom: 0; }
+td.ltr, th.ltr, td code { direction: ltr; text-align: left; }
+td.c, th.c { text-align: center; }
+
+/* ---------- exercises / verification ---------- */
+.exercise, .solution, .verify {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin: 1.4em 0;
+  background: var(--bg-alt);
+}
+.exercise > .head, .solution > .head, .verify > .head {
+  padding: 10px 18px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--line);
+  background: #f6f3ef;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.exercise > .body, .solution > .body, .verify > .body { padding: 6px 18px 14px; }
+details.solution summary {
+  cursor: pointer;
+  padding: 10px 18px;
+  font-weight: 700;
+  background: #f6f3ef;
+  border-radius: var(--radius);
+}
+details.solution[open] summary { border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; }
+details.solution .body { padding: 6px 18px 14px; }
+
+/* checklist */
+ul.check { list-style: none; padding-inline-start: 0; }
+ul.check li { padding-inline-start: 1.7em; position: relative; }
+ul.check li::before {
+  content: "✓";
+  color: var(--tip-border);
+  font-weight: 700;
+  position: absolute;
+  inset-inline-start: 0;
+}
+
+/* ---------- figures / diagrams ---------- */
+figure { margin: 1.6em 0; text-align: center; }
+figure img, figure svg, figure object { max-width: 100%; height: auto; }
+figcaption { color: var(--muted); font-size: .88em; margin-top: .5em; }
+.diagram { background: var(--bg-alt); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+
+/* ---------- chapter navigation ---------- */
+.chapnav {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 3em 0 0;
+  padding-top: 1.4em;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.chapnav a {
+  text-decoration: none;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 18px;
+  color: var(--ink-soft);
+  max-width: 48%;
+}
+.chapnav a:hover { border-color: var(--accent); color: var(--accent); }
+.chapnav .lbl { display: block; font-size: .78em; color: var(--muted); }
+
+/* in-page TOC */
+nav.toc {
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  margin: 1.5em 0;
+  font-size: .93em;
+}
+nav.toc .toc-title { font-weight: 700; margin-bottom: .4em; }
+nav.toc ol { margin: 0; padding-inline-start: 1.3em; }
+
+/* index page chapter cards */
+.partblock { margin: 2.2em 0; }
+.chaplist { list-style: none; padding: 0; }
+.chaplist li {
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin: .5em 0;
+}
+.chaplist a {
+  display: block;
+  padding: 11px 18px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.chaplist a:hover { color: var(--accent); }
+.chaplist .num { color: var(--muted); font-size: .85em; margin-inline-end: .7em; display: inline-block; unicode-bidi: isolate; }
+
+/* meta box (research date etc.) */
+.metabox {
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  font-size: .9em;
+  margin: 1.5em 0;
+}
+.metabox dt { font-weight: 700; float: right; margin-inline-end: .5em; }
+.metabox dd { margin: 0 0 .35em 0; }
+
+/* footer */
+footer.site {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .85em;
+  padding: 20px 24px 40px;
+  text-align: center;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .page { padding: 0 14px 60px; }
+  header.site nav a { margin-inline-start: 10px; font-size: .88em; }
+  h1 { font-size: 1.55em; }
+  h2 { font-size: 1.3em; }
+  .chapnav a { max-width: 100%; }
+  pre, .terminal { font-size: .8em; }
+}
+
+/* ---------- print ---------- */
+@media print {
+  header.site, .chapnav, footer.site { display: none; }
+  body { background: #fff; }
+  pre, .terminal { white-space: pre-wrap; }
+}

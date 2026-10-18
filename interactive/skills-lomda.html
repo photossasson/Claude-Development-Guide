@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>בונים Skill ב-Claude</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="לומדה אינטראקטיבית בעברית: איך יוצרים Skill ב-Claude, עם דוגמה מלאה שנבדקה בפועל.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Secular+One&display=swap">
+<style>
+/* Layout: sticky progress header; topic map on the start side, one topic at a time in the main column.
+   Motif: every topic opens with a yellow "---" frontmatter fence, because that is what Claude reads first. */
+:root{
+  --paper:#F1F4F5; --surface:#FFFFFF; --sunken:#E5EBED; --ink:#13202A; --ink-2:#3C4B56; --ink-3:#5F6E78; --line:#CCD7DB;
+  --accent:#2C45C4; --accent-ink:#FFFFFF; --accent-soft:#E2E7FA;
+  --marker:#F4D447; --marker-ink:#2E2500;
+  --ok:#147548; --ok-soft:#DBF1E6; --warn:#8F5300; --warn-soft:#FAEACB; --bad:#AE242A; --bad-soft:#F7DEDF;
+  --code-bg:#0F1A22; --code-fg:#DAE5EA; --code-dim:#86A0AE; --code-key:#F4D447; --code-str:#93D8BB;
+  --f-display:"Secular One","IBM Plex Sans Hebrew",Arial,sans-serif;
+  --f-body:"IBM Plex Sans Hebrew","Segoe UI",Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0D151B; --surface:#14202A; --sunken:#1A2833; --ink:#E3EBEE; --ink-2:#B2C0C7; --ink-3:#8698A2; --line:#293A45;
+  --accent:#8FA3FF; --accent-ink:#0A0F22; --accent-soft:#1D2750;
+  --marker:#E8C93A; --marker-ink:#191400;
+  --ok:#5ED09C; --ok-soft:#113428; --warn:#F1B65E; --warn-soft:#382810; --bad:#FF8C91; --bad-soft:#3B191C;
+  --code-bg:#091117; --code-fg:#DAE5EA; --code-dim:#7F98A5; --code-key:#E8C93A; --code-str:#93D8BB;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0D151B; --surface:#14202A; --sunken:#1A2833; --ink:#E3EBEE; --ink-2:#B2C0C7; --ink-3:#8698A2; --line:#293A45;
+  --accent:#8FA3FF; --accent-ink:#0A0F22; --accent-soft:#1D2750;
+  --marker:#E8C93A; --marker-ink:#191400;
+  --ok:#5ED09C; --ok-soft:#113428; --warn:#F1B65E; --warn-soft:#382810; --bad:#FF8C91; --bad-soft:#3B191C;
+  --code-bg:#091117; --code-fg:#DAE5EA; --code-dim:#7F98A5; --code-key:#E8C93A; --code-str:#93D8BB;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{direction:rtl}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16.5px;line-height:1.7;direction:rtl;text-align:right}
+a{color:var(--accent);text-underline-offset:3px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+h1,h2,h3,h4{font-family:var(--f-display);font-weight:400;line-height:1.25;text-wrap:balance;margin:0}
+h2{font-size:clamp(1.55rem,2.6vw,2.05rem)}
+h3{font-size:1.25rem;margin-top:.4rem}
+h4{font-size:1.05rem}
+p{margin:0}
+code,kbd,pre,samp,.ltr{direction:ltr;unicode-bidi:isolate;text-align:left}
+code{font-family:var(--f-mono);font-size:.88em;background:var(--sunken);padding:.08em .38em;border-radius:5px;overflow-wrap:anywhere}
+kbd{font-family:var(--f-mono);font-size:.85em;border:1px solid var(--line);border-bottom-width:2px;padding:0 .35em;border-radius:5px;background:var(--surface)}
+.ui{unicode-bidi:isolate;direction:ltr;font-weight:600;background:var(--accent-soft);color:var(--ink);padding:0 .35em;border-radius:5px;white-space:nowrap}
+.muted{color:var(--ink-3)}
+.small{font-size:.9rem}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.top-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:16px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{font-family:var(--f-display);font-size:1.1rem;color:var(--ink);text-decoration:none;white-space:nowrap}
+.brand b{background:var(--marker);color:var(--marker-ink);font-weight:400;padding:0 .3em;border-radius:4px;margin-inline-start:.25em}
+.prog{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
+.prog-bar{flex:1;height:8px;background:var(--sunken);border-radius:99px;overflow:hidden}
+.prog-bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .3s}
+.prog-label{font-size:.85rem;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.theme-btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:4px 10px;font:inherit;font-size:.85rem;cursor:pointer}
+
+/* shell */
+.shell{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:270px minmax(0,1fr);gap:32px;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.map{position:sticky;top:calc(env(safe-area-inset-top,0px) + 72px);align-self:start;max-height:calc(100vh - 96px);overflow:auto}
+.map details>summary{display:none}
+.map h2{font-size:1rem;color:var(--ink-3);font-family:var(--f-body);font-weight:600;letter-spacing:.02em;margin:18px 0 6px}
+.map ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.map a{display:flex;gap:10px;align-items:baseline;padding:7px 10px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:.95rem;line-height:1.4}
+.map a .n{font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);min-width:1.6em;font-variant-numeric:tabular-nums}
+.map a:hover{background:var(--sunken)}
+.map a[aria-current="page"]{background:var(--accent-soft);color:var(--ink);font-weight:600}
+.map a.done .n::after{content:" ✓";color:var(--ok)}
+.map .start-link{font-weight:600}
+
+/* topics */
+main{min-width:0}
+.topic{display:grid;gap:26px;scroll-margin-top:90px}
+.fence{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:0;overflow:hidden}
+.fence .bar{height:22px;background:var(--marker);color:var(--marker-ink);font-family:var(--f-mono);font-size:.8rem;display:flex;align-items:center;padding-inline:14px;direction:ltr;justify-content:flex-end;letter-spacing:.2em}
+.fence .in{padding:20px 22px;display:grid;gap:10px}
+.kicker{font-size:.85rem;letter-spacing:.02em;color:var(--ink-3);direction:rtl}
+.kicker b{color:var(--ink-2);font-weight:500}
+.lead{font-size:1.08rem;color:var(--ink-2);max-width:70ch}
+.goal{font-size:.95rem;color:var(--ink-2);border-top:1px dashed var(--line);padding-top:10px}
+.goal strong{color:var(--ink)}
+.prose{display:grid;gap:14px;max-width:72ch}
+.prose ul,.prose ol{margin:0;padding-inline-start:1.3em;display:grid;gap:6px}
+.block{display:grid;gap:14px}
+.block-title{font-size:.88rem;font-weight:600;color:var(--ink-3);letter-spacing:.02em}
+
+.callout{border-radius:var(--r);padding:14px 16px;display:grid;gap:6px;border:1px solid var(--line);background:var(--surface);max-width:78ch}
+.callout .t{font-weight:700}
+.callout.note{border-inline-start:5px solid var(--accent)}
+.callout.warn{border-inline-start:5px solid var(--warn);background:var(--warn-soft);border-color:transparent}
+.callout.danger{border-inline-start:5px solid var(--bad);background:var(--bad-soft);border-color:transparent}
+.callout.ok{border-inline-start:5px solid var(--ok);background:var(--ok-soft);border-color:transparent}
+.callout.src{font-size:.92rem;background:var(--sunken);border-color:transparent}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.flip{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:16px;text-align:right;font:inherit;color:inherit;cursor:pointer;display:grid;gap:8px;align-content:start;min-height:100%}
+.flip:hover{border-color:var(--accent)}
+.flip .term{font-family:var(--f-display);font-size:1.25rem;direction:ltr;text-align:right}
+.flip .hint{font-size:.85rem;color:var(--ink-3)}
+.flip .back{font-size:.95rem;color:var(--ink-2)}
+.flip[aria-expanded="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.flip[aria-expanded="true"] .hint{display:none}
+
+/* tabs */
+.tabs{display:grid;gap:0}
+.tablist{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--line);padding-bottom:0}
+.tablist button{font:inherit;font-size:.95rem;border:1px solid var(--line);border-bottom:none;background:var(--sunken);color:var(--ink-2);padding:7px 14px;border-radius:8px 8px 0 0;cursor:pointer;margin-bottom:-1px}
+.tablist button[aria-selected="true"]{background:var(--surface);color:var(--ink);font-weight:600;border-color:var(--line)}
+.tabpanel{background:var(--surface);border:1px solid var(--line);border-top:none;border-radius:0 0 var(--r) var(--r);padding:18px;display:grid;gap:12px;min-width:0}
+
+/* steps */
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:10px;counter-reset:s}
+.steps>li{counter-increment:s;display:grid;grid-template-columns:2.1em minmax(0,1fr);gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.steps>li::before{content:counter(s);font-family:var(--f-mono);font-weight:500;background:var(--ink);color:var(--paper);border-radius:50%;width:2em;height:2em;display:grid;place-items:center;font-size:.85rem}
+.steps .when{display:block;font-size:.83rem;color:var(--ink-3)}
+.tag{display:inline-block;font-size:.75rem;font-weight:600;padding:0 .5em;border-radius:99px;margin-inline-start:.4em;vertical-align:.1em}
+.tag.doc{background:var(--ok-soft);color:var(--ok)}
+.tag.sug{background:var(--warn-soft);color:var(--warn)}
+
+/* code */
+.code{background:var(--code-bg);color:var(--code-fg);border-radius:var(--r);overflow:hidden;min-width:0}
+.code-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 12px;background:rgba(255,255,255,.06);font-family:var(--f-mono);font-size:.8rem;color:var(--code-dim);direction:ltr}
+.code pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--f-mono);font-size:.84rem;line-height:1.6;white-space:pre}
+.code pre code{background:none;padding:0;font-size:inherit;color:inherit}
+.copy{font:inherit;font-family:var(--f-body);font-size:.8rem;background:var(--code-key);color:#1A1500;border:none;border-radius:6px;padding:3px 10px;cursor:pointer;direction:rtl}
+.prompt{background:var(--surface);border:1px dashed var(--accent);border-radius:var(--r);padding:14px 16px;display:grid;gap:10px}
+.prompt .ptext{white-space:pre-wrap;font-size:.98rem}
+.prompt .row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.prompt .copy{background:var(--accent);color:var(--accent-ink)}
+.k{color:var(--code-key)} .s{color:var(--code-str)} .c{color:var(--code-dim)}
+
+/* tables */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.93rem;min-width:560px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;text-align:right}
+th{background:var(--sunken);font-weight:600;font-size:.88rem}
+tr:last-child td{border-bottom:none}
+
+/* tree explorer */
+.explorer{display:grid;grid-template-columns:240px minmax(0,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.tree{background:var(--sunken);padding:12px 6px;direction:ltr;font-family:var(--f-mono);font-size:.86rem;display:grid;align-content:start;gap:2px}
+.tree .dir{padding:4px 10px;color:var(--ink-3)}
+.tree button{font:inherit;text-align:left;border:none;background:none;color:var(--ink-2);padding:5px 10px;border-radius:6px;cursor:pointer;border-left:3px solid transparent}
+.tree button[aria-pressed="true"]{background:var(--surface);color:var(--ink);border-left-color:var(--accent);font-weight:500}
+.tree .d1{padding-left:26px}
+.tree .d2{padding-left:42px}
+.explain{padding:16px;display:grid;gap:12px;min-width:0}
+
+/* line walkthrough */
+.walk{display:grid;gap:6px}
+.wline{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.wline>code{display:block;background:var(--code-bg);color:var(--code-fg);border-radius:0;padding:8px 12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.82rem}
+.wline p{padding:8px 12px;font-size:.92rem;color:var(--ink-2)}
+
+/* forms */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:14px;min-width:0}
+.field{display:grid;gap:5px}
+.field label{font-weight:600;font-size:.93rem}
+.field .help{font-size:.84rem;color:var(--ink-3)}
+input[type="text"],textarea,select{font:inherit;font-size:.95rem;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+textarea{min-height:130px;resize:vertical}
+input.ltrin,textarea.ltrin{direction:ltr;text-align:left;font-family:var(--f-mono);font-size:.88rem}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.checks li{display:grid;grid-template-columns:1.6em minmax(0,1fr);gap:6px;font-size:.93rem}
+.checks li::before{font-weight:700}
+.checks li.pass::before{content:"✓";color:var(--ok)}
+.checks li.fail::before{content:"✗";color:var(--bad)}
+.checks li.warn::before{content:"!";color:var(--warn)}
+.meter{display:grid;gap:4px}
+.meter .track{height:10px;border-radius:99px;background:var(--sunken);overflow:hidden;direction:ltr}
+.meter .track i{display:block;height:100%;background:var(--ok)}
+.meter .track i.over{background:var(--bad)}
+.meter .lbl{display:flex;justify-content:space-between;font-size:.82rem;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.btn{font:inherit;font-weight:600;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px}
+.choice{display:flex;flex-wrap:wrap;gap:8px}
+.choice label{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:99px;padding:5px 12px;cursor:pointer;font-size:.92rem;background:var(--paper)}
+.choice input{accent-color:var(--accent)}
+
+/* findings */
+.findings{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.findings li{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:10px;align-items:baseline;background:var(--paper);border-radius:8px;padding:7px 10px;font-size:.92rem}
+.findings .pos{font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);direction:ltr}
+.code-tag{font-family:var(--f-mono);font-size:.78rem;font-weight:500;padding:0 .45em;border-radius:5px}
+.code-tag.E{background:var(--bad-soft);color:var(--bad)}
+.code-tag.W{background:var(--warn-soft);color:var(--warn)}
+.status{font-weight:600}
+.status.ok{color:var(--ok)} .status.bad{color:var(--bad)}
+
+/* quiz & sorter */
+.q{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:10px}
+.q .opts{display:grid;gap:6px}
+.q .opts button{font:inherit;text-align:right;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:8px;padding:9px 12px;cursor:pointer}
+.q .opts button.right{border-color:var(--ok);background:var(--ok-soft)}
+.q .opts button.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.q .fb{font-size:.93rem;color:var(--ink-2)}
+.score{font-weight:600}
+
+/* disclosure diagram */
+.levels{display:grid;gap:12px}
+.ctx{display:grid;gap:6px;direction:ltr}
+.ctx .slot{display:flex;align-items:center;gap:10px;direction:rtl;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--paper);transition:background .2s,border-color .2s}
+.ctx .slot .sz{margin-inline-start:auto;font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);direction:ltr}
+.ctx .slot.on{background:var(--accent-soft);border-color:var(--accent)}
+.ctx .slot.off{opacity:.55}
+.ctx .slot .dot{width:10px;height:10px;border-radius:50%;background:var(--line);flex:none}
+.ctx .slot.on .dot{background:var(--accent)}
+
+/* zip compare */
+.zips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.zip{border-radius:var(--r);padding:14px;display:grid;gap:8px}
+.zip.good{background:var(--ok-soft)} .zip.bad{background:var(--bad-soft)}
+.zip pre{margin:0;font-family:var(--f-mono);font-size:.84rem;direction:ltr;text-align:left;white-space:pre;overflow-x:auto}
+
+details.acc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+details.acc>summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style-position:inside}
+details.acc>div{padding:0 16px 14px;display:grid;gap:10px}
+details.solution{border:1px dashed var(--ok);border-radius:var(--r);background:var(--surface)}
+details.solution>summary{cursor:pointer;padding:10px 14px;font-weight:600;color:var(--ok)}
+details.solution>div{padding:0 14px 14px;display:grid;gap:10px}
+.exercise{border:2px solid var(--ink);border-radius:var(--r);padding:16px;display:grid;gap:10px;background:var(--surface)}
+.exercise .h{font-family:var(--f-display);font-size:1.1rem}
+
+.nav-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:18px}
+.nav-foot .btn{min-width:150px}
+.checklist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.checklist label{display:grid;grid-template-columns:1.4em minmax(0,1fr);gap:8px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer}
+.checklist input{accent-color:var(--ok);margin-top:.35em}
+
+/* start screen */
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:28px;align-items:center}
+.hero h1{font-size:clamp(2.1rem,4.6vw,3.3rem)}
+.hero h1 span{background:linear-gradient(transparent 62%,var(--marker) 62%);padding:0 .1em}
+.folder{background:var(--surface);border:1px solid var(--line);border-radius:4px var(--r) var(--r) var(--r);position:relative;padding:18px;margin-top:22px;box-shadow:0 8px 24px rgba(19,32,42,.08)}
+.folder::before{content:"checking-hebrew-style/";position:absolute;top:-24px;right:-1px;font-family:var(--f-mono);font-size:.78rem;background:var(--marker);color:var(--marker-ink);padding:3px 12px;border-radius:8px 8px 0 0;direction:ltr}
+.frows{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.frows li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px;align-items:baseline;font-size:.9rem}
+.frows .fn{background:none;padding:0;color:var(--ink);font-weight:500;justify-self:start}
+.frows .fn.d{color:var(--ink-3);font-weight:400}
+.frows .fn.i{margin-right:1.4em}
+.frows span{color:var(--ink-2)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.meta div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:.9rem}
+.meta b{display:block;font-size:.78rem;color:var(--ink-3);font-weight:600}
+.parts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.part{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:8px;align-content:start}
+.part ol{margin:0;padding-inline-start:1.2em;font-size:.94rem;color:var(--ink-2)}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:18px}
+  .map{position:static;max-height:none}
+  .map details{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:4px 10px}
+  .map details>summary{display:block;cursor:pointer;padding:8px 4px;font-weight:600}
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .explorer{grid-template-columns:minmax(0,1fr)}
+  .wline{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:520px){
+  .prog-label{display:none}
+  .brand{font-size:1rem}
+  .fence .in{padding:16px}
+  .findings li{grid-template-columns:auto minmax(0,1fr)}
+  .findings .pos{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#start">בונים Skill<b>---</b></a>
+    <div class="prog" aria-live="polite">
+      <div class="prog-bar" aria-hidden="true"><i id="progFill"></i></div>
+      <span class="prog-label" id="progLabel">מסך פתיחה</span>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="החלפת ערכת צבעים">ערכת צבעים</button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="map" aria-label="מפת הלומדה">
+    <details id="mapDetails" open>
+      <summary>מפת הלומדה</summary>
+      <ol><li><a href="#start" class="start-link" data-go="start"><span class="n">00</span>פתיחה</a></li></ol>
+      <h2>חלק א: להבין</h2>
+      <ol>
+        <li><a href="#t1" data-go="t1"><span class="n">01</span>מה זה Skill</a></li>
+        <li><a href="#t2" data-go="t2"><span class="n">02</span>Skill או כלי אחר</a></li>
+        <li><a href="#t3" data-go="t3"><span class="n">03</span>איך Skill נטען ואיפה הוא עובד</a></li>
+      </ol>
+      <h2>חלק ב: לבנות</h2>
+      <ol>
+        <li><a href="#t4" data-go="t4"><span class="n">04</span>הדוגמה: תיקייה ושלושה קבצים</a></li>
+        <li><a href="#t5" data-go="t5"><span class="n">05</span>SKILL.md שורה אחר שורה</a></li>
+        <li><a href="#t6" data-go="t6"><span class="n">06</span>קובץ עזר וסקריפט</a></li>
+        <li><a href="#t7" data-go="t7"><span class="n">07</span>לבנות בשיחה עם Claude</a></li>
+      </ol>
+      <h2>חלק ג: להתקין, לבדוק, לשתף</h2>
+      <ol>
+        <li><a href="#t8" data-go="t8"><span class="n">08</span>התקנה בשלושה מסלולים</a></li>
+        <li><a href="#t9" data-go="t9"><span class="n">09</span>בדיקה, שיפור ותקלות</a></li>
+        <li><a href="#t10" data-go="t10"><span class="n">10</span>בטיחות, שיתוף ותוכנית</a></li>
+      </ol>
+    </details>
+  </nav>
+
+  <main id="main" tabindex="-1">
+
+<!-- ============ START ============ -->
+<section class="topic" id="start" data-title="מסך פתיחה">
+  <div class="hero">
+    <div class="prose">
+      <p class="kicker">לומדה אינטראקטיבית | מדריך פיתוח ב-Claude | עשרה נושאים</p>
+      <h1>בונים <span>Skill</span> ב-Claude, מהרעיון ועד בדיקה</h1>
+      <p class="lead">בלומדה הזו תבנו Skill אמיתי ושלם, שלב אחר שלב: תיקייה עם קובץ <code>SKILL.md</code>, קובץ עזר וסקריפט שרץ. תתקינו אותו ב-Claude (באפליקציה, ב-Claude Code או בשניהם), תבדקו שהוא עובד, ותדעו לתקן אותו כשהוא לא.</p>
+      <p>ה-Skill לדוגמה נקרא <code>checking-hebrew-style</code>. הוא בודק טקסט טכני בעברית ומוצא מקפים ארוכים, רווחים כפולים ופיסוק שגוי סביב מונחים באנגלית. בחרנו בו כי הוא קטן מספיק להבנה מלאה, שימושי באמת, והוא עובד גם באפליקציית Claude וגם ב-Claude Code.</p>
+      <div class="btnrow"><button class="btn" type="button" data-go="t1">בואו נתחיל</button><button class="btn ghost" type="button" data-go="t4">ישר לדוגמה</button></div>
+    </div>
+    <div class="folder" aria-label="מבנה התיקייה של ה-Skill לדוגמה">
+      <ul class="frows">
+        <li><code class="fn">SKILL.md</code><span>הוראות ל-Claude (חובה)</span></li>
+        <li><code class="fn d">references/</code><span></span></li>
+        <li><code class="fn i">rules.md</code><span>הכללים עם דוגמאות</span></li>
+        <li><code class="fn d">scripts/</code><span></span></li>
+        <li><code class="fn i">check_style.py</code><span>הבודק שרץ ומחזיר ממצאים</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div><b>תאריך מחקר</b>15.10.2026</div>
+    <div><b>Claude Code שנבדק</b><span class="ltr">2.1.300</span> (14.10.2026)</div>
+    <div><b>מערכת שנבדקה</b>Linux. הוראות ל-macOS ול-Windows מבוססות על התיעוד</div>
+    <div><b>בדיקה בפועל</b>ה-Skill הותקן והופעל ב-Claude Code, ותיקן קובץ עד אפס ממצאים</div>
+  </div>
+
+  <div class="parts">
+    <div class="part"><h3>חלק א: להבין</h3><ol><li>מה זה Skill</li><li>Skill או כלי אחר</li><li>איך Skill נטען ואיפה הוא עובד</li></ol></div>
+    <div class="part"><h3>חלק ב: לבנות</h3><ol start="4"><li>הדוגמה: תיקייה ושלושה קבצים</li><li><code>SKILL.md</code> שורה אחר שורה</li><li>קובץ עזר וסקריפט</li><li>לבנות בשיחה עם Claude</li></ol></div>
+    <div class="part"><h3>חלק ג: להתקין, לבדוק, לשתף</h3><ol start="8"><li>התקנה בשלושה מסלולים</li><li>בדיקה, שיפור ותקלות</li><li>בטיחות, שיתוף ותוכנית התחלה</li></ol></div>
+  </div>
+
+  <div class="callout note">
+    <span class="t">למי הלומדה מתאימה</span>
+    <p>למי שמשתמש ב-Claude ורוצה ללמד אותו לעבוד בדרך קבועה. אין צורך לדעת לתכנת: אפשר ליצור Skill בשיחה עם Claude (נושא 7). מי שעובד עם Claude Code יקבל בנוסף את כל הפקודות להתקנה ולבדיקה מהמסוף. זו לומדה משלימה ל<a href="../chapters/ch21.html">פרק 21: Skills</a> במדריך, שמעמיק בכל שדות ה-Frontmatter ובחמישה Skills נוספים.</p>
+  </div>
+</section>
+
+<!-- ============ T1 ============ -->
+<section class="topic" id="t1" data-title="מה זה Skill" hidden>
+  <div class="fence"><div class="bar">---</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 01</p>
+    <h2>מה זה Skill?</h2>
+    <p class="lead">Skill הוא תיקייה עם הוראות, ולפעמים גם קבצי עזר וסקריפטים, ש-Claude טוען רק כשהמשימה שלכם מתאימה לה. כותבים את הנוהל פעם אחת, ו-Claude מיישם אותו בכל פעם שצריך.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> ממה בנוי Skill, למה הוא חוסך עבודה ומקום בשיחה, ואילו שלושה מונחים חוזרים לאורך כל הלומדה.</p>
+  </div><div class="bar">---</div></div>
+
+  <div class="prose">
+    <p><strong>ההגדרה הרשמית בקצרה.</strong> לפי Anthropic, Skills הם תיקיות של הוראות, סקריפטים ומשאבים ש-Claude טוען באופן דינמי כדי לבצע טוב יותר משימות מתמחות. כל Skill מחזיק לפחות קובץ אחד: <code>SKILL.md</code>. בראש הקובץ יש כמה שורות מידע (שם ותיאור), ומתחתן ההוראות עצמן.</p>
+    <p><strong>הבעיה ש-Skill פותר.</strong> אם אתם מדביקים שוב ושוב את אותן הוראות לשיחה, מתקנים את Claude באותו תיקון בכל פעם, או מסבירים לו נוהל של כמה שלבים מחדש, זה בדיוק המקום ל-Skill. התיעוד של Claude Code מגדיר את המצבים האלה כסימן ליצירת Skill.</p>
+    <p><strong>למה זה זול.</strong> Claude לא קורא את כל ה-Skills בכל שיחה. בהתחלה הוא רואה רק את השם והתיאור של כל Skill. את ההוראות המלאות הוא קורא רק כשהבקשה שלכם מתאימה לתיאור, ואת קבצי העזר רק כששלב מסוים מבקש אותם. לכן אפשר להתקין הרבה Skills בלי שהשיחה תתמלא.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">שלושה מונחים שחוזרים בכל הלומדה · לחצו על כרטיס כדי לקרוא</p>
+    <div class="cards">
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Skill</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>תיקייה שמלמדת את Claude לבצע משימה מסוימת בדרך קבועה. שם התיקייה הוא שם ה-Skill, למשל <code>checking-hebrew-style</code>. <strong>מה לעשות עכשיו:</strong> חשבו על משימה אחת שאתם מסבירים ל-Claude שוב ושוב. היא המועמדת הראשונה שלכם.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">SKILL.md</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>הקובץ היחיד שחובה שיהיה בתיקייה. הוא כתוב ב-Markdown, כלומר טקסט רגיל עם סימנים פשוטים לכותרות ולרשימות. <strong>מה לעשות עכשיו:</strong> זכרו ששם הקובץ נכתב בדיוק כך, באותיות גדולות.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Frontmatter</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>השורות בראש <code>SKILL.md</code> שבין שני קווים של <code>---</code>. הן כתובות בפורמט YAML ומכילות את <code>name</code> ואת <code>description</code>. זה החלק היחיד ש-Claude קורא לפני שהוא מחליט אם להשתמש ב-Skill. <strong>מה לעשות עכשיו:</strong> שימו לב לקווים הצהובים בראש כל נושא בלומדה. הם מסמנים בדיוק את החלק הזה.</span></button>
+    </div>
+  </div>
+
+  <div class="callout note">
+    <span class="t">אנלוגיה מהחיים</span>
+    <p>חשבו על מטבח של מסעדה. על הקיר תלוי לוח עם שמות כל המתכונים ושורה קצרה על כל אחד. הטבח לא קורא את כל ספר המתכונים לפני כל מנה: הוא מסתכל בלוח, מזהה את המתכון המתאים להזמנה, ורק אז פותח את הדף המלא. ה-Frontmatter הוא השורה בלוח, גוף <code>SKILL.md</code> הוא דף המתכון, וקבצי העזר הם הנספחים שפותחים רק כשמגיעים לשלב שצריך אותם. זו אנלוגיה שלנו, לא ציטוט מהתיעוד.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">לפני Skill ואחרי Skill · אותה בקשה, שתי תוצאות</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>בלי Skill</th><th>עם <code>checking-hebrew-style</code></th></tr></thead>
+      <tbody>
+        <tr><td>כותבים בכל שיחה: "אל תשתמש במקפים ארוכים, שים רווח אחרי פסיק, כתוב ה-Skill בלי רווחים..."</td><td>כותבים רק "תבדוק את הסגנון בקובץ הזה". Claude מזהה שהבקשה מתאימה לתיאור ומפעיל את ה-Skill.</td></tr>
+        <tr><td>Claude בודק "בעין", ולפעמים מפספס מקף ארוך שנראה כמו מקף רגיל.</td><td>סקריפט בודק כל תו ומחזיר מיקום מדויק: שורה, עמודה וקוד שגיאה.</td></tr>
+        <tr><td>אין דרך לדעת שהתיקון הושלם.</td><td>Claude מריץ את הבודק שוב עד שהוא מחזיר אפס ממצאים.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://support.claude.com/en/articles/12512176-what-are-skills">What are skills?</a> · <a href="https://code.claude.com/docs/en/skills">Extend Claude with skills</a> · <a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview">Agent Skills overview</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T2 ============ -->
+<section class="topic" id="t2" data-title="Skill או כלי אחר" hidden>
+  <div class="fence"><div class="bar">---</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 02</p>
+    <h2>מתי Skill, ומתי כלי אחר?</h2>
+    <p class="lead">ל-Claude יש כמה דרכים "ללמוד" משהו. Skill הוא הנכון כשמדובר בנוהל שחוזר על עצמו. לעובדה קבועה, לאכיפה מוחלטת או למידע חי ממערכת אחרת יש כלים מתאימים יותר.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לבחור בין Skill, הוראות קבועות, Hook, MCP או Connector, Subagent ו-Plugin, ולדעת באיזה מוצר כל אחד קיים.</p>
+  </div><div class="bar">---</div></div>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>כלי</th><th>מה הוא</th><th>מתי נטען</th><th>מתי לבחור בו</th><th>איפה קיים</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Skill</strong></td><td>נוהל או ידע ארוז בתיקייה</td><td>התיאור תמיד, ההוראות רק כשמתאים</td><td>נוהל שחוזר, תבנית קבועה, בדיקה עם סקריפט</td><td>אפליקציית Claude, Claude Code, Claude API</td></tr>
+      <tr><td><strong>הוראות קבועות</strong></td><td>העדפות אישיות והוראות Project באפליקציה, או <code>CLAUDE.md</code> ב-Claude Code</td><td>בכל שיחה, במלואן</td><td>עובדה קצרה שנכונה תמיד, כמו "בפרויקט משתמשים ב-pnpm"</td><td>אפליקציה (העדפות, Projects), Claude Code (<code>CLAUDE.md</code>)</td></tr>
+      <tr><td><strong>MCP או Connector</strong></td><td>חיבור למערכת חיצונית</td><td>כשמחוברים</td><td>מידע חי או פעולות במערכת אחרת: Jira, GitHub, יומן</td><td>אפליקציה (Connectors), Claude Code (MCP)</td></tr>
+      <tr><td><strong>Hook</strong></td><td>סקריפט שרץ באירוע קבוע</td><td>תמיד, באירוע</td><td>כלל שחייב להתקיים בכל מקרה, בלי שיקול דעת של המודל</td><td>Claude Code</td></tr>
+      <tr><td><strong>Subagent</strong></td><td>סוכן נפרד עם הקשר משלו</td><td>כש-Claude מאציל משימה</td><td>חקירה ארוכה שלא צריכה למלא את השיחה הראשית</td><td>Claude Code</td></tr>
+      <tr><td><strong>Plugin</strong></td><td>חבילה שמאגדת Skills ורכיבים נוספים</td><td>בהתקנה</td><td>הפצה של כמה יכולות יחד לצוות או לקהילה</td><td>Claude Code, אפליקציה (Cowork)</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout note"><span class="t">Skill ו-MCP עובדים יחד</span><p>לפי Anthropic, חיבור MCP נותן ל-Claude גישה לכלים, ו-Skill מלמד אותו איך להשתמש בהם נכון. למשל: Connector ל-Jira מאפשר ליצור Ticket, ו-Skill מגדיר באיזה פרויקט, עם אילו תוויות ובאיזו תבנית. Skill לבדו לא יכול להגיע לשירות חיצוני.</p></div>
+
+  <div class="block">
+    <p class="block-title">תרגול: מה הכלי הנכון? · בחרו תשובה לכל מצב</p>
+    <div id="sorter" class="block"></div>
+    <p class="score" id="sorterScore" aria-live="polite"></p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">מתי לא ליצור Skill</p>
+    <div class="prose"><ul>
+      <li><strong>משימה חד-פעמית.</strong> פשוט כתבו אותה בשיחה.</li>
+      <li><strong>עובדה של שורה אחת שרלוונטית תמיד.</strong> מקומה בהוראות הקבועות.</li>
+      <li><strong>כלל שחובה לאכוף בלי יוצא מן הכלל.</strong> Claude מחליט אם להפעיל Skill, ולכן הוא עלול לא להפעיל אותו. ב-Claude Code, כלל כזה שייך ל-Hook.</li>
+      <li><strong>Skill שעושה הכול.</strong> התיעוד ממליץ על Skills ממוקדים, כל אחד לתהליך אחד. Claude יודע לשלב כמה Skills באותה משימה.</li>
+    </ul></div>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://support.claude.com/en/articles/12512176-what-are-skills">What are skills?</a> · <a href="https://claude.com/docs/skills/how-to">Create custom skills</a> · <a href="https://code.claude.com/docs/en/skills">Extend Claude with skills</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T3 ============ -->
+<section class="topic" id="t3" data-title="איך Skill נטען ואיפה הוא עובד" hidden>
+  <div class="fence"><div class="bar">---</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 03</p>
+    <h2>איך Skill נטען, ואיפה הוא עובד</h2>
+    <p class="lead">Claude טוען Skill בשלוש רמות, ורק מה שצריך. ומאחר ש-Skills קיימים בכמה מוצרים של Claude, חשוב לדעת איפה כל Skill חי ואיפה לא.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> מה נכנס לשיחה ומתי, איך מפעילים Skill אוטומטית וידנית, ומה ההבדלים בין אפליקציית Claude, Claude Code ו-Claude API.</p>
+  </div><div class="bar">---</div></div>
+
+  <div class="block">
+    <p class="block-title">שלוש רמות הטעינה · לחצו על רגע בשיחה וראו מה נכנס להקשר</p>
+    <div class="panel levels">
+      <div class="btnrow" role="group" aria-label="רגע בשיחה">
+        <button class="btn ghost" type="button" data-level="1" aria-pressed="true">1. השיחה מתחילה</button>
+        <button class="btn ghost" type="button" data-level="2" aria-pressed="false">2. בקשה מתאימה</button>
+        <button class="btn ghost" type="button" data-level="3" aria-pressed="false">3. שלב שצריך קובץ</button>
+      </div>
+      <div class="ctx" id="ctxView">
+        <div class="slot" data-l="1"><span class="dot"></span><span><strong>רמה 1: Metadata.</strong> השם והתיאור של כל Skill מותקן.</span><span class="sz">~100 tokens / Skill</span></div>
+        <div class="slot" data-l="2"><span class="dot"></span><span><strong>רמה 2: ההוראות.</strong> גוף <code>SKILL.md</code>, רק של ה-Skill שהופעל.</span><span class="sz">&lt; 5k tokens</span></div>
+        <div class="slot" data-l="3"><span class="dot"></span><span><strong>רמה 3: משאבים.</strong> <code>rules.md</code> נקרא כשצריך. הסקריפט רץ, ורק הפלט שלו נכנס.</span><span class="sz">0 עד שנקרא</span></div>
+      </div>
+      <p id="ctxText" class="small"></p>
+      <p class="muted small">המספרים מתוך דף ה-Overview של Agent Skills בתיעוד הפלטפורמה. הם הערכות סדר גודל, לא מדידה של ה-Skill שלנו.</p>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">שתי דרכים להפעיל Skill</p>
+    <div class="cards">
+      <div class="part"><h4>אוטומטית</h4><p class="small">כותבים בקשה רגילה, ו-Claude משווה אותה לתיאורים של ה-Skills. אם יש התאמה, הוא טוען את ה-Skill בעצמו. באפליקציה רואים בחשיבה של Claude שהוא משתמש ב-Skill. זו הדרך העיקרית באפליקציה.</p></div>
+      <div class="part"><h4>ידנית, עם <code>/</code></h4><p class="small">ב-Claude Code מקלידים <code>/</code> ואת שם ה-Skill בתחילת ההודעה, למשל <code>/checking-hebrew-style</code>. גם בלשונית Code של אפליקציית שולחן העבודה מקלידים <code>/</code> בתיבת הבקשה, או לוחצים על <span class="ui">+</span> ובוחרים <span class="ui">Slash commands</span>.</p></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">איפה Skills עובדים · שלושה מוצרים, שלוש דרכים להוסיף</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th></th><th>אפליקציית Claude (Web, Desktop, Cowork)</th><th>Claude Code (מסוף, IDE, לשונית Code)</th><th>Claude API</th></tr></thead>
+      <tbody>
+        <tr><td><strong>איך מוסיפים</strong></td><td>מעלים קובץ ZIP ב-<span class="ui">Customize &gt; Skills</span>, או יוצרים בשיחה</td><td>שמים תיקייה ב-<code>~/.claude/skills/</code> או ב-<code>.claude/skills/</code> בפרויקט, או מתקינים Plugin</td><td>מעלים דרך Skills API (<code>/v1/skills</code>)</td></tr>
+        <tr><td><strong>מי רואה</strong></td><td>פרטי לכם. ב-Team וב-Enterprise אפשר לשתף ולפרסם לארגון</td><td>אישי, כל מי שמשכפל את ה-Repository, או כל מי שמתקין את ה-Plugin</td><td>כל ה-Workspace</td></tr>
+        <tr><td><strong>שדות Frontmatter</strong></td><td>רק שדות התקן: <code>name</code>, <code>description</code>, <code>license</code>, <code>compatibility</code>, <code>metadata</code>, <code>allowed-tools</code></td><td>כל השדות, כולל הרחבות של Claude Code</td><td>שדות התקן</td></tr>
+        <tr><td><strong>גישה לרשת</strong></td><td>לפי הגדרות המשתמש והארגון</td><td>כמו כל תוכנה במחשב שלכם</td><td>אין גישה לרשת ואין התקנת חבילות</td></tr>
+        <tr><td><strong>תנאי מוקדם</strong></td><td>הפעלת <span class="ui">Code execution and file creation</span></td><td>אין</td><td>כלי Code execution</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="callout ok"><span class="t">סנכרון מהאפליקציה ל-Claude Code</span><p>Skills שהפעלתם בחשבון Claude נטענים גם ב-Claude Code במסוף, כשנכנסים לאותו חשבון. זה דורש Claude Code בגרסה <span class="ltr">2.1.273</span> ומעלה. הסנכרון חד-כיווני: הוא קורא מהחשבון ולא משנה בו דבר. ב-Claude Code רואים אותם בפקודה <code>/skills</code> תחת <span class="ui">claude.ai sync</span>. בכיוון ההפוך אין סנכרון: Skill שיושב רק ב-<code>~/.claude/skills/</code> במחשב לא מופיע באפליקציה, וגם לא בשיחות ענן של Claude Code.</p></div>
+
+  <div class="callout warn"><span class="t">מקורות שאינם מסכימים</span><p>דף ה-Overview בתיעוד הפלטפורמה עדיין כותב ש-Skills לא מסתנכרנים בין מוצרים, שהעלאה נעשית ב-<span class="ui">Settings &gt; Features</span>, ושאין שיתוף ארגוני. התיעוד של Claude Code ומאמרי העזרה העדכניים (עודכנו לפני כ-3 שבועות) מתארים סנכרון לטרמינל, מסך <span class="ui">Customize &gt; Skills</span> ושיתוף ב-Team וב-Enterprise. הלומדה פועלת לפי המקורות העדכניים יותר, ומציינת את הפער.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview">Agent Skills overview</a> · <a href="https://code.claude.com/docs/en/skills">Extend Claude with skills</a> · <a href="https://code.claude.com/docs/en/desktop">Desktop application</a> · <a href="https://support.claude.com/en/articles/12512180-use-skills-in-claude">Use skills in Claude</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T4 ============ -->
+<section class="topic" id="t4" data-title="הדוגמה: תיקייה ושלושה קבצים" hidden>
+  <div class="fence"><div class="bar">---</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 04</p>
+    <h2>הדוגמה שנבנה: תיקייה אחת, שלושה קבצים</h2>
+    <p class="lead">ה-Skill <code>checking-hebrew-style</code> מדגים את שלושת סוגי התוכן ש-Skill יכול להחזיק: הוראות, קובץ עזר וסקריפט. כל קובץ כאן הוא הקובץ האמיתי שנבדק, לא דוגמה מקוצרת.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> מה תפקיד כל קובץ, למה הם מחולקים כך, ואיך ליצור את התיקייה בעצמכם.</p>
+  </div><div class="bar">---</div></div>
+
+  <div class="prose">
+    <p><strong>הבעיה.</strong> בטקסט טכני בעברית קל לפספס שגיאות קטנות: מקף ארוך שנראה כמו מקף רגיל, רווח כפול, פסיק בלי רווח אחריו, או <code>ה - Skill</code> במקום <code>ה-Skill</code>. אלה בדיוק הכללים שהמדריך הזה מקפיד עליהם. Claude יכול לבדוק אותם בעין, אבל סקריפט בודק כל תו ולא מתעייף.</p>
+    <p><strong>הפתרון.</strong> Skill שבו ההוראות אומרות ל-Claude מתי ואיך לעבוד, קובץ העזר מסביר כל כלל עם דוגמאות לפני ואחרי, והסקריפט מוצא את השגיאות במדויק. Claude מתקן ומריץ שוב, עד שאין ממצאים.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">סייר הקבצים · לחצו על קובץ כדי לראות את התוכן ואת התפקיד שלו</p>
+    <div class="explorer">
+      <div class="tree" role="group" aria-label="קבצי ה-Skill">
+        <span class="dir">checking-hebrew-style/</span>
+        <button type="button" class="d1" data-file="skill" aria-pressed="true">SKILL.md</button>
+        <span class="dir d1">references/</span>
+        <button type="button" class="d2" data-file="rules" aria-pressed="false">rules.md</button>
+        <span class="dir d1">scripts/</span>
+        <button type="button" class="d2" data-file="script" aria-pressed="false">check_style.py</button>
+      </div>
+      <div class="explain" id="fileExplain"></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">יוצרים את התיקייה במחשב · למי שעובד עם Claude Code</p>
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist">
+        <button role="tab" type="button" aria-selected="true">macOS ו-Linux</button>
+        <button role="tab" type="button" aria-selected="false">Windows (PowerShell)</button>
+      </div>
+      <div class="tabpanel" role="tabpanel">
+        <p>מריצים במסוף. הפקודה יוצרת את מבנה התיקיות בתוך התיקייה האישית של ה-Skills, כך שה-Skill יהיה זמין בכל הפרויקטים שלכם במחשב הזה.</p>
+        <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>mkdir -p ~/.claude/skills/checking-hebrew-style/references ~/.claude/skills/checking-hebrew-style/scripts</code></pre></div>
+        <p class="small muted">התוצאה: שלוש תיקיות ריקות. בשלב הבא שומרים בהן את שלושת הקבצים מסייר הקבצים, בדיוק בשמות שמופיעים שם. אין סיכון בפקודה: היא רק יוצרת תיקיות, ולא מוחקת דבר אם הן כבר קיימות.</p>
+      </div>
+      <div class="tabpanel" role="tabpanel" hidden>
+        <p>מריצים ב-PowerShell. <code>$HOME</code> הוא התיקייה האישית שלכם, ושם Claude Code מחפש את <code>.claude\skills</code>.</p>
+        <div class="code"><div class="code-head"><span>PowerShell</span><button class="copy" type="button">העתק</button></div><pre><code>New-Item -ItemType Directory -Force -Path "$HOME\.claude\skills\checking-hebrew-style\references", "$HOME\.claude\skills\checking-hebrew-style\scripts"</code></pre></div>
+        <p class="small muted">הדגל <code>-Force</code> מונע שגיאה אם התיקיות כבר קיימות. הסקריפט של ה-Skill נקרא עם <code>python3</code>. ב-Windows ודאו ש-Python 3 מותקן; אם הפקודה אצלכם היא <code>py</code> או <code>python</code>, Claude יכול להריץ אותה כך כשתבקשו.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout note"><span class="t">לא עובדים עם מסוף?</span><p>אין צורך. באפליקציית Claude מעלים קובץ ZIP של התיקייה (נושא 8), או מבקשים מ-Claude לבנות את ה-Skill בשיחה (נושא 7). קובץ ה-ZIP המוכן של הדוגמה נמסר יחד עם הלומדה, ונשמר בפרויקט בתיקייה <code>skills/checking-hebrew-style/</code>.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://claude.com/docs/skills/how-to">Create custom skills</a> · <a href="https://code.claude.com/docs/en/skills">Extend Claude with skills</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T5 ============ -->
+<section class="topic" id="t5" data-title="SKILL.md שורה אחר שורה" hidden>
+  <div class="fence"><div class="bar">---</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 05</p>
+    <h2><code>SKILL.md</code> שורה אחר שורה</h2>
+    <p class="lead">שני שדות בראש הקובץ מחליטים אם Claude ישתמש ב-Skill בכלל. גוף הקובץ מחליט איך הוא יעבוד. כאן נעבור על שניהם, ונבדוק את השדות במאמת חי.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לכתוב <code>name</code> ו-<code>description</code> שעוברים כל בדיקה, ולבנות גוף הוראות קצר וברור.</p>
+  </div><div class="bar">---</div></div>
+
+  <div class="block">
+    <p class="block-title">ה-Frontmatter · כל שורה וההסבר שלה</p>
+    <div class="walk" id="walkFront"></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">חוקי השדות לפי המקורות</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>שדה</th><th>חוק</th><th>מקור</th></tr></thead>
+      <tbody>
+        <tr><td><code>name</code></td><td>אותיות אנגליות קטנות, ספרות ומקפים בלבד, עד 64 תווים. בלי המילים <code>anthropic</code> או <code>claude</code>. זהה לשם התיקייה.</td><td>Agent Skills overview, Create custom skills</td></tr>
+        <tr><td><code>description</code></td><td>לא ריק, עד 1,024 תווים, בלי תגיות XML. אומר מה ה-Skill עושה ומתי להשתמש בו. כתוב בגוף שלישי.</td><td>Skill authoring best practices</td></tr>
+        <tr><td><code>description</code> באפליקציה</td><td>מאמר העזרה להעלאה מגביל ל-200 תווים. כדי שה-Skill יעבוד בכל מקום, נשארים מתחת ל-200.</td><td>How to create custom skills (Help Center)</td></tr>
+        <tr><td>רשימת ה-Skills ב-Claude Code</td><td><code>description</code> ו-<code>when_to_use</code> יחד נחתכים ב-1,536 תווים. שמים את מקרה השימוש העיקרי ראשון.</td><td>Extend Claude with skills</td></tr>
+        <tr><td>גוף הקובץ</td><td>עד 500 שורות. חומר ארוך עובר לקבצי עזר, בעומק של רמה אחת מ-<code>SKILL.md</code>.</td><td>Skill authoring best practices</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">מאמת Frontmatter חי · שנו את השדות וראו מה עובר</p>
+    <div class="panel">
+      <div class="field"><label for="vFolder">שם התיקייה</label><input id="vFolder" class="ltrin" type="text" value="checking-hebrew-style" spellcheck="false"></div>
+      <div class="field"><label for="vName">name</label><input id="vName" class="ltrin" type="text" value="checking-hebrew-style" spellcheck="false"></div>
+      <div class="field"><label for="vDesc">description</label><textarea id="vDesc" class="ltrin" spellcheck="false">Checks Hebrew technical text for em and en dashes and for spacing and punctuation errors around English terms. Use when writing, editing or reviewing Hebrew docs, Markdown or HTML.</textarea>
+        <span class="help">ה-description נכתב באנגלית כמו בתיעוד. גם תיאור בעברית אפשרי; הבדיקות כאן זהות.</span></div>
+      <div class="meter" id="descMeter"></div>
+      <ul class="checks" id="vChecks" aria-live="polite"></ul>
+      <div class="code"><div class="code-head"><span>SKILL.md (Frontmatter)</span><button class="copy" type="button">העתק</button></div><pre><code id="vPreview"></code></pre></div>
+      <div class="btnrow"><button class="btn ghost" type="button" id="vBreak">נסו גרסה שבורה</button><button class="btn ghost" type="button" id="vReset">חזרה לדוגמה</button></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">גוף ההוראות · למה הוא כתוב כך</p>
+    <div class="walk" id="walkBody"></div>
+  </div>
+
+  <div class="exercise">
+    <p class="h">תרגיל 5.1: כתבו description</p>
+    <p>אתם רוצים Skill שמנסח Release notes מתוך רשימת שינויים, בתבנית קבועה של הצוות. כתבו לו <code>name</code> ו-<code>description</code> שעוברים את כל הבדיקות במאמת למעלה, כולל מגבלת 200 התווים.</p>
+    <details class="solution"><summary>פתרון מוסבר</summary><div>
+      <div class="code"><div class="code-head"><span>Frontmatter</span><button class="copy" type="button">העתק</button></div><pre><code>---
+name: writing-release-notes
+description: Writes release notes from a list of changes using the team template. Use when the user asks for release notes, a changelog entry, or a summary of what shipped.
+---</code></pre></div>
+      <p>השם בצורת gerund (פועל עם ‎-ing), כפי שהתיעוד ממליץ, באותיות קטנות ומקפים. התיאור פותח במה ה-Skill עושה, ממשיך ב"Use when" עם שלוש בקשות שמשתמשים באמת כותבים, ונשאר מתחת ל-200 תווים. הוא בגוף שלישי ("Writes"), לא "I can help" ולא "You can use".</p>
+    </div></details>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices">Skill authoring best practices</a> · <a href="https://support.claude.com/en/articles/12512198-use-custom-skills">How to create custom skills</a> · <a href="https://code.claude.com/docs/en/skills">Extend Claude with skills</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T6 ============ -->
+<section class="topic" id="t6" data-title="קובץ עזר וסקריפט" hidden>
+  <div class="fence"><div class="bar">---</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 06</p>
+    <h2>קובץ עזר וסקריפט</h2>
+    <p class="lead">קובץ עזר מחזיק ידע ש-Claude קורא רק כשצריך. סקריפט עושה עבודה מדויקת, ורק הפלט שלו נכנס לשיחה. כאן תריצו את הבודק בעצמכם, ישר בדפדפן.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> מתי להוציא תוכן לקובץ עזר, איך מפנים לסקריפט כך שיעבוד בכל מוצר, ומה הבודק שלנו מוצא.</p>
+  </div><div class="bar">---</div></div>
+
+  <div class="prose">
+    <p><strong>קובץ העזר <code>references/rules.md</code>.</strong> הוא מסביר כל קוד שגיאה עם טבלת "לפני" ו"אחרי". ב-<code>SKILL.md</code> יש הפניה אליו בשלב 3 בלבד, ולכן Claude פותח אותו רק כשיש ממצאים לתקן. הקובץ מתחיל בתוכן עניינים, כפי שהתיעוד ממליץ לקבצים ארוכים.</p>
+    <p><strong>הסקריפט <code>scripts/check_style.py</code>.</strong> הוא משתמש רק בספרייה הסטנדרטית של Python, ולכן אין מה להתקין. הוא מדלג על קוד ועל כתובות, מחזיר שורה לכל ממצא, ומסיים בקוד יציאה ברור: 0 נקי, 1 יש ממצאים, 2 קובץ לא נקרא. קוד היציאה הוא מה שמאפשר ל-Claude לדעת מתי לעצור.</p>
+    <p><strong>נתיב שעובד בכל מקום.</strong> ב-Claude Code, <code>${CLAUDE_SKILL_DIR}</code> מוחלף בתיקייה של ה-Skill, כך שהפקודה עובדת מכל תיקייה. באפליקציה כל תיקיית ה-Skill מועתקת לסביבת הרצת הקוד, ולכן ההוראות נותנות גם נתיב יחסי, <code>scripts/check_style.py</code>. שתי הדרכים מתועדות.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">שמונה הכללים של הבודק</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>קוד</th><th>מה הוא מוצא</th><th>איך מתקנים</th></tr></thead>
+      <tbody>
+        <tr><td><span class="code-tag E">E001</span></td><td>Em dash (התו <span class="ltr">U+2014</span>)</td><td>כותבים מחדש עם נקודה, פסיק, נקודתיים או סוגריים</td></tr>
+        <tr><td><span class="code-tag E">E002</span></td><td>En dash (התו <span class="ltr">U+2013</span>)</td><td>כותבים מחדש. טווח נכתב "X עד Y"</td></tr>
+        <tr><td><span class="code-tag E">E003</span></td><td>מקפים ארוכים אחרים (<span class="ltr">U+2012, U+2015, U+2E3A, U+2E3B, U+FE58</span>)</td><td>כותבים מחדש</td></tr>
+        <tr><td><span class="code-tag W">W001</span></td><td>רווח לפני סימן פיסוק</td><td>מצמידים את הסימן למילה שלפניו</td></tr>
+        <tr><td><span class="code-tag W">W002</span></td><td>רווח כפול בין מילים</td><td>רווח אחד</td></tr>
+        <tr><td><span class="code-tag W">W003</span></td><td>חסר רווח אחרי פסיק או נקודה-פסיק, או אחרי נקודתיים לפני מילה בעברית</td><td>מוסיפים רווח</td></tr>
+        <tr><td><span class="code-tag W">W004</span></td><td><code>ה - Skill</code>: רווחים סביב המקף אחרי אות שימוש</td><td><code>ה-Skill</code>, בלי רווחים</td></tr>
+        <tr><td><span class="code-tag W">W005</span></td><td>מקף עם רווחים משני צדיו בין מילים בעברית, כתחליף למקף ארוך</td><td>כותבים מחדש, כמו ב-E001</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">נסו את הבודק בעצמכם · אותם כללים בדיוק, מתורגמים ל-JavaScript</p>
+    <div class="panel">
+      <div class="field"><label for="ckInput">טקסט לבדיקה</label><textarea id="ckInput" rows="8"></textarea>
+        <span class="help">הטקסט ההתחלתי מכיל שגיאות בכוונה, כולל מקפים ארוכים, כדי שתראו מה הבודק מוצא. שורות קוד בין <code>```</code>, קוד בין גרשיים הפוכים וכתובות אינם נבדקים.</span></div>
+      <div class="btnrow"><button class="btn" type="button" id="ckRun">בדקו</button><button class="btn ghost" type="button" id="ckFix">הצג גרסה מתוקנת</button><button class="btn ghost" type="button" id="ckSample">החזר דוגמה</button></div>
+      <p class="status" id="ckStatus" aria-live="polite"></p>
+      <ul class="findings" id="ckOut"></ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">מה רואים כשהסקריפט רץ במסוף</p>
+    <div class="code"><div class="code-head"><span>Terminal · פלט אמיתי מהבדיקה, 15.10.2026</span><button class="copy" type="button">העתק</button></div><pre><code><span class="c">$</span> python3 scripts/check_style.py sample-bad.md
+sample-bad.md:3:24: E001 em dash: rewrite with a period, comma, colon or parentheses
+sample-bad.md:4:15: E002 en dash: rewrite, or write a range as 'X עד Y'
+sample-bad.md:5:19: W001 space before punctuation
+sample-bad.md:6:3: W002 double space between words
+sample-bad.md:7:6: W003 missing space after punctuation
+sample-bad.md:7:17: W003 missing space after punctuation
+sample-bad.md:8:8: W004 Hebrew prefix and English term: write as ה-Term with no spaces
+sample-bad.md:8:22: W004 Hebrew prefix and English term: write as ה-Term with no spaces
+sample-bad.md:9:17: W005 spaced hyphen used as a dash: rewrite
+checked 1 file(s), 9 finding(s)
+<span class="c">$</span> echo $?
+1</code></pre></div>
+  </div>
+
+  <div class="callout note"><span class="t">אפשרויות נוספות של הסקריפט</span><p>הוספת <code>--json</code> מחזירה את הממצאים כ-JSON, נוח לכלים אחרים. אפשר לתת כמה קבצים בבת אחת. קובץ שלא נשמר ב-UTF-8 מקבל הודעה ברורה ולא קורס.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://claude.com/docs/skills/how-to">Create custom skills (Add resources, Add scripts)</a> · <a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices">Skill authoring best practices</a> · <a href="https://code.claude.com/docs/en/skills">Available string substitutions</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T7 ============ -->
+<section class="topic" id="t7" data-title="לבנות בשיחה עם Claude" hidden>
+  <div class="fence"><div class="bar">---</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 07</p>
+    <h2>לבנות Skill בשיחה עם Claude</h2>
+    <p class="lead">לא חייבים לכתוב את הקבצים בעצמכם. מתארים ל-Claude את התהליך במילים שלכם, והוא בונה את התיקייה, את <code>SKILL.md</code> ואת הסקריפטים. ה-Skill שעוזר לו בזה נקרא <code>skill-creator</code>.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> להפעיל את <code>skill-creator</code> באפליקציה וב-Claude Code, ולנסח בקשה טובה ליצירת Skill.</p>
+  </div><div class="bar">---</div></div>
+
+  <div class="tabs" data-tabs>
+    <div class="tablist" role="tablist">
+      <button role="tab" type="button" aria-selected="true">באפליקציית Claude</button>
+      <button role="tab" type="button" aria-selected="false">ב-Claude Code</button>
+    </div>
+    <div class="tabpanel" role="tabpanel">
+      <ol class="steps">
+        <li><div><span class="when">מתי: פעם אחת, לפני הכול</span>פתחו <span class="ui">Settings &gt; Capabilities</span> וודאו ש-<span class="ui">Code execution and file creation</span> מופעל. ב-Team וב-Enterprise הבעלים מפעילים את זה בהגדרות הארגון. <span class="tag doc">כתוב במקורות</span></div></li>
+        <li><div><span class="when">מתי: פעם אחת</span>עברו ל-<span class="ui">Customize &gt; Skills</span> והפעילו את <code>skill-creator</code>, שמסומן שם כ-Skill של Anthropic. <span class="tag doc">כתוב במקורות</span></div></li>
+        <li><div><span class="when">מתי: בשיחה חדשה</span>כתבו מה אתם רוצים לבנות, והעלו חומרים שמראים את הדרך שלכם: תבניות, דוגמאות טובות, הנחיות. אפשר להיעזר בבונה הבקשה למטה. <span class="tag doc">כתוב במקורות</span></div></li>
+        <li><div><span class="when">מתי: כש-Claude שואל</span>ענו על השאלות שלו על התהליך: מתי משתמשים, מה נחשב תוצאה טובה. כתבו מספיק פרטים כדי שאדם מוכשר שלא מכיר את העבודה יוכל לבצע אותה. <span class="tag doc">כתוב במקורות</span></div></li>
+        <li><div><span class="when">מתי: כש-Claude מסיים</span>Claude אורז את ה-Skill לקובץ. שמרו אותו, וודאו שהוא מופיע ומופעל ב-<span class="ui">Customize &gt; Skills</span>. אם לא נוסף אוטומטית, הורידו את הקובץ והעלו אותו במסלול ההעלאה (נושא 8). <span class="tag sug">שם הכפתור המדויק לא מתועד</span></div></li>
+        <li><div><span class="when">מתי: מיד אחרי</span>בשיחה חדשה כתבו בקשה שה-Skill אמור לטפל בה. בחשיבה של Claude אמור להופיע שהוא משתמש ב-Skill. אם משהו לא מדויק, בקשו מ-Claude לעדכן את ה-Skill, או ערכו את הקבצים שנפתחים לצד השיחה עם <span class="ui">Edit with Claude</span>. <span class="tag doc">כתוב במקורות</span></div></li>
+      </ol>
+    </div>
+    <div class="tabpanel" role="tabpanel" hidden>
+      <p>ב-Claude Code, <code>skill-creator</code> מגיע כ-Plugin מה-Marketplace הרשמי. מקלידים בתוך Claude Code:</p>
+      <div class="code"><div class="code-head"><span>Claude Code prompt</span><button class="copy" type="button">העתק</button></div><pre><code>/plugin install skill-creator@claude-plugins-official</code></pre></div>
+      <p class="small">אם מתקבלת השגיאה <code>Marketplace "claude-plugins-official" not found</code>, מוסיפים קודם את ה-Marketplace ומנסים שוב:</p>
+      <div class="code"><div class="code-head"><span>Claude Code prompt</span><button class="copy" type="button">העתק</button></div><pre><code>/plugin marketplace add anthropics/claude-plugins-official</code></pre></div>
+      <p class="small">אם ההתקנה מסתיימת בהודעה <code>Run /reload-plugins to apply.</code>, Claude Code מריץ את הטעינה מחדש בעצמו. אחר כך פשוט מבקשים בשפה חופשית, למשל: "צור לי Skill שבודק סגנון עברי" או "evaluate my checking-hebrew-style skill with skill-creator". בלשונית Code של אפליקציית שולחן העבודה מתקינים את אותו Plugin דרך <span class="ui">+ &gt; Plugins &gt; Add plugin</span>.</p>
+      <div class="callout note"><span class="t">גם בלי skill-creator</span><p>לפי התיעוד, Claude מכיר את מבנה ה-Skills ויכול לכתוב <code>SKILL.md</code> תקין גם בלי Skill מיוחד. ההבדל: <code>skill-creator</code> מוסיף שאלות, בדיקות והשוואה לגרסה בלי Skill.</p></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">בונה בקשה ליצירת Skill · בחרו בכל שורה ותקבלו בקשה מוכנה להדבקה</p>
+    <div class="panel">
+      <div class="field"><span class="help">מה ה-Skill יעשה</span>
+        <div class="choice" id="pbTask">
+          <label><input type="radio" name="pbTask" value="style" checked>בדיקת סגנון עברי</label>
+          <label><input type="radio" name="pbTask" value="release">Release notes בתבנית הצוות</label>
+          <label><input type="radio" name="pbTask" value="review">סקירת PR לפי צ'קליסט</label>
+        </div></div>
+      <div class="field"><span class="help">איפה תשתמשו בו</span>
+        <div class="choice" id="pbWhere">
+          <label><input type="radio" name="pbWhere" value="app" checked>אפליקציית Claude</label>
+          <label><input type="radio" name="pbWhere" value="code">Claude Code</label>
+          <label><input type="radio" name="pbWhere" value="both">בשניהם</label>
+        </div></div>
+      <div class="field"><span class="help">דרישות נוספות</span>
+        <div class="choice" id="pbExtra">
+          <label><input type="checkbox" value="script" checked>סקריפט שבודק את התוצאה</label>
+          <label><input type="checkbox" value="nonet" checked>בלי גישה לרשת</label>
+          <label><input type="checkbox" value="evals">שלוש בקשות לבדיקה</label>
+        </div></div>
+      <div class="prompt"><div class="row"><strong>הבקשה שלכם</strong><button class="copy" type="button" data-copy-from="pbOut">העתק</button></div><p class="ptext" id="pbOut"></p></div>
+    </div>
+  </div>
+
+  <div class="callout note"><span class="t">דרך שלישית: להקליט</span><p>ב-Cowork באפליקציה ל-Mac (תוכניות Pro, Max ו-Team) אפשר להקליט את עצמכם מבצעים משימה, ו-Claude מציע Skill מתוך ההקלטה. ההקלטה לא זמינה בצ'אט, ב-Windows, ובתוכניות Free ו-Enterprise. אל תקלידו סיסמאות בזמן הקלטה.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://academy.claude.com/tutorials/how-to-create-a-skill-with-claude-through-conversation">How to create a skill with Claude through conversation</a> · <a href="https://support.claude.com/en/articles/12512198-use-custom-skills">How to create custom skills (Record a skill)</a> · <a href="https://code.claude.com/docs/en/skills">Run evals with skill-creator</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T8 ============ -->
+<section class="topic" id="t8" data-title="התקנה בשלושה מסלולים" hidden>
+  <div class="fence"><div class="bar">---</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 08</p>
+    <h2>התקנה בשלושה מסלולים</h2>
+    <p class="lead">אותה תיקייה מותקנת אחרת בכל מוצר: באפליקציה מעלים ZIP, ב-Claude Code שמים תיקייה במקום הנכון, וב-API מעלים דרך Skills API. בחרו את המסלול שלכם.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לארוז ZIP נכון, להעלות ולהפעיל באפליקציה, להתקין ב-Claude Code ברמה אישית או של פרויקט, ולוודא שה-Skill נטען.</p>
+  </div><div class="bar">---</div></div>
+
+  <div class="tabs" data-tabs>
+    <div class="tablist" role="tablist">
+      <button role="tab" type="button" aria-selected="true">מסלול א: אפליקציית Claude</button>
+      <button role="tab" type="button" aria-selected="false">מסלול ב: Claude Code</button>
+      <button role="tab" type="button" aria-selected="false">מסלול ג: Claude API</button>
+    </div>
+    <div class="tabpanel" role="tabpanel">
+      <h3>אורזים ZIP: התיקייה עצמה בשורש</h3>
+      <div class="zips">
+        <div class="zip good"><strong>נכון</strong><pre>checking-hebrew-style.zip
+└── checking-hebrew-style/
+    ├── SKILL.md
+    ├── references/
+    └── scripts/</pre></div>
+        <div class="zip bad"><strong>שגוי: הקבצים בשורש</strong><pre>checking-hebrew-style.zip
+├── SKILL.md
+├── references/
+└── scripts/</pre></div>
+      </div>
+      <p>Claude מחפש <code>&lt;skill-name&gt;/SKILL.md</code> בתוך הארכיון. אם דוחסים את הקבצים במקום את התיקייה, ה-Skill לא מזוהה.</p>
+      <div class="code"><div class="code-head"><span>macOS ו-Linux · מריצים מהתיקייה שמכילה את checking-hebrew-style</span><button class="copy" type="button">העתק</button></div><pre><code>zip -r checking-hebrew-style.zip checking-hebrew-style/
+unzip -l checking-hebrew-style.zip</code></pre></div>
+      <p class="small muted">הפקודה השנייה מציגה את התוכן. כל שורה צריכה להתחיל ב-<code>checking-hebrew-style/</code>. ב-Windows: לחיצה ימנית על התיקייה עצמה בסייר הקבצים, ואז דחיסה לקובץ ZIP. אחר כך פותחים את ה-ZIP ובודקים שבשורש יש תיקייה אחת.</p>
+      <h3>מעלים ומפעילים</h3>
+      <ol class="steps">
+        <li><div><span class="when">מתי: פעם אחת</span>ב-Free, Pro ו-Max: ב-<span class="ui">Settings &gt; Capabilities</span> מפעילים <span class="ui">Code execution and file creation</span>. ב-Team וב-Enterprise: הבעלים מפעילים ב-<span class="ui">Organization settings &gt; Plugins &amp; skills</span>, בלשונית <span class="ui">Policy</span>, גם את הרצת הקוד וגם את <span class="ui">Skills</span>. <span class="tag doc">כתוב במקורות</span></div></li>
+        <li><div><span class="when">מתי: אחרי שה-ZIP מוכן</span>פותחים <span class="ui">Customize &gt; Skills</span>, לוחצים על <span class="ui">+</span> ואז על <span class="ui">+ Create skill</span>. <span class="tag doc">כתוב במקורות</span></div></li>
+        <li><div><span class="when">מתי: בחלון שנפתח</span>בוחרים <span class="ui">Upload a skill</span> ומעלים את קובץ ה-ZIP. <span class="tag doc">כתוב במקורות</span></div></li>
+        <li><div><span class="when">מתי: אחרי ההעלאה</span>ה-Skill מופיע ברשימה עם מתג. ודאו שהמתג דולק. <span class="tag doc">כתוב במקורות</span></div></li>
+        <li><div><span class="when">מתי: בשיחה חדשה</span>הדביקו טקסט עם שגיאות ובקשו "תבדוק את הסגנון בטקסט הזה". בדקו בחשיבה של Claude שהוא משתמש ב-Skill.</div></li>
+      </ol>
+      <div class="callout note"><span class="t">באפליקציה ה-Skill פרטי</span><p>Skill שהעליתם גלוי רק לכם עד שתשתפו אותו. הוא זמין גם בתוספים של Claude ל-Excel, PowerPoint, Word ו-Outlook, וגם ב-Claude Code במסוף כשמחוברים לאותו חשבון (נושא 3).</p></div>
+    </div>
+    <div class="tabpanel" role="tabpanel" hidden>
+      <h3>בוחרים איפה ה-Skill יחיה</h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th>רמה</th><th>נתיב</th><th>נטען ב-</th></tr></thead>
+        <tbody>
+          <tr><td>אישי</td><td><code>~/.claude/skills/checking-hebrew-style/SKILL.md</code></td><td>כל הפרויקטים שלכם במחשב הזה. לא בשיחות ענן ולא ב-Cowork</td></tr>
+          <tr><td>פרויקט</td><td><code>.claude/skills/checking-hebrew-style/SKILL.md</code></td><td>שיחות ב-Repository הזה. עושים לו Commit כדי שכל הצוות יקבל אותו</td></tr>
+          <tr><td>Plugin</td><td><code>&lt;plugin&gt;/skills/checking-hebrew-style/SKILL.md</code></td><td>בכל מקום שה-Plugin מופעל, בשם <code>/plugin-name:checking-hebrew-style</code></td></tr>
+        </tbody>
+      </table></div>
+      <p class="small muted">כשיש Skill באותו שם בכמה רמות: Enterprise גובר על אישי, ואישי גובר על פרויקט. Skills של Plugins מקבלים שם עם קידומת ולכן לא מתנגשים.</p>
+      <h3>מתקינים ובודקים</h3>
+      <ol class="steps">
+        <li><div><span class="when">מתי: אחרי שהקבצים מוכנים</span>מעתיקים את התיקייה למקום שבחרתם. דוגמה לרמה האישית:
+          <div class="code"><div class="code-head"><span>macOS ו-Linux</span><button class="copy" type="button">העתק</button></div><pre><code>cp -r checking-hebrew-style ~/.claude/skills/</code></pre></div>
+          <div class="code"><div class="code-head"><span>Windows (PowerShell)</span><button class="copy" type="button">העתק</button></div><pre><code>Copy-Item -Recurse .\checking-hebrew-style "$HOME\.claude\skills\"</code></pre></div></div></li>
+        <li><div><span class="when">מתי: אופציונלי, לפני ההפעלה</span>בודקים שה-Frontmatter תקין. דורש Claude Code <span class="ltr">2.1.233</span> ומעלה. התוצאה הצפויה: <code>√ Validation passed</code>.
+          <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>claude plugin validate ~/.claude/skills</code></pre></div></div></li>
+        <li><div><span class="when">מתי: בפרויקט כלשהו</span>מפעילים <code>claude</code>. Session שכבר פתוח קולט את השינוי לבד, כי Claude Code עוקב אחרי תיקיות ה-Skills. אם יצרתם את התיקייה <code>~/.claude/skills</code> בפעם הראשונה בזמן שה-Session פתוח, הקלידו <code>/reload-skills</code>.</div></li>
+        <li><div><span class="when">מתי: בתוך Claude Code</span>הקלידו <code>/skills</code> וודאו שה-Skill ברשימה. אחר כך נסו את שתי דרכי ההפעלה:
+          <div class="code"><div class="code-head"><span>Claude Code prompt</span><button class="copy" type="button">העתק</button></div><pre><code>/checking-hebrew-style README.md</code></pre></div>
+          או בשפה חופשית: "תבדוק את הסגנון העברי ב-README.md".</div></li>
+      </ol>
+      <div class="callout note"><span class="t">בלשונית Code של אפליקציית שולחן העבודה</span><p>שיחות מקומיות טוענות Skills אישיים מ-<code>~/.claude/skills/</code>. מקלידים <code>/</code> בתיבת הבקשה, או לוחצים <span class="ui">+</span> ובוחרים <span class="ui">Slash commands</span>, בוחרים את ה-Skill וכותבים את המשימה אחריו. שיחות ענן לא קוראות את התיקייה המקומית: שם צריך Skill מהחשבון או מה-Repository.</p></div>
+    </div>
+    <div class="tabpanel" role="tabpanel" hidden>
+      <p>ב-Claude API מעלים Skills מותאמים דרך נקודות הקצה <code>/v1/skills</code>, ומפעילים אותם עם <code>skill_id</code> בפרמטר <code>container</code>, יחד עם כלי Code execution. Skill שהועלה זמין לכל ה-Workspace.</p>
+      <ul class="prose">
+        <li><strong>בלי רשת ובלי התקנת חבילות.</strong> ה-Skill שלנו מתאים, כי הסקריפט משתמש רק בספרייה הסטנדרטית.</li>
+        <li><strong>לא מסתנכרן.</strong> Skill שהועלה לאפליקציה צריך העלאה נפרדת ל-API, ולהפך.</li>
+        <li><strong>שדות התקן בלבד.</strong> שדה שאינו בתקן גורם לשגיאה בהעלאה.</li>
+      </ul>
+      <div class="callout warn"><span class="t">מחוץ להיקף הלומדה</span><p>הלומדה לא מציגה קוד API, כי לא הרצנו אותו מול API חי. לקוד מלא ולכותרות הנדרשות, ראו <a href="https://platform.claude.com/docs/en/build-with-claude/skills-guide">Using Agent Skills with the API</a> ואת <a href="../chapters/ch31.html">פרק 31</a> במדריך.</p></div>
+    </div>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://support.claude.com/en/articles/12512180-use-skills-in-claude">Use skills in Claude</a> · <a href="https://claude.com/docs/skills/how-to">Create custom skills (Package your skill)</a> · <a href="https://code.claude.com/docs/en/skills">Choose where skills load</a> · <a href="https://code.claude.com/docs/en/desktop">Desktop: Use skills</a> · <a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview">Agent Skills overview</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T9 ============ -->
+<section class="topic" id="t9" data-title="בדיקה, שיפור ותקלות" hidden>
+  <div class="fence"><div class="bar">---</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 09</p>
+    <h2>בדיקה, שיפור ופתרון תקלות</h2>
+    <p class="lead">זה ש-Skill הופעל אומר רק ש-Claude מצא אותו. צריך לבדוק שני דברים בנפרד: שהוא מופעל בבקשות הנכונות, ושהתוצאה טובה יותר מאשר בלעדיו.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לכתוב בקשות בדיקה, לקרוא תוצאה אמיתית, לשפר את התיאור, ולאבחן את התקלות הנפוצות.</p>
+  </div><div class="bar">---</div></div>
+
+  <div class="block">
+    <p class="block-title">מה קרה כשבדקנו את ה-Skill בפועל · Claude Code 2.1.300, 15.10.2026</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>הרצה</th><th>הבקשה</th><th>מה קרה</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td class="ltr"><code>Check sample-bad.md for Hebrew style problems. Do not edit any file; just list findings.</code></td><td>Claude הפעיל את ה-Skill לבד לפי התיאור, הריץ את הבודק, ודיווח על 9 ממצאים בטבלה. שום קובץ לא השתנה.</td></tr>
+        <tr><td>2</td><td class="ltr"><code>Fix the Hebrew style problems in sample-bad.md.</code></td><td>Claude תיקן את כל 9 הממצאים בכתיבה מחדש, הריץ את הבודק שוב וקיבל 0 ממצאים. בלוק הקוד, הקוד בשורה והכתובת נשארו בלי שינוי.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout ok"><span class="t">קטע מהסיכום ש-Claude כתב בהרצה 2</span><p>"תיקנתי את כל 9 הממצאים ב-<code>sample-bad.md</code>, והרצה חוזרת של הבודק מחזירה 0 ממצאים. [...] השארתי את בלוק הקוד, את ה-inline code ואת ה-URL בלי שינוי, כי הבודק מדלג עליהם."</p></div>
+    <p class="small muted">ההרצות נעשו במצב לא-אינטראקטיבי עם הרשאות מצומצמות: הרצת <code>python3</code>, קריאה ועריכה בלבד. באפליקציית Claude לא בדקנו בפועל; הצעדים שם מבוססים על מאמרי העזרה.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">בקשות בדיקה ל-Skill שלנו · כאלה שצריכות להפעיל אותו, וכאלה שלא</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>בקשה</th><th>צפוי</th><th>למה</th></tr></thead>
+      <tbody>
+        <tr><td>"תבדוק את הפיסוק והמקפים בפרק הזה"</td><td><strong>מפעיל</strong></td><td>פיסוק ומקפים בטקסט עברי, בדיוק לפי התיאור</td></tr>
+        <tr><td>"Review the Hebrew HTML in docs/ for style issues"</td><td><strong>מפעיל</strong></td><td>"Hebrew", "HTML", "reviewing" מופיעים בתיאור</td></tr>
+        <tr><td>"ערוך את המסמך הזה לפני שאני שולח אותו"</td><td><strong>כנראה מפעיל</strong></td><td>"editing" מופיע בתיאור, אבל הבקשה כללית. מקרה גבול שכדאי לבדוק</td></tr>
+        <tr><td>"תתרגם את הפסקה הזו לאנגלית"</td><td><strong>לא מפעיל</strong></td><td>תרגום אינו בדיקת סגנון</td></tr>
+        <tr><td>"מה ההבדל בין en dash ל-em dash?"</td><td><strong>לא אמור</strong></td><td>שאלת ידע, אין טקסט לבדוק. אם Claude מפעיל, התיאור רחב מדי</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">לולאת השיפור</p>
+    <ol class="steps">
+      <li><div><span class="when">קודם</span>מריצים כל בקשת בדיקה ב-Session חדש, פעם עם ה-Skill ופעם בלעדיו. Session חדש חשוב: הקשר שנשאר מכתיבת ה-Skill מסתיר חורים בהוראות.</div></li>
+      <li><div><span class="when">אם הוא לא מופעל כשצריך</span>מוסיפים לתיאור את המילים שמשתמשים באמת כותבים.</div></li>
+      <li><div><span class="when">אם הוא מופעל כשלא צריך</span>מחדדים את התיאור. ב-Claude Code אפשר גם להוסיף <code>disable-model-invocation: true</code>, ואז רק אתם מפעילים אותו עם <code>/</code>. השדה הזה אינו בתקן, ולכן לא נכנס לגרסה שמעלים לאפליקציה.</div></li>
+      <li><div><span class="when">אם התוצאה לא טובה</span>מחזקים את ההוראות בגוף, מוסיפים דוגמה, או מעבירים עבודה מדויקת לסקריפט. <code>skill-creator</code> מריץ את ההשוואה הזו אוטומטית: בצ'אט אחת אחת, וב-Cowork וב-Claude Code גם מול גרסה בלי Skill, עם אחוזי הצלחה, זמנים ו-Tokens.</div></li>
+    </ol>
+  </div>
+
+  <div class="block">
+    <p class="block-title">פתרון תקלות · לחצו על התקלה שלכם</p>
+    <details class="acc"><summary>ה-Skill לא מופעל אוטומטית</summary><div>
+      <p>1. ודאו שהוא דולק ב-<span class="ui">Customize &gt; Skills</span>, או שהוא מופיע ב-<code>/skills</code> ב-Claude Code. 2. בדקו שהתיאור כולל מילים שאתם באמת כותבים. 3. נסחו את הבקשה קרוב יותר לתיאור, או בקשו במפורש "השתמש ב-Skill של בדיקת הסגנון". 4. ב-Claude Code הפעילו ישירות עם <code>/checking-hebrew-style</code>.</p>
+      <p>אם הפעלה ישירה עובדת ואוטומטית לא, הבעיה בתיאור, לא בגוף.</p></div></details>
+    <details class="acc"><summary>הפעלה ידנית עובדת, אבל Claude לא "רואה" את התיאור</summary><div>
+      <p>ב-Claude Code, אם ה-YAML שבור, ה-Skill נטען עם גוף אבל בלי שדות. <code>/checking-hebrew-style</code> עובד, אבל אין תיאור להתאים אליו. מריצים <code>claude --debug</code> ומחפשים את שגיאת הפענוח, או <code>claude plugin validate ~/.claude/skills</code>. סיבה נפוצה: נקודתיים בתוך התיאור בלי מרכאות, או שה-<code>---</code> הראשון אינו השורה הראשונה בקובץ.</p></div></details>
+    <details class="acc"><summary>ההעלאה לאפליקציה נכשלת</summary><div>
+      <p>הסיבות שמאמר העזרה מונה: ZIP גדול מדי, שם התיקייה לא תואם לשם ה-Skill, חסר קובץ <code>SKILL.md</code>, או תווים לא חוקיים בשם או בתיאור. בדקו גם שה-ZIP מכיל את התיקייה בשורש, ושאין שדות Frontmatter שאינם בתקן. שדה כזה מחזיר שגיאה בסגנון <code>Unexpected key(s) in SKILL.md frontmatter</code>.</p></div></details>
+    <details class="acc"><summary>אין מסך Skills, או שה-Skills אפורים</summary><div>
+      <p>הרצת הקוד כבויה. ב-Free, Pro ו-Max: <span class="ui">Settings &gt; Capabilities</span>. ב-Team וב-Enterprise: פנו לבעלים של הארגון. אם חסרה האפשרות ליצור או להעלות, ייתכן שהארגון כיבה את <span class="ui">User-created skills</span>.</p></div></details>
+    <details class="acc"><summary>הסקריפט לא רץ</summary><div>
+      <p>ב-Claude Code הרצת סקריפט היא פקודת Bash, ולכן היא דורשת אישור. אשרו אותה, או הוסיפו כלל הרשאה מתאים. ב-Windows ודאו ש-Python 3 מותקן. אם הבודק מחזיר קוד 2, הקובץ לא נמצא או לא שמור ב-UTF-8: ההודעה אומרת מה מהשניים.</p></div></details>
+    <details class="acc"><summary>Claude הפסיק לעקוב אחרי ה-Skill באמצע</summary><div>
+      <p>ב-Claude Code, תוכן ה-Skill נכנס לשיחה פעם אחת ולא נקרא שוב. אחרי דחיסת השיחה נשמרים רק 5,000 ה-Tokens הראשונים של כל Skill. הפעילו את ה-Skill שוב, ושמרו את ההוראות החשובות בראש הקובץ.</p></div></details>
+    <details class="acc"><summary>ערכתי את ה-Skill וההתנהגות לא השתנתה</summary><div>
+      <p>באפליקציה: העלו מחדש את הגרסה המעודכנת. ב-Claude Code: שינוי בקובץ נקלט לבד, אבל תוכן שכבר הופעל בשיחה נשאר כמו שהוא. הפעילו את ה-Skill שוב, או פתחו Session חדש.</p></div></details>
+  </div>
+
+  <div class="exercise">
+    <p class="h">תרגיל 9.1: שלוש בקשות שלא אמורות להפעיל</p>
+    <p>כתבו שלוש בקשות שקרובות לנושא של ה-Skill, אבל לא אמורות להפעיל אותו. אחר כך הריצו אותן ב-Session חדש ובדקו.</p>
+    <details class="solution"><summary>פתרון מוסבר</summary><div>
+      <p>1. "תסביר לי מתי משתמשים בנקודתיים בעברית" (שאלת ידע, אין קובץ). 2. "תכתוב לי פסקה חדשה על Hooks" (כתיבה מאפס, לא בדיקה). 3. "תבדוק את הקוד ב-check_style.py" (בדיקת קוד, לא טקסט עברי).</p>
+      <p>הבקשה השנייה היא מקרה גבול, כי "writing" מופיע בתיאור. אם Claude מפעיל את ה-Skill עליה, אפשר להחליט שזה רצוי (בדיקה אחרי כתיבה), או להוריד את "writing" מהתיאור. זו בדיוק ההחלטה שבדיקות כאלה נועדו לחשוף.</p>
+    </div></details>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/skills">Evaluate and iterate, Troubleshooting</a> · <a href="https://support.claude.com/en/articles/12512180-use-skills-in-claude">Use skills in Claude (Troubleshooting)</a> · <a href="https://claude.com/docs/skills/how-to">Measure whether the skill improves the output</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T10 ============ -->
+<section class="topic" id="t10" data-title="בטיחות, שיתוף ותוכנית" hidden>
+  <div class="fence"><div class="bar">---</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 10</p>
+    <h2>בטיחות, שיתוף ותוכנית התחלה</h2>
+    <p class="lead">Skill הוא הוראות וקוד ש-Claude מבצע. Skill זדוני יכול לגרום ל-Claude להפעיל כלים או להריץ קוד בדרכים שלא תואמות למטרה המוצהרת שלו. לכן מתקינים רק ממקור שסומכים עליו, וקוראים לפני שמפעילים.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לבדוק Skill לפני התקנה, לשתף Skill בצורה נכונה, ולהתחיל לעבוד עם תוכנית קצרה.</p>
+  </div><div class="bar">---</div></div>
+
+  <div class="block">
+    <p class="block-title">על מה לשים לב לפני שמפעילים Skill שלא כתבתם · לחצו על כרטיס</p>
+    <div class="cards">
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Scripts</span><span class="hint">לחצו להסבר</span><span class="back" hidden>קראו כל סקריפט. חפשו קריאות רשת לא צפויות, גישה לקבצים מחוץ למשימה, או פעולות שלא קשורות למטרה. <strong>אצלנו:</strong> הבודק קורא רק את הקבצים שנתתם לו, לא כותב דבר, ולא פונה לרשת.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">External URLs</span><span class="hint">לחצו להסבר</span><span class="back" hidden>Skill שמושך תוכן מכתובת חיצונית מסוכן במיוחד: התוכן יכול להכיל הוראות זדוניות, וגם מקור אמין יכול להשתנות בעתיד. <strong>מה לעשות:</strong> העדיפו Skills שכל מה שהם צריכים נמצא בתוך התיקייה.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Secrets</span><span class="hint">לחצו להסבר</span><span class="back" hidden>אל תשימו מפתחות API או סיסמאות בתוך Skill: כל מי שמקבל אותו מקבל גם את הקבצים. לשירות חיצוני משתמשים ב-Connector, כך שכל אחד מתחבר עם החשבון שלו.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">allowed-tools</span><span class="hint">לחצו להסבר</span><span class="back" hidden>ב-Claude Code, Skill יכול לאשר לעצמו כלים מראש לתור שבו הופעל, גם בתיקייה שלא אישרתם. בדקו את השדה הזה ב-Skills שמגיעים בתוך Repository לפני שאתם עובדים שם.</span></button>
+    </div>
+  </div>
+
+  <div class="callout danger"><span class="t">הכלל מהתיעוד</span><p>התייחסו להתקנת Skill כמו להתקנת תוכנה. השתמשו רק ב-Skills שכתבתם בעצמכם או שקיבלתם מ-Anthropic, או בדקו לעומק כל קובץ לפני השימוש, כולל Skill שעמית שיתף. ב-Enterprise אפשר להפעיל סריקה של Skills שמועלים, שבודקת תוכן זדוני לפני שהם רצים.</p></div>
+
+  <div class="block">
+    <p class="block-title">איך משתפים Skill</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>מוצר</th><th>דרך</th><th>מה מקבלים</th></tr></thead>
+      <tbody>
+        <tr><td>אפליקציה, Team ו-Enterprise</td><td>ב-<span class="ui">Customize &gt; Skills</span>, בתפריט <span class="ui">...</span> ליד ה-Skill, בוחרים <span class="ui">Share</span></td><td>אנשים מסוימים, או קבוצה ב-Enterprise. צפייה בלבד, והם מקבלים עדכונים אוטומטית</td></tr>
+        <tr><td>אפליקציה, Team ו-Enterprise</td><td><span class="ui">Publish to org</span></td><td>ה-Skill עובר לספריית הארגון, לפעמים אחרי אישור של מנהל</td></tr>
+        <tr><td>Claude Code</td><td>Commit של <code>.claude/skills/</code> ל-Repository</td><td>כל מי שמשכפל. השינויים עוברים Pull Request ו-Code Review</td></tr>
+        <tr><td>Claude Code</td><td>תיקיית <code>skills/</code> בתוך Plugin, דרך Marketplace</td><td>הפצה לכמה פרויקטים או לקהילה (<a href="../chapters/ch26.html">פרק 26</a>)</td></tr>
+        <tr><td>Claude Code</td><td>Managed settings</td><td>כל הארגון, וגובר על שאר הרמות</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">בדקו את עצמכם · שש שאלות</p>
+    <div id="quiz" class="block"></div>
+    <p class="score" id="quizScore" aria-live="polite"></p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">התוכנית שלכם ל-Skill הראשון · סמנו מה כבר עשיתם</p>
+    <ul class="checklist" id="checklist">
+      <li><label><input type="checkbox" id="c1"><span>בחרתי משימה אחת שאני מסביר ל-Claude שוב ושוב, וכתבתי אותה במשפט אחד.</span></label></li>
+      <li><label><input type="checkbox" id="c2"><span>כתבתי <code>name</code> ו-<code>description</code> שעוברים את המאמת בנושא 5, מתחת ל-200 תווים.</span></label></li>
+      <li><label><input type="checkbox" id="c3"><span>כתבתי גוף קצר עם שלבים ממוספרים, והפניתי לקבצי עזר רק כשצריך.</span></label></li>
+      <li><label><input type="checkbox" id="c4"><span>אם יש עבודה מדויקת, הוספתי סקריפט עם קודי יציאה ברורים ובלי סודות.</span></label></li>
+      <li><label><input type="checkbox" id="c5"><span>ארזתי ZIP עם התיקייה בשורש, או העתקתי את התיקייה ל-<code>~/.claude/skills/</code>.</span></label></li>
+      <li><label><input type="checkbox" id="c6"><span>הפעלתי את ה-Skill ובדקתי שהוא מופיע ודולק.</span></label></li>
+      <li><label><input type="checkbox" id="c7"><span>הרצתי שלוש בקשות שצריכות להפעיל אותו ושלוש שלא, כל אחת ב-Session חדש.</span></label></li>
+      <li><label><input type="checkbox" id="c8"><span>שיפרתי את התיאור לפי התוצאות, ובדקתי שוב.</span></label></li>
+    </ul>
+    <p class="small muted">הסימונים נשמרים רק בדפדפן הזה.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">כל המקורות · נבדקו ב-15.10.2026</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>מקור</th><th>מה לקחנו ממנו</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://code.claude.com/docs/en/skills">Extend Claude with skills</a> (Claude Code)</td><td>מיקומים, שדות, הפעלה, סנכרון, הערכה, תקלות</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/desktop">Desktop application</a> (Claude Code)</td><td>Skills בלשונית Code, Slash commands, Plugins</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/changelog">Claude Code changelog</a></td><td>הגרסה שנבדקה: 2.1.300</td></tr>
+        <tr><td><a href="https://claude.com/docs/skills/how-to">Create custom skills</a> (Claude docs)</td><td>מבנה תיקייה, אריזה, בדיקה, skill-creator</td></tr>
+        <tr><td><a href="https://support.claude.com/en/articles/12512180-use-skills-in-claude">Use skills in Claude</a> (Help Center)</td><td>תוכניות, תנאים מוקדמים, העלאה, שיתוף, תקלות</td></tr>
+        <tr><td><a href="https://support.claude.com/en/articles/12512198-use-custom-skills">How to create custom skills</a> (Help Center)</td><td>מגבלת 200 תווים, ZIP, הקלטת Skill</td></tr>
+        <tr><td><a href="https://support.claude.com/en/articles/12512176-what-are-skills">What are skills?</a> (Help Center)</td><td>הגדרה, השוואה ל-MCP ולהוראות</td></tr>
+        <tr><td><a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview">Agent Skills overview</a> (Claude Platform)</td><td>שלוש רמות טעינה, API, אבטחה</td></tr>
+        <tr><td><a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices">Skill authoring best practices</a> (Claude Platform)</td><td>חוקי שדות, שמות, תיאורים, 500 שורות</td></tr>
+        <tr><td><a href="https://academy.claude.com/tutorials/how-to-create-a-skill-with-claude-through-conversation">Create a skill through conversation</a> (Claude Academy)</td><td>יצירה בשיחה</td></tr>
+        <tr><td><a href="https://github.com/anthropics/skills">anthropics/skills</a> (GitHub)</td><td>דוגמאות רשמיות ו-skill-creator</td></tr>
+        <tr><td><a href="https://agentskills.io/specification">Agent Skills specification</a></td><td>התקן הפתוח. כלי <code>skills-ref</code> אימת את ה-Skill שלנו</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="callout note"><span class="t">מה הלאה</span><p>ב<a href="../chapters/ch21.html">פרק 21</a> במדריך תמצאו את כל שדות ה-Frontmatter של Claude Code, הזרקת הקשר דינמית, הרצה ב-Subagent וחמישה Skills נוספים לפיתוח. ב<a href="../chapters/ch26.html">פרק 26</a> תלמדו לארוז Skills ב-Plugin.</p></div>
+</section>
+
+    <div class="nav-foot" id="navFoot">
+      <button class="btn ghost" type="button" id="prevBtn">הקודם</button>
+      <button class="btn" type="button" id="nextBtn">הבא</button>
+    </div>
+  </main>
+</div>
+
+<script id="fileData" type="application/json">{"skill": "---\nname: checking-hebrew-style\ndescription: Checks Hebrew technical text for em and en dashes and for spacing and punctuation errors around English terms. Use when writing, editing or reviewing Hebrew docs, Markdown or HTML.\n---\n\n# Checking Hebrew style\n\nFind and fix style errors in Hebrew technical writing that mixes in English terms.\nThe bundled checker finds the errors; you fix them by rewriting, then check again.\n\n## Workflow\n\nCopy this checklist into your reply and tick it off:\n\n```\n- [ ] 1. Identify the target\n- [ ] 2. Run the checker\n- [ ] 3. Fix every finding\n- [ ] 4. Run the checker again until it exits 0\n- [ ] 5. Report\n```\n\n1. **Identify the target.** Use the files the user named. If the user pasted text\n   instead, save it to a temporary `.md` file first so the checker can read it.\n2. **Run the checker.** It prints one line per finding: `file:line:col: CODE message`.\n   - In Claude Code: `python3 ${CLAUDE_SKILL_DIR}/scripts/check_style.py <file> [<file> ...]`\n   - In Claude chat (claude.ai): `python3 scripts/check_style.py <file>`, relative to this SKILL.md.\n   - Exit code 0 means clean, 1 means findings, 2 means a file could not be read.\n3. **Fix every finding** using the rules and examples in\n   [references/rules.md](references/rules.md). For `E001` and `E002` (long dashes),\n   rewrite the sentence with a period, comma, colon or parentheses. Never replace a\n   long dash with a hyphen surrounded by spaces, because the checker reports that as `W005`.\n4. **Run the checker again** on the same files. Repeat steps 3 and 4 until it exits 0,\n   or until only warnings you deliberately keep remain.\n5. **Report** in Hebrew: the files you checked, how many findings you fixed per code,\n   and any warning you kept with the reason.\n\n## Rules\n\n- Do not change code blocks, inline code, URLs, file paths or commands. The checker\n  already skips fenced code in Markdown and `<pre>`, `<code>` in HTML.\n- Keep accepted technical terms in English (Skill, Prompt, Repository). Never translate\n  or transliterate them.\n- Keep the author's meaning. Change punctuation and spacing, not content.\n", "rules": "# Hebrew style rules\n\n## Contents\n- E001, E002, E003: long dashes\n- W001: space before punctuation\n- W002: double space\n- W003: missing space after punctuation\n- W004: space around the hyphen after a Hebrew prefix\n- W005: spaced hyphen used as a dash\n\n## E001, E002, E003: long dashes\n\nEm dash (U+2014), en dash (U+2013) and other long dashes (U+2012, U+2015,\nU+2E3A, U+2E3B, U+FE58) are not allowed anywhere in the text.\nRewrite the sentence instead of swapping the character.\n\n| Before | After |\n| --- | --- |\n| `\u05d4-Skill \u05e0\u05d8\u05e2\u05df \u05e8\u05e7 \u05db\u05e9\u05e6\u05e8\u05d9\u05da \u27e8U+2014\u27e9 \u05d5\u05d6\u05d4 \u05d7\u05d5\u05e1\u05da Tokens.` | `\u05d4-Skill \u05e0\u05d8\u05e2\u05df \u05e8\u05e7 \u05db\u05e9\u05e6\u05e8\u05d9\u05da, \u05d5\u05d6\u05d4 \u05d7\u05d5\u05e1\u05da Tokens.` |\n| `\u05e9\u05dc\u05d5\u05e9\u05d4 \u05de\u05d9\u05e7\u05d5\u05de\u05d9\u05dd \u27e8U+2014\u27e9 \u05d0\u05d9\u05e9\u05d9, \u05e4\u05e8\u05d5\u05d9\u05e7\u05d8 \u05d5-Plugin.` | `\u05e9\u05dc\u05d5\u05e9\u05d4 \u05de\u05d9\u05e7\u05d5\u05de\u05d9\u05dd: \u05d0\u05d9\u05e9\u05d9, \u05e4\u05e8\u05d5\u05d9\u05e7\u05d8 \u05d5-Plugin.` |\n| `\u05d2\u05e8\u05e1\u05d0\u05d5\u05ea 2.1.200\u27e8U+2013\u27e92.1.300` | `\u05d2\u05e8\u05e1\u05d0\u05d5\u05ea 2.1.200 \u05e2\u05d3 2.1.300` |\n\n## W001: space before punctuation\n\nA period, comma, colon, semicolon, question mark or exclamation mark attaches to\nthe word before it.\n\n| Before | After |\n| --- | --- |\n| `\u05de\u05e4\u05e2\u05d9\u05dc\u05d9\u05dd \u05d0\u05ea \u05d4-Skill .` | `\u05de\u05e4\u05e2\u05d9\u05dc\u05d9\u05dd \u05d0\u05ea \u05d4-Skill.` |\n\n## W002: double space\n\nUse one space between words.\n\n## W003: missing space after punctuation\n\nAfter a comma, semicolon or colon that is followed by a Hebrew word, add one space.\n\n| Before | After |\n| --- | --- |\n| `Skill,Hook,MCP \u05d5-Plugin` | `Skill, Hook, MCP \u05d5-Plugin` |\n| `\u05e9\u05d9\u05de\u05d5 \u05dc\u05d1:\u05d4\u05e7\u05d5\u05d1\u05e5 \u05d7\u05d9\u05d9\u05d1...` | `\u05e9\u05d9\u05de\u05d5 \u05dc\u05d1: \u05d4\u05e7\u05d5\u05d1\u05e5 \u05d7\u05d9\u05d9\u05d1...` |\n\n## W004: space around the hyphen after a Hebrew prefix\n\nA Hebrew prefix letter (\u05d1, \u05d4, \u05d5, \u05db, \u05dc, \u05de, \u05e9) joins an English term with a hyphen\nand no spaces.\n\n| Before | After |\n| --- | --- |\n| `\u05d4 - Skill` | `\u05d4-Skill` |\n| `\u05d1 - Claude Code` | `\u05d1-Claude Code` |\n\n## W005: spaced hyphen used as a dash\n\nA hyphen with a space on both sides between Hebrew words is a dash in disguise.\nRewrite it the same way as E001.\n\n| Before | After |\n| --- | --- |\n| `\u05d4\u05ea\u05d9\u05d0\u05d5\u05e8 \u05e7\u05d5\u05d1\u05e2 \u05d4\u05db\u05d5\u05dc - \u05d1\u05dc\u05d9 \u05ea\u05d9\u05d0\u05d5\u05e8 \u05d8\u05d5\u05d1 \u05d0\u05d9\u05df \u05d4\u05e4\u05e2\u05dc\u05d4.` | `\u05d4\u05ea\u05d9\u05d0\u05d5\u05e8 \u05e7\u05d5\u05d1\u05e2 \u05d4\u05db\u05d5\u05dc: \u05d1\u05dc\u05d9 \u05ea\u05d9\u05d0\u05d5\u05e8 \u05d8\u05d5\u05d1 \u05d0\u05d9\u05df \u05d4\u05e4\u05e2\u05dc\u05d4.` |\n", "script": "#!/usr/bin/env python3\n\"\"\"Check Hebrew technical text for long dashes and spacing errors.\n\nUsage:\n    python3 check_style.py FILE [FILE ...] [--json]\n\nPrints one finding per line as `file:line:col: CODE message`.\nExit codes: 0 = clean, 1 = findings, 2 = a file could not be read or bad usage.\nFenced code in Markdown and <pre>, <code>, <script>, <style> in HTML are skipped.\nOnly the Python standard library is used, so nothing has to be installed.\n\"\"\"\n\nimport json\nimport re\nimport sys\nfrom pathlib import Path\n\nHEB = \"\\u05D0-\\u05EA\"  # Hebrew letters alef to tav\n\n# Each rule: (code, compiled pattern, message). Columns point at the match start.\nRULES = [\n    (\"E001\", re.compile(\"\\u2014\"), \"em dash: rewrite with a period, comma, colon or parentheses\"),\n    (\"E002\", re.compile(\"\\u2013\"), \"en dash: rewrite, or write a range as 'X \u05e2\u05d3 Y'\"),\n    (\"E003\", re.compile(\"[\\u2012\\u2015\\u2E3A\\u2E3B\\uFE58]\"), \"long dash character: rewrite the sentence\"),\n    (\"W001\", re.compile(f\"(?<=\\\\S)[ \\\\t]+[,.:;!?](?=\\\\s|$|[{HEB}])\"), \"space before punctuation\"),\n    (\"W002\", re.compile(r\"(?<=\\S) {2,}(?=\\S)\"), \"double space between words\"),\n    (\"W003\", re.compile(f\"[,;](?=[A-Za-z{HEB}])|:(?=[{HEB}])\"), \"missing space after punctuation\"),\n    (\"W004\", re.compile(f\"(?<![{HEB}])[\u05d1\u05d4\u05d5\u05db\u05dc\u05de\u05e9] +- *(?=[A-Za-z])|(?<![{HEB}])[\u05d1\u05d4\u05d5\u05db\u05dc\u05de\u05e9] *- +(?=[A-Za-z])\"),\n     \"Hebrew prefix and English term: write as \u05d4-Term with no spaces\"),\n    (\"W005\", re.compile(f\"(?<=[{HEB}]) - (?=[{HEB}])\"), \"spaced hyphen used as a dash: rewrite\"),\n]\n\n# Regions to blank out before checking. Newlines are kept so line numbers stay right.\nMD_FENCE = re.compile(r\"^(```|~~~).*?^\\1[^\\n]*$\", re.MULTILINE | re.DOTALL)\nMD_INLINE_CODE = re.compile(r\"`[^`\\n]+`\")\nHTML_SKIP = re.compile(r\"<(pre|code|script|style)\\b[^>]*>.*?<\/\\1\\s*>\", re.IGNORECASE | re.DOTALL)\nHTML_TAG = re.compile(r\"<[^>]+>\")\nURL = re.compile(r\"https?://\\S+\")\n\n\nPLACEHOLDER = \"\\uE000\"  # private-use character: not a space, not a letter\n\n\ndef _blank(match):\n    \"\"\"Replace every character except newlines with a neutral placeholder.\n\n    A placeholder (not a space) keeps columns stable and avoids reporting the\n    gap left by hidden code or tags as a double space.\n    \"\"\"\n    return re.sub(r\"[^\\n]\", PLACEHOLDER, match.group(0))\n\n\ndef mask(text, suffix):\n    \"\"\"Hide code, tags and URLs so they are never reported.\"\"\"\n    if suffix in {\".html\", \".htm\"}:\n        text = HTML_SKIP.sub(_blank, text)\n        text = HTML_TAG.sub(_blank, text)\n    else:\n        text = MD_FENCE.sub(_blank, text)\n        text = MD_INLINE_CODE.sub(_blank, text)\n    return URL.sub(_blank, text)\n\n\ndef check_text(text, suffix=\".md\"):\n    \"\"\"Return a list of findings (line, col, code, message) for one text.\"\"\"\n    findings = []\n    masked = mask(text, suffix)\n    for lineno, line in enumerate(masked.splitlines(), start=1):\n        for code, pattern, message in RULES:\n            for m in pattern.finditer(line):\n                findings.append((lineno, m.start() + 1, code, message))\n    findings.sort()\n    return findings\n\n\ndef main(argv):\n    as_json = \"--json\" in argv\n    paths = [a for a in argv if a != \"--json\"]\n    if not paths:\n        print(__doc__.strip(), file=sys.stderr)\n        return 2\n\n    results, read_error = {}, False\n    for raw in paths:\n        path = Path(raw)\n        try:\n            text = path.read_text(encoding=\"utf-8\")\n        except FileNotFoundError:\n            print(f\"{raw}: error: file not found\", file=sys.stderr)\n            read_error = True\n            continue\n        except UnicodeDecodeError:\n            print(f\"{raw}: error: not UTF-8 text; save it as UTF-8 and run again\", file=sys.stderr)\n            read_error = True\n            continue\n        except OSError as exc:\n            print(f\"{raw}: error: {exc.strerror}\", file=sys.stderr)\n            read_error = True\n            continue\n        results[raw] = check_text(text, path.suffix.lower())\n\n    total = sum(len(f) for f in results.values())\n    if as_json:\n        print(json.dumps({\n            \"files\": {p: [{\"line\": l, \"col\": c, \"code\": k, \"message\": m} for l, c, k, m in f]\n                      for p, f in results.items()},\n            \"total\": total,\n        }, ensure_ascii=False, indent=2))\n    else:\n        for p, found in results.items():\n            for line, col, code, message in found:\n                print(f\"{p}:{line}:{col}: {code} {message}\")\n        print(f\"checked {len(results)} file(s), {total} finding(s)\")\n\n    if read_error:\n        return 2\n    return 1 if total else 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main(sys.argv[1:]))\n"}</script>
+<script>
+(function(){
+  "use strict";
+  var ORDER=["start","t1","t2","t3","t4","t5","t6","t7","t8","t9","t10"];
+  var STORE="skillLomda.v1";
+  function load(){try{return JSON.parse(localStorage.getItem(STORE))||{}}catch(e){return {}}}
+  function save(s){try{localStorage.setItem(STORE,JSON.stringify(s))}catch(e){}}
+  var state=load(); state.visited=state.visited||{}; state.checks=state.checks||{};
+  var $=function(s,r){return (r||document).querySelector(s)}, $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+  function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+
+  /* ---------- theme ---------- */
+  var root=document.documentElement;
+  try{ if(state.theme) root.setAttribute("data-theme",state.theme);}catch(e){}
+  $("#themeBtn").addEventListener("click",function(){
+    var cur=root.getAttribute("data-theme");
+    var dark=cur?cur==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var next=dark?"light":"dark"; root.setAttribute("data-theme",next); state.theme=next; save(state);
+  });
+
+  /* ---------- router ---------- */
+  var current="start";
+  function show(id,focus){
+    if(ORDER.indexOf(id)<0) id="start";
+    current=id;
+    ORDER.forEach(function(t){ document.getElementById(t).hidden=(t!==id); });
+    $$(".map a").forEach(function(a){
+      var g=a.getAttribute("data-go");
+      if(g===id) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current");
+      a.classList.toggle("done",!!state.visited[g]&&g!=="start");
+    });
+    var i=ORDER.indexOf(id);
+    if(id!=="start"){ state.visited[id]=true; }
+    state.last=id; save(state);
+    var n=Object.keys(state.visited).filter(function(k){return k!=="start"}).length;
+    $("#progFill").style.width=(n/10*100)+"%";
+    $("#progLabel").textContent= id==="start" ? ("מסך פתיחה · "+n+" מתוך 10 נושאים נפתחו") : ("נושא "+i+" מתוך 10 · "+document.getElementById(id).getAttribute("data-title"));
+    $("#prevBtn").hidden=(i===0);
+    $("#nextBtn").hidden=(i===ORDER.length-1);
+    $("#nextBtn").textContent= i===0 ? "לנושא הראשון" : "הבא: "+document.getElementById(ORDER[Math.min(i+1,ORDER.length-1)]).getAttribute("data-title");
+    if(focus){ window.scrollTo(0,0); $("#main").focus({preventScroll:true}); }
+    if(window.matchMedia("(max-width:900px)").matches && focus){ $("#mapDetails").open=false; }
+  }
+  function go(id){ if(location.hash!=="#"+id){ try{history.pushState(null,"","#"+id);}catch(e){} } show(id,true); }
+  document.addEventListener("click",function(e){
+    var t=e.target.closest("[data-go]"); if(!t) return;
+    e.preventDefault(); go(t.getAttribute("data-go"));
+  });
+  $("#prevBtn").addEventListener("click",function(){ go(ORDER[Math.max(0,ORDER.indexOf(current)-1)]); });
+  $("#nextBtn").addEventListener("click",function(){ go(ORDER[Math.min(ORDER.length-1,ORDER.indexOf(current)+1)]); });
+  window.addEventListener("hashchange",function(){ show(location.hash.slice(1)||"start",true); });
+  window.addEventListener("popstate",function(){ show(location.hash.slice(1)||"start",true); });
+  if(window.matchMedia("(max-width:900px)").matches){ $("#mapDetails").open=false; }
+
+  /* ---------- copy ---------- */
+  function copyText(text,btn){
+    var done=function(){ var o=btn.textContent; btn.textContent="הועתק"; setTimeout(function(){btn.textContent=o},1400); };
+    var fallback=function(){ var ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); var ok=false; try{ok=document.execCommand("copy")}catch(e){} document.body.removeChild(ta); if(ok) done(); else { btn.textContent="סמנו והעתיקו ידנית"; } };
+    try{ navigator.clipboard.writeText(text).then(done,fallback); }catch(e){ fallback(); }
+  }
+  document.addEventListener("click",function(e){
+    var b=e.target.closest(".copy"); if(!b) return;
+    var src=b.getAttribute("data-copy-from"); var text;
+    if(src){ text=document.getElementById(src).textContent; }
+    else { var box=b.closest(".code"); var code=box&&box.querySelector("pre"); text=code?code.textContent:""; }
+    copyText(text,b);
+  });
+
+  /* ---------- flip cards ---------- */
+  $$(".flip").forEach(function(b){ b.addEventListener("click",function(){ var open=b.getAttribute("aria-expanded")==="true"; b.setAttribute("aria-expanded",String(!open)); b.querySelector(".back").hidden=open; }); });
+
+  /* ---------- tabs ---------- */
+  $$("[data-tabs]").forEach(function(box){
+    var tabs=$$(":scope > .tablist > [role=tab]",box), panels=$$(":scope > [role=tabpanel]",box);
+    tabs.forEach(function(t,i){ t.addEventListener("click",function(){ tabs.forEach(function(x,j){ x.setAttribute("aria-selected",String(i===j)); panels[j].hidden=(i!==j); }); }); });
+  });
+
+  /* ---------- T2 sorter ---------- */
+  var TOOLS=["Skill","הוראות קבועות","Hook","MCP או Connector","Subagent","Plugin"];
+  var SC=[
+    ["בכל שיחה Claude צריך לדעת שהפרויקט משתמש ב-pnpm ולא ב-npm.","הוראות קבועות","עובדה של שורה אחת שנכונה תמיד. ב-Claude Code מקומה ב-CLAUDE.md, ובאפליקציה בהוראות ה-Project."],
+    ["כל שבוע מנסחים Release notes בתבנית של שמונה סעיפים, עם בדיקה שלא נשכח אף סעיף.","Skill","נוהל של כמה שלבים שחוזר על עצמו, עם תבנית ובדיקה. בדיוק התפקיד של Skill."],
+    ["אסור בשום מקרה ש-Claude יערוך את קובץ .env, גם אם ביקשו ממנו.","Hook","כלל שחייב להתקיים תמיד. Skill תלוי בהחלטה של Claude להפעיל אותו; Hook רץ בכל אירוע."],
+    ["לקרוא את ה-Tickets הפתוחים ב-Jira ולעדכן סטטוס.","MCP או Connector","זה מידע חי ופעולות במערכת חיצונית. Skill יכול רק להסביר איך להשתמש בחיבור."],
+    ["חקירה של Codebase ענק שתייצר הרבה פלט, בלי למלא את השיחה הראשית.","Subagent","Subagent עובד בהקשר נפרד ומחזיר רק סיכום."],
+    ["להפיץ לכל הצוות שלושה Skills ו-Hook אחד כחבילה אחת עם גרסה.","Plugin","Plugin אורז כמה רכיבים יחד ומתקינים אותו דרך Marketplace."]
+  ];
+  var sorter=$("#sorter"), sScore={};
+  SC.forEach(function(s,i){
+    var q=document.createElement("div"); q.className="q";
+    q.innerHTML='<p><strong>מצב '+(i+1)+'.</strong> '+esc(s[0])+'</p><div class="opts" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div><p class="fb" aria-live="polite"></p>';
+    var opts=q.querySelector(".opts");
+    TOOLS.forEach(function(t){ var b=document.createElement("button"); b.type="button"; b.textContent=t; b.addEventListener("click",function(){
+      $$("button",opts).forEach(function(x){x.classList.remove("right","wrong")});
+      var ok=t===s[1]; b.classList.add(ok?"right":"wrong");
+      if(!ok) $$("button",opts).forEach(function(x){ if(x.textContent===s[1]) x.classList.add("right"); });
+      q.querySelector(".fb").textContent=(ok?"נכון. ":"התשובה: "+s[1]+". ")+s[2];
+      if(!(i in sScore)) sScore[i]=ok;
+      var c=Object.keys(sScore).length, r=Object.keys(sScore).filter(function(k){return sScore[k]}).length;
+      $("#sorterScore").textContent="ענית על "+c+" מתוך "+SC.length+", "+r+" נכונות בניסיון הראשון.";
+    }); opts.appendChild(b); });
+    sorter.appendChild(q);
+  });
+
+  /* ---------- T3 levels ---------- */
+  var LT={
+    "1":"השיחה מתחילה: Claude רואה רק את השם והתיאור של כל Skill. ההוראות והקבצים עדיין לא בשיחה.",
+    "2":"כתבתם \"תבדוק את הסגנון בקובץ הזה\". הבקשה מתאימה לתיאור, ו-Claude קורא את גוף SKILL.md. עכשיו הוא יודע מה לעשות.",
+    "3":"הבודק החזיר ממצאים, ושלב 3 בהוראות מפנה ל-rules.md. Claude קורא אותו עכשיו. הסקריפט עצמו לא נקרא: הוא רץ, ורק הפלט שלו נכנס לשיחה."
+  };
+  function setLevel(l){
+    $$("[data-level]").forEach(function(b){ b.setAttribute("aria-pressed",String(b.getAttribute("data-level")===l)); });
+    $$("#ctxView .slot").forEach(function(s){ var on=+s.getAttribute("data-l")<=+l; s.classList.toggle("on",on); s.classList.toggle("off",!on); });
+    $("#ctxText").textContent=LT[l];
+  }
+  $$("[data-level]").forEach(function(b){ b.addEventListener("click",function(){ setLevel(b.getAttribute("data-level")); }); });
+  setLevel("1");
+
+  /* ---------- T4 explorer ---------- */
+  var FD=JSON.parse(document.getElementById("fileData").textContent);
+  var FILES={
+    skill:{path:"checking-hebrew-style/SKILL.md",role:"ההוראות. החלק העליון (Frontmatter) הוא מה ש-Claude רואה תמיד; הגוף נקרא רק כשהבקשה מתאימה. הוא מגדיר תהליך של חמישה שלבים עם בדיקה חוזרת.",level:"רמה 2",text:FD.skill},
+    rules:{path:"checking-hebrew-style/references/rules.md",role:"קובץ עזר עם הסבר ודוגמאות לכל קוד שגיאה. Claude פותח אותו רק בשלב התיקון. בתצוגה כאן התווים האסורים מוצגים כקוד, כמו ⟨U+2014⟩, כדי שהלומדה עצמה תעמוד בכללים; בקובץ האמיתי הם מופיעים כתווים בתוך קוד.",level:"רמה 3",text:FD.rules},
+    script:{path:"checking-hebrew-style/scripts/check_style.py",role:"הבודק. רץ ב-Python 3 בלי חבילות חיצוניות, מדלג על קוד וכתובות, ומחזיר שורה לכל ממצא וקוד יציאה 0, 1 או 2. Claude מריץ אותו ולא קורא אותו, ולכן הקוד לא תופס מקום בשיחה.",level:"רמה 3, רק הפלט",text:FD.script}
+  };
+  function showFile(k){
+    var f=FILES[k];
+    $$(".tree button").forEach(function(b){ b.setAttribute("aria-pressed",String(b.getAttribute("data-file")===k)); });
+    $("#fileExplain").innerHTML='<p><strong>תפקיד:</strong> '+esc(f.role)+'</p><p class="small muted">נטען ב: '+esc(f.level)+'</p><div class="code"><div class="code-head"><span>'+esc(f.path)+'</span><button class="copy" type="button">העתק</button></div><pre><code>'+esc(f.text)+'</code></pre></div>';
+  }
+  $$(".tree button").forEach(function(b){ b.addEventListener("click",function(){ showFile(b.getAttribute("data-file")); }); });
+  showFile("skill");
+
+  /* ---------- T5 walkthroughs ---------- */
+  function walk(el,rows){ $(el).innerHTML=rows.map(function(r){ return '<div class="wline"><code>'+esc(r[0])+'</code><p>'+r[1]+'</p></div>'; }).join(""); }
+  walk("#walkFront",[
+    ["---","השורה הראשונה בקובץ חייבת להיות שלושה מקפים. אחרת Claude Code מתייחס לכל הקובץ כתוכן, בלי שדות."],
+    ["name: checking-hebrew-style","שם ה-Skill: אותיות קטנות ומקפים, זהה לשם התיקייה. בצורת gerund (‎-ing), כמו שהתיעוד ממליץ. ב-Claude Code זה גם שם הפקודה: <code>/checking-hebrew-style</code>."],
+    ["description: Checks Hebrew technical text for em and en dashes ...","מה ה-Skill עושה. פותח במילים שמזהות את המשימה, בגוף שלישי."],
+    ["... Use when writing, editing or reviewing Hebrew docs, Markdown or HTML.","מתי להשתמש. אלה המילים ש-Claude משווה לבקשה שלכם. 180 תווים בסך הכול, מתחת למגבלת ה-200 של האפליקציה."],
+    ["---","סוגר את ה-Frontmatter. מכאן מתחיל גוף ההוראות. בחרנו רק בשני שדות התקן, כדי שאותו קובץ יעבוד גם באפליקציה וגם ב-Claude Code."]
+  ]);
+  walk("#walkBody",[
+    ["## Workflow + checklist","רשימת שלבים ש-Claude מעתיק לתשובה ומסמן. התיעוד ממליץ על זה לתהליכים מרובי שלבים, כדי ששלב לא יידלג."],
+    ["2. Run the checker ... ${CLAUDE_SKILL_DIR} ... scripts/check_style.py","שני נתיבים: אחד ל-Claude Code ואחד לאפליקציה. בלי זה, הסקריפט היה עובד רק במוצר אחד."],
+    ["3. Fix every finding using references/rules.md","הפניה אחת, ברמה אחת מ-SKILL.md, בדיוק בשלב שצריך אותה."],
+    ["4. Run the checker again ... until it exits 0","לולאת משוב: לבדוק, לתקן, לבדוק שוב. לפי התיעוד, זה משפר מאוד את איכות התוצאה."],
+    ["## Rules","גבולות: לא לגעת בקוד ובכתובות, לא לתרגם מונחים, לא לשנות תוכן. משפטים קצרים בציווי."]
+  ]);
+
+  /* ---------- T5 validator ---------- */
+  var V={folder:$("#vFolder"),name:$("#vName"),desc:$("#vDesc")};
+  var DEF={folder:V.folder.value,name:V.name.value,desc:V.desc.value};
+  function validate(){
+    var n=V.name.value, d=V.desc.value, f=V.folder.value, items=[];
+    function add(cls,t){ items.push('<li class="'+cls+'">'+t+'</li>'); }
+    add(/^[a-z0-9-]+$/.test(n)?"pass":"fail","name: רק אותיות אנגליות קטנות, ספרות ומקפים");
+    add(n.length>0&&n.length<=64?"pass":"fail","name: בין 1 ל-64 תווים (עכשיו "+n.length+")");
+    add(!/(anthropic|claude)/i.test(n)?"pass":"fail","name: בלי המילים anthropic או claude");
+    add(n===f?"pass":"fail","name זהה לשם התיקייה");
+    add(/^[a-z0-9]/.test(n)&&!/-$/.test(n)&&!/--/.test(n)?"pass":"warn","name: לא מתחיל או נגמר במקף, בלי מקף כפול (לפי התקן הפתוח)");
+    add(d.trim().length>0?"pass":"fail","description לא ריק");
+    add(!/<[^>]+>/.test(d)?"pass":"fail","description: בלי תגיות XML");
+    add(d.length<=1024?"pass":"fail","description: עד 1,024 תווים לפי התקן");
+    add(d.length<=200?"pass":"warn","description: עד 200 תווים, המגבלה בהעלאה לאפליקציה");
+    add(/\buse (it )?when\b|\bwhen the user\b|מתי|כאשר|כש/i.test(d)?"pass":"warn","description אומר מתי להשתמש (למשל Use when)");
+    add(!/^\s*(i |i'|you |we )/i.test(d)?"pass":"warn","description בגוף שלישי, לא I can או You can");
+    $("#vChecks").innerHTML=items.join("");
+    var pct=Math.min(100,d.length/200*100);
+    $("#descMeter").innerHTML='<div class="lbl"><span>אורך description</span><span>'+d.length+' / 200</span></div><div class="track"><i class="'+(d.length>200?"over":"")+'" style="width:'+pct+'%"></i></div>';
+    var yd=/[:#]/.test(d)?JSON.stringify(d):d;
+    $("#vPreview").textContent="---\nname: "+n+"\ndescription: "+yd+"\n---";
+  }
+  ["folder","name","desc"].forEach(function(k){ V[k].addEventListener("input",validate); });
+  $("#vBreak").addEventListener("click",function(){ V.name.value="Claude Hebrew Checker"; V.desc.value="I can help you with <b>Hebrew</b> text and fix all kinds of style problems in documents, web pages, Markdown files, HTML files, presentations, emails and anything else you might be writing today."; validate(); });
+  $("#vReset").addEventListener("click",function(){ V.folder.value=DEF.folder; V.name.value=DEF.name; V.desc.value=DEF.desc; validate(); });
+  validate();
+
+  /* ---------- T6 checker (port of check_style.py) ---------- */
+  var HEB="\u05D0-\u05EA", PH="\uE000";
+  var RULES=[
+    ["E001",/\u2014/g,"em dash: לכתוב מחדש עם נקודה, פסיק, נקודתיים או סוגריים"],
+    ["E002",/\u2013/g,"en dash: לכתוב מחדש, טווח נכתב X עד Y"],
+    ["E003",/[\u2012\u2015\u2E3A\u2E3B\uFE58]/g,"מקף ארוך אחר: לכתוב מחדש"],
+    ["W001",new RegExp("(?<=\\S)[ \\t]+[,.:;!?](?=\\s|$|["+HEB+"])","g"),"רווח לפני סימן פיסוק"],
+    ["W002",/(?<=\S) {2,}(?=\S)/g,"רווח כפול בין מילים"],
+    ["W003",new RegExp("[,;](?=[A-Za-z"+HEB+"])|:(?=["+HEB+"])","g"),"חסר רווח אחרי סימן פיסוק"],
+    ["W004",new RegExp("(?<!["+HEB+"])[בהוכלמש] +- *(?=[A-Za-z])|(?<!["+HEB+"])[בהוכלמש] *- +(?=[A-Za-z])","g"),"אות שימוש ומונח באנגלית: ה-Term בלי רווחים"],
+    ["W005",new RegExp("(?<=["+HEB+"]) - (?=["+HEB+"])","g"),"מקף עם רווחים כתחליף למקף ארוך"]
+  ];
+  function blank(m){ return m.replace(/[^\n]/g,PH); }
+  function mask(t){ return t.replace(/^(```|~~~)[\s\S]*?^\1[^\n]*$/gm,blank).replace(/`[^`\n]+`/g,blank).replace(/https?:\/\/\S+/g,blank); }
+  function check(t){
+    var out=[]; mask(t).split("\n").forEach(function(line,i){
+      RULES.forEach(function(r){ r[1].lastIndex=0; var m; while((m=r[1].exec(line))!==null){ out.push({line:i+1,col:m.index+1,code:r[0],msg:r[2]}); if(m[0].length===0) r[1].lastIndex++; } });
+    });
+    return out.sort(function(a,b){return a.line-b.line||a.col-b.col});
+  }
+  var D="\u2014", N="\u2013";
+  var SAMPLE=["ה-Skill נטען רק כשצריך "+D+" וזה חוסך Tokens.","גרסאות 2.1.200"+N+"2.1.300 נתמכות.","מפעילים את ה-Skill .","יש  שני רווחים כאן.","Skill,Hook ו-MCP:הם מנגנונים שונים.","כותבים ה - Skill ולא ב- Claude.","התיאור קובע הכול - בלי תיאור אין הפעלה.","וגם `קוד "+D+" כזה` לא נבדק."].join("\n");
+  var FIXED=["ה-Skill נטען רק כשצריך, וזה חוסך Tokens.","גרסאות 2.1.200 עד 2.1.300 נתמכות.","מפעילים את ה-Skill.","יש שני רווחים כאן.","Skill, Hook ו-MCP: הם מנגנונים שונים.","כותבים ה-Skill ולא ב-Claude.","התיאור קובע הכול: בלי תיאור אין הפעלה.","וגם `קוד "+D+" כזה` לא נבדק."].join("\n");
+  var ck=$("#ckInput"); ck.value=SAMPLE;
+  function runCheck(){
+    var f=check(ck.value), st=$("#ckStatus");
+    st.className="status "+(f.length?"bad":"ok");
+    st.textContent=f.length?("נמצאו "+f.length+" ממצאים. בסקריפט האמיתי קוד היציאה היה 1."):"אין ממצאים. בסקריפט האמיתי קוד היציאה היה 0.";
+    $("#ckOut").innerHTML=f.map(function(x){ return '<li><span class="pos">'+x.line+':'+x.col+'</span><span class="code-tag '+x.code[0]+'">'+x.code+'</span><span>'+esc(x.msg)+'</span></li>'; }).join("");
+  }
+  $("#ckRun").addEventListener("click",runCheck);
+  $("#ckFix").addEventListener("click",function(){ ck.value=FIXED; runCheck(); });
+  $("#ckSample").addEventListener("click",function(){ ck.value=SAMPLE; runCheck(); });
+  runCheck();
+
+  /* ---------- T7 prompt builder ---------- */
+  var TASK={
+    style:{t:"שבודק טקסט טכני בעברית ומוצא מקפים ארוכים, רווחים כפולים ופיסוק שגוי סביב מונחים באנגלית",s:"סקריפט Python שמחזיר שורה לכל ממצא, וקוד יציאה 0 כשאין ממצאים ו-1 כשיש"},
+    release:{t:"שמנסח Release notes מתוך רשימת שינויים, בתבנית הקבועה של הצוות שאני מצרף",s:"סקריפט שבודק שכל סעיפי התבנית קיימים ושאין סעיף ריק"},
+    review:{t:"שסוקר Pull Request לפי הצ'קליסט של הצוות שאני מצרף, ומחזיר ממצאים לפי חומרה",s:"סקריפט שמוודא שכל ממצא כולל קובץ ומספר שורה"}
+  };
+  var WHERE={app:"אני אעלה אותו לאפליקציית Claude, אז השתמש רק בשדות name ו-description, ושמור את ה-description מתחת ל-200 תווים.",code:"אני אשתמש בו ב-Claude Code. שמור אותו בתיקייה ~/.claude/skills/ והראה לי את הנתיב המלא.",both:"אני אשתמש בו גם באפליקציה וגם ב-Claude Code, אז השתמש רק בשדות name ו-description, שמור את ה-description מתחת ל-200 תווים, ותן לסקריפט נתיב שעובד בשני המקומות."};
+  function buildPrompt(){
+    var t=($("input[name=pbTask]:checked")||{}).value||"style", w=($("input[name=pbWhere]:checked")||{}).value||"app";
+    var ex=$$("#pbExtra input:checked").map(function(i){return i.value});
+    var lines=["השתמש ב-skill-creator ובנה לי Skill "+TASK[t].t+"."];
+    lines.push("לפני שאתה כותב, שאל אותי שאלות על התהליך שלי: מתי משתמשים בו, ומה נחשב תוצאה טובה.");
+    lines.push("ה-name באותיות אנגליות קטנות ומקפים, זהה לשם התיקייה. ה-description אומר מה ה-Skill עושה ומתי להשתמש בו, בגוף שלישי.");
+    lines.push(WHERE[w]);
+    if(ex.indexOf("script")>=0) lines.push("הוסף "+TASK[t].s+". השתמש רק בספרייה הסטנדרטית.");
+    if(ex.indexOf("nonet")>=0) lines.push("ה-Skill לא ניגש לרשת ולא מכיל מפתחות או סיסמאות.");
+    if(ex.indexOf("evals")>=0) lines.push("בסוף, תן לי שלוש בקשות שצריכות להפעיל את ה-Skill ושלוש שלא, כדי שאבדוק אותו.");
+    lines.push("בסוף, הסבר לי בעברית אילו קבצים יצרת ומה תפקיד כל אחד.");
+    $("#pbOut").textContent=lines.join("\n");
+  }
+  $$("#pbTask input, #pbWhere input, #pbExtra input").forEach(function(i){ i.addEventListener("change",buildPrompt); });
+  buildPrompt();
+
+  /* ---------- T10 quiz ---------- */
+  var QZ=[
+    ["איזה קובץ חייב להיות בכל Skill?",["README.md","SKILL.md","skill.json"],1,"SKILL.md הוא הקובץ היחיד שחובה. כל השאר אופציונלי."],
+    ["מה Claude קורא לפני שהוא מחליט אם להפעיל Skill?",["את כל הקבצים בתיקייה","את גוף ההוראות","את השם והתיאור"],2,"רק ה-Metadata נטען מראש. לכן התיאור הוא החלק החשוב ביותר."],
+    ["מה צריך להיות בשורש קובץ ה-ZIP שמעלים לאפליקציה?",["תיקיית ה-Skill עצמה","הקובץ SKILL.md","תיקייה בשם skills"],0,"Claude מחפש <skill-name>/SKILL.md בתוך הארכיון."],
+    ["מה אורך ה-description הבטוח לכל המוצרים?",["עד 200 תווים","עד 1,024 תווים","עד 1,536 תווים"],0,"1,024 הוא גבול התקן, אבל מאמר העזרה להעלאה לאפליקציה מגביל ל-200."],
+    ["Skill שנמצא רק ב-~/.claude/skills/ במחשב שלכם. איפה הוא זמין?",["באפליקציה ובכל מקום","ב-Claude Code המקומי בלבד","רק בשיחות ענן"],1,"תיקייה מקומית נטענת ב-Claude Code במחשב. היא לא עולה לאפליקציה ולא לשיחות ענן."],
+    ["קיבלתם Skill מעמית. מה עושים קודם?",["מפעילים ובודקים מה קורה","קוראים את כל הקבצים, כולל סקריפטים","מעלים לארגון כדי שכולם יבדקו"],1,"התיעוד מורה לבדוק כל קובץ, ובמיוחד סקריפטים וכתובות חיצוניות, לפני הפעלה."]
+  ];
+  var quiz=$("#quiz"), qs={};
+  QZ.forEach(function(q,i){
+    var d=document.createElement("div"); d.className="q";
+    d.innerHTML='<p><strong>'+(i+1)+'. '+esc(q[0])+'</strong></p><div class="opts"></div><p class="fb" aria-live="polite"></p>';
+    var o=d.querySelector(".opts");
+    q[1].forEach(function(a,j){ var b=document.createElement("button"); b.type="button"; b.textContent=a; b.addEventListener("click",function(){
+      $$("button",o).forEach(function(x){x.classList.remove("right","wrong")});
+      var ok=j===q[2]; b.classList.add(ok?"right":"wrong"); o.children[q[2]].classList.add("right");
+      d.querySelector(".fb").textContent=(ok?"נכון. ":"לא בדיוק. ")+q[3];
+      if(!(i in qs)) qs[i]=ok;
+      var c=Object.keys(qs).length, r=Object.keys(qs).filter(function(k){return qs[k]}).length;
+      $("#quizScore").textContent=r+" נכונות מתוך "+c+" שעניתם"+(c===QZ.length?(r===QZ.length?". כל הכבוד, סיימתם את הלומדה.":". אפשר לחזור לנושאים הרלוונטיים ולנסות שוב."):".");
+    }); o.appendChild(b); });
+    quiz.appendChild(d);
+  });
+
+  /* ---------- checklist ---------- */
+  $$("#checklist input").forEach(function(c){
+    c.checked=!!state.checks[c.id];
+    c.addEventListener("change",function(){ state.checks[c.id]=c.checked; save(state); });
+  });
+
+  show(location.hash.slice(1)||"start",false);
+  window.scrollTo(0,0);
+})();
+</script>
+
+</body>
+</html>

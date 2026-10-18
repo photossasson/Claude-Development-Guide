@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 29: Team Workflows | מדריך פיתוח ב-Claude Code</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ו | פרק 29</p>
+  <h1>Team Workflows: עבודת צוות עם Claude Code</h1>
+  <p class="lead">עד עכשיו עבדנו בעיקר כמפתח יחיד. בפרק הזה נעבור לרמת הצוות: אילו קבצי הגדרה משתפים דרך <bdi>Git</bdi> ואילו נשארים מקומיים, איך מפיצים יכולות לכל הצוות עם <bdi>Plugins</bdi>, איך מנהלים מרכזית מדיניות עם <bdi>Managed Settings</bdi> בתוכניות <bdi>Team</bdi> ו-<bdi>Enterprise</bdi>, איך שומרים על סדר עם Writer/Reviewer ו-Branches, איך עוקבים אחרי עלויות ושימוש, ואיך מונעים התנגשויות בין כמה Agents שעובדים במקביל. בסוף נתרגל תכנון תצורה מלאה לצוות של שישה מפתחים על פרויקט <bdi>TaskFlow</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-and-why">מהי עבודת צוות עם Claude Code ואיזו בעיה היא פותרת</h2>
+  <p>כשמפתח אחד עובד עם <bdi>Claude Code</bdi>, ההגדרות שלו הן עניין אישי: קובץ <bdi>CLAUDE.md</bdi> שהוא כתב, הרשאות שאישר, ו-<bdi>Skills</bdi> שבנה לעצמו. ברגע שיש צוות, כל אחד מהדברים האלה הופך לשאלה ארגונית: אם כל מפתח מגדיר לבד, מקבלים שישה עותקים שונים של "חוקי הפרויקט", תוצאות לא עקביות ב-<bdi>Code Review</bdi>, ופערי אבטחה שאף אחד לא רואה.</p>
+  <p>החדשות הטובות: <bdi>Claude Code</bdi> תוכנן מראש לעבודת צוות. מערכת ה-Scopes של ההגדרות (שהכרנו ב<a href="ch17.html#hierarchy">פרק 17</a>) מפרידה בין מה ששייך לפרויקט (משותף דרך <bdi>Git</bdi>), מה ששייך למשתמש (אישי), ומה שנכפה על ידי הארגון (Managed). הפרק הזה מלמד להשתמש בהפרדה הזאת נכון, ומוסיף את השכבות הארגוניות: הפצה, אכיפה, מדידה וממשל נתונים.</p>
+  <h3 id="when">מתי להשקיע בזה, ומתי לא</h3>
+  <ul>
+    <li><strong>השקיעו</strong> כשיש שני מפתחים או יותר על אותו Repository, כשיש דרישות Compliance, או כשהארגון משלם על שימוש ורוצה שליטה בעלויות.</li>
+    <li><strong>השקיעו במיוחד</strong> כשחלק מהעבודה רצה אוטומטית (CI, <a href="ch28.html">GitHub Actions</a>, Subagents): שם אין אדם שמאשר כל פעולה, והתצורה המשותפת היא קו ההגנה.</li>
+    <li><strong>אל תגזימו</strong> בצוות של שניים-שלושה על פרויקט צד: קובץ <bdi>CLAUDE.md</bdi> משותף וקובץ <code>.claude/settings.json</code> אחד מספיקים בהתחלה. <bdi>Managed Settings</bdi> ולוחות Analytics רלוונטיים בעיקר לתוכניות <bdi>Team</bdi> ו-<bdi>Enterprise</bdi>.</li>
+  </ul>
+  <h3 id="how-it-works">איך זה עובד מושגית: שלוש שכבות של סמכות</h3>
+  <p>כל מה שנראה בפרק נשען על מודל פשוט אחד. חשבו על שלוש שכבות, מהרכה לקשה: <strong>קונבנציה</strong> (מה שכתוב ב-<bdi>CLAUDE.md</bdi> וב-Skills: מנחה את Claude אבל אינו נאכף טכנית), <strong>תצורת פרויקט</strong> (מה שב-<code>.claude/settings.json</code> המשותף: חוקים שהלקוח אוכף, אבל מפתח יכול להרחיב מקומית), ו<strong>מדיניות מנוהלת</strong> (מה שהארגון כופה מלמעלה: אף שכבה מתחתיה לא יכולה לבטל אותה). האומנות של תצורת צוות טובה היא לשים כל דבר בשכבה הנמוכה ביותר שמספיקה לו: מה שיכול להישאר קונבנציה נשאר קונבנציה, כי אותה הכי זול לעדכן (עוד PR), ומה שחייב אכיפה מטפס למעלה. כשמשהו יושב בשכבה גבוהה מדי, כל שינוי קטן דורש <bdi>Owner</bdi> ארגוני; כשהוא יושב נמוך מדי, אי אפשר לסמוך עליו.</p>
+
+  <h2 id="shared-config">שיתוף Configuration דרך Git: מה נכנס ל-Commit ומה לא</h2>
+  <p>העיקרון המנחה פשוט: <strong>כל מה שמגדיר "איך עובדים על הפרויקט הזה" שייך ל-Repository. כל מה שמגדיר "איך אני אוהב לעבוד" נשאר מקומי.</strong> כך נראית החלוקה המתועדת:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>קובץ / תיקייה</th><th>Commit?</th><th>מה הוא מגדיר</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>CLAUDE.md</code></td><td>כן</td><td>הוראות הפרויקט: ארכיטקטורה, מוסכמות, פקודות Build ו-Test. נטען לכל חברי הצוות בכל Session (<a href="ch15.html">פרק 15</a>)</td></tr>
+        <tr><td class="ltr"><code>.claude/settings.json</code></td><td>כן</td><td>הגדרות ברמת הפרויקט: חוקי Permissions, Hooks, משתני סביבה משותפים (<a href="ch17.html#annotated-team">פרק 17</a>)</td></tr>
+        <tr><td class="ltr"><code>.claude/settings.local.json</code></td><td>לא</td><td>העדפות אישיות והרשאות שאושרו מקומית. כש-Claude Code שומר לשם הגדרה, הוא מוסיף את הקובץ אוטומטית ל-Git Excludes הגלובלי שלכם</td></tr>
+        <tr><td class="ltr"><code>.claude/rules/</code></td><td>כן</td><td>חוקים ממוקדים, כולל חוקים עם <code>paths:</code> שנטענים רק כשנוגעים בקבצים רלוונטיים (<a href="ch15.html#rules">פרק 15</a>)</td></tr>
+        <tr><td class="ltr"><code>.claude/skills/</code></td><td>כן</td><td>Skills של הפרויקט: תהליכים שכל הצוות מפעיל אותו דבר (<a href="ch21.html">פרק 21</a>)</td></tr>
+        <tr><td class="ltr"><code>.claude/agents/</code></td><td>כן</td><td>Subagents מותאמים של הפרויקט (<a href="ch25.html#custom">פרק 25</a>)</td></tr>
+        <tr><td class="ltr"><code>.mcp.json</code></td><td>כן</td><td>שרתי MCP ברמת הפרויקט, בלי Credentials (<a href="ch23.html">פרק 23</a>)</td></tr>
+        <tr><td class="ltr"><code>.worktreeinclude</code></td><td>כן</td><td>אילו קבצים שאינם ב-Git (כמו <code>.env</code>) יועתקו אוטומטית לכל Worktree חדש</td></tr>
+        <tr><td class="ltr"><code>.claude/worktrees/</code></td><td>לא (הוסיפו ל-<code>.gitignore</code>)</td><td>תיקיות העבודה של Sessions מקביליים; תוכן זמני</td></tr>
+        <tr><td class="ltr"><code>CLAUDE.local.md</code></td><td>לא</td><td>הערות זיכרון אישיות לפרויקט</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>כך נראה Repository "מוכן לצוות" אחרי שהחלוקה הזאת מיושמת על <bdi>TaskFlow</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">taskflow/ (מה שנמצא ב-Git)</div>
+    <pre><code>taskflow/
+├── CLAUDE.md                    # הוראות פרויקט משותפות
+├── .worktreeinclude             # .env יועתק לכל Worktree
+├── .gitignore                   # כולל .claude/worktrees/ ו-.env
+├── .mcp.json                    # שרתי MCP של הפרויקט, בלי סודות
+├── .claude/
+│   ├── settings.json            # חוקי הרשאות ו-Hooks של הצוות
+│   ├── rules/
+│   │   ├── api-conventions.md   # paths: backend/app/**
+│   │   └── testing.md           # paths: "**/*.test.*"
+│   ├── skills/run-backend-tests/
+│   └── agents/reviewer.md
+├── backend/ ...
+└── frontend/ ...</code></pre>
+  </div>
+  <div class="callout warn"><span class="title">אזהרה: Credentials לעולם לא ב-Commit</span><p>קובץ <code>.mcp.json</code> משותף מגדיר אילו שרתים קיימים, אבל מפתחות API וסודות נשארים במשתני סביבה מקומיים או ב-<code>.env</code> שמוחרג מ-Git. מי שמריץ לראשונה פרויקט עם <code>.claude/settings.json</code> רואה בדיוק אילו חוקי הרשאות התיקייה מבקשת, כחלק מחלון ה-Trust (ראו <a href="ch03.html#step3">פרק 3</a>): זה מנגנון מכוון, כי תצורה משותפת היא גם משטח תקיפה.</p></div>
+  <h3 id="review-policy">Review לשינויי תצורה</h3>
+  <p>קבצי התצורה האלה הם קוד לכל דבר, ולפעמים מסוכנים יותר מקוד: שינוי ב-<code>.claude/settings.json</code> יכול להוסיף חוק <code>allow</code> רחב, Hook שמריץ פקודת Shell אצל כל חברי הצוות, או שרת MCP חדש. לכן מומלץ לקבוע מדיניות מפורשת:</p>
+  <ul>
+    <li>כל שינוי ב-<code>.claude/</code>, ב-<code>CLAUDE.md</code> וב-<code>.mcp.json</code> עובר Pull Request עם Review אנושי, כמו קוד Production.</li>
+    <li>הגדירו ב-<bdi>GitHub</bdi> קובץ <code>CODEOWNERS</code> שממפה את הנתיבים האלה ל-Tech Lead או לצוות Platform, כך ש-Review שלהם נדרש אוטומטית.</li>
+    <li>ב-Review של Hook חדש בודקים את הסקריפט עצמו, לא רק את ה-JSON: הוא ירוץ על המכונה של כולם.</li>
+    <li>חוקי <code>deny</code> חדשים בטוחים לאישור מהיר; חוקי <code>allow</code> חדשים מקבלים את הבדיקה הקפדנית ביותר.</li>
+  </ul>
+
+  <h2 id="plugins-dist">Plugins: מנגנון ההפצה של הצוות</h2>
+  <p>שיתוף דרך ה-Repository עובד מצוין לפרויקט אחד. אבל כשיש לצוות עשרה Repositories, לא מעתיקים את אותם Skills ו-Agents לכל אחד מהם. בשביל זה קיימים <bdi>Plugins</bdi>, שהכרנו לעומק ב<a href="ch26.html">פרק 26</a>: חבילה אחת עם Skills, Agents, Hooks, פקודות ושרתי MCP, שמותקנת בפקודה אחת ומתעדכנת מרכזית.</p>
+  <p>הדפוס הצוותי המקובל: מקימים <bdi>Marketplace</bdi> פרטי של הארגון (Repository ייעודי ב-<bdi>Git</bdi>, ראו <a href="ch26.html#private">פרק 26, סעיף Marketplace פרטי</a>), מפרסמים בו Plugin ארגוני אחד או יותר, וכל מפתח מתקין משם. עדכון גרסה ב-Marketplace מגיע לכולם, במקום לרדוף אחרי עותקים; ניהול הגרסאות של ה-Plugin עצמו (ראו <a href="ch26.html#versioning">פרק 26</a>) נותן לצוות גם דרך מסודרת לגלגל שינוי לאחור. בארגונים עם <bdi>Managed Settings</bdi> אפשר גם להקשיח: ההגדרה <code>strictKnownMarketplaces</code> מגבילה מאילו מקורות מותר להתקין, וההגדרה <code>strictPluginOnlyCustomization</code> חוסמת Skills, Agents, Hooks ושרתי MCP שלא מגיעים מ-Plugin או מהגדרות מנוהלות, כך שכל היכולות בצוות עוברות דרך צינור הפצה מבוקר אחד.</p>
+  <div class="callout tip"><span class="title">Best Practice</span><p>חלוקת עבודה מומלצת: מה שייחודי ל-Repository אחד (מוסכמות הקוד שלו, פקודות ה-Build שלו) נשאר ב-<code>.claude/</code> של אותו Repository. מה שמשותף לכל הארגון (Skill של תהליך Release, Agent של Code Review, חיבורי MCP פנימיים) עובר ל-Plugin ארגוני.</p></div>
+
+  <h2 id="managed">Managed Settings: מדיניות מרכזית ב-Team ו-Enterprise</h2>
+  <p>קבצים ב-Repository הם המלצה חזקה, אבל כל מפתח יכול לעקוף אותם בהגדרות המשתמש שלו. כשצריך אכיפה אמיתית, ארגונים בתוכניות <bdi>Claude for Teams</bdi> ו-<bdi>Claude for Enterprise</bdi> משתמשים בשכבת ההגדרות המנוהלות, שנמצאת בראש היררכיית ה-Precedence: אף שכבה אחרת, כולל דגלים בשורת הפקודה, לא יכולה לדרוס אותה (למעט חריגים בודדים המתועדים בעמוד ה-Settings).</p>
+  <h3 id="server-managed">Server-Managed Settings: ניהול מהענן</h3>
+  <p><bdi>Server-managed settings</bdi> מוגדרים בקונסולת הניהול של <bdi>claude.ai</bdi> תחת <bdi>Admin Settings &gt; Claude Code &gt; Managed settings</bdi>, ורק בעלי תפקיד <bdi>Owner</bdi> או <bdi>Primary Owner</bdi> יכולים לצפות בהם ולערוך אותם. לקוחות ה-Claude Code של המשתמשים מושכים את ההגדרות אוטומטית בעת התחברות עם חשבון הארגון, ומתעדכנים בפולינג שעתי במהלך Sessions פעילים. זה פתרון שנועד בדיוק לארגונים בלי תשתית ניהול תחנות (MDM): אין שום דבר להתקין על המחשבים.</p>
+  <p>ההגדרות נכתבות כ-JSON באותו פורמט של <code>settings.json</code>. דוגמה מהתיעוד הרשמי, שאוכפת רשימת חסימות ומונעת עקיפת הרשאות:</p>
+  <div class="codeblock">
+    <div class="codehead">Admin Settings &gt; Claude Code &gt; Managed settings</div>
+    <pre><code>{
+  "permissions": {
+    "deny": [
+      "Bash(curl *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "allowManagedPermissionRulesOnly": true
+}</code></pre>
+  </div>
+  <h3 id="endpoint-managed">managed-settings.json: הווריאנט המקומי</h3>
+  <p>ארגונים עם MDM או ניהול תחנות יכולים לפרוס את אותה מדיניות ישירות למכשירים (Endpoint-managed). המיקומים המתועדים של קובץ <code>managed-settings.json</code>:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מערכת הפעלה</th><th>נתיב</th></tr></thead>
+      <tbody>
+        <tr><td>macOS</td><td class="ltr"><code>/Library/Application Support/ClaudeCode/managed-settings.json</code></td></tr>
+        <tr><td>Linux / WSL</td><td class="ltr"><code>/etc/claude-code/managed-settings.json</code></td></tr>
+        <tr><td>Windows</td><td class="ltr"><code>C:\Program Files\ClaudeCode\managed-settings.json</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>בנוסף קיימים ערוצי מדיניות ברמת מערכת ההפעלה: Plist בשם <code>com.anthropic.claudecode</code> ב-macOS ורישום <code>HKLM\SOFTWARE\Policies\ClaudeCode</code> ב-Windows. סדר העדיפויות בתוך השכבה המנוהלת: Server-managed נבדק ראשון, ואם הוא מספק תצורה כלשהי, מקורות ה-Endpoint מתעלמים (המקורות לא מתמזגים, למעט חריגים מתועדים כמו מיזוג פר-משתנה של בלוק <code>env</code>). לפי התיעוד, ל-MDM יש יתרון אבטחתי במכשירים מנוהלים, כי אפשר להגן על הקובץ ברמת מערכת ההפעלה; מנגד, הגדרות Endpoint לא מגיעות ל-Sessions בענן, ולכן ארגונים שמשתמשים ב-<bdi>Claude Code on the web</bdi> צריכים להגדיר גם Server-managed.</p>
+  <h3 id="enforce-what">מה מנהלים יכולים לאכוף</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>בקרה</th><th>הגדרות מפתח</th></tr></thead>
+      <tbody>
+        <tr><td>חוקי הרשאות שאי אפשר לעקוף, וביטול <code>--dangerously-skip-permissions</code></td><td class="ltr"><code>permissions.allow/deny</code>, <code>allowManagedPermissionRulesOnly</code>, <code>disableBypassPermissionsMode</code></td></tr>
+        <tr><td>Sandbox ברמת מערכת ההפעלה עם Allowlist של דומיינים</td><td class="ltr"><code>sandbox.enabled</code>, <code>sandbox.network.allowedDomains</code></td></tr>
+        <tr><td>הוראות CLAUDE.md ארגוניות שנטענות בכל Session ואי אפשר להחריג</td><td class="ltr"><code>claudeMd</code> או קובץ בנתיב המדיניות</td></tr>
+        <tr><td>שליטה בשרתי MCP (ראו בהמשך)</td><td class="ltr"><code>allowedMcpServers</code>, <code>deniedMcpServers</code>, <code>allowManagedMcpServersOnly</code></td></tr>
+        <tr><td>הגבלת מקורות Plugins ו-Marketplaces</td><td class="ltr"><code>strictKnownMarketplaces</code>, <code>blockedMarketplaces</code>, <code>disableSideloadFlags</code></td></tr>
+        <tr><td>נעילת התאמות אישיות למקורות מבוקרים בלבד</td><td class="ltr"><code>strictPluginOnlyCustomization</code>, <code>allowManagedHooksOnly</code></td></tr>
+        <tr><td>כפיית שיטת התחברות וארגון ספציפי</td><td class="ltr"><code>forceLoginMethod</code>, <code>forceLoginOrgUUID</code></td></tr>
+        <tr><td>הגבלת מודלים זמינים וגרסת מינימום של Claude Code</td><td class="ltr"><code>availableModels</code>, <code>minimumVersion</code></td></tr>
+        <tr><td>עצירה בכשל משיכת מדיניות (Fail-Closed)</td><td class="ltr"><code>forceRemoteSettingsRefresh</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>הגדרות שמריצות קוד אצל המשתמש (Hooks, משתני סביבה רגישים, תוכן <code>claudeMd</code>) מציגות למשתמש דיאלוג אישור אבטחה לפני החלה; דחייה סוגרת את Claude Code. חשוב לזכור את ההסתייגות מהתיעוד: הגדרות מנוהלות הן בקרת Client, לא גבול אבטחה. במכשיר לא מנוהל, משתמש נחוש יכול לעקוף אותן; אכיפה חזקה יותר דורשת MDM או בקרות רשת.</p>
+  <h3 id="managed-mcp">Allowlists מנוהלים ל-MCP</h3>
+  <p>שרתי MCP הם תעלת הנתונים החוצה, ולכן יש להם בקרות ייעודיות. שני דפוסים מתועדים:</p>
+  <ul>
+    <li><strong>שליטה מלאה:</strong> פריסת קובץ <code>managed-mcp.json</code> עם סט קבוע של שרתים (דרך ערוצי Endpoint בלבד; אי אפשר להפיץ אותו דרך Server-managed settings).</li>
+    <li><strong>סינון במדיניות:</strong> <code>allowedMcpServers</code> ו-<code>deniedMcpServers</code> מסננים מה שמשתמשים מגדירים בעצמם, לפי URL, פקודה או שם. הוספת <code>allowManagedMcpServersOnly: true</code> הופכת את ה-Allowlist לסמכותי: מה שלא ברשימה חסום.</li>
+  </ul>
+  <h3 id="verify-managed">אימות</h3>
+  <div class="verify">
+    <p>כך מוודאים שהמדיניות באמת הגיעה לתחנה: מריצים <code>/status</code> בתוך Claude Code ובודקים שבשורת <bdi>Setting sources</bdi> מופיע <bdi>Enterprise managed settings</bdi> עם המקור בסוגריים: <code>(remote)</code>, <code>(plist)</code>, <code>(HKLM)</code>, <code>(HKCU)</code> או <code>(file)</code>. את חוקי ההרשאות בפועל בודקים עם <code>/permissions</code>. לאיתור תקלות מריצים <code>claude --debug-file &lt;path&gt;</code> ומחפשים <bdi>Remote settings</bdi> ביומן.</p>
+  </div>
+
+  <h2 id="standards">סטנדרטים, Review ואסטרטגיית Branches</h2>
+  <p>תצורה משותפת קובעת מה Claude רשאי לעשות; מדיניות עבודה קובעת איך הצוות משתמש בו. שלושה עקרונות מחזיקים את רוב המשקל:</p>
+  <h3 id="writer-reviewer">הפרדת Writer ו-Reviewer</h3>
+  <p>אל תתנו לאותו הקשר גם לכתוב וגם לבקר. Session שכתב קוד "מאוהב" בפתרון שלו, בדיוק כמו מפתח. הדפוסים המומלצים:</p>
+  <ul>
+    <li>הכותב עובד ב-Session רגיל; ה-Review נעשה ב-Session נקי אחר (או Subagent ייעודי של Review, ראו <a href="ch25.html">פרק 25</a>) שמקבל רק את ה-Diff ואת הדרישות.</li>
+    <li>ברמת הצוות, ה-Review האוטומטי ב-Pull Requests רץ דרך <bdi>Code Review</bdi> ו-<bdi>GitHub Actions</bdi> שהגדרנו ב<a href="ch28.html">פרק 28</a>, עם אדם שמאשר בסוף.</li>
+    <li>כלל אצבע צוותי: Claude מציע, אדם ממזג. אישור Merge של קוד שנכתב עם Claude נשאר באחריות מפתח בשם, לא באחריות "הכלי".</li>
+  </ul>
+  <h3 id="pr-discipline">משמעת Pull Requests</h3>
+  <ul>
+    <li>PR קטן וממוקד לכל משימה. משימות ענק מפורקות מראש (ב-Plan Mode, <a href="ch07.html">פרק 7</a>) לסדרת PRs.</li>
+    <li>כל PR כולל: מה התבקש, מה Claude עשה, אילו בדיקות רצו, ומה נבדק ידנית. תבנית PR ב-Repository עוזרת לאכוף את זה.</li>
+    <li>בדיקות הן חלק מההגדרה של "מוכן": PR בלי בדיקות שרצות הוא טיוטה.</li>
+  </ul>
+  <h3 id="branch-strategy">אסטרטגיית Branches: ענף אחד, בעלים אחד</h3>
+  <p>הכלל הצוותי החשוב ביותר לעבודה עם Agents: <strong>על כל Branch עובד בכל רגע נתון גורם אחד בלבד</strong>, אדם או Agent. שני Agents (או Agent ומפתח) שכותבים לאותו Branch דורסים זה את זה ויוצרים קונפליקטים שקשה לשחזר. עבודה מקבילית נעשית ב-Branches נפרדים, ועדיף ב-Worktrees נפרדים, כפי שנראה מיד.</p>
+
+  <h2 id="ownership">בעלות ו-Auditability: לדעת מי עשה מה</h2>
+  <h3 id="attribution">Attribution בהגדרות</h3>
+  <p>כברירת מחדל Claude Code מוסיף ל-Commits שהוא יוצר Trailer בסגנון <code>Co-Authored-By: Claude ... &lt;noreply@anthropic.com&gt;</code> (עם שם המודל הפעיל), ולתיאורי Pull Requests שורת "Generated with Claude Code". ההתנהגות נשלטת בהגדרת <code>attribution</code> עם המפתחות <code>commit</code>, <code>pr</code> ו-<code>sessionUrl</code>; מחרוזת ריקה מסתירה. ההגדרה הזאת גוברת על ההגדרה הישנה <code>includeCoAuthoredBy</code> <span class="badge dep">Deprecated</span>. המלצתנו לצוותים: השאירו את ה-Attribution דולק וקבעו אותו ב-<code>.claude/settings.json</code> המשותף. שקיפות על מקור הקוד עוזרת ב-Debugging, ב-Review ובמדידה, ואין סיבה טובה להסתיר אותה.</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/settings.json</div>
+    <pre><code>{
+  "attribution": {
+    "commit": "Co-Authored-By: Claude &lt;noreply@anthropic.com&gt;",
+    "pr": "Generated with Claude Code"
+  }
+}</code></pre>
+  </div>
+  <h3 id="audit">צורכי Audit</h3>
+  <ul>
+    <li><strong>שינויי מדיניות:</strong> אירועי Audit Log על שינויים ב-Managed Settings זמינים ללקוחות Enterprise דרך Compliance API או ייצוא, בתיאום עם צוות החשבונות של Anthropic. האירועים כוללים את סוג הפעולה, החשבון והמכשיר, והפניות לערך הקודם והחדש.</li>
+    <li><strong>שינויי תצורה בזמן ריצה:</strong> Hook מסוג <code>ConfigChange</code> (<a href="ch22.html">פרק 22</a>) יכול לרשום או לחסום שינויים לא מורשים לפני שהם נכנסים לתוקף.</li>
+    <li><strong>טלמטריה מפורטת:</strong> ייצוא <bdi>OpenTelemetry</bdi> שולח לתשתית הניטור שלכם מדדים ואירועים פר משתמש: <code>claude_code.token.usage</code>, <code>claude_code.cost.usage</code>, <code>claude_code.lines_of_code.count</code>, אירועי הרצת כלים ועוד. זו האפשרות היחידה שעובדת בזמן אמת על כל ספקי ה-API.</li>
+  </ul>
+  <h3 id="analytics">לוחות Analytics ו-Analytics API</h3>
+  <p>שני לוחות מתועדים, לפי סוג התוכנית:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תוכנית</th><th>כתובת</th><th>מה רואים</th></tr></thead>
+      <tbody>
+        <tr><td>Team / Enterprise</td><td class="ltr"><code>claude.ai/analytics/claude-code</code></td><td>משתמשים פעילים ו-Sessions, שורות קוד שהתקבלו, אחוז קבלת הצעות, מדדי תרומה עם אינטגרציית GitHub <span class="badge beta">Public Beta</span> (PRs שסומנו <code>claude-code-assisted</code>), Leaderboard וייצוא CSV</td></tr>
+        <tr><td>API (Claude Console)</td><td class="ltr"><code>platform.claude.com/claude-code</code></td><td>שורות קוד שהתקבלו, אחוז קבלה, פעילות יומית, והוצאה יומית בדולרים כולל טבלת Spend פר משתמש</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>גישה תוכנית (Programmatic): בתוכנית Enterprise קיים <bdi>Enterprise Analytics API</bdi> שמחזיר דוחות שימוש ועלות פר משתמש (מפתח עם Scope בשם <code>read:analytics</code>, נוצר על ידי Primary Owner; לא זמין בתוכנית Teams). ללקוחות Console קיים <bdi>Claude Code Analytics API</bdi> עם Admin API Key. חשוב: מדדי התרומה מחושבים בשיטה שמרנית מכוונת, והם הערכת חסר של התרומה בפועל.</p>
+
+  <h2 id="cost-gov">Cost Governance לצוותים</h2>
+  <p>את הצד הכמותי המלא של עלויות נלמד ב<a href="ch30.html">פרק 30</a>; כאן עקרונות הממשל ברמת צוות:</p>
+  <ul>
+    <li><strong>Seats מול API:</strong> בתוכניות Team ו-Enterprise כל חבר צוות צורך מהקצאת ה-Seat שלו (חלון מתגלגל של חמש שעות וחלון שבועי, בגודל שתלוי בסוג ה-Seat: Standard או Premium). בגישת Console (API) החיוב הוא פר Token לארגון. אם הארגון מערבב שיטות התחברות, כל מפתח נמדד לפי השיטה שבה התחבר בפועל.</li>
+    <li><strong>תקרות:</strong> ב-Team/Enterprise ההקצאה של ה-Seat היא התקרה כברירת מחדל; מעבר לה מפעילים <bdi>Usage Credits</bdi> וקובעים Spend Limits ברמת הארגון, הקבוצה או המשתמש הבודד. ב-Console קובעים Workspace Spend Limits על ה-Workspace הייעודי "Claude Code" שנוצר אוטומטית.</li>
+    <li><strong>ניטור פר משתמש:</strong> דוח Spend עם ייצוא CSV (Team/Enterprise), טבלת Team Insights בלוח ה-Console, או OTEL. לפי התיעוד הרשמי (נכון ל-29.07.2026), העלות הממוצעת בפריסות Enterprise בגישת API היא בסביבות 13 דולר למפתח ליום פעיל ו-150 עד 250 דולר למפתח לחודש; המספרים משתנים מאוד לפי מודל, גודל Codebase ודפוסי עבודה, וכפופים לשינוי.</li>
+  </ul>
+
+  <h2 id="conflicts">הימנעות מ-Agents מתנגשים</h2>
+  <p>ככל שהצוות מאמץ Subagents, Sessions מקביליים ואוטומציה, גדל הסיכון ששני תהליכים יגעו באותם קבצים. שלושה מנגנונים פותרים את זה:</p>
+  <h3 id="worktrees">Worktrees לעבודה מקבילית</h3>
+  <p><bdi>Git Worktree</bdi> הוא תיקיית עבודה נפרדת עם Branch משלה שחולקת את היסטוריית ה-Repository. הפעלת כל Session בעץ עבודה משלו מבטיחה שעריכות ב-Session אחד לעולם לא יגעו בקבצים של אחר:</p>
+  <div class="terminal"><span class="p">$</span> claude --worktree feature-auth
+<span class="out"># נוצר Worktree תחת ‎.claude/worktrees/feature-auth על Branch בשם worktree-feature-auth</span></div>
+  <p>נקודות מתועדות שחשוב להכיר ברמת צוות:</p>
+  <ul>
+    <li>Claude Code אוכף את הבידוד: עריכות ופקודות שמנסות להגיע ל-Checkout הראשי נחסמות.</li>
+    <li>Worktree הוא Checkout טרי: קבצים שמוחרגים מ-Git (כמו <code>.env</code>) לא נמצאים בו. קובץ <code>.worktreeinclude</code> בשורש הפרויקט (בתחביר <code>.gitignore</code>) מגדיר אילו קבצים כאלה יועתקו אוטומטית לכל Worktree חדש; שווה לקבוע אותו פעם אחת לכל הצוות ולבצע לו Commit.</li>
+    <li>אפשר לקבוע ל-Subagent קבוע בידוד תמידי עם <code>isolation: worktree</code> ב-Frontmatter שלו.</li>
+    <li>ביציאה מ-Session אינטראקטיבי Claude מציע לנקות; הוסיפו <code>.claude/worktrees/</code> ל-<code>.gitignore</code> המשותף.</li>
+  </ul>
+  <h3 id="batch">/batch לשינויים רחבים</h3>
+  <p>לשינוי גדול שחוצה את ה-Codebase, הפקודה <code>/batch</code> מפרקת את העבודה ליחידות בלתי תלויות ומריצה כל אחת ב-Worktree משלה. זה הכלי הנכון כשמשימה אחת גדולה הייתה הופכת אחרת לסדרת קונפליקטים.</p>
+  <h3 id="one-owner">והכלל הארגוני</h3>
+  <p>הטכנולוגיה עוזרת, אבל הכלל "Branch אחד, בעלים אחד" הוא קונבנציה אנושית: קבעו בצוות שכל Agent ארוך טווח (למשל Session רץ ברקע או Automation ב-CI) עובד רק על Branch שנוצר עבורו, ושאיש לא דוחף ל-Branch של מישהו אחר בלי תיאום.</p>
+
+  <h2 id="data-gov">Data Governance: מדיניות נתונים, Retention ו-ZDR</h2>
+  <p>שאלת "מה קורה לקוד שלנו" היא בדרך כלל הראשונה שארגון שואל. התמונה המתועדת, נכון ל-29.07.2026:</p>
+  <ul>
+    <li><strong>אימון מודלים:</strong> בתנאים המסחריים (Team, Enterprise, API וספקי צד שלישי) Anthropic לא מאמנת מודלים גנרטיביים על קוד או Prompts שנשלחים ל-Claude Code, אלא אם הארגון הצטרף מפורשות לתוכנית כמו <bdi>Development Partner Program</bdi>. בחשבונות צרכניים (Free/Pro/Max) קיימת בחירת משתמש שמשפיעה על אימון ועל Retention.</li>
+    <li><strong>Retention:</strong> ללקוחות מסחריים ברירת המחדל היא 30 יום. משוב שנשלח ב-<code>/feedback</code> (וגם <code>/bug</code> ו-<code>/share</code>) נשמר 5 שנים. בנוסף, תמלילי Sessions נשמרים מקומית על מחשב המפתח ב-<code>~/.claude/projects/</code> כטקסט רגיל למשך 30 יום כברירת מחדל (נשלט בהגדרה <code>cleanupPeriodDays</code>): נקודה שצריך להביא בחשבון על מחשבים ניידים לא מוצפנים.</li>
+    <li><strong>Zero Data Retention (ZDR):</strong> זמין לחשבונות מתאימים ב-<bdi>Claude for Enterprise</bdi> בלבד, לא כלול בתוכנית הסטנדרטית, ומופעל פר ארגון על ידי צוות החשבונות של Anthropic. עם ZDR, Prompts ותשובות לא נשמרים אחרי החזרת התשובה (למעט חריגי חוק והפרות מדיניות, שבהן ייתכן Retention של עד שנתיים).</li>
+  </ul>
+  <div class="callout warn"><span class="title">מה כבוי תחת ZDR</span><p>תכונות שדורשות שמירת שיחות מנוטרלות בצד השרת: <bdi>Claude Code on the web</bdi>, Cloud Sessions מאפליקציית Desktop, <bdi>Artifacts</bdi>, שליחת משוב (<code>/feedback</code>, <code>/bug</code>, <code>/share</code>) ו-<bdi>Remote Control</bdi>. בנוסף, מדדי התרומה בלוח ה-Analytics לא זמינים (נשארים מדדי שימוש בלבד), והמודל <bdi>Claude Fable 5</bdi> אינו זמין לארגוני ZDR כי הוא דורש Retention. שקללו את זה מול הדרישה הרגולטורית לפני שמבקשים ZDR.</p></div>
+  <p>עוד נקודה חשובה: ZDR חל על ההסקה (Inference) של Claude Code בארגון ה-ZDR עצמו. הוא לא מכסה שיחות Chat ב-claude.ai, לא Cowork, ולא נתונים שעוברים בכלים חיצוניים ושרתי MCP של צד שלישי; את אלה בודקים בנפרד. כדי לוודא שכל התעבורה באמת מגיעה לארגון ה-ZDR, אוכפים התחברות עם <code>forceLoginMethod</code> ו-<code>forceLoginOrgUUID</code>.</p>
+
+  <h2 id="onboarding">קליטת מפתח חדש ל-Repository עם Claude</h2>
+  <p>כשהתצורה המשותפת קיימת, קליטה טובה נמשכת פחות משעה. רשימת בדיקה מומלצת (הצעדים הטכניים לקוחים מהתיעוד; הסדר הוא המלצת המדריך):</p>
+  <ul class="check">
+    <li>ודאו שהוקצה למפתח Seat עם גישת Claude Code בקונסולת הניהול (אם מופיעה הודעת "You haven't been added to your organization yet", ה-Seat לא כולל גישה).</li>
+    <li>התקנה והתחברות: <code>claude</code> ואז <code>/login</code> עם חשבון הארגון; פתרון תקלות נפוץ: <code>/logout</code> ואז <code>/login</code>, או <code>claude update</code> אם אפשרות ההתחברות הארגונית חסרה.</li>
+    <li>שכפול ה-Repository, הרצת <code>claude</code> משורש הפרויקט ואישור חלון ה-Trust אחרי קריאת חוקי ההרשאות שהוא מציג.</li>
+    <li>אימות מדיניות: <code>/status</code> מציג את מקור ההגדרות המנוהלות; <code>/permissions</code> מציג את החוקים בתוקף.</li>
+    <li>היכרות עם הפרויקט: לבקש מ-Claude סיור ב-Codebase (כמו ב<a href="ch06.html">פרק 6</a>) ולקרוא את <code>CLAUDE.md</code> המשותף.</li>
+    <li>הרצת ה-Skills הצוותיים המרכזיים פעם אחת בליווי (למשל Skill של הרצת בדיקות), כדי לראות את התהליך התקין.</li>
+    <li>קריאת מדיניות הצוות: כללי PR, "Branch אחד בעלים אחד", ומה מותר להריץ בלי אישור.</li>
+    <li>שיתוף חומרי הלימוד הרשמיים: Quickstart, Common Workflows, וקורסי Anthropic Academy (בשמם הרשמי: <bdi>Claude 101</bdi> ו-<bdi>Claude Code in Action</bdi>).</li>
+  </ul>
+
+  <h2 id="handoff">מוסכמות Handoff ו-Definition of Done</h2>
+  <p>בעבודת צוות עם Agents, המסירה (Handoff) בין אדם לאדם, בין אדם ל-Agent ובין Session ל-Session היא נקודת האיבוד הקלאסית של הקשר. הכלים המובנים עוזרים: <code>/rename</code> נותן ל-Session שם שאפשר למצוא, <code>/resume</code> חוזר אליו, ו-<code>/export</code> מוציא תמליל. אבל הקונבנציה חשובה מהכלי. הצעה שעובדת בפועל (זו המלצת מתודולוגיה של המדריך, לא פיצ'ר מתועד):</p>
+  <ul>
+    <li><strong>Handoff תמיד דרך ה-Repository, לא דרך זיכרון ה-Session:</strong> מצב העבודה נמסר כ-Commit + PR Draft + הערת מצב, כך שכל אדם או Agent יכולים להמשיך מנקודה נקייה. Session של מישהו אחר הוא לא ממשק מסירה: אי אפשר לסמוך על כך שההקשר בו שלם, מעודכן או נקי מכיווני חשיבה שננטשו.</li>
+    <li><strong>הערת מצב קבועה בסוף יום עבודה על Branch פתוח:</strong> מה הושלם, מה בעבודה, מה הצעד הבא, אילו החלטות התקבלו ולמה. אפשר לבקש מ-Claude לנסח אותה מתוך ה-Session.</li>
+    <li><strong>Definition of Done צוותי לעבודה עם Claude:</strong> הקוד עבר בדיקות שרצו בפועל; עבר Review של Session נקי או Reviewer אנושי; ה-PR מתעד מה נעשה אוטומטית; אין TODO או קוד מת שנשארו מהאיטרציות; ו-<code>CLAUDE.md</code> עודכן אם השתנתה קונבנציה. רק אז מותר Merge.</li>
+  </ul>
+
+  <h2 id="pitfalls">שגיאות נפוצות ו-Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>סיבה שכיחה</th><th>פתרון</th></tr></thead>
+      <tbody>
+        <tr><td>הגדרות מנוהלות לא מגיעות למפתח</td><td>התחברות עם חשבון אישי, או משתנה ספק כמו <code>CLAUDE_CODE_USE_BEDROCK</code> שמדלג על המשיכה</td><td><code>/status</code> לזיהוי המקור הפעיל; אכיפת <code>forceLoginMethod</code>/<code>forceLoginOrgUUID</code>; בדיקת משתני סביבה</td></tr>
+        <tr><td>לכל מפתח התנהגות שונה באותו Repository</td><td>הגדרות אישיות סותרות, או <code>settings.local.json</code> ישן</td><td>העבירו את המשותף ל-<code>.claude/settings.json</code>; השוו עם <code>/status</code> ו-<code>/permissions</code></td></tr>
+        <tr><td>שני Agents דרסו זה את זה</td><td>עבודה על אותו Branch או אותה תיקייה</td><td>Worktrees לכל Session, <code>/batch</code> לשינויים רחבים, וכלל הבעלים היחיד</td></tr>
+        <tr><td>Hook צוותי חדש לא רץ אצל חלק מהצוות</td><td>המשתמש דחה את דיאלוג האישור, או גרסת Claude Code ישנה</td><td><code>/hooks</code> לבדיקה, <code>claude update</code>, ותקשור מראש של שינויי Hooks</td></tr>
+        <tr><td>מדדי תרומה לא מופיעים ב-Analytics</td><td>אפליקציית GitHub לא הותקנה, או שהארגון תחת ZDR</td><td>התקנת האפליקציה והפעלת GitHub Analytics; תחת ZDR המדדים לא זמינים בתכנון</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="security">שיקולי Security</h2>
+  <div class="callout danger"><span class="title">תצורה משותפת היא משטח תקיפה</span><p>מי שיכול לשנות את <code>.claude/settings.json</code>, Hook או Plugin ארגוני, יכול להריץ קוד על המחשב של כל מפתח בצוות. לכן: Review חובה לכל שינוי תצורה, <code>CODEOWNERS</code> על נתיבי התצורה, הרשאות Marketplace מוגבלות, וב-Enterprise גם <code>allowManagedHooksOnly</code> ו-<code>strictPluginOnlyCustomization</code> היכן שמתאים. זכרו שוב: Managed Settings הן בקרת Client; את הסודות האמיתיים מגינים ברמת הרשת וה-Secrets Management, לא רק בהגדרות.</p></div>
+
+  <h2 id="exercise">תרגיל: תצורת צוות ל-TaskFlow</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 29.1: תכנון תצורה לצוות של שישה</div>
+    <div class="body">
+      <p>צוות של שישה עובד על <bdi>TaskFlow</bdi>: ארבעה מפתחים, Tech Lead אחד ומהנדס DevOps אחד. הארגון בתוכנית <bdi>Claude for Teams</bdi>. תכננו על נייר (או בקבצים אמיתיים בעותק שלכם של <code>examples/taskflow</code>):</p>
+      <ol>
+        <li>אילו קבצים יהיו ב-Repository ומה יהיה בכל אחד: <code>CLAUDE.md</code>, <code>.claude/settings.json</code>, <code>.claude/rules/</code>, <code>.mcp.json</code>, <code>.worktreeinclude</code>.</li>
+        <li>שלושה חוקי <code>deny</code> ושני חוקי <code>allow</code> שתקבעו לכל הצוות, עם נימוק.</li>
+        <li>מה תגדירו ב-Server-managed settings (ולא ב-Repository), ולמה דווקא שם.</li>
+        <li>מדיניות Review לשינויי תצורה ומדיניות Branches לעבודה עם Agents.</li>
+        <li>איך תעקבו אחרי אימוץ ועלות בחודש הראשון.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>1. קבצים ב-Repository.</strong> <code>CLAUDE.md</code> קצר (עד 200 שורות): תיאור הארכיטקטורה (FastAPI + SQLite ב-Backend, React + TypeScript ב-Frontend), פקודות הרצה ובדיקות, ומוסכמות שמות. <code>.claude/rules/api-conventions.md</code> עם <code>paths: backend/app/**</code> לכללי ה-API, ו-<code>.claude/rules/testing.md</code> עם <code>paths: "**/*.test.*"</code> לכללי בדיקות: כך הם נטענים רק כשרלוונטי. <code>.mcp.json</code> עם שרת ה-MCP של מערכת ניהול המשימות של הצוות, בלי סודות. <code>.worktreeinclude</code> עם <code>.env</code> כדי ש-Worktrees יקבלו את קובץ הסביבה. <code>.gitignore</code> מקבל את <code>.claude/worktrees/</code>.</p>
+      <p><strong>2. חוקי הרשאות ב-<code>.claude/settings.json</code>.</strong> <code>deny</code>: קריאת <code>.env</code> ו-<code>.env.*</code> (סודות), <code>Bash(git push --force *)</code> (הגנה על היסטוריה משותפת), וכתיבה לתיקיית ה-Migrations בלי אישור. <code>allow</code>: הרצת חבילת הבדיקות (<code>Bash(pytest *)</code>, <code>Bash(npm test *)</code>) ופקודות <code>git diff</code>/<code>git log</code>, כי אלה פעולות קריאה בטוחות שהצוות מריץ עשרות פעמים ביום, ואישור ידני שלהן רק מייצר עייפות אישורים.</p>
+      <p><strong>3. ב-Server-managed settings</strong> (בקונסולת claude.ai, על ידי ה-Owner): חסימות שאסור שאף מפתח יעקוף, כמו <code>Read(./secrets/**)</code>, <code>disableBypassPermissionsMode: "disable"</code> ו-<code>forceLoginOrgUUID</code>. ההבדל מהסעיף הקודם: מה שב-Repository הוא מוסכמה שקל לעדכן ב-PR; מה שב-Managed הוא מדיניות שמנצחת כל הגדרה מקומית ואי אפשר לעקוף מה-CLI. שינויים שם דורשים Owner, אז שומרים שם רק את מה שבאמת חייב אכיפה.</p>
+      <p><strong>4. מדיניות.</strong> <code>CODEOWNERS</code> ממפה את <code>.claude/**</code>, <code>CLAUDE.md</code> ו-<code>.mcp.json</code> ל-Tech Lead ול-DevOps; כל שינוי שם דורש אישור שלהם. Branches: כל משימה על Branch משלה, Agents רצים ב-Worktrees (<code>claude --worktree</code>), ואיש לא כותב ל-Branch שאינו שלו. Definition of Done כמו בפרק: בדיקות רצו, Review של Session נקי או אדם, PR מתועד.</p>
+      <p><strong>5. מעקב.</strong> שבוע ראשון: ה-Owner מפעיל את לוח ה-Analytics ב-<code>claude.ai/analytics/claude-code</code> ומתקין את אפליקציית ה-GitHub למדדי תרומה. חודש ראשון: מעקב שבועי אחרי משתמשים פעילים ו-Sessions (איתור מי שנתקע), דוח ה-Spend פר משתמש אם הופעלו Usage Credits, ושיחת צוות אחת על ממצאי <code>/insights</code> אישיים. רק אחרי Baseline של חודש קובעים Spend Limits מספריים.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul>
+    <li>מה ששייך לפרויקט נכנס ל-Git: <code>CLAUDE.md</code>, <code>.claude/settings.json</code>, <code>rules/</code>, <code>skills/</code>, <code>agents/</code>, <code>.mcp.json</code>. מה שאישי נשאר ב-<code>settings.local.json</code> וב-<code>~/.claude/</code>. שינויי תצורה עוברים Review כמו קוד.</li>
+    <li>Plugins עם Marketplace פרטי הם מנגנון ההפצה הרב-פרויקטי; Managed Settings (מהענן או מקובץ <code>managed-settings.json</code>) הם שכבת האכיפה של Team/Enterprise, כולל Allowlists ל-MCP, והם תמיד בראש ה-Precedence.</li>
+    <li>סדר צוותי: הפרדת Writer/Reviewer, PRs קטנים ומתועדים, ו"Branch אחד, בעלים אחד" עם Worktrees ו-<code>/batch</code> לעבודה מקבילית.</li>
+    <li>שקיפות: Attribution ב-Commits וב-PRs, לוחות Analytics, Analytics API ו-OTEL למדידה, ו-Audit Logs לשינויי מדיניות.</li>
+    <li>ממשל נתונים: אין אימון על נתונים מסחריים, Retention של 30 יום כברירת מחדל, ו-ZDR ל-Enterprise במחיר של ויתור על תכונות ענן מסוימות.</li>
+  </ul>
+  <p>בפרק הבא נצלול למספרים עצמם: איך נבנית עלות של Session, מה עושה ה-Prompt Caching, ואיך מודדים ומקטינים עלויות בלי לפגוע בתפוקה.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/server-managed-settings">Server-managed settings</a> |
+      <a href="https://code.claude.com/docs/en/admin-setup">Set up Claude Code for your organization</a> |
+      <a href="https://code.claude.com/docs/en/settings">Settings (scopes, attribution)</a> |
+      <a href="https://code.claude.com/docs/en/memory">Memory (CLAUDE.md, rules, managed CLAUDE.md)</a> |
+      <a href="https://code.claude.com/docs/en/managed-mcp">Managed MCP</a> |
+      <a href="https://code.claude.com/docs/en/analytics">Analytics</a> |
+      <a href="https://code.claude.com/docs/en/costs">Manage costs effectively</a> |
+      <a href="https://code.claude.com/docs/en/monitoring-usage">Monitoring (OpenTelemetry)</a> |
+      <a href="https://code.claude.com/docs/en/worktrees">Worktrees</a> |
+      <a href="https://code.claude.com/docs/en/data-usage">Data usage</a> |
+      <a href="https://code.claude.com/docs/en/zero-data-retention">Zero data retention</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands (/batch, /status)</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch28.html"><span class="lbl">הפרק הקודם</span>GitHub Actions ו-Code Review</a>
+    <a href="ch30.html"><span class="lbl">הפרק הבא</span>Cost, Tokens ו-Performance</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

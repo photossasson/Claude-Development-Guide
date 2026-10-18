@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 18: Permission Modes</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ד | פרק 18</p>
+  <h1>Permission Modes</h1>
+  <p class="lead">מערכת ההרשאות היא ההגה והבלמים של <bdi>Claude Code</bdi>: היא קובעת מה ה-<bdi>Agent</bdi> רשאי לעשות לבד ומה דורש את האישור שלכם. בפרק הזה נכיר לעומק את ששת מצבי ההרשאות המתועדים, נלמד מתי כל מצב מתאים ומתי הוא מסוכן, נבין איך המצבים משתלבים עם חוקי <bdi>Allow</bdi>, <bdi>Ask</bdi> ו-<bdi>Deny</bdi> ועם ה-<bdi>Sandbox</bdi>, ונצלול למנגנון ה-<bdi>Classifier</bdi> של <bdi>auto mode</bdi>. בסוף הפרק תדעו לבחור מצב מתאים לכל סיטואציה, מחקירת קוד זר ועד הרצה אוטונומית ממושכת.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="why-permissions">למה קיימת מערכת הרשאות</h2>
+  <p><bdi>Claude Code</bdi> הוא <bdi>Agent</bdi> שפועל בלולאה: הוא קורא קבצים, עורך אותם ומריץ פקודות <bdi>Shell</bdi> בשמכם (ראינו את הלולאה ב<a href="ch03.html">פרק 3</a>). כוח כזה מחייב בקרה. כשה-Claude רוצה לערוך קובץ, להריץ פקודה או לבצע בקשת רשת, הוא עוצר ומבקש אישור, ומצב ההרשאות (<bdi>Permission Mode</bdi>) קובע כמה פעמים העצירה הזאת קורית. התיעוד מגדיר מערכת מדורגת לפי סוג הכלי:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>סוג הכלי</th><th>דוגמה</th><th>נדרש אישור?</th></tr></thead>
+      <tbody>
+        <tr><td>קריאה בלבד</td><td>קריאת קבצים, <bdi>Grep</bdi></td><td>לא, בתוך תיקיית העבודה ותיקיות שהוספתם</td></tr>
+        <tr><td>פקודות <bdi>Bash</bdi></td><td>הרצת <bdi>Shell</bdi></td><td>כן, מלבד סט מובנה של פקודות קריאה בלבד (<code>ls</code>, <code>cat</code>, <code>pwd</code> ועוד)</td></tr>
+        <tr><td>שינוי קבצים</td><td>עריכה וכתיבה</td><td>כן; אישור "don't ask again" תקף עד סוף ה-<bdi>Session</bdi></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>נקודה מהותית שהתיעוד מדגיש: חוקי ההרשאות נאכפים על ידי <bdi>Claude Code</bdi> עצמו, לא על ידי המודל. הוראה ב-<bdi>Prompt</bdi> או ב-<code>CLAUDE.md</code> משפיעה על מה ש-Claude מנסה לעשות, אבל לא על מה שמותר לו. הענקה ושלילה של גישה נעשות רק דרך <code>/permissions</code>, חוקי ההרשאות, מצב ההרשאות, או <bdi>PreToolUse Hook</bdi>. זו ההבחנה בין בקשה מנומסת לבין מנעול.</p>
+
+  <h2 id="decision-flow">איך זה עובד מושגית: מסלול ההחלטה</h2>
+  <p>כל קריאת <bdi>Tool</bdi> עוברת מסלול החלטה קבוע. חוקי ההרשאות מהגדרות (<a href="ch17.html">פרק 17</a>) נבדקים בסדר מתועד: קודם <bdi>Deny</bdi>, אחר כך <bdi>Ask</bdi>, ולבסוף <bdi>Allow</bdi>; ההתאמה הראשונה בסדר הזה מנצחת, ורמת הפירוט של החוק לא משנה את הסדר. רק אם אף חוק לא הכריע, מצב ההרשאות קובע את ברירת המחדל: בקשת אישור, אישור אוטומטי, בדיקת <bdi>Classifier</bdi> או דחייה.</p>
+  <figure>
+    <img src="../diagrams/permissions-flow.svg" alt="תרשים מסלול ההחלטה של קריאת Tool: חוקי Deny, חוקי Ask, חוקי Allow, בדיקת Sandbox, מצב ההרשאות, החלטת המשתמש או ה-Classifier, וביצוע או חסימה">
+    <figcaption>מסלול ההחלטה של קריאת <bdi>Tool</bdi>: החוקים מההגדרות נבדקים לפני מצב ההרשאות, וה-<bdi>Sandbox</bdi> יכול להחליף את בקשת האישור לפקודות <bdi>Bash</bdi>.</figcaption>
+  </figure>
+  <p>שני כללים חשובים נגזרים מהתרשים ומתועדים במפורש: חוקי <bdi>Deny</bdi> וחוקי <bdi>Ask</bdi> מפורשים חלים בכל מצב, כולל <code>bypassPermissions</code>. לעומת זאת, לחוקי <bdi>Allow</bdi> אין השפעה ב-<code>bypassPermissions</code>, כי שם ממילא הכול מאושר.</p>
+
+  <h2 id="modes-overview">ששת המצבים: סקירה</h2>
+  <p>נכון לתאריך המחקר, התיעוד הרשמי מגדיר שישה מצבי הרשאות. אלה השמות המדויקים כפי שהם מופיעים בהגדרות ובדגלים:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מצב</th><th>מה רץ בלי לשאול</th><th>מתאים ל...</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>default</code></td><td>קריאה בלבד</td><td>התחלה, עבודה רגישה</td></tr>
+        <tr><td class="ltr"><code>acceptEdits</code></td><td>קריאה, עריכות קבצים ופקודות מערכת קבצים נפוצות</td><td>איטרציה על קוד שאתם סוקרים</td></tr>
+        <tr><td class="ltr"><code>plan</code></td><td>קריאה, ובנוסף פקודות שה-<bdi>Classifier</bdi> אישר כש-<bdi>auto mode</bdi> זמין</td><td>חקירת <bdi>Codebase</bdi> לפני שינוי</td></tr>
+        <tr><td class="ltr"><code>auto</code></td><td>הכול, עם בדיקות בטיחות ברקע</td><td>משימות ארוכות, הפחתת עייפות אישורים</td></tr>
+        <tr><td class="ltr"><code>dontAsk</code></td><td>רק כלים שאושרו מראש</td><td><bdi>CI</bdi> וסקריפטים בסביבה נעולה</td></tr>
+        <tr><td class="ltr"><code>bypassPermissions</code></td><td>הכול</td><td>אך ורק <bdi>Containers</bdi> ו-<bdi>VMs</bdi> מבודדים</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout note"><span class="title">default או Manual? שני שמות, מצב אחד</span><p>המצב שסוקר כל פעולה נקרא <bdi>Manual</bdi> בממשק ה-<bdi>CLI</bdi>, בהרחבות <bdi>VS Code</bdi> ו-<bdi>JetBrains</bdi> ובאפליקציית ה-<bdi>Desktop</bdi>. ערך ההגדרה שלו הוא <code>default</code>, וזה מה ש-<bdi>Hooks</bdi> ואינטגרציות <bdi>SDK</bdi> משתמשים בו. מגרסה <bdi>2.1.200</bdi> ה-CLI מקבל גם את הכינוי <code>manual</code> בכל מקום שמקלידים את הערך, למשל <code>claude --permission-mode manual</code>.</p></div>
+
+  <h2 id="mode-profiles">פרופיל מלא לכל מצב</h2>
+
+  <h3 id="mode-default">default (Manual): סקירה של כל פעולה</h3>
+  <p><strong>מה מאושר אוטומטית:</strong> פעולות קריאה בלבד בתוך תיקיית העבודה ותיקיות <code>additionalDirectories</code>, וסט הפקודות המובנה של <bdi>Bash</bdi> לקריאה בלבד. <strong>מה עדיין דורש אישור:</strong> כל עריכת קובץ, כל פקודת <bdi>Bash</bdi> אחרת וכל בקשת רשת. <strong>מתי להשתמש:</strong> בהתחלה, כשעדיין בונים אינטואיציה למה ש-Claude עושה; בעבודה על קוד רגיש; וב-<bdi>Repository</bdi> לא מוכר. <strong>מתי לא:</strong> במשימות ארוכות עם עשרות עריכות צפויות, שם האישורים החוזרים שוחקים את הריכוז ומפתחים הרגל מסוכן של אישור אוטומטי בלי קריאה. <strong>סיכונים:</strong> נמוכים מטבעם; הסיכון העיקרי הוא דווקא "עיוורון אישורים" של המשתמש. <strong>תרחיש:</strong> קיבלתם <bdi>Pull Request</bdi> חיצוני לפרויקט <bdi>TaskFlow</bdi> ואתם מבקשים מ-Claude לתקן בו באג. במצב <bdi>Manual</bdi> תראו כל <bdi>Diff</bdi> לפני שהוא נכתב וכל פקודה לפני שהיא רצה.</p>
+  <p>טיפ מתועד לשלב האישור: בבקשת אישור לפקודת <bdi>Bash</bdi> או <bdi>PowerShell</bdi>, לחיצה על <code>Ctrl+E</code> מציגה הסבר של הפקודה: מה היא עושה, למה Claude מריץ אותה ומה עלול להשתבש, עם דירוג <bdi>Low/Med/High risk</bdi>. ההסבר נוצר רק כשמבקשים אותו, והצגתו אינה מריצה את הפקודה.</p>
+
+  <h3 id="mode-acceptedits">acceptEdits: עריכות בלי שאלות</h3>
+  <p><strong>מה מאושר אוטומטית:</strong> יצירה ועריכה של קבצים בתיקיית העבודה, ובנוסף פקודות מערכת קבצים נפוצות: <code>mkdir</code>, <code>touch</code>, <code>rm</code>, <code>rmdir</code>, <code>mv</code>, <code>cp</code> ו-<code>sed</code>, גם כשהן עטופות במשתני סביבה בטוחים (כמו <code>LANG=C</code>) או ב-<bdi>Wrappers</bdi> כמו <code>timeout</code> ו-<code>nohup</code>. האישור האוטומטי חל רק על נתיבים בתוך תיקיית העבודה או <code>additionalDirectories</code>. כשכלי ה-<bdi>PowerShell</bdi> מופעל, מאושרות גם <code>Set-Content</code>, <code>Add-Content</code>, <code>Clear-Content</code> ו-<code>Remove-Item</code> באותם גבולות. <strong>מה עדיין דורש אישור:</strong> נתיבים מחוץ לתחום, כתיבה ל-<bdi>Protected Paths</bdi> (נגיע אליהם בהמשך), וכל פקודת <bdi>Bash</bdi> אחרת שאינה בסט הקריאה בלבד. <strong>מתי להשתמש:</strong> כשאתם מעדיפים לסקור שינויים אחרי מעשה, ב-<bdi>Editor</bdi> או עם <code>git diff</code>, במקום לאשר כל עריכה בנפרד. זה המצב הטבעי ללולאת <bdi>TDD</bdi>: Claude עורך, אתם מריצים בדיקות וסוקרים. <strong>מתי לא:</strong> בקוד שלא נמצא תחת <bdi>Git</bdi>, כי אין לכם <bdi>Diff</bdi> אמין לסקירה; וב-<bdi>Repository</bdi> לא מהימן. <strong>סיכונים:</strong> שימו לב ש-<code>rm</code> בתוך תיקיית העבודה מאושר אוטומטית במצב הזה, ומחיקות דרך <bdi>Bash</bdi> אינן ניתנות לשחזור עם <bdi>Rewind</bdi> (<a href="ch19.html">פרק 19</a>). <strong>תרחיש:</strong> אתם מיישמים ב-<bdi>TaskFlow</bdi> שדה <code>priority</code> חדש על פני שישה קבצים ידועים מראש. אישרתם את הכיוון, ועכשיו נוח לתת ל-Claude לערוך ברצף ולסקור בסוף עם <code>git diff</code>.</p>
+
+  <h3 id="mode-plan">plan: לחקור ולתכנן בלי לגעת</h3>
+  <p><strong>מה מאושר אוטומטית:</strong> קריאת קבצים ופקודות חקירה. Claude חוקר, מריץ פקודות לצורך הבנה וכותב תוכנית, אבל לא עורך את קבצי המקור עד שתאשרו את התוכנית. כש-<bdi>auto mode</bdi> זמין וההגדרה <code>useAutoModeDuringPlan</code> פעילה (ברירת המחדל), ה-<bdi>Classifier</bdi> בודק פקודות <bdi>Shell</bdi> בזמן התכנון במקום לשאול אתכם: פקודות שאושרו רצות, ופקודות שנדחו נחסמות. אחרת, פקודות מחוץ לסט הקריאה בלבד מבקשות אישור. <strong>מתי להשתמש:</strong> לפני כל שינוי גדול; הרחבנו על שיטת העבודה הזאת בפרקי ה-<bdi>Workflow</bdi>. <strong>מתי לא:</strong> לתיקונים זעירים שהתכנון בהם יקר מהביצוע. <strong>סיכונים:</strong> נמוכים, עם חריג מתועד אחד חשוב: ב-<bdi>Sessions</bdi> שהופעלו עם <bdi>bypass permissions</bdi> זמין, החסימות של מצב התכנון אינן נאכפות; Claude עדיין מונחה לתכנן בלי לערוך, אבל עריכה או פקודה שהוא ינסה בזמן התכנון ירוצו בלי בקשה. אל תסמכו על <bdi>Plan Mode</bdi> כמנגנון בטיחות בסביבה כזאת.</p>
+  <p>כשהתוכנית מוכנה, Claude מציג אותה ושואל איך להמשיך. האפשרויות המתועדות: <bdi>Yes, and use auto mode</bdi> (כש-<bdi>auto</bdi> אינו זמין: <bdi>Yes, auto-accept edits</bdi>, וב-<bdi>Session</bdi> עם <bdi>bypass</bdi>: <bdi>Yes, and bypass permissions</bdi>); <bdi>Yes, manually approve edits</bdi>; <bdi>No, refine with Ultraplan on Claude Code on the web</bdi>; ו-<bdi>No, keep planning</bdi>. אישור התוכנית יוצא ממצב התכנון ומעביר את ה-<bdi>Session</bdi> למצב שהאפשרות שבחרתם מתארת. <code>Ctrl+G</code> פותח את התוכנית המוצעת ב-<bdi>Editor</bdi> לעריכה ישירה לפני ההמשך. אפשר גם להקדים <code>/plan</code> ל-<bdi>Prompt</bdi> בודד כדי להיכנס למצב תכנון לאותה בקשה.</p>
+
+  <h3 id="mode-auto">auto: אוטונומיה עם Classifier</h3>
+  <p><strong>מה מאושר אוטומטית:</strong> כמעט הכול, אבל לא באופן עיוור: מודל <bdi>Classifier</bdi> נפרד בודק פעולות לפני שהן רצות, וחוסם כל דבר שחורג מהבקשה שלכם, פונה לתשתית לא מוכרת, או נראה מונע מתוכן עוין ש-Claude קרא. חוקי <bdi>Ask</bdi> מפורשים עדיין כופים בקשת אישור. <strong>מה עדיין נבדק או נחסם:</strong> רשימת ברירת המחדל של החסימות ארוכה ומתועדת; בין הבולטות: הורדת קוד והרצתו (<code>curl | bash</code>), שליחת מידע רגיש לנקודות קצה חיצוניות, <bdi>Deploys</bdi> ו-<bdi>Migrations</bdi> ל-<bdi>Production</bdi>, מחיקה המונית באחסון ענן, הענקת הרשאות <bdi>IAM</bdi>, השמדת קבצים שהיו קיימים לפני ה-<bdi>Session</bdi>, <bdi>Force Push</bdi>, פקודות שמוחקות שינויים לא שמורים כמו <code>git reset --hard</code> ו-<code>git clean -fd</code>, וכן <code>terraform destroy</code> ודומיו. <strong>מה מותר כברירת מחדל:</strong> פעולות קבצים מקומיות בתיקיית העבודה, התקנת תלויות שמוצהרות ב-<bdi>Lock Files</bdi>, בקשות <bdi>HTTP</bdi> לקריאה בלבד, ו-<bdi>Push</bdi> לכל <bdi>Branch</bdi> של ה-<bdi>Repository</bdi> שבו עובדים (מגרסה <bdi>2.1.211</bdi>; <bdi>Branch</bdi> ששמו מסמן יעד פריסה, כמו <code>production</code> או <code>gh-pages</code>, נשפט לגופו). <strong>מתי להשתמש:</strong> משימות ארוכות בכיוון שאתם סומכים עליו, בתשתית שלכם. <strong>מתי לא:</strong> התיעוד מזהיר במפורש: <bdi>auto mode</bdi> מפחית בקשות אישור אך אינו מבטיח בטיחות; אל תשתמשו בו כתחליף לסקירה בפעולות רגישות. <strong>תרחיש:</strong> ביקשתם מ-Claude לעבור על כל קבצי הבדיקות של <bdi>TaskFlow</bdi>, לתקן <bdi>Flaky Tests</bdi> ולהריץ את הסוויטה שוב ושוב עד ירוק. עשרות פקודות ועריכות, כולן בתוך ה-<bdi>Repository</bdi>: מועמד קלאסי ל-<bdi>auto</bdi>.</p>
+  <p><strong>זמינות:</strong> <bdi>auto mode</bdi> זמין בכל המסלולים (Plans), אבל בתוכניות <bdi>Team</bdi> ו-<bdi>Enterprise</bdi> נדרש <bdi>Owner</bdi> שיפעיל אותו בהגדרות הניהול. נדרש גם מודל נתמך: ב-<bdi>Anthropic API</bdi> וב-<bdi>Claude Platform on AWS</bdi> נדרש <bdi>Claude Opus 4.6</bdi> ואילך, <bdi>Sonnet 4.6</bdi> ואילך או <bdi>Fable 5</bdi>; ב-<bdi>Amazon Bedrock</bdi>, <bdi>Google Cloud Agent Platform</bdi> ו-<bdi>Microsoft Foundry</bdi> נתמכים רק <bdi>Sonnet 5</bdi>, <bdi>Opus 4.7</bdi> ואילך ו-<bdi>Fable 5</bdi>. מודלים ישנים יותר, כולל <bdi>Sonnet 4.5</bdi> ו-<bdi>Haiku</bdi>, אינם נתמכים. מנהלים יכולים לנטרל את המצב עם <code>permissions.disableAutoMode: "disable"</code> ב-<bdi>Managed Settings</bdi>.</p>
+  <p><strong>גבולות בשיחה:</strong> ה-<bdi>Classifier</bdi> מתייחס לגבולות שאמרתם בשיחה כאות חסימה: "אל תעשה <bdi>Push</bdi> עד שאבדוק" יחסום פעולות תואמות גם כשחוקי ברירת המחדל היו מאשרים. אבל גבול כזה אינו נשמר כחוק: הוא נקרא מחדש מהשיחה בכל בדיקה, ועלול ללכת לאיבוד אם <bdi>Compaction</bdi> הסיר את ההודעה. לערובה קשיחה, השתמשו בחוק <bdi>Deny</bdi>. <strong>נפילה חזרה לבקשות:</strong> אם ה-<bdi>Classifier</bdi> חסם פעולה שלוש פעמים ברצף או עשרים פעמים בסך הכול, <bdi>auto mode</bdi> מושהה ו-<bdi>Claude Code</bdi> חוזר לשאול; אישור הבקשה מחזיר את המצב. במצב לא אינטראקטיבי (<code>-p</code>) חסימות חוזרות מפילות את ההרצה, כי אין את מי לשאול. חסימות מופיעות ב-<code>/permissions</code> תחת הלשונית <bdi>Recently denied</bdi>, שם לחיצה על <code>r</code> מסמנת פעולה לניסיון חוזר עם אישור ידני.</p>
+
+  <h3 id="mode-dontask">dontAsk: לדחות במקום לשאול</h3>
+  <p><strong>מה מאושר אוטומטית:</strong> רק מה שאושר מראש: פעולות שתואמות חוקי <code>permissions.allow</code>, פקודות ה-<bdi>Bash</bdi> מסט הקריאה בלבד, וקריאות שאושרו על ידי <bdi>PreToolUse Hook</bdi>. <strong>מה קורה לכל השאר:</strong> דחייה אוטומטית, בלי בקשה. גם קריאות שתואמות חוקי <bdi>Ask</bdi> מפורשים נדחות במקום לשאול, וכך גם הכלי המובנה <bdi>AskUserQuestion</bdi> וכלי <bdi>Connector</bdi> שהארגון הגדיר כ-<bdi>ask</bdi>, אפילו אם חוקי ה-<bdi>Allow</bdi> שלכם תואמים אותם. <strong>מתי להשתמש:</strong> <bdi>CI Pipelines</bdi> וסביבות מוגבלות שבהן אתם מגדירים מראש בדיוק מה מותר, וה-<bdi>Session</bdi> לעולם לא מחכה לקלט. <strong>מתי לא:</strong> בעבודה אינטראקטיבית רגילה; דחיות שקטות של פעולות לגיטימיות מבלבלות ומבזבזות <bdi>Tokens</bdi> על ניסיונות חלופיים. <strong>הערות:</strong> המצב לעולם לא מופיע במחזור ה-<code>Shift+Tab</code>; מפעילים אותו רק עם <code>claude --permission-mode dontAsk</code> או בהגדרות. <bdi>Sessions</bdi> בענן על <bdi>Claude Code on the web</bdi> מתעלמים מ-<code>defaultMode: "dontAsk"</code>. <strong>תרחיש:</strong> משימת <bdi>CI</bdi> שמריצה <code>claude -p</code> לעדכון קובץ <bdi>CHANGELOG</bdi>, עם חוקי <bdi>Allow</bdi> ל-<code>Edit</code> על הקובץ הזה בלבד ול-<code>Bash(git diff *)</code>. כל ניסיון אחר נדחה, וה-<bdi>Pipeline</bdi> לא נתקע לעולם על שאלה.</p>
+
+  <h3 id="mode-bypass">bypassPermissions: בלי שאלות ובלי בדיקות</h3>
+  <p><strong>מה מאושר אוטומטית:</strong> הכול, כולל כתיבה ל-<bdi>Protected Paths</bdi>. <strong>מה בכל זאת עוצר:</strong> חוקי <bdi>Ask</bdi> מפורשים, כלי <bdi>Connector</bdi> שהארגון הגדיר כ-<bdi>ask</bdi>, כלי <bdi>MCP</bdi> המסומנים <code>requiresUserInteraction</code>, ומעצור חירום (Circuit Breaker) מתועד: מחיקות שמכוונות לשורש מערכת הקבצים או לתיקיית הבית, כמו <code>rm -rf /</code> ו-<code>rm -rf ~</code>, עדיין מבקשות אישור, כולל כשהמחיקה מוסתרת בתוך <bdi>Command Substitution</bdi> (מגרסה <bdi>2.1.208</bdi>). <strong>מתי להשתמש:</strong> אך ורק בסביבות מבודדות: <bdi>Containers</bdi>, <bdi>VMs</bdi> או <bdi>Dev Containers</bdi> ללא גישה לאינטרנט, שבהן <bdi>Claude Code</bdi> לא יכול להזיק למערכת המארחת. <strong>מתי לא:</strong> בכל מקום אחר. פירוט בקריאת האזהרה למטה.</p>
+  <p>פרטי הפעלה מתועדים: אי אפשר להיכנס ל-<code>bypassPermissions</code> מתוך <bdi>Session</bdi> שהופעל בלי שהמצב הופעל בו. מפעילים אותו בהרצה עם <code>--permission-mode bypassPermissions</code>, עם <code>--dangerously-skip-permissions</code> (דגל שקול), עם <code>--allow-dangerously-skip-permissions</code> (שרק מוסיף את המצב למחזור ה-<code>Shift+Tab</code> בלי להפעילו), או עם <code>permissions.defaultMode: "bypassPermissions"</code> בהגדרות. בהפעלה האינטראקטיבית הראשונה מוצג חלון אזהרה שמבקש מכם לקבל אחריות; סירוב סוגר את התוכנית. ב-<bdi>Linux</bdi> ו-<bdi>macOS</bdi>, <bdi>Claude Code</bdi> מסרב לרוץ במצב הזה כ-<code>root</code> או תחת <code>sudo</code>. <bdi>Claude Code on the web</bdi> מתעלם מ-<code>defaultMode: "bypassPermissions"</code> בקובצי ההגדרות, כך ש-<bdi>Repository</bdi> לא יכול להעניק לעצמו את המצב ב-<bdi>Session</bdi> ענן. מנהלים (או אתם עצמכם) יכולים לחסום את המצב לגמרי עם <code>permissions.disableBypassPermissionsMode: "disable"</code>.</p>
+  <div class="callout danger"><span class="title">סכנה: bypassPermissions והדגל <code>--dangerously-skip-permissions</code></span><p>המצב הזה מבטל את בקשות האישור ואת בדיקות הבטיחות גם יחד, ואינו מספק שום הגנה מפני <bdi>Prompt Injection</bdi> או פעולות לא מכוונות. המשמעות המעשית: פקודה הרסנית שמגיעה מקוד עוין, מקובץ README זדוני או מטעות של המודל תרוץ מיד. זה כולל מחיקת קבצים ותיקיות (שאינה ניתנת לשחזור עם <bdi>Rewind</bdi>), הרצת <bdi>Migrations</bdi> על בסיס נתונים, <bdi>Deployments</bdi> ל-<bdi>Production</bdi>, קריאת קובצי סודות ושליחתם ל-<bdi>APIs</bdi> חיצוניים, ושינוי קובצי תצורה של המערכת. השתמשו בו אך ורק בסביבה מבודדת שאין בה שום דבר שחשוב לכם: <bdi>Container</bdi> או <bdi>VM</bdi> ייעודיים, רצוי בלי גישת רשת ובלי <bdi>Credentials</bdi>. לעולם לא על תחנת העבודה שלכם, לעולם לא בתיקייה עם גישה ל-<bdi>Production</bdi>. אם המטרה היא פחות בקשות אישור עם בדיקות בטיחות ברקע, התיעוד מפנה במפורש ל-<bdi>auto mode</bdi> כחלופה הנכונה.</p></div>
+
+  <h2 id="switching">מעבר בין מצבים</h2>
+  <p>את המצב מחליפים דרך הפקדים, לא בבקשה מ-Claude בצ'אט. הדרכים המתועדות:</p>
+  <ul>
+    <li><strong>בתוך ה-Session (CLI):</strong> <code>Shift+Tab</code> עובר במחזור <code>default</code> ואז <code>acceptEdits</code> ואז <code>plan</code>. שורת הסטטוס מציגה את המצב הפעיל, למשל <bdi>plan mode on</bdi> או <bdi>accept edits on</bdi>. מצבים אופציונליים נכנסים למחזור אחרי <code>plan</code>: <code>bypassPermissions</code> רק אם הופעל בהרצה, ו-<code>auto</code> כשהחשבון עומד בדרישות; אם שניהם זמינים, <code>bypassPermissions</code> קודם ו-<code>auto</code> אחרון. <code>dontAsk</code> לעולם אינו במחזור.</li>
+    <li><strong>בהרצה:</strong> <code>claude --permission-mode &lt;mode&gt;</code>, עובד גם עם <code>-p</code> להרצות לא אינטראקטיביות, וגובר על <code>defaultMode</code> מההגדרות.</li>
+    <li><strong>כברירת מחדל קבועה:</strong> המפתח <code>permissions.defaultMode</code> בקובץ הגדרות (<a href="ch17.html">פרק 17</a>). את הממשק הגרפי להגדרות פותחים עם <code>/config</code>, ואת חוקי ההרשאות מנהלים עם <code>/permissions</code>.</li>
+    <li><strong>VS Code:</strong> לחיצה על מחוון המצב בתחתית תיבת ה-<bdi>Prompt</bdi>. ברירת מחדל נקבעת עם <code>claudeCode.initialPermissionMode</code> (שאינו מקבל <code>auto</code>; ל-<bdi>auto</bdi> כברירת מחדל השתמשו ב-<code>defaultMode</code> בהגדרות המשתמש). <bdi>Bypass</bdi> מופיע רק אחרי הפעלת המתג <bdi>Allow dangerously skip permissions</bdi> בהגדרות ההרחבה.</li>
+    <li><strong>Desktop:</strong> בורר מצב ליד כפתור השליחה. מצב שנבחר נזכר פר תיקייה וגובר על <code>defaultMode</code> עבורה; <bdi>Plan</bdi> הוא החריג וחל על ה-<bdi>Session</bdi> הנוכחי בלבד.</li>
+    <li><strong>Web ו-Mobile:</strong> תפריט מצבים ליד תיבת ה-<bdi>Prompt</bdi>. ב-<bdi>Sessions</bdi> ענן זמינים <bdi>Accept edits</bdi>, <bdi>Plan</bdi> ו-<bdi>Auto</bdi> (כשהארגון מאפשר); <bdi>Bypass</bdi> אינו זמין. ב-<bdi>Remote Control</bdi> זמינים <bdi>Manual</bdi>, <bdi>Accept edits</bdi> ו-<bdi>Plan</bdi>.</li>
+  </ul>
+  <div class="codeblock">
+    <div class="codehead">~/.claude/settings.json</div>
+    <pre><code>{
+  "permissions": {
+    "defaultMode": "acceptEdits"
+  }
+}</code></pre>
+  </div>
+  <p>שימו לב לסייג בטיחות מתועד: <bdi>Claude Code</bdi> (מגרסה <bdi>2.1.142</bdi>) מתעלם מ-<code>defaultMode: "auto"</code> שמוגדר ב-<code>.claude/settings.json</code> או ב-<code>.claude/settings.local.json</code> של הפרויקט, כדי ש-<bdi>Repository</bdi> לא יוכל להעניק לעצמו <bdi>auto mode</bdi>. אם הגדרתם <code>auto</code> וה-<bdi>Session</bdi> נפתח ב-<code>default</code>, העבירו את ההגדרה ל-<code>~/.claude/settings.json</code>.</p>
+
+  <h2 id="rules-vs-modes">מצבים מול חוקי Allow, Ask ו-Deny</h2>
+  <p>העיקרון המתועד: המצבים קובעים את קו הבסיס, והחוקים שכבה מעליו. סדר הבדיקה של החוקים הוא <bdi>deny</bdi>, אחר כך <bdi>ask</bdi>, אחר כך <bdi>allow</bdi>, וההתאמה הראשונה מנצחת. לכן חוק <bdi>Deny</bdi> רחב כמו <code>Bash(aws *)</code> חוסם גם קריאה שתואמת חוק <bdi>Allow</bdi> צר יותר כמו <code>Bash(aws s3 ls)</code>: חוק <bdi>Deny</bdi> לא יכול לשאת חריגים. ההיגיון הזה חוצה גם רמות הגדרות: <bdi>Deny</bdi> ברמת המשתמש חוסם <bdi>Allow</bdi> ברמת הפרויקט, ולהפך, כי חוקי <bdi>Deny</bdi> מכל רמה נבדקים לפני חוקי <bdi>Allow</bdi>.</p>
+  <ul>
+    <li>חוקי <bdi>Deny</bdi> וחוקי <bdi>Ask</bdi> מפורשים חלים בכל מצב, כולל <code>bypassPermissions</code> ו-<code>auto</code>.</li>
+    <li>חוקי <bdi>Allow</bdi> חסרי השפעה ב-<code>bypassPermissions</code> (הכול כבר מאושר), וב-<code>dontAsk</code> הם בדיוק מה שקובע מה ירוץ.</li>
+    <li>בכניסה ל-<bdi>auto mode</bdi> נזרקים זמנית חוקי <bdi>Allow</bdi> רחבים שמעניקים הרצת קוד שרירותית: <code>Bash(*)</code>, <bdi>Interpreters</bdi> עם <bdi>Wildcard</bdi> כמו <code>Bash(python*)</code>, פקודות הרצה של מנהלי חבילות, וחוקי <bdi>Allow</bdi> לכלי <bdi>Agent</bdi>. חוקים צרים כמו <code>Bash(npm test)</code> נשמרים, והחוקים שהוסרו חוזרים ביציאה מהמצב.</li>
+  </ul>
+  <p><strong>Protected Paths:</strong> כתיבה לקבוצה קטנה של נתיבים לעולם אינה מאושרת אוטומטית, מלבד ב-<code>bypassPermissions</code>. הרשימה כוללת בין השאר את <code>.git</code>, <code>.claude</code>, <code>.vscode</code>, <code>.husky</code>, <code>.devcontainer</code>, וקבצים כמו <code>.bashrc</code>, <code>.zshrc</code>, <code>.npmrc</code>, <code>.pre-commit-config.yaml</code>, <code>.mcp.json</code> ו-<code>.claude.json</code>. חשוב במיוחד: גם חוק <code>permissions.allow</code> בהגדרות אינו מאשר מראש כתיבה לנתיב מוגן; הבדיקה רצה לפני חוקי ה-<bdi>Allow</bdi>. במצבים ששואלים, הבקשה על כתיבה ל-<code>.claude/</code> מציעה אפשרות לאשר עריכות כאלה להמשך ה-<bdi>Session</bdi>.</p>
+
+  <h2 id="sandbox-interaction">מצבים מול Sandbox</h2>
+  <p>ה-<bdi>Sandbox</bdi> (מפעילים ומגדירים עם <code>/sandbox</code>) אינו מצב הרשאות: מצב ההרשאות מחליט אם קריאת <bdi>Tool</bdi> תרוץ ואם תישאלו, ואילו ה-<bdi>Sandbox</bdi> מגביל, ברמת מערכת ההפעלה, למה פקודת <bdi>Bash</bdi> יכולה לגשת ברגע שהיא רצה. נקודות המפגש המתועדות:</p>
+  <ul>
+    <li>כשה-<bdi>Sandbox</bdi> מופעל וההגדרה <code>autoAllowBashIfSandboxed</code> נשארת בברירת המחדל <code>true</code>, פקודות <bdi>Bash</bdi> שרצות בתוך ה-<bdi>Sandbox</bdi> מאושרות אוטומטית בלי בקשה: גבול ה-<bdi>Sandbox</bdi> מחליף את הבקשה הכוללת על הכלי, אפילו אם יש לכם חוק <bdi>Ask</bdi> כללי על <code>Bash</code>.</li>
+    <li>ההחלפה הזאת אינה חלה על חוקי <bdi>Ask</bdi> ממוקדי תוכן כמו <code>Bash(git push *)</code>, על חוקי <bdi>Deny</bdi> (שתמיד נאכפים), ועל מעצור החירום למחיקות של שורש או תיקיית הבית.</li>
+    <li>ב-<bdi>Plan Mode</bdi> ההחלפה אינה מופעלת (מגרסה <bdi>2.1.212</bdi>): גם עם <bdi>Auto-allow</bdi> דלוק, פקודות מעבר לסט הקריאה בלבד מבקשות אישור בזמן תכנון, או עוברות ל-<bdi>Classifier</bdi> כש-<bdi>auto mode</bdi> זמין.</li>
+    <li>פקודה שנכשלת בגלל מגבלות ה-<bdi>Sandbox</bdi> עשויה לרוץ שוב מחוץ לו (מנגנון ה-<bdi>Escape Hatch</bdi> עם הפרמטר <code>dangerouslyDisableSandbox</code>), ואז היא חוזרת למסלול ההרשאות הרגיל. כדי להישאל על כל ניסיון כזה גם ב-<bdi>auto</bdi>, הוסיפו חוק <bdi>Ask</bdi> על <code>Bash(dangerouslyDisableSandbox:true)</code>; לביטול המנגנון לגמרי הגדירו <code>"allowUnsandboxedCommands": false</code>.</li>
+  </ul>
+  <p>השילוב המומלץ בתיעוד הוא הגנה לעומק: חוקי <bdi>Deny</bdi> מונעים מ-Claude אפילו לנסות לגשת למשאבים אסורים, וה-<bdi>Sandbox</bdi> מונע מפקודות לחצות את הגבול גם אם <bdi>Prompt Injection</bdi> עקף את שיקול הדעת של המודל.</p>
+
+  <h2 id="classifier">ה-Classifier של auto mode לעומק</h2>
+  <p>כל פעולה ב-<bdi>auto mode</bdi> עוברת סדר החלטה קבוע: קודם חוקי <bdi>Allow</bdi>, <bdi>Ask</bdi> ו-<bdi>Deny</bdi> שלכם (כתיבה ל-<bdi>Protected Paths</bdi> מנותבת ל-<bdi>Classifier</bdi> גם כשחוק <bdi>Allow</bdi> תואם); אחר כך פעולות קריאה ועריכות בתיקיית העבודה מאושרות אוטומטית; כל השאר עובר ל-<bdi>Classifier</bdi>; ואם הוא חוסם, Claude מקבל את הסיבה ומנסה דרך חלופית. ה-<bdi>Classifier</bdi> רואה את הודעות המשתמש, קריאות הכלים ותוכן ה-<code>CLAUDE.md</code>, אבל תוצאות כלים מוסתרות ממנו בכוונה, כדי שתוכן עוין בקובץ או בדף אינטרנט לא יוכל לתמרן אותו ישירות. בדיקה נפרדת בצד השרת סורקת תוצאות נכנסות ומסמנת תוכן חשוד לפני ש-Claude קורא אותו.</p>
+  <p>אפשר לכוון את ה-<bdi>Classifier</bdi> דרך בלוק ההגדרות <code>autoMode</code> (נקרא מהגדרות המשתמש, מ-<bdi>Managed Settings</bdi> ומהדגל <code>--settings</code>, ובמכוון לא מהגדרות הפרויקט): המפתח <code>autoMode.environment</code> מגדיר תשתית מהימנה בשפה חופשית (אילו <bdi>Repos</bdi>, <bdi>Buckets</bdi> ו-<bdi>Domains</bdi> נחשבים "בפנים"); <code>allow</code>, <code>soft_deny</code> ו-<code>hard_deny</code> מרחיבים או מחליפים את רשימות הכללים; ו-<code>autoMode.classifyAllShell: true</code> משעה את כל חוקי ה-<bdi>Allow</bdi> של <bdi>Shell</bdi> כדי שכל פקודה תעבור בדיקה. הכללים המובנים נשמרים כשכוללים את המחרוזת <code>"$defaults"</code> במערך; השמטתה מחליפה את כל רשימת ברירת המחדל, וזה מסוכן. לבדיקה: <code>claude auto-mode defaults</code> מדפיס את הכללים המובנים, <code>claude auto-mode config</code> את התצורה בפועל, <code>claude auto-mode critique</code> מבקש ביקורת על כללים שכתבתם, ו-<code>claude auto-mode reset</code> מאפס.</p>
+  <p>נקודת ביקורת אנושית בתוך <bdi>auto</bdi>: המתכון המתועד הוא חוקי <bdi>Ask</bdi> ממוקדי תוכן, שנבדקים לפני ה-<bdi>Classifier</bdi> ותמיד עוצרים לשאלה:</p>
+  <div class="codeblock">
+    <div class="codehead">~/.claude/settings.json</div>
+    <pre><code>{
+  "permissions": {
+    "ask": [
+      "Bash(git push *)",
+      "Bash(gh pr create *)"
+    ]
+  }
+}</code></pre>
+  </div>
+
+  <h2 id="mode-per-situation">איזה מצב לכל סיטואציה</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>סיטואציה</th><th>מצב מומלץ</th><th>נימוק</th></tr></thead>
+      <tbody>
+        <tr><td>חקירת <bdi>Codebase</bdi> והכנת שינוי גדול</td><td class="ltr"><code>plan</code></td><td>קריאה וחקירה חופשיות, אפס שינויי קבצים עד אישור התוכנית</td></tr>
+        <tr><td>לולאת <bdi>TDD</bdi>: עריכה, בדיקה, עריכה</td><td class="ltr"><code>acceptEdits</code></td><td>עריכות רצות בלי הפרעה; הסקירה נעשית עם <code>git diff</code> והבדיקות</td></tr>
+        <tr><td><bdi>Refactoring</bdi> רחב</td><td class="ltr"><code>plan</code> ואז לפי אמון</td><td>תכנון קודם; ביצוע ב-<bdi>Manual</bdi> לקוד רגיש או <code>acceptEdits</code> לקוד מכוסה בבדיקות</td></tr>
+        <tr><td>משימה ארוכה ואוטונומית בתשתית שלכם</td><td class="ltr"><code>auto</code></td><td>מינימום עצירות עם <bdi>Classifier</bdi> ששומר על הגבולות</td></tr>
+        <tr><td><bdi>CI</bdi> וסקריפטים לא אינטראקטיביים</td><td class="ltr"><code>dontAsk</code></td><td>רשימת <bdi>Allow</bdi> מוגדרת מראש; שום דבר לא מחכה לקלט</td></tr>
+        <tr><td><bdi>Repository</bdi> לא מהימן</td><td class="ltr"><code>default</code></td><td>סקירה של כל פעולה, רצוי בתוספת <bdi>Sandbox</bdi> וחוקי <bdi>Deny</bdi>; לעולם לא <bdi>bypass</bdi></td></tr>
+        <tr><td>ניסויים ב-<bdi>Container</bdi> מבודד וחד פעמי</td><td class="ltr"><code>bypassPermissions</code></td><td>רק כשאין שום דבר לאבד בסביבה ואין בה <bdi>Credentials</bdi></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>לבקש מ-Claude "עבור למצב plan" בצ'אט.</strong> את המצב מחליפים דרך הפקדים (<code>Shift+Tab</code>, דגל, הגדרות, בורר ב-<bdi>IDE</bdi>), לא בבקשה בשיחה.</li>
+    <li><strong>להניח ש-acceptEdits מאשר רק עריכות.</strong> הוא מאשר גם <code>rm</code>, <code>mv</code> ו-<code>sed</code> בתוך תיקיית העבודה, ומחיקות <bdi>Bash</bdi> אינן משוחזרות עם <bdi>Rewind</bdi>.</li>
+    <li><strong>לכתוב חוק Deny רחב ולצפות לחריגים.</strong> <code>Bash(aws *)</code> ב-<bdi>Deny</bdi> חוסם גם את <code>Bash(aws s3 ls)</code> שב-<bdi>Allow</bdi>. חריגים בונים עם חוקי <bdi>Allow</bdi> צרים ובלי <bdi>Deny</bdi> חופף, או עם <bdi>Hook</bdi>.</li>
+    <li><strong>לסמוך על Plan Mode ב-Session עם bypass זמין.</strong> שם חסימות התכנון אינן נאכפות; זו התנהגות מתועדת.</li>
+    <li><strong>להגדיר defaultMode: "auto" בהגדרות הפרויקט.</strong> ההגדרה נקראת רק מהגדרות המשתמש או מ-<bdi>Managed Settings</bdi>; בקובצי הפרויקט היא מתעלמת בשקט.</li>
+    <li><strong>להשתמש ב-dontAsk בעבודה אינטראקטיבית.</strong> תקבלו דחיות שקטות ותהיות למה Claude "לא מצליח כלום".</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <ul>
+    <li><strong>בקשת אישור לא צפויה למרות acceptEdits או auto:</strong> בדקו אם היעד הוא <bdi>Protected Path</bdi> (כמו <code>.claude/</code> או <code>.zshrc</code>), אם קיים חוק <bdi>Ask</bdi> תואם (חוקי <bdi>Ask</bdi> גוברים על המצב), אם זה כלי <bdi>Connector</bdi> שהארגון הגדיר כ-<bdi>ask</bdi>, או אם פקודה מורכבת מכילה תת-פקודה שאינה מכוסה: חוק חייב להתאים לכל תת-פקודה בנפרד (<code>&amp;&amp;</code>, <code>;</code>, <code>|</code> וכדומה).</li>
+    <li><strong>אין בקשת אישור איפה שציפיתם לה:</strong> בדקו אם ה-<bdi>Sandbox</bdi> פעיל עם <bdi>Auto-allow</bdi> (<code>/sandbox</code>), אם אתם ב-<code>acceptEdits</code> והפקודה היא ממשפחת פקודות מערכת הקבצים המאושרות, או אם אישור קודם עם "don't ask again" נשמר ב-<code>.claude/settings.local.json</code> בשורש ה-<bdi>Repository</bdi>. הפקודה <code>/permissions</code> מציגה כל חוק ואת הקובץ שממנו הוא הגיע.</li>
+    <li><strong>המצב "מתאפס" בין Sessions:</strong> <code>Shift+Tab</code> משנה את ה-<bdi>Session</bdi> הנוכחי בלבד. לברירת מחדל קבועה הגדירו <code>defaultMode</code>; ב-<bdi>Desktop</bdi> זכרו ש-<bdi>Plan</bdi> שנבחר בבורר חל על ה-<bdi>Session</bdi> הנוכחי בלבד, בשונה משאר המצבים שנזכרים פר תיקייה.</li>
+    <li><strong>auto לא מופיע במחזור ה-Shift+Tab:</strong> אחת מדרישות הזמינות לא מתקיימת: מודל נתמך, הפעלת <bdi>Owner</bdi> בתוכניות <bdi>Team/Enterprise</bdi>, או ש-<code>disableAutoMode</code> הוגדר. הודעה נפרדת בנוסח "cannot determine the safety" מציינת כשל זמני של בקשת <bdi>Classifier</bdi>, לא חוסר זמינות.</li>
+    <li><strong>bypassPermissions לא מופיע במחזור:</strong> המצב מצטרף למחזור רק כשה-<bdi>Session</bdi> הופעל עם אחד מדגלי ההפעלה או עם ההגדרה המתאימה; אי אפשר להיכנס אליו באמצע <bdi>Session</bdi> רגיל.</li>
+    <li><strong>חסימות חוזרות ב-auto:</strong> בדרך כלל ה-<bdi>Classifier</bdi> חסר הקשר על התשתית שלכם. בדקו את הלשונית <bdi>Recently denied</bdi> ב-<code>/permissions</code>, הוסיפו יעדים ל-<code>autoMode.environment</code>, ואמתו עם <code>claude auto-mode config</code>.</li>
+  </ul>
+
+  <h2 id="security">Security</h2>
+  <p>מצב ההרשאות הוא קו ההגנה המרכזי מפני התרחיש שהצגנו ב<a href="ch06.html">פרק 6</a> וב<a href="ch20.html">פרק 20</a>: <bdi>Prompt Injection</bdi> שגורם ל-Claude לנסות פעולה שלא ביקשתם. כמה עקרונות מהתיעוד:</p>
+  <ul>
+    <li>בקוד לא מהימן, הישארו ב-<code>default</code> או <code>plan</code>, קראו כל בקשת אישור בעיון, והפעילו <bdi>Sandbox</bdi>. אל תאשרו פקודות רשת שאינכם מבינים.</li>
+    <li>גבולות שנאמרו בשיחה הם אות חסימה ל-<bdi>Classifier</bdi>, אבל רק חוק <bdi>Deny</bdi> הוא ערובה קשיחה ששורדת <bdi>Compaction</bdi>.</li>
+    <li>הגנו על קובצי סודות עם חוקי <bdi>Deny</bdi> כמו <code>Read(.env)</code> וזכרו שהם חלים על כלי הקבצים המובנים ועל פקודות קבצים מזוהות ב-<bdi>Bash</bdi>, אך לא על תהליכים שרירותיים שפותחים קבצים בעצמם; לאכיפה ברמת מערכת ההפעלה נדרש ה-<bdi>Sandbox</bdi>.</li>
+    <li>בארגון, השתמשו ב-<bdi>Managed Settings</bdi>: חוקים שם אינם ניתנים לעקיפה על ידי הגדרות משתמש, פרויקט או דגלי <bdi>CLI</bdi>, ואפשר לנעול עם <code>disableBypassPermissionsMode</code> ו-<code>disableAutoMode</code>.</li>
+  </ul>
+
+  <h2 id="cost">Cost ו-Context</h2>
+  <p>יש קשר ישיר בין מצב ההרשאות לעלות: פחות בקשות אישור פירושו יותר אוטונומיה, ויותר אוטונומיה פירושה יותר קריאות כלים, יותר איטרציות ויותר <bdi>Tokens</bdi> לפני שראיתם תוצאת ביניים. ב-<bdi>Manual</bdi> כל בקשה היא הזדמנות לעצור כיוון שגוי מוקדם וזול; ב-<code>auto</code> ו-<code>acceptEdits</code> טעות כיוון מתגלה מאוחר יותר, אחרי שנצרכו <bdi>Tokens</bdi>. בנוסף, ב-<bdi>auto mode</bdi> קריאות ה-<bdi>Classifier</bdi> עצמן נספרות בשימוש ה-<bdi>Tokens</bdi> שלכם: כל בדיקה שולחת חלק מהשיחה יחד עם הפעולה הממתינה ומוסיפה סבב לפני הביצוע. פעולות קריאה ועריכות בתיקיית העבודה מדלגות על ה-<bdi>Classifier</bdi>, כך שהתוספת מגיעה בעיקר מפקודות <bdi>Shell</bdi> ופעולות רשת. ה-<bdi>Classifier</bdi> רץ כברירת מחדל על <bdi>Sonnet 5</bdi>, בלי קשר לבחירת <code>/model</code> שלכם. המסקנה המעשית: מצבים אוטונומיים משתלמים כשהכיוון מאושר ובדוק; לחקר פתוח, תכנון זול יותר מביצוע שגוי.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>ברירת מחדל שפויה לעבודה יומיומית: <code>plan</code> לחשיבה, <code>acceptEdits</code> לביצוע אחרי אישור תוכנית, וסקירת <code>git diff</code> בסוף.</li>
+    <li>קבעו <code>defaultMode</code> פר פרויקט לפי רגישותו: <code>plan</code> בפרויקטים מורכבים, <code>default</code> בפרויקטים רגישים.</li>
+    <li>בנו רשימת <bdi>Allow</bdi> צרה ומצטברת: אשרו עם "don't ask again" פקודות שגרתיות (<code>npm test</code>, <code>git diff</code>) ותנו לחיכוך לרדת בהדרגה בלי לוותר על שליטה.</li>
+    <li>שלבו שכבות: מצב + חוקים + <bdi>Sandbox</bdi>. כל שכבה תופסת מה שהאחרות מפספסות.</li>
+    <li>לפני מעבר ל-<code>auto</code> במשימה, נסחו את הגבולות בהודעה ("אל תעשה <bdi>Push</bdi>, אל תיגע ב-<code>migrations/</code>"), וגבו את החשובים שבהם בחוקי <bdi>Deny</bdi> או <bdi>Ask</bdi>.</li>
+    <li>השתמשו ב-<code>Ctrl+E</code> על בקשות <bdi>Bash</bdi> שאינכם בטוחים בהן, במקום לאשר מתוך ניחוש.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>"תמיד bypass כי האישורים מעצבנים".</strong> ה-<bdi>Anti-pattern</bdi> המסוכן מכולם. הפתרון הנכון לעייפות אישורים הוא <code>auto</code>, רשימת <bdi>Allow</bdi> מסודרת או <bdi>Sandbox</bdi>, לא ביטול כל ההגנות.</li>
+    <li><strong>אישור בקשות בלי לקרוא אותן.</strong> אם אתם מאשרים הכול בלי מבט, עברתם בפועל ל-<bdi>bypass</bdi> בלי להודות בזה. עדיף מצב אוטונומי מפורש עם גבולות מוגדרים.</li>
+    <li><strong>חוק Allow על Bash(*) "כדי שיהיה נוח".</strong> זה מוחק את ההבחנה בין פקודות בטוחות למסוכנות; ב-<bdi>auto mode</bdi> החוק ממילא יושעה כרחב מדי. אשרו פקודות ספציפיות.</li>
+    <li><strong>שימוש ב-CLAUDE.md כמנגנון אכיפה.</strong> "אסור למחוק קבצים" ב-<code>CLAUDE.md</code> מכוון את המודל אך אינו אוכף דבר; אכיפה נעשית עם חוקי <bdi>Deny</bdi>, <bdi>Hooks</bdi> או <bdi>Sandbox</bdi>.</li>
+    <li><strong>Plan Mode כתחליף לסקירת קוד.</strong> התוכנית היא טקסט; הביצוע יכול לסטות ממנה. הסקירה האמיתית היא על ה-<bdi>Diff</bdi>.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 18.1: מסלול הרשאות מלא</div>
+    <div class="body">
+      <p>בפרויקט ה-<bdi>TaskFlow</bdi> שלכם (או כל פרויקט תרגול תחת <bdi>Git</bdi>):</p>
+      <ol>
+        <li>הוסיפו ל-<code>.claude/settings.json</code> של הפרויקט חוק <bdi>Deny</bdi> על <code>Read(.env)</code> וחוק <bdi>Ask</bdi> על <code>Bash(git push *)</code>.</li>
+        <li>פתחו <bdi>Session</bdi> עם <code>claude --permission-mode plan</code> ובקשו תוכנית לשינוי קטן (למשל הוספת <bdi>Endpoint</bdi> של סטטיסטיקות משימות). ודאו שאף קובץ לא השתנה.</li>
+        <li>אשרו את התוכנית עם <bdi>Yes, manually approve edits</bdi> ואשרו את העריכה הראשונה ידנית.</li>
+        <li>עברו עם <code>Shift+Tab</code> ל-<code>acceptEdits</code> ותנו לשאר העריכות לרוץ. בסוף בקשו מ-Claude להריץ <code>git push</code> וצפו בחוק ה-<bdi>Ask</bdi> עוצר לשאלה למרות המצב.</li>
+        <li>בדקו עם <code>/permissions</code> מאיזה קובץ הגיע כל חוק.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>קובץ ההגדרות שיצרתם אמור להיראות כך:</p>
+      <div class="codeblock">
+        <div class="codehead">.claude/settings.json</div>
+        <pre><code>{
+  "permissions": {
+    "deny": ["Read(.env)"],
+    "ask": ["Bash(git push *)"]
+  }
+}</code></pre>
+      </div>
+      <p>מה ראיתם ולמה: בשלב 2 מצב <code>plan</code> אפשר ל-Claude לקרוא ולחקור אבל לא לערוך; <code>git status</code> נשאר נקי. בשלב 3 אישור התוכנית העביר את ה-<bdi>Session</bdi> למצב אישור ידני, וכל עריכה הוצגה לפני כתיבה. בשלב 4 המעבר ל-<code>acceptEdits</code> ביטל את הבקשות על עריכות קבצים בתוך תיקיית העבודה, אבל <code>git push</code> נעצר: חוק <bdi>Ask</bdi> ממוקד תוכן גובר על כל מצב, כולל <code>auto</code> ו-<code>bypassPermissions</code>. זה בדיוק העיקרון "החוקים הם שכבה מעל המצב". אם תנסו גם לבקש מ-Claude לקרוא את <code>.env</code>, חוק ה-<bdi>Deny</bdi> יחסום את הקריאה בכל מצב. <code>/permissions</code> מציג את שני החוקים עם הקובץ שממנו הגיעו (<code>.claude/settings.json</code> של הפרויקט), לצד חוקים שנשמרו אוטומטית ב-<code>.claude/settings.local.json</code> מאישורי "don't ask again" קודמים.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul>
+    <li>מערכת ההרשאות נאכפת על ידי <bdi>Claude Code</bdi>, לא על ידי המודל: פעולות קריאה חופשיות, עריכות ופקודות דורשות אישור, והמצב קובע כמה שאלות תקבלו.</li>
+    <li>ששת המצבים המתועדים: <code>default</code> (מוצג כ-<bdi>Manual</bdi>), <code>acceptEdits</code>, <code>plan</code>, <code>auto</code>, <code>dontAsk</code> ו-<code>bypassPermissions</code>.</li>
+    <li>סדר ההכרעה: חוקי <bdi>Deny</bdi>, אז <bdi>Ask</bdi>, אז <bdi>Allow</bdi>, ורק אחר כך המצב. <bdi>Deny</bdi> ו-<bdi>Ask</bdi> גוברים על כל מצב; <bdi>Allow</bdi> חסר משמעות ב-<bdi>bypass</bdi>; <bdi>Protected Paths</bdi> לעולם לא מאושרים אוטומטית מלבד ב-<bdi>bypass</bdi>.</li>
+    <li><bdi>auto mode</bdi> מחליף את רוב הבקשות בבדיקת <bdi>Classifier</bdi> על <bdi>Sonnet 5</bdi>; הבדיקות עולות <bdi>Tokens</bdi>, גבולות בשיחה נאכפים אך אינם קבועים, וחוקי <bdi>Ask</bdi> הם נקודת הביקורת האנושית.</li>
+    <li><code>bypassPermissions</code> והדגל <code>--dangerously-skip-permissions</code> שייכים אך ורק לסביבות מבודדות. לכל צורך אחר יש חלופה בטוחה יותר.</li>
+    <li>מעבר בין מצבים: <code>Shift+Tab</code>, <code>--permission-mode</code>, <code>defaultMode</code> בהגדרות, ובוררי המצב ב-<bdi>VS Code</bdi>, <bdi>Desktop</bdi> ו-<bdi>Web</bdi>.</li>
+  </ul>
+  <p>בפרק הבא נכיר את רשת הביטחון שמצילה אתכם כשבכל זאת אישרתם משהו שלא הייתם צריכים: <bdi>Checkpoints</bdi>, <bdi>Rewind</bdi> ותהליך <bdi>Recovery</bdi> מסודר.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/permission-modes">Choose a permission mode</a> |
+      <a href="https://code.claude.com/docs/en/permissions">Configure permissions</a> |
+      <a href="https://code.claude.com/docs/en/auto-mode-config">Configure auto mode</a> |
+      <a href="https://code.claude.com/docs/en/sandboxing">Configure the sandboxed Bash tool</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">CLI reference</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands</a>
+      <br>נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch17.html"><span class="lbl">הפרק הקודם</span>Settings ו-Configuration</a>
+    <a href="ch19.html"><span class="lbl">הפרק הבא</span>Checkpoints, Rewind ו-Recovery</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

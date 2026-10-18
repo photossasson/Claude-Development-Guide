@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 30: Cost, Tokens ו-Performance | מדריך פיתוח ב-Claude Code</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ו | פרק 30</p>
+  <h1>Cost, Tokens ו-Performance</h1>
+  <p class="lead">Claude Code הוא כלי שצורך Tokens, וכל Token עולה כסף או שימוש מהמכסה. בפרק הזה נבין איך החיוב באמת עובד: מה ההבדל בין מנוי ל-API, מה בדיוק נספר, איך Session מתמלא, איך <bdi>Prompt Caching</bdi> חוסך פי עשרה על ההיסטוריה, למה Session ארוך מתייקר, ואילו כלים מובנים (<code>/usage</code>, <code>/context</code>, <code>/insights</code>) מודדים את זה. נסיים ברשימת בדיקה לאופטימיזציה, בכל מחירי המודלים נכון להיום עם תאריך ומקור, ובחישוב מלא של חודש עבודה בשתי דרכי החיוב.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <div class="callout warn"><span class="title">כל המחירים בפרק: נקודת זמן, לא הבטחה</span><p>כל המספרים בפרק נבדקו מול המקורות הרשמיים בתאריך <strong>29.07.2026</strong> ועשויים להשתנות בכל רגע; עמוד התמחור עצמו מציין שהמחירים כפופים לשינוי לפי שיקול דעת Anthropic. שימו לב במיוחד: מחיר ההיכרות של <bdi>Sonnet 5</bdi> (2/10 דולר למיליון Tokens) בתוקף <strong>עד 31.08.2026 בלבד</strong>, ואחריו המחיר הסטנדרטי 3/15 דולר. בדקו תמיד את <a href="https://platform.claude.com/docs/en/about-claude/pricing">עמוד התמחור הרשמי</a> לפני החלטות תקציב.</p></div>
+
+  <h2 id="billing-model">איך החיוב עובד: מנוי מול API</h2>
+  <p>יש שתי דרכים לשלם על Claude Code, והן מתנהגות שונה לגמרי:</p>
+  <ul>
+    <li><strong>מנוי (Pro, Max, Team, Enterprise):</strong> מחיר חודשי קבוע, והשימוש נמדד מול מגבלות מכסה: חלון מתגלגל של חמש שעות וחלון שבועי, משותפים לכל המודלים ולשימוש ב-Claude Chat וב-Cowork. אין חיוב פר Token; כשמגיעים לתקרה, מחכים לאיפוס או ממשיכים בתשלום דרך <bdi>Usage Credits</bdi>.</li>
+    <li><strong>API (Claude Console, או ספקי ענן):</strong> תשלום לפי צריכה בפועל, פר Token, לפי מחירון המודל. אין תקרה מובנית חוץ ממה שתגדירו בעצמכם.</li>
+  </ul>
+  <p>ההשלכה המעשית: במנוי, אופטימיזציה של Tokens קונה לכם <em>יותר עבודה לפני שנתקלים בתקרה</em>; ב-API היא קונה <em>חשבון נמוך יותר</em>. הטכניקות זהות, המוטיבציה שונה. מי בצוות נמדד איך? לפי שיטת ההתחברות בפועל של כל מפתח (ראו <a href="ch29.html#cost-gov">פרק 29</a>).</p>
+  <h3 id="one-turn">מה קורה בתור אחד</h3>
+  <p>כדי להבין את הטבלה הבאה, צריך לזכור איך Claude Code עובד מאחורי הקלעים (<a href="ch14.html#what-enters">פרק 14</a>): המודל לא זוכר כלום בין בקשות, ולכן <strong>כל תור שולח מחדש את כל ההקשר</strong>: System Prompt, קובצי CLAUDE.md, כל השיחה עד כה, כל תוצאות הכלים, וההודעה החדשה. יתרה מזאת, תור אחד שלכם הוא בדרך כלל כמה בקשות API: Claude קורא קובץ, מקבל את תוכנו כתוצאת כלי, שולח בקשה נוספת שכוללת גם אותה, מריץ פקודה, וחוזר חלילה עד לתשובה. לכן קריאת קובץ של 2,000 שורות אינה עלות חד-פעמית: היא מצטרפת להקשר ותיסחב בכל בקשה עד סוף ה-Session. זה המפתח להבנת כל השאר בפרק.</p>
+
+  <h3 id="what-counts">מה בדיוק נספר</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>קטגוריה</th><th>נספר בתור</th><th>הערות</th></tr></thead>
+      <tbody>
+        <tr><td>ה-Prompt שלכם + כל ההיסטוריה + System Prompt + CLAUDE.md</td><td>Input</td><td>נשלחים מחדש בכל תור; רובם דרך ה-Cache (בהמשך)</td></tr>
+        <tr><td>תוצאות כלים: קריאת קבצים, פלט Bash, תוצאות MCP, חיפושי Web</td><td>Input</td><td>קריאות קבצים הן צרכן ה-Context הגדול ביותר ברוב ה-Sessions</td></tr>
+        <tr><td>תוכן Skills שנטען, ותיאורי הכלים והשרתים הזמינים</td><td>Input</td><td>תיאורי Skills ושמות כלי MCP נטענים בכל Session; גוף ה-Skill רק בהפעלה</td></tr>
+        <tr><td>התשובות של Claude</td><td>Output</td><td>Output יקר פי 5 מ-Input בכל המודלים הנוכחיים</td></tr>
+        <tr><td>Extended Thinking (חשיבה)</td><td>Output</td><td>לפי התיעוד, Thinking Tokens מחויבים כ-Output, ותקציב ברירת המחדל יכול להגיע לעשרות אלפי Tokens לבקשה</td></tr>
+        <tr><td>Subagents</td><td>Input + Output מלאים</td><td>לכל Subagent חלון Context משלו; כל מה שהוא קורא ומייצר נספר. Agent Teams צורכים לפי התיעוד בערך פי 7 מ-Session רגיל כשחברי הצוות רצים ב-Plan Mode</td></tr>
+        <tr><td>עבודת רקע (סיכום שיחות ל-<code>--resume</code> וכדומה)</td><td>Input + Output</td><td>זניח: לפי התיעוד בדרך כלל מתחת ל-0.04 דולר ל-Session</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="session-anatomy">אנטומיית ה-Tokens של Session</h2>
+  <p>הפקודה <code>/context</code> (שהכרנו ב<a href="ch14.html#context-cmd">פרק 14</a>) מציגה בכל רגע פירוט חי של חלון ה-Context לפי קטגוריות, כולל אילו קובצי CLAUDE.md ו-Auto Memory נטענו והצעות אופטימיזציה. מה יש שם עוד לפני שהקלדתם מילה? לפי התיעוד הרשמי של חלון ה-Context, אלה השכבות שנטענות אוטומטית בפתיחת Session:</p>
+  <ul>
+    <li><strong>System Prompt:</strong> הוראות הליבה והגדרות הכלים המובנים. אתם לא רואים אותו, אבל הוא שם בכל בקשה.</li>
+    <li><strong>Auto Memory:</strong> ההערות ש-Claude שמר לעצמו מ-Sessions קודמים (<a href="ch16.html">פרק 16</a>).</li>
+    <li><strong>פרטי סביבה:</strong> תיקיית עבודה, מערכת הפעלה, מצב Git.</li>
+    <li><strong>שמות כלי MCP:</strong> כברירת מחדל נטענים רק השמות (Deferred), וסכימות מלאות נטענות לפי דרישה.</li>
+    <li><strong>תיאורי Skills:</strong> שורת תיאור לכל Skill זמין; הגוף המלא נטען רק בהפעלה.</li>
+    <li><strong>CLAUDE.md:</strong> הגלובלי (<code>~/.claude/CLAUDE.md</code>) ושל הפרויקט.</li>
+  </ul>
+  <p>מרגע שהעבודה מתחילה, ה-Context מתמלא בעיקר מקריאות קבצים, פלטי פקודות ותשובות. חוקים עם <code>paths:</code> ו-CLAUDE.md מקוננים מצטרפים רק כש-Claude נוגע בקבצים תואמים. המספר שרואים ב-<code>/context</code> הוא בדיוק מה שיישלח שוב בבקשה הבאה, ולכן הוא המדד החשוב ביותר לעלות של "עוד שאלה אחת" ב-Session הזה: לפי התיעוד, גם שאלה של שורה אחת ב-Session שפתוח כל היום גוררת את קריאת ההיסטוריה המלאה, במחיר ה-Cache לפחות.</p>
+  <div class="terminal"><span class="p">$</span> /context
+<span class="out"># פירוט לפי קטגוריות: System, Tools, MCP, Memory, Skills, Messages + הצעות ייעול</span></div>
+
+  <h2 id="caching">Prompt Caching: החיסכון הגדול</h2>
+  <p>בלי Caching, כל תור היה מעבד מחדש את כל ההיסטוריה במחיר מלא. בפועל, Claude Code מנהל <bdi>Prompt Caching</bdi> אוטומטית: ה-API מזהה שתחילת הבקשה (ה-Prefix) זהה לבקשה הקודמת, קורא אותה מה-Cache, ומעבד במלואו רק את מה שהתחדש.</p>
+  <h3 id="cache-pricing">מה זה שווה בכסף</h3>
+  <p>לפי מחירון ה-API הרשמי (נבדק 29.07.2026), פעולות ה-Cache מתומחרות כמכפילים של מחיר ה-Input הבסיסי:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פעולה</th><th>מכפיל</th><th>משמעות</th></tr></thead>
+      <tbody>
+        <tr><td>כתיבה ל-Cache עם תוקף 5 דקות</td><td class="ltr">1.25x</td><td>משתלם כבר אחרי קריאה אחת מה-Cache</td></tr>
+        <tr><td>כתיבה ל-Cache עם תוקף שעה</td><td class="ltr">2x</td><td>משתלם אחרי שתי קריאות; שורד הפסקות ארוכות</td></tr>
+        <tr><td>קריאה מה-Cache (Hit)</td><td class="ltr">0.1x</td><td>ההיסטוריה כולה נקראת בעשירית ממחיר Input רגיל</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>תוקף ה-Cache (TTL) מתאפס בכל קריאה, כך שכל עוד עובדים ברצף הוא נשאר חם. מי מקבל איזה TTL? לפי התיעוד: <strong>במנוי</strong>, Claude Code מבקש אוטומטית TTL של שעה, כך שה-Cache שורד הפסקת קפה ארוכה; ברגע שחורגים מהמכסה ועוברים ל-Usage Credits, הוא יורד אוטומטית לחמש דקות (אפשר להחזיר שעה עם <code>ENABLE_PROMPT_CACHING_1H=1</code>). <strong>במפתח API או ספק ענן</strong>, ברירת המחדל היא חמש הדקות הזולות, ואפשר להצטרף ל-TTL של שעה עם אותו משתנה. Subagents משתמשים תמיד ב-TTL של חמש דקות.</p>
+  <h3 id="cache-invalidation">מה שובר את ה-Cache</h3>
+  <p>ההתאמה היא לפי Prefix מדויק: שינוי בכל מקום בתחילת הבקשה מחשב מחדש את כל מה שאחריו. הפעולות שמתועדות כשוברות Cache, כלומר גוררות תור אחד איטי ויקר של בנייה מחדש:</p>
+  <ul>
+    <li><strong>החלפת מודל</strong> (<code>/model</code>): לכל מודל Cache משלו. גם <code>opusplan</code>, שמחליף מודל בכניסה וביציאה מ-Plan Mode, נחשב החלפה.</li>
+    <li><strong>שינוי Effort Level</strong> (<code>/effort</code>): ה-Cache ממופתח גם לפי Effort; Claude Code מבקש אישור לפני שינוי ששובר Cache.</li>
+    <li><strong>הדלקת Fast Mode</strong> באמצע שיחה ארוכה: הבקשה הבאה קוראת את כל ההיסטוריה בלי Cache, ובמחירי Fast Mode.</li>
+    <li><strong>חיבור או ניתוק שרת MCP</strong> שכליו טעונים ב-Prefix (עם Tool Search וטעינה נדחית, ברירת המחדל, ה-Cache שורד).</li>
+    <li><strong>חסימת כלי שלם</strong> בחוק <code>deny</code> (כמו <code>Bash</code>) באמצע Session: הגדרות הכלים יושבות ב-System Prompt.</li>
+    <li><strong>Compaction:</strong> מחליף את ההיסטוריה בסיכום, ולכן בהגדרה בונה Prefix חדש (בהמשך).</li>
+    <li><strong>שדרוג Claude Code:</strong> System Prompt חדש, Cache חדש. חידוש Session ישן אחרי שדרוג מעבד מחדש את כל ההיסטוריה.</li>
+  </ul>
+  <p>לעומת זאת, פעולות שנשארות ידידותיות ל-Cache: עריכת קבצים, הפעלת Skills ופקודות, שינוי Permission Mode, <code>/rewind</code> (חוזר ל-Prefix שכבר קיים ב-Cache), ו-Subagents (לא נוגעים ב-Cache של ההורה). לכן ההמלצה המתועדת: קבעו מודל ו-Effort בתחילת ה-Session, ואל תשחקו איתם באמצע משימה.</p>
+  <div class="callout tip"><span class="title">איך יודעים שה-Caching עובד</span><p>עקבו אחרי שני מונים שה-API מחזיר בכל תשובה: <code>cache_read_input_tokens</code> (נקרא מה-Cache, זול) ו-<code>cache_creation_input_tokens</code> (נכתב ל-Cache). יחס קריאה/כתיבה גבוה = Caching בריא. אפשר להציג אותם ב-Statusline, וברמת ארגון דרך OpenTelemetry. אם הכתיבה נשארת גבוהה תור אחרי תור, משהו שובר לכם את ה-Prefix.</p></div>
+
+  <h2 id="long-sessions">הכלכלה של Sessions ארוכים</h2>
+  <p>Session שפתוח כל היום צורך הרבה יותר ממה שהפעילות בו מרמזת, מסיבות מתועדות: כל בקשה נושאת את כל ההיסטוריה (גם אם במחיר Cache, עשירית על מיליון Tokens זה עדיין כסף); ההודעה הראשונה אחרי הפסקה ארוכה מה-TTL מחטיאה את ה-Cache ומעבדת הכול מחדש; ו-Compaction בעצמו קורא את כל מה שהוא מסכם, כך שדחיסת Context ענק היא בקשה גדולה בפני עצמה.</p>
+  <p>מכאן שני כללים פשוטים:</p>
+  <ul>
+    <li><strong><code>/clear</code> כשעוברים לנושא אחר:</strong> לפי התיעוד, כשרוצים התחלה נקייה בלי המשכיות, <code>/clear</code> לא עולה כלום, בעוד <code>/compact</code> הוא בקשה גדולה. Context ישן ולא רלוונטי הוא מס על כל הודעה עתידית.</li>
+    <li><strong><code>/compact</code> בהפסקות טבעיות, לא באמצע משימה:</strong> כשה-Cache חם, העלות סבירה; הכי יקר לדחוס Session ישן שחודש אחרי הפסקה ארוכה. אפשר לכוון מה יישמר: <code>/compact focus on the API changes</code>, ולכוון את סף הדחיסה האוטומטית עם <code>/autocompact</code>.</li>
+  </ul>
+  <p>ההבדל המלא בין השניים, כולל מה שורד דחיסה, נדון ב<a href="ch14.html#compact-vs-clear">פרק 14</a>. בתוכניות המנוי, המסך של <code>/usage</code> אף מסמן התנהגויות שאחראיות ל-10% או יותר מהשימוש האחרון (כמו Long Context או Cache Misses) עם טיפ לצמצום.</p>
+
+  <h2 id="model-cost">בחירת Model, Effort ו-Fast Mode</h2>
+  <p>בחירת המודל היא ההחלטה הכלכלית הגדולה ביותר (ההיכרות המלאה עם המודלים: <a href="ch08.html#choosing">פרק 8</a>). ההמלצה המתועדת: Sonnet לרוב משימות הקוד, Opus לארכיטקטורה מורכבת ולחשיבה רב-שלבית, Haiku ל-Subagents פשוטים (<code>model: haiku</code> בהגדרת ה-Subagent).</p>
+  <ul>
+    <li><strong>Effort Levels</strong> (<a href="ch08.html#effort">פרק 8</a>): שליטה בכמה חשיבה המודל משקיע. הרמות הזמינות תלויות במודל (<code>low</code>/<code>medium</code>/<code>high</code>/<code>xhigh</code>/<code>max</code> במודלי 5, ברירת מחדל <code>high</code>). מכיוון ש-Thinking מחויב כ-Output, הורדת Effort במשימות פשוטות היא חיסכון ישיר; זכרו רק ששינוי באמצע Session שובר Cache.</li>
+    <li><strong>Fast Mode</strong> <span class="badge preview">Research Preview</span> (<code>/fast</code>): מהירות עד פי 2.5 על Opus 5 ו-Opus 4.8, במחיר פרימיום של 10/50 דולר למיליון Tokens (מקור: עמוד התמחור הרשמי, נבדק 29.07.2026, כפוף לשינוי), לעומת 5/25 במחיר Opus רגיל. במנויים הוא זמין דרך Usage Credits בלבד ואינו נכלל במכסת המנוי. הדליקו אותו בתחילת Session, לא באמצע (שבירת Cache במחירי פרימיום).</li>
+  </ul>
+
+  <h2 id="parallel-cost">מקביליות מכפילה עלות</h2>
+  <p>כל טכניקת מקבול מ<a href="ch25.html">פרק 25</a> ומ<a href="ch29.html#conflicts">פרק 29</a> מכפילה גם צריכה: לכל Subagent חלון Context משלו שמתחיל בלי Cache; <code>/batch</code> מריץ כמה יחידות עבודה במקביל; ו-Agent Teams, לפי התיעוד, צורכים בערך פי 7 מ-Session רגיל. ההמלצות המתועדות לריסון: צוותים קטנים, משימות ממוקדות וקצרות לכל חבר צוות, Sonnet ולא Opus לחברי צוות, וסגירת Agents שסיימו. היתרון הכלכלי של Subagent נשמר כשהוא מחליף קריאות ענק ב-Context הראשי: הפלט המפורט נשאר אצלו, ורק סיכום חוזר אליכם.</p>
+
+  <h2 id="tooling">כלי המדידה</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>כלי</th><th>איפה</th><th>מה הוא נותן</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>/usage</code></td><td>בתוך Session</td><td>בלוק Session עם עלות דולרית מחושבת מקומית לפי מחירון מלא (רלוונטי למשתמשי API), פסי מכסה למנויים, ובתוכניות המנוי גם פירוט ייחוס: כמה מהשימוש הלך ל-Skills, Subagents, Plugins ושרתי MCP, עם מעבר בין 24 שעות לשבוע (<code>d</code>/<code>w</code>)</td></tr>
+        <tr><td class="ltr"><code>/cost</code>, <code>/stats</code></td><td>בתוך Session</td><td>כינויים (Aliases) של <code>/usage</code>; <code>/stats</code> נפתח בלשונית הסטטיסטיקה</td></tr>
+        <tr><td class="ltr"><code>/context</code></td><td>בתוך Session</td><td>פירוט חלון ה-Context לפי קטגוריות עם הצעות ייעול</td></tr>
+        <tr><td class="ltr"><code>/usage-credits</code></td><td>בתוך Session</td><td>ניהול Usage Credits, או שליחת בקשה למנהל בארגון (בהתחברות מנוי בלבד)</td></tr>
+        <tr><td class="ltr"><code>/insights</code></td><td>בתוך Session</td><td>דוח שמנתח את ה-Sessions שלכם: תחומי עבודה, דפוסי אינטראקציה ונקודות חיכוך</td></tr>
+        <tr><td>לוחות Analytics</td><td class="ltr"><code>claude.ai/analytics/claude-code</code> או <code>platform.claude.com/claude-code</code></td><td>אימוץ, שורות קוד והוצאה ברמת ארגון (<a href="ch29.html#analytics">פרק 29</a>)</td></tr>
+        <tr><td>OpenTelemetry</td><td>תשתית הניטור שלכם</td><td>מדדים בזמן כמעט אמת פר משתמש: <code>claude_code.token.usage</code>, <code>claude_code.cost.usage</code> ועוד; עובד על כל ספקי ה-API</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>מתי משתמשים במה: <code>/context</code> עונה על "למה ה-Session הזה כבד", <code>/usage</code> עונה על "לאן הלך השימוש שלי היום ומי אשם" (הפירוט לפי Skills, Subagents ו-MCP הוא זהב לאיתור רכיב רעבתן), <code>/insights</code> עונה על "אילו הרגלים שלי מייצרים חיכוך", והלוחות הארגוניים ו-OTEL עונים על שאלות ברמת צוות. הפעלה בסיסית של OTEL, מהתיעוד הרשמי:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash</div>
+    <pre><code>export CLAUDE_CODE_ENABLE_TELEMETRY=1
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+claude</code></pre>
+  </div>
+  <div class="callout note"><span class="title">המספר של <code>/usage</code> אינו החשבון</span><p>העלות הדולרית ב-<code>/usage</code> מחושבת מקומית לפי מחירי מחירון מלאים, ולא משקפת הנחות או מחירי מבצע; החיוב הסמכותי הוא בעמוד ה-Usage של ה-Claude Console. למנויים, מספר העלות של ה-Session אינו רלוונטי לחיוב בכלל: מה שחשוב הוא פסי המכסה.</p></div>
+
+  <h2 id="limits">Spend Limits: לעצור לפני החשבון</h2>
+  <ul>
+    <li><strong>ברמת ארגון API:</strong> Workspace Spend Limits ב-Claude Console על ה-Workspace הייעודי "Claude Code" שנוצר אוטומטית, ובנוסף Workspace Rate Limit שמגן על מכסות ה-API של שאר המערכות.</li>
+    <li><strong>ברמת Team/Enterprise:</strong> הקצאת ה-Seat היא התקרה המובנית; Usage Credits עם Spend Limits ברמת ארגון, קבוצה או משתמש מאפשרים המשך מבוקר מעבר לה.</li>
+    <li><strong>ברמת ריצה בודדת (Automation):</strong> הדגל <code>--max-budget-usd</code> קובע תקרת דולרים לריצת <code>-p</code> (מצב Print בלבד). הוצאות Subagents נספרות בתקרה, וכשמגיעים אליה, ניסיון להפעיל Subagent נוסף נכשל. לדוגמה: <code>claude -p --max-budget-usd 5.00 "query"</code>. זה הכלי הנכון לסקריפטים ול-CI, שם אין אדם שרואה את המונה.</li>
+  </ul>
+
+  <h2 id="prices">המחירים עצמם (נבדקו: 29.07.2026)</h2>
+  <h3 id="api-prices">מחירי API למיליון Tokens (MTok)</h3>
+  <p>מקור: <a href="https://platform.claude.com/docs/en/about-claude/pricing">platform.claude.com, עמוד Pricing</a>, נבדק 29.07.2026. המחירים בדולר ארה"ב וכפופים לשינוי בכל עת.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מודל</th><th>Input</th><th>Output</th><th>Cache Read</th><th>הערות</th></tr></thead>
+      <tbody>
+        <tr><td>Claude Fable 5</td><td class="ltr">$10</td><td class="ltr">$50</td><td class="ltr">$1</td><td></td></tr>
+        <tr><td>Claude Opus 5 / 4.8 / 4.7 / 4.6 / 4.5</td><td class="ltr">$5</td><td class="ltr">$25</td><td class="ltr">$0.50</td><td></td></tr>
+        <tr><td>Claude Sonnet 5 (עד 31.08.2026)</td><td class="ltr">$2</td><td class="ltr">$10</td><td class="ltr">$0.20</td><td>מחיר היכרות</td></tr>
+        <tr><td>Claude Sonnet 5 (מ-01.09.2026)</td><td class="ltr">$3</td><td class="ltr">$15</td><td class="ltr">$0.30</td><td>המחיר הסטנדרטי</td></tr>
+        <tr><td>Claude Sonnet 4.6 / 4.5</td><td class="ltr">$3</td><td class="ltr">$15</td><td class="ltr">$0.30</td><td></td></tr>
+        <tr><td>Claude Haiku 4.5</td><td class="ltr">$1</td><td class="ltr">$5</td><td class="ltr">$0.10</td><td></td></tr>
+        <tr><td>Fast Mode (Opus 5 / 4.8) <span class="badge preview">Research Preview</span></td><td class="ltr">$10</td><td class="ltr">$50</td><td class="ltr">מכפילי Cache מעל מחירי Fast</td><td>API ראשי בלבד</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>נקודות מחירון נוספות מאותו מקור (29.07.2026): כתיבת Cache עולה 1.25x (תוקף 5 דקות) או 2x (תוקף שעה) ממחיר ה-Input; Batch API נותן 50% הנחה על עבודות אסינכרוניות; חלון ה-Context של מיליון Tokens במודלי 4.6 ואילך מתומחר במחיר רגיל ללא תוספת; ובמודלים מ-4.7 ואילך ה-Tokenizer החדש מייצר בערך 30% יותר Tokens לאותו טקסט, מה שמשפיע על השוואות בין מודלים. כלל אצבע מהתיעוד: Token אחד הוא בערך 4 תווים או 0.75 מילה באנגלית.</p>
+  <h3 id="plan-prices">מחירי מנויים</h3>
+  <p>מקור: <a href="https://claude.com/pricing">claude.com/pricing</a>, נבדק 29.07.2026. לפני מס, וכפוף לשינוי לפי שיקול דעת Anthropic:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תוכנית</th><th>מחיר</th></tr></thead>
+      <tbody>
+        <tr><td>Free</td><td class="ltr">$0</td></tr>
+        <tr><td>Pro</td><td>17 דולר לחודש במנוי שנתי (200 דולר מראש); 20 דולר בחיוב חודשי</td></tr>
+        <tr><td>Max (רמות 5x ו-20x)</td><td>החל מ-100 דולר לחודש; המחיר תלוי ברמת השימוש שנבחרת</td></tr>
+        <tr><td>Team, Standard Seat</td><td>20 דולר ל-Seat לחודש בחיוב שנתי; 25 דולר בחיוב חודשי</td></tr>
+        <tr><td>Team, Premium Seat</td><td>100 דולר ל-Seat לחודש בחיוב שנתי; 125 דולר בחיוב חודשי</td></tr>
+        <tr><td>Enterprise</td><td>לפי העמוד: 20 דולר ל-Seat בתוספת שימוש במחירי API; מחיר סופי מול המכירות</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="performance">Performance: מהירות היא גם עלות</h2>
+  <p>אותם גורמים שמייקרים Session גם מאיטים אותו. גורמי ה-Latency העיקריים, לפי מנגנוני התיעוד שראינו: גודל ה-Context (כל תור מעבד יותר), Cache Misses (התור הראשון אחרי הפסקה או שבירת Cache איטי משמעותית), עומק החשיבה (Effort גבוה חושב יותר), בחירת המודל (Haiku מהיר מ-Sonnet שמהיר מ-Opus; Fast Mode מאיץ את Opus עד פי 2.5 בתשלום), ומספר סבבי הכלים שהמשימה דורשת. דרך פשוטה לקבל תחושה: בלוק ה-Session של <code>/usage</code> מציג גם <bdi>Total duration (API)</bdi> לצד זמן הקיר; כשזמן ה-API תופח ביחס לעבודה שנעשתה, ה-Session שלכם סוחב משקל עודף.</p>
+  <p><strong>המנוף המרכזי הוא היגיינת Context.</strong> ומכאן הפרקטיקות, כולן מגובות בעמוד ניהול העלויות הרשמי:</p>
+  <ul>
+    <li><strong>Prompts ספציפיים:</strong> "add input validation to the login function in auth.ts" במקום "improve this codebase". בקשה מעורפלת מפעילה סריקה רחבה; בקשה ממוקדת קוראת קבצים בודדים.</li>
+    <li><strong>משימות קטנות ותחומות:</strong> קובץ אחד, בדיקה, ואז הלאה. Plan Mode לפני משימות גדולות מונע עבודה חוזרת יקרה בכיוון שגוי, ו-<code>Esc</code> מוקדם עוצר סטייה לפני שהיא מצטברת.</li>
+    <li><strong>Skills במקום חקירה חוזרת:</strong> Skill שמתאר את הארכיטקטורה או את תהליך העבודה חוסך ל-Claude סבב קריאות שלם בכל פעם; העבירו הוראות ייעודיות מ-CLAUDE.md (שנטען תמיד) ל-Skills (שנטענים לפי דרישה) ושמרו על CLAUDE.md מתחת ל-200 שורות.</li>
+    <li><strong>פלטים מסוכמים:</strong> Subagents לפעולות מרובות פלט, ו-Hooks שמסננים פלט לפני שהוא נכנס ל-Context (למשל להחזיר רק שורות שגיאה מקובץ Log של 10,000 שורות).</li>
+    <li><strong>בדיקות ממוקדות:</strong> להריץ את קובץ הבדיקה הרלוונטי ולא את כל החבילה; פלט של חבילת בדיקות שלמה הוא אלפי Tokens שרובם "PASS".</li>
+  </ul>
+
+  <h2 id="pitfalls">שגיאות נפוצות ו-Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>סיבה שכיחה</th><th>מה עושים</th></tr></thead>
+      <tbody>
+        <tr><td>"רק שאלתי שאלה קטנה והשימוש קפץ"</td><td>Session ארוך: השאלה נשלחה עם כל ההיסטוריה, או שההפסקה עברה את ה-TTL וה-Cache הוחטא</td><td><code>/usage</code> יסמן Long Context או Cache Misses; פתחו Session חדש למשימות חדשות</td></tr>
+        <tr><td>כתיבות Cache גבוהות תור אחרי תור</td><td>משהו שובר את ה-Prefix: החלפות מודל/Effort, שרת MCP לא יציב שמתחבר ומתנתק, או Plugin עם שרתי MCP</td><td>עברו על רשימת שוברי ה-Cache בפרק; <code>/mcp</code> לבדיקת יציבות שרתים</td></tr>
+        <tr><td>חשבון API גבוה בלי הסבר</td><td>לפי התיעוד: לרוב Sessions ארוכים שלא נוקו, או Opus שנשאר מודל ברירת מחדל</td><td>הרגלי <code>/clear</code>, התאמת מודל למשימה, ו-Workspace Spend Limit כרשת ביטחון</td></tr>
+        <tr><td>נתקעתם בתקרת המנוי באמצע היום</td><td>חלון חמש השעות או החלון השבועי מוצה; החלונות משותפים לכל המודלים</td><td>ההודעה מציגה מתי החלון מתאפס; <code>/usage-credits</code> להמשך בתשלום, או ניקוי הרגלים לפי הפירוט ב-<code>/usage</code></td></tr>
+        <tr><td>ריצת CI חרגה מהצפוי</td><td>ריצת <code>-p</code> בלי תקרה, ו-Subagents שהכפילו את הצריכה</td><td><code>--max-budget-usd</code> על כל ריצה אוטומטית; הוצאות Subagents נספרות בתקרה</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>ולצד כל אלה, טעות הפוכה ששווה סעיף: <strong>אופטימיזציית יתר</strong>. אם אתם על מנוי ורחוקים מהתקרות, שעה של כוונון Prompts כדי לחסוך אלפי Tokens שווה פחות מדקת עבודה שלכם. ההשקעה בהיגיינת Context מצדיקה את עצמה כשהיא הרגל זול (Prompt ממוקד, <code>/clear</code> בין משימות) או כשהמספרים מראים בעיה אמיתית (תקרות שנפגעות, חשבון שגדל). קודם מודדים, ורק אז מכווננים.</p>
+
+  <h2 id="checklist">רשימת בדיקה: אופטימיזציית עלות</h2>
+  <ul class="check">
+    <li><code>/clear</code> בין משימות לא קשורות; Context ישן הוא מס על כל הודעה.</li>
+    <li><code>/context</code> בתחילת עבודה על פרויקט חדש: זהו את הצרכנים הגדולים.</li>
+    <li>CLAUDE.md רזה (עד 200 שורות); הוראות ייעודיות עוברות ל-Skills ול-<code>rules/</code> עם <code>paths:</code>.</li>
+    <li>כבו שרתי MCP שאינם בשימוש (<code>/mcp</code>) והעדיפו כלי CLI כמו <code>gh</code> כשקיימים.</li>
+    <li>מודל לפי משימה: Sonnet כברירת מחדל, Opus לתכנון מורכב, Haiku ל-Subagents פשוטים.</li>
+    <li>הורידו Effort במשימות פשוטות; Thinking מחויב כ-Output.</li>
+    <li>קבעו מודל ו-Effort בתחילת ה-Session; החלפות באמצע שוברות את ה-Cache.</li>
+    <li>Prompts ספציפיים עם שמות קבצים ופונקציות.</li>
+    <li>Plan Mode לפני משימות גדולות; תיקון כיוון מוקדם עם <code>Esc</code> ו-<code>/rewind</code>.</li>
+    <li>Subagents לפעולות מרובות פלט; רק הסיכום חוזר ל-Context הראשי.</li>
+    <li><code>/compact</code> בהפסקות טבעיות עם הנחיית מיקוד; לא באמצע משימה ולא במקום <code>/clear</code>.</li>
+    <li>עקבו שבועית: <code>/usage</code> (כולל פירוט הייחוס וסימוני ההתנהגות), <code>/insights</code> לדפוסים.</li>
+    <li>ב-Automation: <code>--max-budget-usd</code> לכל ריצת <code>claude -p</code>, ו-Spend Limits ברמת ה-Workspace או הארגון.</li>
+  </ul>
+
+  <h2 id="worked-example">דוגמה מחושבת: חודש של מפתח יחיד, בשתי הדרכים</h2>
+  <p>נחשב חודש עבודה של מפתחת יחידה על <bdi>TaskFlow</bdi>, פעם במסלול API ופעם במנוי. <strong>ההנחות שרירותיות ומפורשות בכוונה</strong>: הצריכה שלכם כמעט בוודאות שונה, וזו בדיוק הסיבה שמתחילים במדידה ולא בניחוש.</p>
+  <h3 id="assumptions">הנחות</h3>
+  <ul>
+    <li>21 ימי עבודה בחודש; שלושה Sessions משמעותיים ביום עם היגיינת Context סבירה.</li>
+    <li>מודל: <bdi>Sonnet 5</bdi> בלבד, במחיר ההיכרות (2/10 דולר ל-MTok, בתוקף עד 31.08.2026; מקור: עמוד התמחור, נבדק 29.07.2026).</li>
+    <li>צריכה יומית מוערכת: 200K Tokens של Input לא מוזמן (קבצים ופלטים חדשים), 500K כתיבות Cache בתוקף 5 דקות, 8M קריאות Cache (ההיסטוריה שנקראת שוב ושוב לאורך התורים), ו-150K Output כולל Thinking.</li>
+  </ul>
+  <h3 id="calc-api">מסלול A: חיוב API</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>רכיב</th><th>חישוב יומי</th><th>עלות יומית</th></tr></thead>
+      <tbody>
+        <tr><td>Input לא מוזמן</td><td class="ltr">0.2M × $2</td><td class="ltr">$0.40</td></tr>
+        <tr><td>כתיבות Cache (5 דקות, 1.25x)</td><td class="ltr">0.5M × $2.50</td><td class="ltr">$1.25</td></tr>
+        <tr><td>קריאות Cache (0.1x)</td><td class="ltr">8M × $0.20</td><td class="ltr">$1.60</td></tr>
+        <tr><td>Output כולל Thinking</td><td class="ltr">0.15M × $10</td><td class="ltr">$1.50</td></tr>
+        <tr><td><strong>סה"כ ליום</strong></td><td></td><td class="ltr"><strong>$4.75</strong></td></tr>
+        <tr><td><strong>סה"כ לחודש (21 ימים)</strong></td><td></td><td class="ltr"><strong>≈ $100</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>שימו לב מה החישוב חושף: קריאות ה-Cache, למרות המחיר של עשירית, הן רכיב גדול, כי הנפח שלהן עצום. בלי Caching, אותם 8M Tokens היו עולים 16 דולר ביום במקום 1.60. וחשוב לקלברציה: הפרופיל שחישבנו הוא שימוש ממושמע במודל הזול. לפי התיעוד הרשמי (נבדק 29.07.2026), הממוצע בפריסות Enterprise הוא בסביבות <strong>13 דולר ליום פעיל ו-150 עד 250 דולר לחודש למפתח</strong>: שימוש כבד יותר, Opus, Subagents ו-Sessions ארוכים מרימים את המספר מהר.</p>
+  <p>ורגישות להנחות, כי המספר שביר מכמה כיוונים: החלפה ל-<bdi>Opus 5</bdi> (5/25 דולר, פי 2.5 על כל רכיב) מקפיצה את אותו פרופיל לכ-250 דולר בחודש; יום אחד בשבוע עם Agent Team (בערך פי 7 לאותו יום) מוסיף עוד עשרות דולרים; ומ-01.09.2026, פקיעת מחיר ההיכרות של Sonnet 5 מייקרת את התרחיש שלנו לבדו לכ-150 דולר בחודש בלי לשנות שום הרגל. לכיוון השני, עבודה עם Haiku 4.5 על משימות מכניות והיגיינת Context קפדנית יכולות לחתוך את המספר בחצי.</p>
+  <h3 id="calc-sub">מסלול B: מנוי</h3>
+  <p>אותו פרופיל שימוש במנוי: <bdi>Max</bdi> (החל מ-100 דולר לחודש, מקור: claude.com/pricing, נבדק 29.07.2026) מכסה עבודה יומית רצינית במחיר קבוע, עם מגבלות חלון של חמש שעות ושבועיות במקום מונה דולרים. <bdi>Pro</bdi> (17-20 דולר) מתאים לשימוש קל ולא לעבודה יומיומית אינטנסיבית. ההשוואה במקרה שלנו: צריכת ה-API המחושבת (כ-100 דולר בחודש היום, כ-150 אחרי המבצע, ויותר אם הפרופיל כבד מההנחות) נמצאת בדיוק סביב מחיר ה-Max, כך שההכרעה תלויה בשוליים: מי שמריץ גם Subagents כבדים ו-Opus ירוויח מהמנוי הקבוע; מי שעובד במשרה חלקית עם Claude ירוויח מ-API לפי צריכה. <strong>Your mileage will vary:</strong> מדדו חודש אחד עם <code>/usage</code> ודוחות ה-Console לפני שמתחייבים.</p>
+  <div class="callout note"><span class="title">עוד שיקול במעבר בין המסלולים</span><p>המסלולים נבדלים גם ב-TTL של ה-Cache (שעה במנוי, חמש דקות ב-API כברירת מחדל) וביכולות סביבן: Usage Credits ו-<code>/usage-credits</code> קיימים רק בהתחברות מנוי. תזכורת מ<a href="ch29.html">פרק 29</a>: בארגון, ההחלטה הזאת היא גם החלטת ממשל, לא רק מחיר.</p></div>
+
+  <h2 id="security">שיקולי אבטחה: עלות היא גם משטח תקיפה</h2>
+  <p>עלות לא מבוקרת היא בעיית אבטחה בפני עצמה (<bdi>Denial of Wallet</bdi>): הרצה אוטומטית שנתקעת בלולאה, <bdi>Prompt Injection</bdi> שגורם לסוכן לקרוא ולעבד קבצים ענקיים, או מפתח <bdi>API</bdi> שדלף ומשמש מישהו אחר. ההגנות חופפות לכללי החיסכון: תקרות מפורשות בכל הרצה לא-אינטראקטיבית (<code>--max-turns</code>, <code>--max-budget-usd</code>), <bdi>Spend Limits</bdi> ברמת ה-<bdi>Workspace</bdi> ב-<bdi>Console</bdi>, מפתחות <bdi>API</bdi> נפרדים ומצומצמים ל-<bdi>CI</bdi> שאפשר לבטל בלי לפגוע במפתחים (<a href="ch20.html">פרק 20</a>, <a href="ch33.html">פרק 33</a>), ומעקב אחרי <code>/usage</code> ו-<bdi>Analytics</bdi> כדי שקפיצה חריגה תתגלה ביום שבו קרתה ולא בחשבון החודשי. אם ראיתם שימוש שלא מוסבר על ידי העבודה שלכם, בטלו את המפתח קודם ותחקרו אחר כך.</p>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 30.1: מדידה ואופטימיזציה של Session אמיתי</div>
+    <div class="body">
+      <p>פתחו את עותק ה-<bdi>TaskFlow</bdi> שלכם ובצעו:</p>
+      <ol>
+        <li>פתחו Session חדש, והריצו <code>/context</code> לפני כל פעולה. רשמו: כמה Tokens תופסות הקטגוריות הקבועות (System Prompt, כלים, CLAUDE.md, תיאורי Skills)?</li>
+        <li>בקשו מ-Claude משימה מעורפלת בכוונה: "improve the backend". אחרי שהוא מסיים לחקור, הריצו <code>/context</code> ו-<code>/usage</code> ורשמו את הצריכה.</li>
+        <li>הריצו <code>/clear</code>, ובקשו משימה מקבילה אבל ממוקדת: "add input validation for the title field in backend/app/routers/tasks.py, then run backend tests". מדדו שוב.</li>
+        <li>השוו: כמה Tokens חסך ה-Prompt הממוקד? חשבו את ההפרש בדולרים לפי מחירי Sonnet 5 מהפרק (עם התאריך!).</li>
+        <li>לסיום, נסחו שלושה שינויים קבועים (ב-CLAUDE.md, ב-Skills או בהרגלים) שהיו מקטינים את הצריכה בפרויקט הזה, והצדיקו כל אחד בנתון שמדדתם.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>שלבים 1-2:</strong> ב-Session טרי על TaskFlow תראו בדרך כלל שהבסיס הקבוע (System Prompt, הגדרות כלים, CLAUDE.md, תיאורי Skills) תופס עשרות בודדות של אלפי Tokens עוד לפני שהקלדתם. הבקשה המעורפלת "improve the backend" גוררת סריקה רחבה: Claude קורא את רוב קבצי ה-Backend, ו-<code>/context</code> יראה שקטגוריית ההודעות (Messages) קפצה בעשרות אלפי Tokens. המספרים המדויקים משתנים בין הרצות; מה שחשוב הוא היחס.</p>
+      <p><strong>שלבים 3-4:</strong> הבקשה הממוקדת קוראת בדרך כלל שניים-שלושה קבצים (ה-Router, המודל, קובץ הבדיקות) במקום את כל העץ. הפרש טיפוסי הוא עשרות אלפי Tokens של Input. לדוגמה, אם נחסכו 60K Tokens של קריאות חדשות: במחיר ההיכרות של Sonnet 5 (2 דולר ל-MTok Input, נבדק 29.07.2026) זה 0.12 דולר לפעולה אחת. נשמע זניח? זה בדיוק השיעור: החיסכון האמיתי אינו בפעולה הבודדת אלא בהצטברות. אותם 60K נגררים ב-Cache Reads בכל אחד מעשרות התורים הבאים של ה-Session, ומכפילים את עצמם על פני חודש שלם ועל פני צוות.</p>
+      <p><strong>שלב 5, שינויים מוצדקים לדוגמה:</strong> (1) להוסיף ל-CLAUDE.md מפת "איפה מה נמצא" של שלוש שורות (Routers, Models, Tests), כי מדדתם ש-Claude מבזבז קריאות על ניווט; (2) Skill בשם "run-backend-tests" שמריץ רק את קובץ הבדיקות הרלוונטי עם פלט מקוצר, כי פלט ה-pytest המלא הופיע כצרכן גדול ב-<code>/context</code>; (3) הרגל צוותי של Prompt ממוקד עם נתיב קובץ, מגובה בהפרש שמדדתם בין שלב 2 לשלב 3. כל שינוי כזה נבחן שוב אחרי שבוע עם <code>/usage</code>: אופטימיזציה בלי מדידה חוזרת היא ניחוש.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul>
+    <li>מנוי משלם על מכסה (חלונות של חמש שעות ושבועיים), API משלם פר Token; מה שנספר זהה: כל ה-Input כולל תוצאות כלים ו-MCP, כל ה-Output כולל Thinking, וכל Subagent עם ה-Context העצמאי שלו.</li>
+    <li>Prompt Caching הופך את רוב ההיסטוריה לעשירית מחיר: שמרו על ה-Prefix יציב (בלי החלפות מודל, Effort ו-Fast Mode באמצע משימה), והבינו את ה-TTL: שעה במנוי, חמש דקות ב-API וב-Usage Credits.</li>
+    <li>Session ארוך מתייקר מעצם אורכו; <code>/clear</code> חינם בין משימות, <code>/compact</code> ממוקד בהפסקות טבעיות.</li>
+    <li>המנוף הגדול: היגיינת Context. Prompts ספציפיים, משימות קטנות, Skills, Subagents מסכמים, ובדיקות ממוקדות. מדדו עם <code>/context</code>, <code>/usage</code> ו-<code>/insights</code>, וגדרו עם Spend Limits ו-<code>--max-budget-usd</code>.</li>
+    <li>כל מחיר בפרק נכון ל-29.07.2026 בלבד, ומחיר ההיכרות של Sonnet 5 פג ב-31.08.2026. בדקו את המקור לפני כל החלטה.</li>
+  </ul>
+  <p>בפרק הבא נעבור מהשימוש בכלי אל בנייה איתו: מבוא ל-<bdi>Claude Agent SDK</bdi> ולבניית Agents משלכם.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/costs">Manage costs effectively</a> |
+      <a href="https://platform.claude.com/docs/en/about-claude/pricing">API Pricing (platform.claude.com)</a> |
+      <a href="https://claude.com/pricing">Claude plans pricing (claude.com)</a> |
+      <a href="https://code.claude.com/docs/en/prompt-caching">How Claude Code uses prompt caching</a> |
+      <a href="https://code.claude.com/docs/en/context-window">Explore the context window</a> |
+      <a href="https://code.claude.com/docs/en/model-config">Model configuration (effort levels)</a> |
+      <a href="https://code.claude.com/docs/en/fast-mode">Fast mode</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands (/usage, /cost, /insights, /usage-credits)</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">CLI reference (--max-budget-usd)</a> |
+      <a href="https://code.claude.com/docs/en/monitoring-usage">Monitoring (OpenTelemetry)</a> |
+      <a href="https://code.claude.com/docs/en/analytics">Analytics</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch29.html"><span class="lbl">הפרק הקודם</span>Team Workflows</a>
+    <a href="ch31.html"><span class="lbl">הפרק הבא</span>מבוא ל-Claude Agent SDK</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

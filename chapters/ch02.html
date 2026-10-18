@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 2: הכנת סביבת העבודה</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק א | פרק 2</p>
+  <h1>הכנת סביבת העבודה</h1>
+  <p class="lead">בפרק הזה נתקין את <bdi>Claude Code</bdi> על כל מערכת הפעלה נפוצה, נתחבר לחשבון, נלמד לעדכן ולהסיר את ההתקנה, ונטפל מראש בתקלות ההתקנה השכיחות. בסוף הפרק תהיה לכם סביבה עובדת ומאומתת, מוכנה ל-<bdi>Session</bdi> הראשון בפרק 3.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-we-build">מה בדיוק אנחנו מתקינים</h2>
+  <p>לפני שמריצים פקודות, שווה להבין מה ההתקנה בעצם נותנת. <bdi>Claude Code</bdi> הוא תוכנית שורת פקודה (CLI) אחת בשם <code>claude</code>: קובץ בינארי עצמאי שרץ בטרמינל שלכם, מדבר עם המודלים של Anthropic דרך הרשת, ומפעיל כלים מקומיים (קריאת קבצים, עריכה, הרצת פקודות) על המחשב שלכם. כל שאר הממשקים שנפגוש בפרק הזה, תוסף ה-<bdi>VS Code</bdi>, תוסף ה-<bdi>JetBrains</bdi>, אפליקציית ה-<bdi>Desktop</bdi> וה-<bdi>Web</bdi>, הם עטיפות שונות לאותה יכולת ליבה. לכן ההשקעה בהתקנת <bdi>CLI</bdi> תקינה משתלמת בכל מקרה: היא הבסיס שכולם נשענים עליו.</p>
+  <p>אחרי התקנת <bdi>Native</bdi> טיפוסית, אלו הקבצים והתיקיות שנוצרים אצלכם (ב-<bdi>Windows</bdi> הנתיבים המקבילים תחת <code>%USERPROFILE%</code>):</p>
+  <div class="codeblock">
+    <div class="codehead">מבנה קבצים אחרי התקנה (macOS / Linux / WSL)</div>
+    <pre><code>~/.local/bin/claude          # המשגר (Launcher) שנמצא ב-PATH
+~/.local/share/claude/       # הגרסאות המותקנות עצמן
+~/.claude/                   # הגדרות, היסטוריית Sessions, נתוני עזר
+~/.claude.json               # קובץ מצב והגדרות גלובלי</code></pre>
+  </div>
+  <p>ההפרדה הזאת חשובה: הסרת ההתקנה מוחקת את שתי התיקיות הראשונות, אבל ההגדרות וההיסטוריה שלכם (שתי האחרונות) נשמרות אלא אם תמחקו אותן במפורש.</p>
+
+  <h2 id="prereqs">דרישות מוקדמות</h2>
+  <p>לפני ההתקנה, ודאו שהמחשב שלכם עומד בדרישות המערכת הרשמיות. אלו הדרישות המעודכנות נכון לתאריך המחקר של המדריך (28.07.2026):</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>רכיב</th><th>דרישה</th></tr></thead>
+      <tbody>
+        <tr><td>מערכת הפעלה</td><td class="ltr">macOS 13.0+, Windows 10 1809+ / Windows Server 2019+, Ubuntu 20.04+, Debian 10+, Alpine Linux 3.19+</td></tr>
+        <tr><td>חומרה</td><td>לפחות 4GB זיכרון RAM, מעבד <bdi>x64</bdi> או <bdi>ARM64</bdi></td></tr>
+        <tr><td>רשת</td><td>חיבור אינטרנט פעיל (הפניות למודל עוברות דרך שרתי Anthropic)</td></tr>
+        <tr><td><bdi>Shell</bdi></td><td class="ltr">Bash, Zsh, PowerShell או CMD</td></tr>
+        <tr><td>מיקום גיאוגרפי</td><td>מדינה הנתמכת על ידי Anthropic (רשימה רשמית באתר)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout note"><span class="title">הערה חשובה: לא צריך Node.js</span><p>בעבר <bdi>Claude Code</bdi> הותקן כחבילת <bdi>npm</bdi> וחייב התקנת <bdi>Node.js</bdi>. היום ההתקנה המומלצת היא <bdi>Native Installer</bdi> שמוריד קובץ בינארי עצמאי, ללא תלות ב-<bdi>Node.js</bdi>. רק אם תבחרו להתקין דרך <bdi>npm</bdi> תצטרכו <bdi>Node.js</bdi> בגרסה 22 ומעלה (ראו בהמשך). כלי החיפוש <bdi>ripgrep</bdi> מגיע בדרך כלל כלול בהתקנה.</p></div>
+  <p>בנוסף תצטרכו חשבון מתאים: מנוי בתשלום ל-<bdi>Claude</bdi> (תוכנית <bdi>Pro</bdi>, <bdi>Max</bdi>, <bdi>Team</bdi> או <bdi>Enterprise</bdi>) או חשבון <bdi>Claude Console</bdi> עם חיוב לפי שימוש. התוכנית החינמית של <bdi>Claude</bdi> אינה כוללת גישה ל-<bdi>Claude Code</bdi>. נרחיב על כך בסעיף ההזדהות.</p>
+
+  <h2 id="install-overview">שיטות ההתקנה: מבט על</h2>
+  <p>קיימות כמה דרכים רשמיות להתקין את <bdi>Claude Code</bdi>. כולן מתקינות את אותו קובץ בינארי, וההבדל הוא בניהול העדכונים:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>שיטה</th><th>מערכות</th><th>עדכון אוטומטי</th><th>מתי לבחור</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>Native Installer</bdi></td><td class="ltr">macOS, Linux, WSL, Windows</td><td>כן, ברקע</td><td>ברירת המחדל המומלצת לכולם</td></tr>
+        <tr><td><bdi>Homebrew</bdi></td><td class="ltr">macOS, Linux</td><td>לא (עדכון ידני)</td><td>אם אתם מנהלים הכול דרך <bdi>Homebrew</bdi></td></tr>
+        <tr><td><bdi>WinGet</bdi></td><td class="ltr">Windows</td><td>לא (עדכון ידני)</td><td>אם הארגון עובד עם <bdi>WinGet</bdi></td></tr>
+        <tr><td class="ltr">apt / dnf / apk</td><td class="ltr">Debian, Ubuntu, Fedora, RHEL, Alpine</td><td>דרך עדכוני המערכת</td><td>שרתי Linux מנוהלים</td></tr>
+        <tr><td><bdi>npm</bdi></td><td>כל מערכת עם <bdi>Node.js</bdi> 22+</td><td>חלקי</td><td>סביבות שכבר בנויות סביב <bdi>npm</bdi></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout note"><span class="title">שיקול אבטחה: הרצת סקריפט התקנה מהרשת</span><p>פקודות ההתקנה הרשמיות מורידות סקריפט ומריצות אותו ישירות (<code>curl ... | bash</code> או <code>irm ... | iex</code>). זו הדרך המתועדת של Anthropic, וההורדה נעשית ב-HTTPS מדומיין רשמי. מי שמדיניות הארגון שלו אוסרת על התבנית הזאת יכול להשתמש במנהלי החבילות החתומים (<bdi>Homebrew</bdi>, <bdi>WinGet</bdi>, <bdi>apt</bdi>, <bdi>dnf</bdi>, <bdi>apk</bdi>) או לאמת ידנית את חתימת ה-<bdi>GPG</bdi> של קובצי השחרור, תהליך שמתועד במלואו בעמוד ה-<bdi>Setup</bdi> הרשמי תחת "Binary integrity and code signing".</p></div>
+
+  <h2 id="windows">התקנה על Windows (התקנה מקומית)</h2>
+  <p>על <bdi>Windows</bdi> יש שתי אפשרויות: התקנה מקומית (<bdi>Native Windows</bdi>) או התקנה בתוך <bdi>WSL2</bdi>. ההבדל המרכזי: התקנה מקומית מתאימה לפרויקטים וכלים של <bdi>Windows</bdi>, אבל אינה תומכת ב-<bdi>Sandboxing</bdi> (הרצת פקודות בבידוד). <bdi>WSL2</bdi> מתאים למי שעובד עם כלי <bdi>Linux</bdi> ותומך ב-<bdi>Sandboxing</bdi>. אין צורך בהרשאות <bdi>Administrator</bdi> להתקנה.</p>
+  <h3 id="windows-powershell">שלב אחר שלב: PowerShell</h3>
+  <ol>
+    <li>פתחו <bdi>PowerShell</bdi> (חפשו "PowerShell" בתפריט התחל). ודאו שהשורה מתחילה ב-<code>PS C:\</code>. אם אין <code>PS</code> בתחילת השורה, אתם ב-<bdi>CMD</bdi> ולא ב-<bdi>PowerShell</bdi>.</li>
+    <li>הריצו את פקודת ההתקנה הרשמית:</li>
+  </ol>
+  <div class="codeblock">
+    <div class="codehead">PowerShell</div>
+    <pre><code>irm https://claude.ai/install.ps1 | iex</code></pre>
+  </div>
+  <ol start="3">
+    <li>אם אתם מעדיפים לעבוד ב-<bdi>CMD</bdi>, השתמשו בפקודה הייעודית ל-<bdi>CMD</bdi> במקום:</li>
+  </ol>
+  <div class="codeblock">
+    <div class="codehead">CMD</div>
+    <pre><code>curl -fsSL https://claude.ai/install.cmd -o install.cmd &amp;&amp; install.cmd &amp;&amp; del install.cmd</code></pre>
+  </div>
+  <ol start="4">
+    <li>סגרו ופתחו מחדש את הטרמינל, ואז ודאו שההתקנה הצליחה עם <code>claude --version</code>.</li>
+  </ol>
+  <div class="callout warn"><span class="title">אזהרה: אל תערבבו בין ה-Shells</span><p>הפקודה עם <code>irm</code> עובדת רק ב-<bdi>PowerShell</bdi>, והפקודה עם <code>&amp;&amp;</code> עובדת רק ב-<bdi>CMD</bdi>. אם קיבלתם <code>The token '&amp;&amp;' is not a valid statement separator</code> אתם ב-<bdi>PowerShell</bdi> והרצתם את פקודת ה-<bdi>CMD</bdi>. אם קיבלתם <code>'irm' is not recognized</code> אתם ב-<bdi>CMD</bdi> והרצתם את פקודת ה-<bdi>PowerShell</bdi>.</p></div>
+  <p>מומלץ (אך לא חובה) להתקין גם <bdi>Git for Windows</bdi>. כשהוא מותקן, <bdi>Claude Code</bdi> משתמש ב-<bdi>Git Bash</bdi> להרצת פקודות (כלי ה-<bdi>Bash</bdi>). בלעדיו, <bdi>Claude Code</bdi> מריץ פקודות דרך כלי <bdi>PowerShell</bdi> במקום. אם <bdi>Git</bdi> מותקן במיקום לא סטנדרטי, אפשר להגדיר את הנתיב בקובץ <code>settings.json</code>:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/settings.json</div>
+    <pre><code>{
+  "env": {
+    "CLAUDE_CODE_GIT_BASH_PATH": "C:\\Program Files\\Git\\bin\\bash.exe"
+  }
+}</code></pre>
+  </div>
+  <p>חלופה להתקנה ב-<bdi>WinGet</bdi> (ללא עדכון אוטומטי; עדכנו ידנית עם <code>winget upgrade Anthropic.ClaudeCode</code>):</p>
+  <div class="codeblock">
+    <div class="codehead">PowerShell</div>
+    <pre><code>winget install Anthropic.ClaudeCode</code></pre>
+  </div>
+
+  <h2 id="wsl2">התקנה על WSL2</h2>
+  <p><bdi>WSL2</bdi> (סביבת <bdi>Linux</bdi> בתוך <bdi>Windows</bdi>) הוא הבחירה הנכונה אם הפרויקטים שלכם משתמשים בכלי <bdi>Linux</bdi>, או אם אתם רוצים <bdi>Sandboxing</bdi> להרצת פקודות. שלבי ההתקנה:</p>
+  <ol>
+    <li>אם <bdi>WSL2</bdi> עדיין לא מותקן, פתחו <bdi>PowerShell</bdi> כ-<bdi>Administrator</bdi> והריצו <code>wsl --install</code> (מתקין <bdi>Ubuntu</bdi> כברירת מחדל), ואז הפעילו מחדש את המחשב.</li>
+    <li>פתחו את הטרמינל של הפצת ה-<bdi>WSL</bdi> שלכם (למשל <bdi>Ubuntu</bdi>). חשוב: מתקינים ומריצים את <code>claude</code> בתוך טרמינל ה-<bdi>WSL</bdi>, לא ב-<bdi>PowerShell</bdi>.</li>
+    <li>הריצו את פקודת ההתקנה של <bdi>Linux</bdi>:</li>
+  </ol>
+  <div class="codeblock">
+    <div class="codehead">Bash (בתוך WSL)</div>
+    <pre><code>curl -fsSL https://claude.ai/install.sh | bash</code></pre>
+  </div>
+  <ol start="4">
+    <li>סגרו ופתחו מחדש את הטרמינל והריצו <code>claude --version</code> לאימות.</li>
+  </ol>
+  <div class="callout tip"><span class="title">Best Practice</span><p>שמרו את הפרויקטים שלכם בתוך מערכת הקבצים של <bdi>WSL</bdi> (למשל <code>~/projects</code>) ולא תחת <code>/mnt/c/</code>. עבודה על קבצים שיושבים בצד ה-<bdi>Windows</bdi> איטית משמעותית וגורמת לבעיות הרשאות.</p></div>
+  <p>אם אתם על <bdi>WSL1</bdi>, הרצת <code>claude</code> עלולה להיכשל עם <code>Exec format error</code>. הפתרון הנקי: שדרוג ל-<bdi>WSL2</bdi> עם <code>wsl --set-version &lt;DistroName&gt; 2</code> מתוך <bdi>PowerShell</bdi>.</p>
+
+  <h2 id="macos">התקנה על macOS</h2>
+  <p>על <bdi>macOS</bdi> (בגרסה 13.0 ומעלה, מעבדי <bdi>Intel</bdi> ו-<bdi>Apple Silicon</bdi> כאחד) הדרך המומלצת היא ה-<bdi>Native Installer</bdi>:</p>
+  <ol>
+    <li>פתחו את <bdi>Terminal</bdi> (דרך <bdi>Spotlight</bdi>: חפשו "Terminal").</li>
+    <li>הריצו:</li>
+  </ol>
+  <div class="codeblock">
+    <div class="codehead">Bash / Zsh</div>
+    <pre><code>curl -fsSL https://claude.ai/install.sh | bash</code></pre>
+  </div>
+  <ol start="3">
+    <li>ההתקנה ממקמת את <bdi>Claude Code</bdi> תחת <code>~/.local/share/claude</code> ויוצרת קיצור ב-<code>~/.local/bin/claude</code>. סגרו ופתחו מחדש את הטרמינל והריצו <code>claude --version</code>.</li>
+  </ol>
+  <p>חלופה למשתמשי <bdi>Homebrew</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash / Zsh</div>
+    <pre><code>brew install --cask claude-code</code></pre>
+  </div>
+  <p>קיימים שני <bdi>Casks</bdi>: <code>claude-code</code> עוקב אחרי ערוץ <bdi>stable</bdi> (בדרך כלל שבוע מאחורי הגרסה האחרונה, מדלג על גרסאות עם רגרסיות משמעותיות), ו-<code>claude-code@latest</code> מקבל כל גרסה מיד. התקנות <bdi>Homebrew</bdi> אינן מתעדכנות אוטומטית: הריצו <code>brew upgrade claude-code</code> מדי פעם.</p>
+
+  <h2 id="linux">התקנה על Linux</h2>
+  <p>על <bdi>Ubuntu</bdi>, <bdi>Debian</bdi> ורוב ההפצות, ה-<bdi>Native Installer</bdi> הוא הדרך הפשוטה ביותר:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash</div>
+    <pre><code>curl -fsSL https://claude.ai/install.sh | bash</code></pre>
+  </div>
+  <p>לשרתים מנוהלים, Anthropic מפרסמת מאגרי חבילות חתומים ל-<code>apt</code>, <code>dnf</code> ו-<code>apk</code>. כך מגדירים את ערוץ ה-<bdi>stable</bdi> ב-<bdi>Debian</bdi>/<bdi>Ubuntu</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash (apt)</div>
+    <pre><code>sudo install -d -m 0755 /etc/apt/keyrings
+sudo curl -fsSL https://downloads.claude.ai/keys/claude-code.asc \
+  -o /etc/apt/keyrings/claude-code.asc
+echo "deb [signed-by=/etc/apt/keyrings/claude-code.asc] https://downloads.claude.ai/claude-code/apt/stable stable main" \
+  | sudo tee /etc/apt/sources.list.d/claude-code.list
+sudo apt update
+sudo apt install claude-code</code></pre>
+  </div>
+  <p>העדכון בהמשך נעשה עם <code>sudo apt update &amp;&amp; sudo apt upgrade claude-code</code>. הוראות מקבילות ל-<code>dnf</code> (Fedora/RHEL) ול-<code>apk</code> (Alpine) נמצאות בתיעוד הרשמי בעמוד ה-<bdi>Setup</bdi>. על <bdi>Alpine</bdi> נדרשות חבילות נוספות (<code>bash</code>, <code>curl</code>, <code>libgcc</code>, <code>libstdc++</code>, <code>ripgrep</code>) והגדרת <code>USE_BUILTIN_RIPGREP=0</code>.</p>
+  <h3 id="npm-install">התקנה דרך npm (לסביבות שדורשות זאת)</h3>
+  <p>החבילה <code>@anthropic-ai/claude-code</code> מתקינה את אותו קובץ בינארי, אך דורשת <bdi>Node.js</bdi> בגרסה 22 ומעלה (החל מגרסה 2.1.198 של <bdi>Claude Code</bdi>):</p>
+  <div class="codeblock">
+    <div class="codehead">Bash</div>
+    <pre><code>npm install -g @anthropic-ai/claude-code</code></pre>
+  </div>
+  <div class="callout danger"><span class="title">סכנה</span><p>לעולם אל תריצו <code>sudo npm install -g</code>. זה יוצר בעיות הרשאות וסיכוני אבטחה. אם אתם נתקלים בשגיאות הרשאה עם <bdi>npm</bdi>, עברו ל-<bdi>Native Installer</bdi>.</p></div>
+  <p>לשדרוג התקנת <bdi>npm</bdi> הריצו <code>npm install -g @anthropic-ai/claude-code@latest</code>. הימנעו מ-<code>npm update -g</code>, שעלול לא להעביר אתכם לגרסה החדשה ביותר.</p>
+
+  <h2 id="vscode">התקנת התוסף ל-VS Code</h2>
+  <p>תוסף ה-<bdi>VS Code</bdi> נותן ממשק גרפי מלא ל-<bdi>Claude Code</bdi> בתוך ה-<bdi>IDE</bdi>: פאנל שיחה, תצוגת <bdi>Diff</bdi> זו לצד זו, אזכור קבצים עם <code>@</code> ועוד. דרישה: <bdi>VS Code</bdi> בגרסה 1.94.0 ומעלה.</p>
+  <ol>
+    <li>פתחו את תצוגת ה-<bdi>Extensions</bdi> עם <code>Ctrl+Shift+X</code> (או <code>Cmd+Shift+X</code> ב-<bdi>Mac</bdi>).</li>
+    <li>חפשו "Claude Code" (המזהה הרשמי: <code>anthropic.claude-code</code>) ולחצו <bdi>Install</bdi>.</li>
+    <li>אם התוסף לא מופיע אחרי ההתקנה, הפעילו מחדש את <bdi>VS Code</bdi> או הריצו "Developer: Reload Window" מה-<bdi>Command Palette</bdi>.</li>
+    <li>פתחו את הפאנל דרך אייקון ה-<bdi>Spark</bdi> בפינת העורך, ובפתיחה הראשונה לחצו <bdi>Sign in</bdi> והשלימו את ההזדהות בדפדפן.</li>
+  </ol>
+  <p>התוסף עובד גם ב-<bdi>Forks</bdi> כמו <bdi>Cursor</bdi>, ובעורכים אחרים אפשר להתקין מ-<bdi>Open VSX</bdi>. שימו לב: התוסף מגיע עם עותק פרטי של ה-<bdi>CLI</bdi> לשימוש הפאנל בלבד, והוא אינו מוסיף את <code>claude</code> ל-<bdi>PATH</bdi>. כדי להריץ <code>claude</code> בטרמינל המשולב של <bdi>VS Code</bdi> צריך גם את ההתקנה העצמאית שתיארנו למעלה.</p>
+
+  <h2 id="jetbrains">התקנת התוסף ל-JetBrains</h2>
+  <p>תוסף ה-<bdi>JetBrains</bdi> (בסטטוס <span class="badge beta">Beta</span>) עובד עם <bdi>IntelliJ IDEA</bdi>, <bdi>PyCharm</bdi>, <bdi>WebStorm</bdi>, <bdi>PhpStorm</bdi>, <bdi>GoLand</bdi>, <bdi>Android Studio</bdi> ועוד. בשונה מתוסף ה-<bdi>VS Code</bdi>, הוא אינו כולל עותק של ה-<bdi>CLI</bdi> אלא מריץ את הפקודה <code>claude</code> בטרמינל המשולב, ולכן צריך להתקין את שני הרכיבים:</p>
+  <ol>
+    <li>התקינו קודם את ה-<bdi>CLI</bdi> בשיטה המתאימה למערכת שלכם (ראו למעלה). בלעדיו התוסף יציג הודעת "Cannot launch Claude Code".</li>
+    <li>התקינו את התוסף "Claude Code [Beta]" מה-<bdi>JetBrains Marketplace</bdi> (בתוך ה-<bdi>IDE</bdi>: <bdi>Settings</bdi>, ואז <bdi>Plugins</bdi>, חיפוש "Claude Code").</li>
+    <li>הפעילו מחדש את ה-<bdi>IDE</bdi> באופן מלא.</li>
+    <li>הריצו <code>claude</code> מהטרמינל המשולב של ה-<bdi>IDE</bdi>, או לחצו <code>Ctrl+Esc</code> (ב-<bdi>Mac</bdi>: <code>Cmd+Esc</code>) לפתיחה מהירה. מטרמינל חיצוני אפשר להתחבר ל-<bdi>IDE</bdi> עם הפקודה <code>/ide</code> בתוך <bdi>Session</bdi>.</li>
+  </ol>
+  <div class="callout note"><span class="title">הערה</span><p>ב-<bdi>JetBrains Remote Development</bdi> יש להתקין את התוסף על המכונה המרוחקת (<bdi>Settings</bdi>, ואז <bdi>Plugin (Host)</bdi>), לא על המחשב המקומי. משתמשי <bdi>WSL</bdi> יכולים להגדיר בהגדרות התוסף את הפקודה <code>wsl -d Ubuntu -- bash -lic "claude"</code>.</p></div>
+
+  <h2 id="desktop">אפליקציית Desktop (לשונית Code)</h2>
+  <p>אפליקציית <bdi>Claude Desktop</bdi> נותנת את <bdi>Claude Code</bdi> בממשק גרפי מלא, בלי טרמינל בכלל. באפליקציה שלוש לשוניות: <bdi>Chat</bdi> (שיחה רגילה ללא גישה לקבצים), <bdi>Cowork</bdi> (סוכן אוטונומי שרץ ברקע במכונה וירטואלית מבודדת) ו-<bdi>Code</bdi>, שהיא <bdi>Claude Code</bdi> אינטראקטיבי עם גישה ישירה לקבצים המקומיים שלכם.</p>
+  <ol>
+    <li>הורידו את האפליקציה: גרסת <bdi>macOS</bdi> אוניברסלית (Intel ו-Apple Silicon), גרסת <bdi>Windows</bdi> ל-<bdi>x64</bdi> ול-<bdi>ARM64</bdi>, ו-<bdi>Linux</bdi> בסטטוס <span class="badge beta">Beta</span> (התקנה עם <bdi>apt</bdi> או קובץ <bdi>.deb</bdi>).</li>
+    <li>התקינו, הפעילו והתחברו עם חשבון ה-<bdi>Anthropic</bdi> שלכם.</li>
+    <li>לחצו על לשונית <bdi>Code</bdi> במרכז החלק העליון. אם מוצעת לכם שדרוג תוכנית, סימן שהחשבון אינו בתוכנית בתשלום.</li>
+    <li>בחרו סביבה: <bdi>Local</bdi> (קבצים מקומיים), <bdi>Cloud</bdi> (תשתית הענן של Anthropic), <bdi>SSH</bdi> (מכונה מרוחקת) או <bdi>WSL</bdi> ב-<bdi>Windows</bdi>. ואז בחרו תיקיית פרויקט.</li>
+  </ol>
+  <p>האפליקציה כוללת את <bdi>Claude Code</bdi> מובנה: אין צורך להתקין <bdi>Node.js</bdi> או את ה-<bdi>CLI</bdi> בנפרד. אם תרצו גם את הפקודה <code>claude</code> בטרמינל, התקינו את ה-<bdi>CLI</bdi> בנוסף. שימו לב: ב-<bdi>Windows</bdi> נדרש <bdi>Git</bdi> מותקן כדי ש-<bdi>Sessions</bdi> מקומיים יעבדו.</p>
+
+  <h2 id="web">Claude Code on the Web <span class="badge preview">Research Preview</span></h2>
+  <p><bdi>Claude Code on the web</bdi> מריץ משימות על תשתית ענן מנוהלת של Anthropic בכתובת <code>claude.ai/code</code>, ללא כל התקנה מקומית. השירות נמצא בסטטוס <bdi>Research Preview</bdi> וזמין למשתמשי <bdi>Pro</bdi>, <bdi>Max</bdi> ו-<bdi>Team</bdi>, ולמשתמשי <bdi>Enterprise</bdi> עם <bdi>Premium Seats</bdi> או <bdi>Chat + Claude Code Seats</bdi>.</p>
+  <p>איך זה עובד: כל <bdi>Session</bdi> רץ במכונה וירטואלית טרייה שאליה משוכפל ה-<bdi>Repository</bdi> שלכם מ-<bdi>GitHub</bdi> (החיבור נעשה דרך <bdi>GitHub App</bdi> או הפקודה <code>/web-setup</code> מהטרמינל). ה-<bdi>Sessions</bdi> ממשיכים לרוץ גם כשסוגרים את הדפדפן, ואפשר לעקוב אחריהם מאפליקציית המובייל של <bdi>Claude</bdi>. אפשר גם להעביר <bdi>Session</bdi> מהענן לטרמינל המקומי ובחזרה עם הדגלים <code>--teleport</code> ו-<code>--cloud</code>.</p>
+  <p>מתי להשתמש: משימות מקביליות וארוכות על <bdi>Repositories</bdi> שמאוחסנים ב-<bdi>GitHub</bdi>, עבודה ממחשב שאינו שלכם, או כשאין אפשרות להתקין תוכנה. מתי לא: עבודה על קבצים מקומיים שאינם ב-<bdi>GitHub</bdi>, סביבות עם דרישות רשת מיוחדות, או ארגונים עם <bdi>Zero Data Retention</bdi> (התכונה אינה זמינה להם).</p>
+
+  <h2 id="auth">הזדהות: חיבור החשבון</h2>
+  <h3 id="auth-flow">תהליך ההתחברות</h3>
+  <p>בהרצה הראשונה של <code>claude</code> תתבקשו להתחבר. <bdi>Claude Code</bdi> פותח חלון דפדפן להזדהות; אם הדפדפן לא נפתח אוטומטית, לחצו על המקש <code>c</code> כדי להעתיק את כתובת ההתחברות ולהדביק אותה בדפדפן ידנית. בסביבות כמו <bdi>WSL2</bdi>, <bdi>SSH</bdi> או <bdi>Containers</bdi>, הדפדפן עשוי להציג קוד התחברות במקום לחזור לטרמינל אוטומטית; הדביקו את הקוד בטרמינל בשורת <code>Paste code here if prompted</code>. בסיום מוצג <code>Login successful</code>.</p>
+  <p>אפשר להתחבר גם מהטרמינל בלי לפתוח <bdi>Session</bdi>, עם פקודת המשנה הייעודית:</p>
+  <div class="terminal"><span class="p">$</span> claude auth login
+<span class="out">(נפתח דפדפן להזדהות; בסיום מוצג אישור התחברות)</span></div>
+  <p>הדגלים הזמינים: <code>--email</code> למילוי מראש של כתובת המייל, <code>--sso</code> לכפיית הזדהות <bdi>SSO</bdi>, ו-<code>--console</code> להתחברות עם חשבון <bdi>Console</bdi> (חיוב API) במקום מנוי. בתוך <bdi>Session</bdi> פעיל משתמשים ב-<code>/login</code> להחלפת חשבון וב-<code>/logout</code> להתנתקות. הפקודה <code>/status</code> מציגה איזו שיטת הזדהות פעילה כרגע.</p>
+  <h3 id="auth-types">מנוי מול חיוב API: מה ההבדל</h3>
+  <p>שני מסלולי חיוב עיקריים:</p>
+  <ul>
+    <li><strong>מנוי (Subscription):</strong> התחברות עם חשבון <bdi>Claude.ai</bdi> בתוכנית <bdi>Pro</bdi>, <bdi>Max</bdi>, <bdi>Team</bdi> או <bdi>Enterprise</bdi>. השימוש ב-<bdi>Claude Code</bdi> כלול במחיר המנוי, עם מכסות שימוש שמתאפסות מחזורית לפי התוכנית. זה המסלול המומלץ לרוב המשתמשים.</li>
+    <li><strong>Claude Console (חיוב API):</strong> התחברות עם חשבון <bdi>Console</bdi> ותשלום לפי צריכת <bdi>Tokens</bdi> בפועל (קרדיטים בתשלום מראש). בהתחברות הראשונה נוצר אוטומטית <bdi>Workspace</bdi> בשם "Claude Code" ב-<bdi>Console</bdi> למעקב עלויות מרוכז. מתאים לארגונים שרוצים חיוב לפי שימוש, ולתרחישי אוטומציה.</li>
+  </ul>
+  <p>זמינות <bdi>Claude Code</bdi> בתוכניות, נכון ל-28.07.2026 לפי עמוד התמחור הרשמי <code>claude.com/pricing</code>: התוכנית החינמית אינה כוללת <bdi>Claude Code</bdi>. תוכנית <bdi>Pro</bdi> (17 דולר לחודש במסלול שנתי, 20 דולר במסלול חודשי) כוללת <bdi>Claude Code</bdi>. תוכנית <bdi>Max</bdi> (החל מ-100 דולר לחודש, עם מסלולי שימוש של פי 5 או פי 20) כוללת <bdi>Claude Code</bdi>. תוכנית <bdi>Team</bdi> (20 דולר למשתמש לחודש במסלול שנתי, 25 דולר במסלול חודשי) כוללת <bdi>Claude Code</bdi>, ותוכנית <bdi>Enterprise</bdi> (מחיר <bdi>Seat</bdi> בתוספת שימוש בתעריפי API, בחיוב שנתי) כוללת <bdi>Claude Code</bdi>. המחירים משתנים מעת לעת; בדקו את העמוד הרשמי לפני החלטה.</p>
+  <div class="callout warn"><span class="title">אזהרה: משתנה סביבה שדורס את המנוי</span><p>אם משתנה הסביבה <code>ANTHROPIC_API_KEY</code> מוגדר אצלכם (למשל מפרויקט ישן), הוא עשוי לגבור על הזדהות המנוי לאחר שתאשרו אותו, ואף לגרום לשגיאות אם המפתח שייך לארגון שנחסם. הריצו <code>unset ANTHROPIC_API_KEY</code> ובדקו עם <code>/status</code> איזו שיטה פעילה.</p></div>
+  <h3 id="setup-token">claude setup-token: אסימון לאוטומציה</h3>
+  <p>לסביבות שבהן אין דפדפן, כמו <bdi>CI</bdi> וסקריפטים, הפקודה <code>claude setup-token</code> מייצרת אסימון <bdi>OAuth</bdi> ארוך טווח (שנה). הפקודה פותחת את אותו תהליך הזדהות בדפדפן, מדפיסה את האסימון לטרמינל ואינה שומרת אותו בשום מקום. העתיקו אותו והגדירו אותו כמשתנה סביבה:</p>
+  <div class="terminal"><span class="p">$</span> claude setup-token
+<span class="out">(נפתח דפדפן לאישור; האסימון מודפס לטרמינל)</span>
+<span class="p">$</span> export CLAUDE_CODE_OAUTH_TOKEN=YOUR_TOKEN_HERE</div>
+  <p>האסימון מזוהה עם המנוי שלכם ודורש תוכנית <bdi>Pro</bdi>, <bdi>Max</bdi>, <bdi>Team</bdi> או <bdi>Enterprise</bdi>.</p>
+  <p>איפה נשמרים פרטי ההזדהות: ב-<bdi>macOS</bdi> ב-<bdi>Keychain</bdi> המוצפן; ב-<bdi>Linux</bdi> בקובץ <code>~/.claude/.credentials.json</code> עם הרשאות <code>0600</code>; ב-<bdi>Windows</bdi> בקובץ <code>%USERPROFILE%\.claude\.credentials.json</code> המוגן בהרשאות פרופיל המשתמש.</p>
+
+  <h2 id="update">בדיקת גרסה, עדכון והסרה</h2>
+  <h3 id="version-check">בדיקת גרסה ואבחון</h3>
+  <div class="terminal"><span class="p">$</span> claude --version
+<span class="out">2.1.211 (Claude Code)</span>
+<span class="p">$</span> claude doctor
+<span class="out">(אבחון לקריאה בלבד: תקינות ההתקנה, שגיאות בקובצי הגדרות, אזהרות והצעות תיקון)</span></div>
+  <p><code>claude doctor</code> מדפיס אבחון מלא בלי לפתוח <bdi>Session</bdi>: בריאות ההתקנה, התקנות כפולות, בעיות <bdi>PATH</bdi>, שגיאות בקובצי הגדרות ותוצאת ניסיון העדכון האחרון. הוא לקריאה בלבד ואינו משנה דבר, ולכן בטוח להריץ אותו בכל שלב. בתוך <bdi>Session</bdi> קיימת גם הפקודה <code>/doctor</code>, שמאבחנת לעומק (כולל התקנות כפולות, <bdi>Hooks</bdi> איטיים ותצורה לא מנוצלת) ויכולה גם להציע ולהחיל תיקונים, תמיד באישורכם ואחרי הצגת הממצאים.</p>
+  <p>עשו לעצמכם הרגל: אחרי כל התקנה, שדרוג או שינוי תצורה משמעותי, הריצו <code>claude doctor</code>. רוב הבעיות שנראה בסעיף ה-<bdi>Troubleshooting</bdi> בהמשך מאובחנות שם בשורה אחת ברורה, הרבה לפני שהן הופכות לתקלה מסתורית באמצע עבודה.</p>
+  <h3 id="auto-update">עדכונים</h3>
+  <p>התקנות <bdi>Native</bdi> מתעדכנות אוטומטית ברקע: <bdi>Claude Code</bdi> בודק עדכונים בהפעלה ומדי פעם תוך כדי ריצה, מוריד ומתקין ברקע, והגרסה החדשה נכנסת לתוקף בהפעלה הבאה. לעדכון ידני מיידי:</p>
+  <div class="terminal"><span class="p">$</span> claude update
+<span class="out">Successfully updated from 2.1.205 to version 2.1.211</span></div>
+  <p>אם אתם כבר בגרסה האחרונה יוצג <code>Claude Code is up to date (&lt;version&gt;)</code>. אפשר לשלוט בערוץ העדכונים דרך ההגדרה <code>autoUpdatesChannel</code> עם הערכים <code>"latest"</code> (ברירת מחדל, כל גרסה מיד) או <code>"stable"</code> (בדרך כלל שבוע מאחור, מדלג על רגרסיות), ולבטל עדכונים אוטומטיים עם <code>DISABLE_AUTOUPDATER</code>:</p>
+  <div class="codeblock">
+    <div class="codehead">~/.claude/settings.json</div>
+    <pre><code>{
+  "autoUpdatesChannel": "stable",
+  "env": { "DISABLE_AUTOUPDATER": "1" }
+}</code></pre>
+  </div>
+  <p>התקנות <bdi>Homebrew</bdi>, <bdi>WinGet</bdi>, <bdi>apt</bdi>, <bdi>dnf</bdi> ו-<bdi>apk</bdi> אינן מתעדכנות אוטומטית כברירת מחדל; עדכנו בכלי החבילות המתאים.</p>
+  <h3 id="uninstall">הסרה והתקנה מחדש</h3>
+  <p>להסרת התקנת <bdi>Native</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash (macOS / Linux / WSL)</div>
+    <pre><code>rm -f ~/.local/bin/claude
+rm -rf ~/.local/share/claude</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">PowerShell (Windows)</div>
+    <pre><code>Remove-Item -Path "$env:USERPROFILE\.local\bin\claude.exe" -Force
+Remove-Item -Path "$env:USERPROFILE\.local\share\claude" -Recurse -Force</code></pre>
+  </div>
+  <p>להסרת התקנות אחרות: <code>brew uninstall --cask claude-code</code>, <code>winget uninstall Anthropic.ClaudeCode</code>, <code>sudo apt remove claude-code</code> או <code>npm uninstall -g @anthropic-ai/claude-code</code>, לפי שיטת ההתקנה. התקנה מחדש היא פשוט הרצה חוזרת של פקודת ההתקנה. אם אחרי הסרה הפקודה <code>claude</code> עדיין עובדת, כנראה קיימת התקנה שנייה או <bdi>Alias</bdi> ישן; ראו "Check for conflicting installations" בתיעוד פתרון התקלות.</p>
+  <div class="callout warn"><span class="title">אזהרה</span><p>מחיקת התיקייה <code>~/.claude</code> והקובץ <code>~/.claude.json</code> מוחקת את כל ההגדרות, ההרשאות שאושרו, הגדרות ה-<bdi>MCP</bdi> והיסטוריית ה-<bdi>Sessions</bdi>. עשו זאת רק אם אתם באמת רוצים איפוס מלא, ורק אחרי הסרת תוסף ה-<bdi>IDE</bdi> ואפליקציית ה-<bdi>Desktop</bdi>, שאחרת ייצרו את התיקייה מחדש.</p></div>
+
+  <h2 id="accessibility">נגישות: Screen Reader Mode והגדרות נלוות</h2>
+  <p>למי שעובד עם קורא מסך (<bdi>VoiceOver</bdi>, <bdi>NVDA</bdi>), ל-<bdi>Claude Code</bdi> יש <bdi>Screen Reader Mode</bdi> ייעודי (מגרסה 2.1.181): במקום ממשק <bdi>Terminal</bdi> חזותי עם מסגרות, אנימציות וציור מחדש, המצב מדפיס טקסט ליניארי עם תוויות קבועות בתחילת כל הודעה (<code>you:</code>, <code>claude:</code>, <code>tool:</code>, <code>error:</code>, <code>Permission Required:</code>), תפריטים הופכים לרשימות ממוספרות שעונים עליהן בהקלדת מספר, ופעמון ה-<bdi>Terminal</bdi> מצלצל כשנדרשת תשומת לבכם. שלוש דרכים להפעלה, לפי סדר עדיפות: ל-<bdi>Session</bdi> בודד <code>claude --ax-screen-reader</code>; ל-<bdi>Shell</bdi> נוכחי <code>export CLAUDE_AX_SCREEN_READER=1</code> (ב-<bdi>PowerShell</bdi>: <code>$env:CLAUDE_AX_SCREEN_READER = "1"</code>); לכל המכונה <code>"axScreenReader": true</code> בקובץ ההגדרות של המשתמש (<a href="ch17.html">פרק 17</a>). בהפעלה מודפסת שורת אישור בסגנון <code>[Screen Reader Mode: on via flag]</code>. המצב אינו מופעל אוטומטית כשקורא מסך רץ, ואינו משנה את מצב <code>-p</code>, שממילא מדפיס טקסט פשוט.</p>
+  <p>מעבר לקורא מסך: <code>CLAUDE_CODE_ACCESSIBILITY=1</code> משאיר את סמן ה-<bdi>Terminal</bdi> גלוי כדי שמגדילי מסך יעקבו אחריו; ההגדרה <code>prefersReducedMotion</code> מצמצמת אנימציות; וההגדרה <code>theme</code> (או <code>/theme</code>) כוללת ערכות ידידותיות לעיוורי צבעים (<code>dark-daltonized</code>, <code>light-daltonized</code>). מקור: <a href="https://code.claude.com/docs/en/accessibility">Use Claude Code with a screen reader</a> (נבדק: 29.07.2026).</p>
+
+  <h2 id="enterprise-network">Proxy, Firewall וסביבות ארגוניות</h2>
+  <p>אם אתם מאחורי <bdi>Proxy</bdi> ארגוני, <bdi>Claude Code</bdi> מכבד את משתני הסביבה הסטנדרטיים (אין תמיכה ב-<bdi>SOCKS Proxy</bdi>):</p>
+  <div class="codeblock">
+    <div class="codehead">Bash</div>
+    <pre><code>export HTTPS_PROXY=https://proxy.example.com:8080
+export HTTP_PROXY=http://proxy.example.com:8080
+export NO_PROXY="localhost,192.168.1.1,.example.com"</code></pre>
+  </div>
+  <p>ב-<bdi>Proxy</bdi> שמבצע <bdi>TLS Inspection</bdi> עם תעודת <bdi>CA</bdi> ארגונית, הגדירו <code>export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem</code> כדי ש-<bdi>Claude Code</bdi> יסמוך על התעודה. ברירת המחדל היא אמון גם בחבילת התעודות המובנית וגם במאגר של מערכת ההפעלה (ההגדרה <code>CLAUDE_CODE_CERT_STORE</code> שולטת בכך), וקיימת גם תמיכה ב-<bdi>mTLS</bdi> עם תעודת לקוח.</p>
+  <p>הדומיינים המרכזיים שיש לאשר ב-<bdi>Firewall</bdi> או ב-<bdi>Proxy</bdi> (הרשימה המלאה והמעודכנת בעמוד <bdi>network-config</bdi> בתיעוד):</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>דומיין</th><th>נדרש עבור</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr">api.anthropic.com</td><td>בקשות ה-API למודל</td></tr>
+        <tr><td class="ltr">claude.ai, claude.com, platform.claude.com</td><td>הזדהות חשבון (מנוי ו-Console)</td></tr>
+        <tr><td class="ltr">downloads.claude.ai</td><td>התקנה, עדכונים אוטומטיים והורדת Plugins</td></tr>
+        <tr><td class="ltr">mcp-proxy.anthropic.com</td><td><bdi>Connectors</bdi> של <bdi>MCP</bdi> מ-<bdi>claude.ai</bdi></td></tr>
+        <tr><td class="ltr">storage.googleapis.com</td><td>נתוני <bdi>Plugins</bdi> והעלאות חתומות</td></tr>
+        <tr><td class="ltr">raw.githubusercontent.com</td><td>הצגת <bdi>Release Notes</bdi></td></tr>
+        <tr><td class="ltr">code.claude.com</td><td>שליפת עמודי תיעוד על ידי Claude</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>בסביבות מנוהלות, מנהלי מערכת יכולים לאכוף הגדרות דרך <bdi>Managed Settings</bdi>, לקבוע ערוץ עדכונים אחיד, להגביל התחברות לארגון מסוים ועוד. נושא הפריסה הארגונית המלאה, כולל <bdi>Managed Settings</bdi>, מדיניות הרשאות ו-<bdi>Cloud Providers</bdi> כמו <bdi>Amazon Bedrock</bdi>, מכוסה בהרחבה בפרק 29.</p>
+
+  <h2 id="troubleshooting">Troubleshooting: תקלות התקנה נפוצות</h2>
+  <h3>1. הפקודה claude לא נמצאת (בעיית PATH)</h3>
+  <p><strong>תסמינים:</strong> ההתקנה הסתיימה בהצלחה, אבל <code>claude</code> מחזיר <code>command not found: claude</code> (ב-<bdi>macOS</bdi>/<bdi>Linux</bdi>) או <code>'claude' is not recognized</code> (ב-<bdi>Windows</bdi>).</p>
+  <p><strong>סיבה:</strong> תיקיית ההתקנה (<code>~/.local/bin</code> או <code>%USERPROFILE%\.local\bin</code>) אינה ב-<bdi>PATH</bdi> של ה-<bdi>Shell</bdi>.</p>
+  <p><strong>תיקון ב-Bash/Zsh:</strong></p>
+  <div class="codeblock">
+    <div class="codehead">Bash / Zsh</div>
+    <pre><code># Zsh (ברירת המחדל ב-macOS):
+echo 'export PATH="$HOME/.local/bin:$PATH"' &gt;&gt; ~/.zshrc
+source ~/.zshrc
+# Bash (ברירת המחדל ברוב הפצות Linux):
+echo 'export PATH="$HOME/.local/bin:$PATH"' &gt;&gt; ~/.bashrc
+source ~/.bashrc</code></pre>
+  </div>
+  <p><strong>תיקון ב-PowerShell:</strong></p>
+  <div class="codeblock">
+    <div class="codehead">PowerShell</div>
+    <pre><code>$currentPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
+[Environment]::SetEnvironmentVariable('PATH', "$currentPath;$env:USERPROFILE\.local\bin", 'User')</code></pre>
+  </div>
+  <p><strong>אימות:</strong> פתחו טרמינל חדש והריצו <code>claude --version</code>. שימו לב: אם התקנתם רק את תוסף ה-<bdi>VS Code</bdi>, הפקודה <code>claude</code> לא תהיה זמינה בטרמינל כלל; התקינו גם את ה-<bdi>CLI</bdi> העצמאי.</p>
+
+  <h3>2. פקודת התקנה שגויה ל-Shell הלא נכון ב-Windows</h3>
+  <p><strong>תסמינים:</strong> <code>'irm' is not recognized</code>, או <code>The token '&amp;&amp;' is not a valid statement separator</code>, או <code>A parameter cannot be found that matches parameter name 'fsSL'</code>, או <code>'bash' is not recognized</code>.</p>
+  <p><strong>סיבה:</strong> הרצתם פקודת התקנה שמיועדת ל-<bdi>Shell</bdi> אחר: פקודת <bdi>PowerShell</bdi> ב-<bdi>CMD</bdi>, פקודת <bdi>CMD</bdi> ב-<bdi>PowerShell</bdi>, או את פקודת ה-<bdi>Bash</bdi> של <bdi>Linux</bdi> על <bdi>Windows</bdi>.</p>
+  <p><strong>תיקון:</strong> זהו את ה-<bdi>Shell</bdi> לפי תחילת השורה (<code>PS C:\</code> פירושו <bdi>PowerShell</bdi>) והריצו את הפקודה המתאימה מהסעיפים למעלה.</p>
+  <p><strong>אימות:</strong> <code>claude --version</code> בטרמינל חדש.</p>
+
+  <h3>3. Windows חוסם סקריפטים: running scripts is disabled</h3>
+  <p><strong>תסמינים:</strong> בהתקנה או בהרצה דרך <bdi>npm</bdi> על <bdi>Windows</bdi> מתקבל <code>SecurityError</code> עם ההודעה <code>...cannot be loaded because running scripts is disabled on this system</code>.</p>
+  <p><strong>סיבה:</strong> מדיניות ה-<bdi>Execution Policy</bdi> של <bdi>PowerShell</bdi> חוסמת קובצי <code>.ps1</code> ש-<bdi>npm</bdi> יוצר. שימו לב שהמדיניות אינה משפיעה על מתקין ה-<bdi>PowerShell</bdi> הרשמי (<code>irm ... | iex</code>), שמריץ טקסט ולא קובץ סקריפט.</p>
+  <p><strong>תיקון:</strong></p>
+  <div class="codeblock">
+    <div class="codehead">PowerShell</div>
+    <pre><code>Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code></pre>
+  </div>
+  <p>חלופות: קריאה ל-<code>claude.cmd</code> במקום <code>claude</code>, או מעבר ל-<bdi>Native Installer</bdi> שמתקין קובץ בינארי ולא סקריפט.</p>
+  <p><strong>אימות:</strong> <code>claude --version</code> בחלון <bdi>PowerShell</bdi> חדש.</p>
+
+  <h3>4. סקריפט ההתקנה מחזיר HTML או שגיאת 403</h3>
+  <p><strong>תסמינים:</strong> <code>syntax error near unexpected token '&lt;'</code> ואחריו <code>&lt;!DOCTYPE html&gt;</code>, או <code>curl: (22) The requested URL returned error: 403</code>, או ב-<bdi>PowerShell</bdi> שגיאות <bdi>Parse</bdi> שמצטטות תגיות <bdi>HTML</bdi>.</p>
+  <p><strong>סיבה:</strong> כתובת ההתקנה החזירה עמוד <bdi>HTML</bdi> או שגיאה במקום הסקריפט. אם העמוד אומר "App unavailable in region", <bdi>Claude Code</bdi> אינו זמין במדינה שלכם. אחרת מדובר בדרך כלל ב-<bdi>Proxy</bdi> או <bdi>Firewall</bdi> ארגוני שחוסם, או בתקלה זמנית.</p>
+  <p><strong>תיקון:</strong> בדקו קישוריות עם <code>curl -sI https://downloads.claude.ai/claude-code-releases/latest</code> (ב-<bdi>PowerShell</bdi>: <code>curl.exe -sI</code>). תשובת <code>200</code> אומרת שהשרת נגיש והכשל היה זמני; נסו שוב. אחרת נסו שיטת התקנה חלופית: <code>brew install --cask claude-code</code> ב-<bdi>macOS</bdi> או <code>winget install Anthropic.ClaudeCode</code> ב-<bdi>Windows</bdi>, או עברו דרך ה-<bdi>Proxy</bdi> עם משתני <code>HTTPS_PROXY</code>.</p>
+  <p><strong>אימות:</strong> <code>claude --version</code>.</p>
+
+  <h3>5. שגיאות TLS/SSL, כולל Proxy ארגוני עם תעודה עצמית</h3>
+  <p><strong>תסמינים:</strong> <code>curl: (35) TLS connect error</code>, או <code>Could not establish trust relationship for the SSL/TLS secure channel</code> ב-<bdi>PowerShell</bdi>, או <code>unable to get local issuer certificate</code> / <code>SELF_SIGNED_CERT_IN_CHAIN</code>.</p>
+  <p><strong>סיבה:</strong> כשל בלחיצת יד <bdi>TLS</bdi>: תעודות מערכת לא מעודכנות, גרסת <bdi>TLS</bdi> ישנה, או <bdi>Proxy</bdi> ארגוני שמבצע <bdi>TLS Inspection</bdi> עם תעודת <bdi>CA</bdi> משלו.</p>
+  <p><strong>תיקון:</strong> עדכנו תעודות מערכת (<code>sudo apt-get update &amp;&amp; sudo apt-get install ca-certificates</code> ב-<bdi>Ubuntu</bdi>/<bdi>Debian</bdi>). ב-<bdi>Windows</bdi> אפשרו <bdi>TLS 1.2</bdi> לפני ההתקנה:</p>
+  <div class="codeblock">
+    <div class="codehead">PowerShell</div>
+    <pre><code>[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+irm https://claude.ai/install.ps1 | iex</code></pre>
+  </div>
+  <p>מאחורי <bdi>Proxy</bdi> עם תעודה ארגונית, העבירו ל-<code>curl</code> את חבילת ה-<bdi>CA</bdi> בהתקנה, ולאחר מכן הגדירו את המשתנה לריצה השוטפת:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash</div>
+    <pre><code>curl --cacert /path/to/corporate-ca.pem -fsSL https://claude.ai/install.sh | bash
+export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem</code></pre>
+  </div>
+  <p><strong>אימות:</strong> <code>claude --version</code>, ואחריו פתיחת <bdi>Session</bdi> ושליחת <bdi>Prompt</bdi> קצר לוודא שגם תעבורת ה-API עוברת.</p>
+
+  <h3>6. שגיאות npm: גרסת Node ישנה או בעיות הרשאה</h3>
+  <p><strong>תסמינים:</strong> אזהרת <code>EBADENGINE</code> בזמן <code>npm install</code>, או שגיאות הרשאה (<code>EACCES</code>) בהתקנה גלובלית, או <code>Error: claude native binary not installed</code> בהרצה.</p>
+  <p><strong>סיבה:</strong> חבילת ה-<bdi>npm</bdi> דורשת <bdi>Node.js</bdi> 22 ומעלה (על גרסה ישנה יותר תוצג אזהרת <code>EBADENGINE</code>, אך ההתקנה בדרך כלל תושלם כי הבינארי אינו תלוי ב-<bdi>Node</bdi> בזמן ריצה). שגיאות הרשאה נובעות מתיקיית <bdi>npm</bdi> גלובלית שאינה ניתנת לכתיבה. השגיאה על <bdi>Binary</bdi> חסר מופיעה כשמותקנים עם <code>--omit=optional</code> או <code>--ignore-scripts</code>.</p>
+  <p><strong>תיקון:</strong> הפתרון הפשוט והמומלץ הוא לעבור ל-<bdi>Native Installer</bdi>: <code>curl -fsSL https://claude.ai/install.sh | bash</code>. אם חייבים <bdi>npm</bdi>: עדכנו <bdi>Node</bdi> ל-22+, אל תשתמשו ב-<code>sudo</code>, והתקינו בלי הדגלים שמדלגים על <bdi>Optional Dependencies</bdi> וסקריפטים.</p>
+  <p><strong>אימות:</strong> <code>claude --version</code> ואז <code>claude doctor</code>.</p>
+
+  <h3>7. בעיות WSL: node not found או Exec format error</h3>
+  <p><strong>תסמינים:</strong> בתוך <bdi>WSL</bdi>: <code>exec: node: not found</code> בהרצת <code>claude</code> (בהתקנת <bdi>npm</bdi>), או <code>cannot execute binary file: Exec format error</code>.</p>
+  <p><strong>סיבה:</strong> <bdi>WSL</bdi> מייבא את ה-<bdi>PATH</bdi> של <bdi>Windows</bdi>, ולכן עלול להשתמש ב-<bdi>Node</bdi>/<bdi>npm</bdi> של <bdi>Windows</bdi> (נתיבים שמתחילים ב-<code>/mnt/c/</code>) במקום אלה של <bdi>Linux</bdi>. שגיאת <code>Exec format error</code> מעידה שאתם על <bdi>WSL1</bdi>, שיש בו רגרסיה ידועה עם הבינארי.</p>
+  <p><strong>תיקון:</strong> בדקו עם <code>which npm</code> ו-<code>which node</code>; אם הנתיבים מתחילים ב-<code>/mnt/c/</code>, התקינו <bdi>Node</bdi> דרך מנהל החבילות של ההפצה או דרך <bdi>nvm</bdi> בתוך <bdi>WSL</bdi>. ל-<bdi>WSL1</bdi>: שדרגו עם <code>wsl --set-version &lt;DistroName&gt; 2</code> מ-<bdi>PowerShell</bdi>. ועדיף מכול: השתמשו ב-<bdi>Native Installer</bdi> בתוך <bdi>WSL</bdi>, שאינו תלוי ב-<bdi>Node</bdi>.</p>
+  <p><strong>אימות:</strong> <code>claude --version</code> בתוך טרמינל ה-<bdi>WSL</bdi>.</p>
+
+  <h3>8. ההתחברות בדפדפן נכשלת (WSL2, SSH, שרתים מרוחקים)</h3>
+  <p><strong>תסמינים:</strong> הדפדפן לא נפתח בזמן ההתחברות, או שההתחברות בדפדפן מסתיימת אך הטרמינל לא ממשיך, או <code>OAuth error: Invalid code</code>.</p>
+  <p><strong>סיבה:</strong> בסביבה מרוחקת הדפדפן נפתח על מכונה אחרת, וההפניה חזרה אינה מגיעה לשרת ההאזנה המקומי של <bdi>Claude Code</bdi>. קוד שפג תוקפו או הועתק חלקית גורם לשגיאת <bdi>Invalid code</bdi>.</p>
+  <p><strong>תיקון:</strong> לחצו <code>c</code> בטרמינל כדי להעתיק את כתובת ההתחברות ופתחו אותה בדפדפן במחשב המקומי. בסיום, הדביקו את הקוד שמוצג בדפדפן בשורת <code>Paste code here if prompted</code>. אם ההדבקה לא נקלטת, השתמשו ב-<code>claude auth login</code> שקורא את הקוד מהקלט הסטנדרטי. ב-<bdi>WSL2</bdi> אפשר גם להגדיר <code>export BROWSER="/mnt/c/Program Files/Google/Chrome/Application/chrome.exe"</code> כדי שהדפדפן של <bdi>Windows</bdi> ייפתח. במקרה כישלון כללי: <code>/logout</code>, סגירה, והתחברות מחדש.</p>
+  <p><strong>אימות:</strong> הופעת <code>Login successful</code>, ואז <code>/status</code> בתוך <bdi>Session</bdi> להצגת החשבון הפעיל.</p>
+
+  <h2 id="verify">אימות: איך יודעים שהסביבה מוכנה</h2>
+  <div class="verify">
+    <p>הריצו את שלוש הבדיקות הבאות. אם שלושתן עוברות, הסביבה שלכם תקינה:</p>
+    <ol>
+      <li><code>claude --version</code> מדפיס מספר גרסה ואחריו <code>(Claude Code)</code>.</li>
+      <li><code>claude doctor</code> רץ עד הסוף בלי שגיאות <bdi>Critical</bdi> (אזהרות קלות מקובלות).</li>
+      <li>הרצת <code>claude</code> בתיקיית פרויקט כלשהי פותחת <bdi>Session</bdi>, מציגה את הגרסה, המודל ותיקיית העבודה מעל שורת הקלט, ו-<bdi>Prompt</bdi> ראשון כמו <code>what can Claude Code do?</code> מקבל תשובה.</li>
+    </ol>
+  </div>
+  <ul class="check">
+    <li><bdi>Claude Code</bdi> מותקן בשיטה המתאימה למערכת ההפעלה.</li>
+    <li><code>claude --version</code> עובד מטרמינל חדש (ה-<bdi>PATH</bdi> תקין).</li>
+    <li>ההתחברות הושלמה והפקודה <code>/status</code> מציגה את החשבון הנכון.</li>
+    <li>ידוע לכם איך מתעדכנים (אוטומטית או עם <code>claude update</code>).</li>
+    <li>אם אתם מאחורי <bdi>Proxy</bdi>: משתני הסביבה מוגדרים והדומיינים מאושרים.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 2.1: התקנה מלאה ואימות</div>
+    <div class="body">
+      <p>בצעו את הרצף הבא במערכת שלכם:</p>
+      <ol>
+        <li>התקינו את <bdi>Claude Code</bdi> בשיטה המומלצת למערכת ההפעלה שלכם.</li>
+        <li>ודאו את הגרסה עם <code>claude --version</code> ורשמו לעצמכם את המספר.</li>
+        <li>הריצו <code>claude doctor</code> וקראו את הפלט. האם יש אזהרות? מה הן אומרות?</li>
+        <li>הריצו <code>claude</code> בתיקייה ריקה חדשה, השלימו את ההתחברות, ושלחו את ה-<bdi>Prompt</bdi>: <code>what can Claude Code do?</code></li>
+        <li>צאו עם <code>/exit</code>, ואז הריצו <code>claude update</code> ובדקו מה הפלט.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>שלב 1: על <bdi>macOS</bdi>/<bdi>Linux</bdi>/<bdi>WSL</bdi> הפקודה היא <code>curl -fsSL https://claude.ai/install.sh | bash</code>, ועל <bdi>Windows</bdi> ב-<bdi>PowerShell</bdi>: <code>irm https://claude.ai/install.ps1 | iex</code>. שלב 2: פלט תקין נראה כמו <code>2.1.211 (Claude Code)</code>; המספר אצלכם יהיה עדכני יותר. שלב 3: <code>claude doctor</code> אמור לדווח על התקנה תקינה; אזהרה שכיחה אצל מי שהתקין בעבר דרך <bdi>npm</bdi> היא התקנה כפולה, והפתרון הוא הסרת ההתקנה הישנה. שלב 4: בהרצה הראשונה ייפתח דפדפן להתחברות, ואחרי האישור יוצג <code>Login successful</code>. מכיוון שהתיקייה ריקה, התשובה ל-<bdi>Prompt</bdi> תתאר את יכולות <bdi>Claude Code</bdi> באופן כללי. שלב 5: אם ההתקנה טרייה, <code>claude update</code> ידפיס שאתם בגרסה העדכנית: <code>Claude Code is up to date (&lt;version&gt;)</code>. אם דווקא הותקן עדכון, יוצג <code>Successfully updated from ... to version ...</code>.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>בפרק הזה הקמנו סביבת עבודה מלאה: התקנו את <bdi>Claude Code</bdi> בשיטה המתאימה למערכת (עם ה-<bdi>Native Installer</bdi> כברירת מחדל מומלצת שמתעדכנת לבד), הכרנו את ההתקנות המשלימות ב-<bdi>VS Code</bdi>, <bdi>JetBrains</bdi>, אפליקציית ה-<bdi>Desktop</bdi> וה-<bdi>Web</bdi>, התחברנו לחשבון והבנו את ההבדל בין מנוי לחיוב API, למדנו לבדוק גרסה, לעדכן, לאבחן עם <code>claude doctor</code> ולהסיר, וסקרנו את דרישות הרשת לסביבות ארגוניות. עברנו גם על שמונה תקלות ההתקנה הנפוצות ופתרונן. עכשיו, כשהסביבה מאומתת, אנחנו מוכנים לפרק 3: ה-<bdi>Session</bdi> הראשון שלכם עם פרויקט אמיתי.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/setup">Claude Code: Advanced setup</a> |
+      <a href="https://code.claude.com/docs/en/quickstart">Claude Code: Quickstart</a> |
+      <a href="https://code.claude.com/docs/en/troubleshoot-install">Troubleshoot installation and login</a> |
+      <a href="https://code.claude.com/docs/en/authentication">Authentication</a> |
+      <a href="https://code.claude.com/docs/en/vs-code">Claude Code in VS Code</a> |
+      <a href="https://code.claude.com/docs/en/jetbrains">JetBrains IDEs</a> |
+      <a href="https://code.claude.com/docs/en/desktop-quickstart">Desktop quickstart</a> |
+      <a href="https://code.claude.com/docs/en/desktop">Desktop application</a> |
+      <a href="https://code.claude.com/docs/en/claude-code-on-the-web">Claude Code on the web</a> |
+      <a href="https://code.claude.com/docs/en/network-config">Enterprise network configuration</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">CLI reference</a> |
+      <a href="https://claude.com/pricing">Claude Pricing</a> |
+      <a href="https://code.claude.com/docs/en/accessibility">Use Claude Code with a screen reader (screen reader mode, accessibility settings)</a>
+      | נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch01.html"><span class="lbl">הפרק הקודם</span>מהו Claude Code</a>
+    <a href="ch03.html"><span class="lbl">הפרק הבא</span>ה-Session הראשון</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

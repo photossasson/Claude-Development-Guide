@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "taskflow": {
+      "type": "stdio",
+      "command": "${TASKFLOW_PY:-python3}",
+      "args": ["server.py"],
+      "env": { "TASKFLOW_DATA": "${TASKFLOW_DATA:-tasks.json}" }
+    }
+  }
+}

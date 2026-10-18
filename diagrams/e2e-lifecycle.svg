@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrE" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a7ba6"/>
+    </marker>
+    <marker id="arrF" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4552d"/>
+    </marker>
+  </defs>
+  <style>
+    .box { fill:#ffffff; stroke:#c9c2b8; stroke-width:1.5; }
+    .gate { fill:#eef3f7; stroke:#4a7ba6; stroke-width:2; }
+    .t { font-size:15px; fill:#1a1a1a; text-anchor:middle; direction:rtl; }
+    .en { font-size:11.5px; fill:#6b6b6b; text-anchor:middle; }
+    .s { font-size:11.5px; fill:#6b6b6b; text-anchor:middle; direction:rtl; }
+    .num { font-size:11px; fill:#4a7ba6; font-weight:bold; text-anchor:middle; }
+    .lane { font-size:13px; fill:#4a7ba6; font-weight:bold; text-anchor:middle; direction:rtl; }
+    .edge { stroke:#4a7ba6; stroke-width:2; fill:none; marker-end:url(#arrE); }
+    .fb { stroke:#b4552d; stroke-width:2; fill:none; stroke-dasharray:6 5; marker-end:url(#arrF); }
+    .fbt { font-size:11.5px; fill:#b4552d; text-anchor:middle; direction:rtl; }
+    .band { fill:#f7f5f2; stroke:none; }
+  </style>
+  <text x="450" y="30" class="t" font-size="19" font-weight="bold">מחזור חיים של Feature מקצה לקצה: 13 שלבים, שערי בקרה ולולאות משוב</text>
+
+  <!-- lane bands -->
+  <rect x="20" y="52" width="860" height="112" rx="8" class="band"/>
+  <rect x="20" y="182" width="860" height="112" rx="8" class="band"/>
+  <rect x="20" y="312" width="860" height="112" rx="8" class="band"/>
+  <rect x="20" y="442" width="860" height="112" rx="8" class="band"/>
+
+  <text x="115" y="72" class="lane">הבנה ותכנון (Plan Mode)</text>
+  <text x="70" y="202" class="lane">בנייה בפרוסות</text>
+  <text x="70" y="332" class="lane">הוכחה</text>
+  <text x="70" y="462" class="lane">סקירה ומסירה</text>
+
+  <!-- row 1: stages 1-3 (RTL: right to left) -->
+  <rect x="640" y="88" width="170" height="60" rx="10" class="box gate"/>
+  <text x="725" y="84" class="num">1</text>
+  <text x="725" y="112" class="t">ניתוח דרישות</text>
+  <text x="725" y="132" class="en">Interview, SPEC.md</text>
+
+  <rect x="430" y="88" width="170" height="60" rx="10" class="box"/>
+  <text x="515" y="84" class="num">2</text>
+  <text x="515" y="112" class="t">חקירת ארכיטקטורה</text>
+  <text x="515" y="132" class="en">Subagent, read-only</text>
+
+  <rect x="220" y="88" width="170" height="60" rx="10" class="box gate"/>
+  <text x="305" y="84" class="num">3</text>
+  <text x="305" y="112" class="t">מודל נתונים</text>
+  <text x="305" y="132" class="en">Schema, FK, indexes</text>
+
+  <!-- row 2: stages 4-7 (RTL) -->
+  <rect x="690" y="218" width="150" height="60" rx="10" class="box"/>
+  <text x="765" y="214" class="num">4</text>
+  <text x="765" y="242" class="t">API</text>
+  <text x="765" y="262" class="en">Router + tests</text>
+
+  <rect x="500" y="218" width="150" height="60" rx="10" class="box"/>
+  <text x="575" y="214" class="num">5</text>
+  <text x="575" y="242" class="t">Frontend</text>
+  <text x="575" y="262" class="en">Types, component</text>
+
+  <rect x="310" y="218" width="150" height="60" rx="10" class="box"/>
+  <text x="385" y="214" class="num">6</text>
+  <text x="385" y="242" class="t">Validation</text>
+  <text x="385" y="262" class="en">Negative tests</text>
+
+  <rect x="120" y="218" width="150" height="60" rx="10" class="box gate"/>
+  <text x="195" y="214" class="num">7</text>
+  <text x="195" y="242" class="t">הרשאות</text>
+  <text x="195" y="262" class="en">Authorization</text>
+
+  <!-- row 3: stages 8-10 (LTR flow back: left to right) -->
+  <rect x="120" y="348" width="170" height="60" rx="10" class="box"/>
+  <text x="205" y="344" class="num">8</text>
+  <text x="205" y="372" class="t">בדיקות</text>
+  <text x="205" y="392" class="en">Unit + integration</text>
+
+  <rect x="365" y="348" width="170" height="60" rx="10" class="box gate"/>
+  <text x="450" y="344" class="num">9</text>
+  <text x="450" y="372" class="t">Migration</text>
+  <text x="450" y="392" class="en">Backup, verify script</text>
+
+  <rect x="610" y="348" width="170" height="60" rx="10" class="box"/>
+  <text x="695" y="344" class="num">10</text>
+  <text x="695" y="372" class="t">תיעוד</text>
+  <text x="695" y="392" class="en">README, CLAUDE.md</text>
+
+  <!-- row 4: stages 11-13 (RTL) -->
+  <rect x="610" y="478" width="170" height="60" rx="10" class="box"/>
+  <text x="695" y="474" class="num">11</text>
+  <text x="695" y="502" class="t">סקירת אבטחה</text>
+  <text x="695" y="522" class="en">Subagent, /security-review</text>
+
+  <rect x="365" y="478" width="170" height="60" rx="10" class="box"/>
+  <text x="450" y="474" class="num">12</text>
+  <text x="450" y="502" class="t">סקירת ביצועים</text>
+  <text x="450" y="522" class="en">N+1, EXPLAIN, indexes</text>
+
+  <rect x="120" y="478" width="170" height="60" rx="10" class="box gate"/>
+  <text x="205" y="474" class="num">13</text>
+  <text x="205" y="502" class="t">Pull Request</text>
+  <text x="205" y="522" class="en">/code-review, commits, PR</text>
+
+  <!-- forward edges -->
+  <path class="edge" d="M 636 118 L 604 118"/>
+  <path class="edge" d="M 426 118 L 394 118"/>
+  <path class="edge" d="M 305 152 C 305 185 765 175 765 214"/>
+  <path class="edge" d="M 686 248 L 654 248"/>
+  <path class="edge" d="M 496 248 L 464 248"/>
+  <path class="edge" d="M 306 248 L 274 248"/>
+  <path class="edge" d="M 195 282 L 195 344"/>
+  <path class="edge" d="M 294 378 L 361 378"/>
+  <path class="edge" d="M 539 378 L 606 378"/>
+  <path class="edge" d="M 695 412 L 695 474"/>
+  <path class="edge" d="M 606 508 L 539 508"/>
+  <path class="edge" d="M 361 508 L 294 508"/>
+
+  <!-- feedback loops -->
+  <path class="fb" d="M 120 378 C 40 378 40 248 116 248"/>
+  <text x="102" y="308" class="fbt">בדיקות נכשלות</text>
+  <text x="102" y="322" class="fbt">חזרה לקוד</text>
+
+  <path class="fb" d="M 660 478 C 860 430 870 300 844 240"/>
+  <text x="798" y="302" class="fbt">ממצאי סקירה</text>
+  <text x="798" y="316" class="fbt">חזרה לקוד</text>
+
+  <path class="fb" d="M 250 538 C 250 600 450 610 450 542"/>
+  <text x="350" y="626" class="fbt">Review אנושי מבקש שינויים</text>
+
+  <!-- legend -->
+  <rect x="30" y="575" width="18" height="14" rx="3" class="box gate"/>
+  <text x="140" y="587" class="s">שער בקרה: החלטה של המפתח</text>
+  <line x1="30" y1="612" x2="48" y2="612" class="fb"/>
+  <text x="120" y="616" class="s">לולאת משוב (Loop)</text>
+</svg>

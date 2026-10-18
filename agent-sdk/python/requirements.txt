@@ -1,0 +1,3 @@
+# Claude Agent SDK for Python. Version pinned to the release verified for the
+# guide (checked 29.07.2026 against PyPI; newer patch releases may exist).
+claude-agent-sdk==0.2.139

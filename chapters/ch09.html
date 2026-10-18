@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 9: ביצוע שינוי קוד מבוקר</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ב | פרק 9</p>
+  <h1>ביצוע שינוי קוד מבוקר</h1>
+  <p class="lead">זהו הפרק המרכזי של חלק ב: תהליך עבודה מלא בן 15 שלבים לביצוע שינוי קוד עם <bdi>Claude Code</bdi>, מהבנת הדרישה ועד <bdi>Pull Request</bdi>. נדגים אותו מקצה לקצה על פרויקט הדוגמה <bdi>TaskFlow</bdi>, עם <bdi>Feature</bdi> אמיתי: הוספת שדה <code>priority</code> למשימות, כולל <bdi>Backend</bdi>, <bdi>Frontend</bdi>, בדיקות, תיעוד ו-<bdi>PR</bdi>. בכל שלב תראו את ה-<bdi>Prompt</bdi> המדויק, את התוצאה הצפויה, איך מאמתים, ומה עושים כשמשהו נכשל.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="why-controlled">למה תהליך מבוקר, ולמה צעדים קטנים</h2>
+  <p>הפיתוי הגדול ביותר בעבודה עם <bdi>Agent</bdi> חזק הוא ה-<bdi>Prompt</bdi> הכוללני: "תוסיף שדה עדיפות למשימות, בכל השכבות, עם בדיקות, ותפתח PR". לפעמים זה אפילו יעבוד. אבל כשהוא נכשל, הוא נכשל ביוקר: מקבלים <bdi>Diff</bdi> ענק שנוגע בעשרה קבצים, שאי אפשר באמת לסקור, עם באג חבוי באחת הפינות, ואין דרך לדעת איזה חלק תקין ואיזה לא. התהליך המבוקר הופך את המשימה לסדרת צעדים קטנים, שכל אחד מהם ניתן לאימות בנפרד.</p>
+  <p>שלוש סיבות מעשיות להעדיף צעדים קטנים על פני <bdi>Prompt</bdi> אחד גדול:</p>
+  <ul>
+    <li><strong>אימות מקומי:</strong> אחרי כל צעד יש בדיקה שאפשר להריץ (בדיקות, <bdi>Type Check</bdi>, <code>/diff</code>). התיעוד הרשמי מדגיש בדיוק את זה: תנו ל-Claude דרך לאמת את עבודתו, אחרת אתם הופכים בעצמכם ללולאת האימות היחידה. ההמלצה הרשמית לגבי <bdi>Refactoring</bdi> מנוסחת במפורש: לעבוד ב-<bdi>Increments</bdi> קטנים וניתנים לבדיקה.</li>
+    <li><strong>Diff קריא:</strong> אדם יכול לסקור ברצינות <bdi>Diff</bdi> של 30 שורות. הוא לא יכול לסקור ברצינות 800 שורות. סקירה אמיתית של השינוי היא שכבת ההגנה המרכזית שלכם.</li>
+    <li><strong>כשל זול:</strong> אם צעד קטן נכשל, חוזרים צעד אחד אחורה. אם <bdi>Prompt</bdi> ענק נכשל, לעיתים קרובות זורקים הכול ומתחילים מחדש, אחרי ששרפתם זמן, <bdi>Tokens</bdi> ו-<bdi>Context</bdi>.</li>
+  </ul>
+  <p><strong>מתי להשתמש בתהליך המלא:</strong> כל שינוי שנוגע ביותר מקובץ אחד או שניים, כל שינוי שמשנה התנהגות חיצונית (<bdi>API</bdi>, סכמת נתונים, ממשק משתמש), וכל עבודה על קוד שאינכם מכירים לעומק. <strong>מתי לא:</strong> תיקון הקלדה, הוספת שורת <bdi>Log</bdi>, שינוי חד משורתי שאתם יכולים לתאר במשפט אחד. במקרים כאלה, לפי התיעוד הרשמי, תכנון מוקדם הוא תקורה מיותרת: בקשו את השינוי ישירות. חלק מהשלבים גם מתכווצים באופן טבעי בפרויקטים קטנים; הנקודה היא לוותר עליהם בכוונה, לא מתוך שכחה.</p>
+  <p>אלה 15 השלבים שנעבור בפרק:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>#</th><th>שלב</th><th>שאלת המפתח</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><a href="#step1">הבנת הדרישה</a></td><td>מה בדיוק מבקשים, ומה מחוץ לתחום?</td></tr>
+        <tr><td>2</td><td><a href="#step2">מחקר הקוד</a></td><td>איך זה עובד היום?</td></tr>
+        <tr><td>3</td><td><a href="#step3">זיהוי קבצים מושפעים</a></td><td>במה ניגע?</td></tr>
+        <tr><td>4</td><td><a href="#step4">הכנת Plan</a></td><td>באיזה סדר, ובאילו פרוסות?</td></tr>
+        <tr><td>5</td><td><a href="#step5">Acceptance Criteria</a></td><td>איך נדע שסיימנו?</td></tr>
+        <tr><td>6</td><td><a href="#step6">יצירת Branch</a></td><td>איפה העבודה מבודדת?</td></tr>
+        <tr><td>7</td><td><a href="#step7">שינוי קטן ומדורג</a></td><td>מה הפרוסה הבאה?</td></tr>
+        <tr><td>8</td><td><a href="#step8">בדיקת Diff</a></td><td>מה בדיוק השתנה?</td></tr>
+        <tr><td>9</td><td><a href="#step9">Lint</a></td><td>הקוד עומד בסטנדרט הסגנוני?</td></tr>
+        <tr><td>10</td><td><a href="#step10">Type Check</a></td><td>הטיפוסים עקביים?</td></tr>
+        <tr><td>11</td><td><a href="#step11">Tests</a></td><td>ההתנהגות מוכחת?</td></tr>
+        <tr><td>12</td><td><a href="#step12">Self Review</a></td><td>עין שנייה מצאה משהו?</td></tr>
+        <tr><td>13</td><td><a href="#step13">Documentation</a></td><td>התיעוד משקף את ההתנהגות החדשה?</td></tr>
+        <tr><td>14</td><td><a href="#step14">Commit</a></td><td>ההיסטוריה מספרת סיפור ברור?</td></tr>
+        <tr><td>15</td><td><a href="#step15">Pull Request</a></td><td>סוקר חיצוני יכול להבין ולאשר?</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>הפרק מניח שעברתם את <a href="ch03.html">פרק 3</a> (עבודה בסיסית ב-<bdi>Session</bdi>), <a href="ch06.html">פרק 6</a> (קריאת <bdi>Repository</bdi>) ו-<a href="ch07.html">פרק 7</a> (<bdi>Plan Mode</bdi>), ושיש לכם עותק עבודה של <bdi>TaskFlow</bdi> עם <bdi>Git</bdi> מאותחל, כפי שהכנו בפרק 3. נדרשים גם <bdi>Python 3.12</bdi>, <bdi>Node.js</bdi> ו-<code>pytest</code> מותקנים.</p></div>
+
+  <h2 id="feature-and-modes">ה-Feature שנבנה, ומצבי ההרשאות לאורך הדרך</h2>
+  <p>הדרישה שנממש: <strong>לכל משימה תהיה עדיפות</strong> (<code>low</code>, <code>medium</code> או <code>high</code>), עם ברירת מחדל <code>medium</code>. העדיפות תיקבע ביצירה, תהיה ניתנת לעדכון, תוחזר בכל תשובות ה-<bdi>API</bdi>, ותוצג ברשימת המשימות ב-<bdi>Frontend</bdi>. זה <bdi>Feature</bdi> אמיתי וטיפוסי: הוא חוצה את כל השכבות (מודל, בסיס נתונים, <bdi>API</bdi>, טיפוסים, ממשק), אבל כל שכבה בו קטנה.</p>
+  <p>מבנה הקבצים לפני השינוי (הקבצים שניגע בהם מסומנים):</p>
+  <div class="codeblock">
+    <div class="codehead">taskflow/ (before)</div>
+    <pre><code>taskflow/
+├── CLAUDE.md                     # ישתנה (שלב 13)
+├── README.md
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── database.py           # ישתנה (סכמה + Migration)
+│   │   ├── models.py             # ישתנה (Pydantic models)
+│   │   └── routers/tasks.py      # ישתנה (INSERT ומיפוי שורות)
+│   ├── tests/test_tasks.py       # ישתנה (בדיקות חדשות)
+│   └── requirements.txt
+└── frontend/
+    └── src/
+        ├── App.tsx               # ישתנה (תצוגת עדיפות)
+        ├── api.ts
+        └── types.ts              # ישתנה (טיפוסים)</code></pre>
+  </div>
+  <p>לכל שלב יש מצב הרשאות מתאים. הטבלה הבאה היא ההמלצה שלנו; את מערכת ההרשאות המלאה, כולל חוקי <bdi>Allow</bdi> ו-<bdi>Deny</bdi> ומצב <bdi>auto</bdi>, נלמד לעומק ב<a href="ch18.html">פרק 18</a>:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>שלבים</th><th>מצב מומלץ</th><th>למה</th></tr></thead>
+      <tbody>
+        <tr><td>1 עד 5 (הבנה, מחקר, תכנון)</td><td><bdi>Plan Mode</bdi></td><td>קריאה ותכנון בלבד, אפס סיכון לקבצים. מעבר עם <code>Shift+Tab</code></td></tr>
+        <tr><td>6 עד 7 (Branch ועריכה)</td><td>ברירת מחדל (default)</td><td>רואים כל עריכה וכל פקודה לפני ביצוע. מנוסים יכולים <bdi>acceptEdits</bdi> לעריכות בלבד</td></tr>
+        <tr><td>8 עד 12 (אימות)</td><td>ברירת מחדל</td><td>מאשרים פקודות בדיקה נקודתית; אפשר לאשר "גם להבא" לפקודות שחוזרות כמו <code>pytest</code></td></tr>
+        <tr><td>13 עד 15 (תיעוד, Commit, PR)</td><td>ברירת מחדל</td><td>פקודות <bdi>Git</bdi> ו-<code>gh</code> משנות היסטוריה ושרת מרוחק; קוראים כל פקודה לפני אישור</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="step1">שלב 1: הבנת הדרישה</h2>
+  <p>לפני שנוגעים בקוד, מוודאים שהדרישה חד-משמעית. עברו ל-<bdi>Plan Mode</bdi> עם <code>Shift+Tab</code> (או פתחו את ה-<bdi>Session</bdi> עם <code>claude --permission-mode plan</code>), ונסחו את הדרישה בעצמכם, כולל מה שמחוץ לתחום:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (Plan Mode)</div>
+    <pre><code>We want to add a priority field to tasks in this project.
+Requirements: values low / medium / high, default medium,
+set on create, editable via update, returned by the API,
+shown in the task list UI. Out of scope: sorting or
+filtering by priority.
+Before we plan anything: restate the requirement in your own
+words and ask me about anything ambiguous or risky.</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude מנסח מחדש את הדרישה ושואל שאלות הבהרה. בהרצה שלנו הוא שאל שתי שאלות מצוינות: מה יקרה למשימות קיימות בבסיס הנתונים (תשובה: יקבלו <code>medium</code>), והאם ערך עדיפות לא חוקי צריך להחזיר 422 (תשובה: כן, כמו שאר ה-<bdi>Validation</bdi> בפרויקט). ניסוח "מה מחוץ לתחום" חשוב לא פחות מהדרישה עצמה: הוא מונע מהמודל "לשפר" מעבר למה שביקשתם. לבקשות גדולות באמת יש טכניקה חזקה עוד יותר, ראיון יזום דרך <bdi>AskUserQuestion</bdi>, שראינו ב<a href="ch05.html">פרק 5</a>.</p>
+  <p><strong>אימות:</strong> אתם יכולים לענות בביטחון על שלוש שאלות: מה נבנה, מה לא נבנה, ומה קורה לנתונים קיימים. אם לא, המשיכו לשאול. כישלון כאן הוא הזול ביותר בכל התהליך.</p>
+
+  <h2 id="step2">שלב 2: מחקר הקוד</h2>
+  <p>עדיין ב-<bdi>Plan Mode</bdi>. עכשיו בודקים איך התכונות הקיימות עובדות, כדי שהשדה החדש יתיישר עם הדפוסים הקיימים:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (Plan Mode)</div>
+    <pre><code>Research how the existing status field flows through the system,
+end to end: model validation, database schema, SQL in the router,
+API responses, frontend types and UI. Don't propose changes yet,
+just explain the current mechanics and conventions.</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude קורא את <code>models.py</code>, <code>database.py</code>, <code>routers/tasks.py</code>, <code>types.ts</code> ו-<code>App.tsx</code>, ומסביר את השרשרת: <code>TaskStatus</code> מוגדר כ-<bdi>Literal</bdi> של <bdi>Pydantic</bdi>, בסיס הנתונים אוכף אותם ערכים עם <bdi>CHECK Constraint</bdi>, וה-<bdi>Frontend</bdi> משכפל אותם כ-<bdi>Union Type</bdi> ב-<bdi>TypeScript</bdi>. זה בדיוק הדפוס שנחקה עבור <code>priority</code>. למה לחקור את <code>status</code> ולא לשאול "איך מוסיפים שדה"? כי שאלה מעוגנת בקוד קיים מחזירה תשובה מעוגנת בקוד קיים. זה עיקרון שראינו ב<a href="ch06.html">פרק 6</a>: הצביעו על דוגמה קיימת.</p>
+  <p><strong>אימות:</strong> ההסבר מזכיר את שלושת מוקדי האמת: ה-<bdi>Literal</bdi> במודלים, ה-<bdi>CHECK</bdi> בסכמה, והטיפוס ב-<bdi>Frontend</bdi>. אם Claude פספס אחד, בקשו ממנו לבדוק שוב; עדיף לגלות עכשיו ולא בשלב 11.</p>
+
+  <h2 id="step3">שלב 3: זיהוי קבצים מושפעים</h2>
+  <div class="codeblock">
+    <div class="codehead">Prompt (Plan Mode)</div>
+    <pre><code>List every file that must change to add the priority field,
+and for each file: what changes and why. Also list files you
+considered and decided NOT to change.</code></pre>
+  </div>
+  <p><strong>תוצאה צפויה:</strong> רשימה של שישה קבצים: <code>models.py</code> (שלושה מודלים), <code>database.py</code> (עמודה חדשה + טיפול בבסיסי נתונים קיימים), <code>routers/tasks.py</code> (ה-<code>INSERT</code> והפונקציה <code>_row_to_task</code>), <code>tests/test_tasks.py</code>, <code>types.ts</code> ו-<code>App.tsx</code>. חלק "מה החלטתי לא לשנות" חשוב: בהרצה שלנו Claude ציין שאין צורך לגעת ב-<code>api.ts</code> (כי <code>createTask</code> כבר מעביר <bdi>Payload</bdi> שלם) וב-<code>main.py</code>. רשימה כזאת היא חוזה: אם בשלב 8 תראו ב-<code>/diff</code> קובץ שלא הופיע בה, זה דגל אדום.</p>
+
+  <h2 id="step4">שלב 4: הכנת Plan</h2>
+  <div class="codeblock">
+    <div class="codehead">Prompt (Plan Mode)</div>
+    <pre><code>Create an implementation plan for this feature as a sequence of
+small, independently verifiable slices. Each slice: what changes,
+what command verifies it. Backend first, then frontend.</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude מציג <bdi>Plan</bdi> מחולק לפרוסות. ה-<bdi>Plan</bdi> שאישרנו בהרצה שלנו:</p>
+  <ol>
+    <li><strong>פרוסה 1, מודלים וסכמה:</strong> <code>TaskPriority</code> ב-<code>models.py</code>, עמודה + <bdi>Migration</bdi> ב-<code>database.py</code>. אימות: הבדיקות הקיימות עדיין עוברות.</li>
+    <li><strong>פרוסה 2, Router ובדיקות:</strong> עדכון ה-<code>INSERT</code> ו-<code>_row_to_task</code>, ארבע בדיקות חדשות. אימות: <code>pytest -q</code> ירוק.</li>
+    <li><strong>פרוסה 3, Frontend:</strong> טיפוסים ותצוגה. אימות: <code>npm run typecheck</code> ירוק ובדיקה ידנית בדפדפן.</li>
+  </ol>
+  <p>ב-<bdi>Plan Mode</bdi> אפשר ללחוץ <code>Ctrl+G</code> כדי לפתוח את ה-<bdi>Plan</bdi> בעורך הטקסט ולערוך אותו ישירות לפני האישור. אל תאשרו <bdi>Plan</bdi> שאתם לא מסכימים איתו; לערוך תוכנית זול פי מאה מלערוך קוד.</p>
+
+  <h2 id="step5">שלב 5: Acceptance Criteria</h2>
+  <p>לפני היציאה מ-<bdi>Plan Mode</bdi>, מקבעים את הגדרת ה"גמור" כרשימה שאפשר לבדוק מכנית:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (Plan Mode)</div>
+    <pre><code>Write the acceptance criteria for this feature as a numbered,
+testable checklist. Include validation, defaults, existing data,
+and the project's Definition of Done from CLAUDE.md.</code></pre>
+  </div>
+  <p><strong>תוצאה צפויה:</strong> רשימה בסגנון הבא (זו הרשימה שעבדנו מולה בפועל):</p>
+  <ul class="check">
+    <li><code>POST /tasks</code> מקבל <code>priority</code> אופציונלי; בלעדיו הערך <code>medium</code>.</li>
+    <li>ערך עדיפות לא חוקי מוחזר עם 422, ביצירה ובעדכון.</li>
+    <li><code>PATCH /tasks/{id}</code> מעדכן עדיפות בלי לגעת בשדות אחרים.</li>
+    <li>כל תשובות ה-<bdi>API</bdi> כוללות <code>priority</code>, גם עבור משימות שנוצרו לפני השינוי.</li>
+    <li>רשימת המשימות ב-UI מציגה את העדיפות ליד הכותרת.</li>
+    <li><code>pytest -q</code> ו-<code>npm run typecheck</code> עוברים; התיעוד עודכן (לפי ה-<bdi>Definition of Done</bdi> של הפרויקט).</li>
+  </ul>
+  <p>שימו לב שהקריטריונים האלה יהפכו כמעט אחד לאחד לבדיקות בשלב 11 ולתיאור ה-<bdi>PR</bdi> בשלב 15. זה לא מקרי: כך נסגר המעגל בין דרישה, קוד והוכחה.</p>
+
+  <h2 id="step6">שלב 6: יצירת Branch</h2>
+  <p>צאו מ-<bdi>Plan Mode</bdi> (שוב <code>Shift+Tab</code> עד מצב ברירת המחדל) ובקשו:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>create a git branch for this work: feature/task-priority</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude מבקש אישור להריץ <code>git checkout -b feature/task-priority</code> (או <code>git switch -c</code>). קראו את הפקודה בחלון האישור ואשרו. ה-<bdi>Branch</bdi> מבודד את העבודה: אם הכול משתבש, <code>main</code> נשאר נקי. אימות מהיר, בעצמכם או דרך Claude:</p>
+  <div class="terminal"><span class="p">$</span> git status
+<span class="out">On branch feature/task-priority
+nothing to commit, working tree clean</span></div>
+  <p><strong>אם השלב נכשל:</strong> "working tree not clean" אומר שיש שינויים לא שמורים מעבודה קודמת. אל תמשיכו מעל ערימה קיימת: בקשו מ-Claude לסכם מה השינויים התלויים, והחליטו אם לשמור אותם ב-<bdi>Commit</bdi> נפרד או לבטלם. על <bdi>Git</bdi> לעומק, כולל <bdi>Worktrees</bdi> לעבודה מקבילה, נרחיב ב<a href="ch13.html">פרק 13</a>.</p>
+
+  <h2 id="step7">שלב 7: שינוי קטן ומדורג</h2>
+  <p>עכשיו מבצעים, פרוסה אחת בכל פעם. פרוסה ראשונה:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Implement slice 1 of the plan only: add TaskPriority to
+models.py (low/medium/high, default medium on create, optional
+on update, required on Task), and update database.py so both new
+and existing databases get the priority column. Do not touch the
+router, tests or frontend yet.</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude מציע שתי עריכות, ואתם מאשרים כל אחת אחרי קריאת ה-<bdi>Diff</bdi> שלה. כך נראה <code>models.py</code> אחרי הפרוסה (החלקים החדשים):</p>
+  <div class="codeblock">
+    <div class="codehead">backend/app/models.py (after slice 1)</div>
+    <pre><code>TaskStatus = Literal["todo", "in_progress", "done"]
+TaskPriority = Literal["low", "medium", "high"]
+
+
+class TaskCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    priority: TaskPriority = "medium"
+
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    status: Optional[TaskStatus] = None
+    priority: Optional[TaskPriority] = None
+
+
+class Task(BaseModel):
+    id: int
+    title: str
+    description: str
+    status: TaskStatus
+    priority: TaskPriority
+    created_at: str</code></pre>
+  </div>
+  <p>וב-<code>database.py</code>, בנוסף לעמודה בהגדרת הטבלה, <bdi>Migration</bdi> קלה לבסיסי נתונים שנוצרו לפני השינוי (כי <code>CREATE TABLE IF NOT EXISTS</code> לא מעדכן טבלה קיימת):</p>
+  <div class="codeblock">
+    <div class="codehead">backend/app/database.py (inside init_db)</div>
+    <pre><code>        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'todo'
+                    CHECK (status IN ('todo', 'in_progress', 'done')),
+                priority TEXT NOT NULL DEFAULT 'medium'
+                    CHECK (priority IN ('low', 'medium', 'high')),
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
+        cols = {row["name"] for row in conn.execute("PRAGMA table_info(tasks)")}
+        if "priority" not in cols:
+            conn.execute(
+                "ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'"
+            )</code></pre>
+  </div>
+  <p>פרוסה שנייה, באותה רוח:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Implement slice 2: update the router so INSERT stores priority
+and _row_to_task returns it, then add tests: create with
+priority, default is medium, invalid priority returns 422,
+and PATCH updates priority. Run the backend tests.</code></pre>
+  </div>
+  <p>ההנחיה "Do not touch X yet" בפרוסה 1 היא לב השיטה: היא שומרת כל <bdi>Diff</bdi> קטן וממוקד, ומשאירה לכם נקודות עצירה טבעיות לאימות.</p>
+
+  <h2 id="step8">שלב 8: בדיקת Diff</h2>
+  <p>אחרי כל פרוסה, ולפני כל <bdi>Commit</bdi>, בודקים מה השתנה בפועל:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>/diff</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> נפתח מציג ה-<bdi>Diff</bdi> האינטראקטיבי שהכרנו בפרק 3: חצים למעלה ולמטה עוברים בין קבצים, חצים לצדדים מחליפים בין ה-<bdi>Git Diff</bdi> המלא לבין השינויים של כל תור בנפרד, <bdi>Enter</bdi> פותח קובץ, <code>Esc</code> חוזר. מה בודקים בפועל? שלושה דברים, לפי הסדר: <strong>(א)</strong> רשימת הקבצים זהה לרשימה משלב 3, בלי אורחים לא צפויים; <strong>(ב)</strong> אין שינויים "אגביים" שאינם קשורים ל-<bdi>Feature</bdi> (סידור <bdi>Imports</bdi> גורף, שינוי פורמט, מחיקת הערות); <strong>(ג)</strong> הלוגיקה עצמה נכונה. אם מצאתם משהו, זה הרגע לתקן:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (loop back)</div>
+    <pre><code>revert the unrelated formatting changes in routers/tasks.py,
+keep only the priority changes</code></pre>
+  </div>
+  <div class="callout danger"><span class="title">אבטחה: הסקירה היא שער החובה</span><p>כל מנגנוני האישור של <bdi>Claude Code</bdi> שווים בדיוק כמו תשומת הלב שלכם בהם. לסקור <bdi>Diff</bdi> לפני אישור זה לא טקס: זו הנקודה שבה תתפסו קוד שמדליף סודות ל-<bdi>Log</bdi>, <bdi>Dependency</bdi> חדש שלא ביקשתם, או שינוי בקובץ הגדרות רגיש. אם אין לכם זמן לקרוא את ה-<bdi>Diff</bdi>, אין לכם זמן לאשר אותו. השלמה טובה היא <code>/security-review</code>, פקודה מובנית שבודקת את ה-<bdi>Diff</bdi> הנוכחי לאיתור חולשות אבטחה; נרחיב עליה ב<a href="ch20.html">פרק 20</a>.</p></div>
+
+  <h2 id="step9">שלב 9: Lint</h2>
+  <p><bdi>Linter</bdi> תופס בעיות סגנון ותקלות שטחיות (משתנים לא בשימוש, <bdi>Imports</bdi> מיותרים) לפני שבן אדם מבזבז עליהן זמן סקירה. ל-<bdi>TaskFlow</bdi> אין <bdi>Linter</bdi> מוגדר ל-<bdi>Backend</bdi>, וזו הזדמנות להדגים נקודה חשובה: כשכלי חסר, אפשר לבקש מ-Claude להוסיף אותו כחלק מהעבודה, בנפרד מה-<bdi>Feature</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>run a linter on the backend. if none is configured, install ruff
+into the virtualenv, run "ruff check backend", and fix only
+findings in files we changed. do not add config files yet.</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude מבקש אישור ל-<code>pip install ruff</code> ואז מריץ <code>ruff check backend</code>. בהרצה נקייה הפלט קצר:</p>
+  <div class="terminal"><span class="p">$</span> ruff check backend
+<span class="out">All checks passed!</span></div>
+  <p><strong>אם השלב נכשל:</strong> ממצאי <bdi>Lint</bdi> בקבצים שנגעתם בהם, תקנו מיד (זה בדרך כלל תיקון אוטומטי בטוח). ממצאים בקבצים אחרים, אל תתקנו עכשיו: ערבוב ניקיון כללי לתוך <bdi>Branch</bdi> של <bdi>Feature</bdi> הוא בדיוק ה"שינוי האגבי" שאסרנו בשלב 8. רשמו לעצמכם והקדישו לזה <bdi>Branch</bdi> נפרד. הגבלת ההיקף בתוך ה-<bdi>Prompt</bdi> ("only findings in files we changed") עושה את זה בשבילכם.</p>
+
+  <h2 id="step10">שלב 10: Type Check</h2>
+  <p>ב-<bdi>Frontend</bdi> של <bdi>TaskFlow</bdi> יש בודק טיפוסים אמיתי מוגדר: <code>tsc</code> במצב <bdi>strict</bdi>. אחרי פרוסת ה-<bdi>Frontend</bdi> (שלב 7, פרוסה 3) מריצים:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Implement slice 3: add TaskPriority to frontend types, include
+priority in the Task interface and as optional in TaskCreate,
+and show the priority next to each task title in App.tsx.
+Then run "npm run typecheck" in frontend/ and fix any errors.</code></pre>
+  </div>
+  <p><strong>למה זה שלב נפרד מ-Tests:</strong> בדיקת טיפוסים תופסת סוג אחר של שגיאות, חוסר עקביות בין חלקי המערכת, בלי להריץ שום קוד. אצלנו היא בדיוק מה שתופס מצב שבו הוספתם <code>priority</code> ל-<bdi>Interface</bdi> אבל שכחתם לעדכן קוד שבונה אובייקט <code>Task</code> ידנית. ב-<bdi>Backend</bdi> אין בפרויקט בודק טיפוסים סטטי מוגדר (הרמזים נאכפים בזמן ריצה על ידי <bdi>Pydantic</bdi>); בפרויקט <bdi>Python</bdi> גדול הייתם מוסיפים כאן גם <code>mypy</code> או דומיו. התוצאה הצפויה:</p>
+  <div class="terminal"><span class="p">$</span> npm run typecheck
+<span class="out">&gt; tsc --noEmit
+(ללא פלט: הצלחה)</span></div>
+  <p><strong>אם השלב נכשל:</strong> שגיאת <bdi>TypeScript</bdi> מצביעה בדיוק על הקובץ והשורה. הדביקו אותה כמות שהיא ל-Claude (או שהוא כבר רואה אותה, אם הוא הריץ את הפקודה בעצמו) ובקשו תיקון של השורש: אל תרשו <code>as any</code> או <code>@ts-ignore</code> כדרך לעקוף.</p>
+
+  <h2 id="step11">שלב 11: Tests</h2>
+  <p>הבדיקות הן ההוכחה שה-<bdi>Acceptance Criteria</bdi> מתקיימים. ביקשנו אותן כבר בפרוסה 2; עכשיו מריצים את החבילה כולה. כך נראית תוספת הבדיקות שאישרנו:</p>
+  <div class="codeblock">
+    <div class="codehead">backend/tests/test_tasks.py (added)</div>
+    <pre><code>def test_create_with_priority(client):
+    res = client.post("/tasks", json={"title": "Prod bug", "priority": "high"})
+    assert res.status_code == 201
+    assert res.json()["priority"] == "high"
+
+
+def test_priority_defaults_to_medium(client):
+    res = client.post("/tasks", json={"title": "Default"})
+    assert res.json()["priority"] == "medium"
+
+
+def test_invalid_priority_rejected(client):
+    res = client.post("/tasks", json={"title": "X", "priority": "urgent"})
+    assert res.status_code == 422
+
+
+def test_update_priority(client):
+    task = client.post("/tasks", json={"title": "U"}).json()
+    res = client.patch(f"/tasks/{task['id']}", json={"priority": "low"})
+    assert res.status_code == 200
+    assert res.json()["priority"] == "low"</code></pre>
+  </div>
+  <p><strong>וכאן, בהרצה האמיתית שלנו, שלב נכשל.</strong> כך זה נראה, וזה שיעור חשוב מדי מכדי לדלג עליו:</p>
+  <div class="terminal"><span class="p">$</span> pytest -q
+<span class="out">....F..FF.
+FAILED tests/test_tasks.py::test_create_and_get_task
+  pydantic_core._pydantic_core.ValidationError: 1 validation error for Task
+  priority
+    Field required [type=missing, ...]</span></div>
+  <p><strong>מה קרה:</strong> המודל <code>Task</code> כבר דורש <code>priority</code>, אבל <code>_row_to_task</code> ב-<bdi>Router</bdi> עדיין לא מעביר אותו. Claude רואה את הפלט (הוא הריץ את הפקודה בעצמו), מאבחן ומתקן את המיפוי, ומריץ שוב:</p>
+  <div class="terminal"><span class="p">$</span> pytest -q
+<span class="out">..........
+10 passed in 0.41s</span></div>
+  <p>זו לולאת החזרה (loop back) בפעולה: כשל בשלב 11 מחזיר אותנו לשלב 7 (תיקון קטן), ומשם שוב דרך 8 (לקרוא את ה-<bdi>Diff</bdi> של התיקון!) חזרה ל-11. הלולאה קצרה בדיוק כי הצעדים קטנים. <strong>שיעור שני:</strong> בדיקות ירוקות אינן סוף האימות. הרצנו גם אימות ידני מול שרת פיתוח על בסיס הנתונים הישן (<code>uvicorn app.main:app --reload</code> ואז <code>curl -X POST</code> עם משימה חדשה), וזה מה שתפס בהרצה מוקדמת של הפרק את הצורך ב-<bdi>Migration</bdi>: בלעדיה, בסיס נתונים ותיק נכשל עם <code>sqlite3.OperationalError: table tasks has no column named priority</code>, בעוד הבדיקות (שרצות על בסיס נתונים טרי) ירוקות לגמרי. על ההבחנה הזאת בין סוגי אימות נרחיב ב<a href="ch11.html">פרק 11</a>.</p>
+
+  <h2 id="step12">שלב 12: Self Review</h2>
+  <p>לפני שמזמינים סוקר אנושי, מריצים סוקר טרי ואוטומטי. ה-<bdi>Skill</bdi> המובנה <code>/code-review</code> סוקר את ה-<bdi>Diff</bdi> הנוכחי לאיתור באגים של נכונות, בתוך <bdi>Subagent</bdi> עם <bdi>Context</bdi> נקי, כך שהוא לא "מאוהב" בקוד שזה עתה נכתב:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>/code-review</code></pre>
+  </div>
+  <p>אפשר לשלוט בעומק עם רמות מאמץ (<code>low</code> עד <code>max</code>, ו-<code>ultra</code> לסקירת ענן עמוקה), ולבקש החלה אוטומטית של הממצאים עם <code>--fix</code>. בהרצה שלנו הסקירה החזירה ממצא אחד ראוי: הבדיקות לא מכסות עדכון עדיפות עם ערך לא חוקי ב-<code>PATCH</code> (בדקנו רק ב-<code>POST</code>). הוספנו בדיקה. שימו לב לאזהרה מהתיעוד הרשמי: סוקר שמתבקש למצוא פערים כמעט תמיד ימצא משהו; אמצו ממצאים שנוגעים לנכונות ולדרישות, והרשו לעצמכם לדחות הערות סגנון בנימוק קצר. השלימו את הסקירה האוטומטית בשאלה ממוקדת:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>before we commit: re-read the full diff against the acceptance
+criteria from step 5. anything missing, and anything that changed
+but is outside the scope we agreed on?</code></pre>
+  </div>
+
+  <h2 id="step13">שלב 13: Documentation</h2>
+  <p>ה-<bdi>Definition of Done</bdi> של <bdi>TaskFlow</bdi> (בקובץ <code>CLAUDE.md</code> של הפרויקט) קובע במפורש: התיעוד מתעדכן כשההתנהגות משתנה. אצלנו זה אומר שתי שורות:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>update the project docs for the new field: add the priority
+values to the Conventions section in CLAUDE.md (like the status
+values line), and mention the priority field in README.md.
+keep both edits minimal.</code></pre>
+  </div>
+  <p><strong>למה זה שלב ולא מטלה נשכחת:</strong> קובץ ה-<code>CLAUDE.md</code> של הפרויקט הוא לא רק תיעוד לבני אדם; Claude קורא אותו בתחילת כל <bdi>Session</bdi> (<a href="ch15.html">פרק 15</a>). שורת "priority values: low, medium, high" שם פירושה שכל <bdi>Session</bdi> עתידי יכיר את מרחב הערכים בלי לחקור מחדש. תיעוד שמתעדכן באותו <bdi>Commit</bdi> עם הקוד הוא היחיד שנשאר נכון לאורך זמן.</p>
+
+  <h2 id="step14">שלב 14: Commit</h2>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>commit the changes with a descriptive message. use two commits:
+one for the backend (model, schema, router, tests), one for the
+frontend and docs.</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude מריץ <code>git status</code> ו-<code>git diff</code> כדי לסכם, ואז מבקש אישור לפקודות <code>git add</code> ו-<code>git commit</code> עם הודעות שהוא ניסח. קראו את ההודעות בחלון האישור; הודעה טובה מתארת את ה"למה", לא רק את ה"מה". אימות:</p>
+  <div class="terminal"><span class="p">$</span> git log --oneline -2
+<span class="out">3f2c1aa Add priority to frontend task list and update docs
+9d84b07 Add priority field to tasks API with validation and migration</span></div>
+  <p><strong>אם השלב נכשל:</strong> אם ה-<bdi>Commit</bdi> הראשון כולל בטעות גם קבצים מהפרוסה השנייה, בקשו "undo the last commit but keep the changes staged, then split it as we agreed". פיצול נכון של <bdi>Commits</bdi> הופך גם את הסקירה ב-<bdi>PR</bdi> וגם <bdi>Revert</bdi> עתידי לנקודתיים.</p>
+
+  <h2 id="step15">שלב 15: Pull Request</h2>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>push the branch and create a pr. in the description: what the
+feature does, the acceptance criteria as a checklist, how it was
+verified (tests, typecheck, manual check on an existing db), and
+one risk a reviewer should look at.</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude משתמש ב-<bdi>CLI</bdi> של <bdi>GitHub</bdi> בשם <code>gh</code> (נדרש שיהיה מותקן ומחובר; <a href="ch13.html">פרק 13</a>) ומבקש אישור ל-<code>git push</code> ול-<code>gh pr create</code>. התיעוד הרשמי ממליץ לסקור את ה-<bdi>PR</bdi> שנוצר לפני שליחה ולבקש מ-Claude להצביע על סיכונים, וזה בדיוק מה ששילבנו בתיאור. תוספת נחמדה מהתיעוד: <bdi>Session</bdi> שיצר <bdi>PR</bdi> דרך <code>gh pr create</code> מקושר אליו אוטומטית, ואפשר לחזור אליו בעתיד עם <code>claude --from-pr 1234</code> (עם מספר ה-<bdi>PR</bdi> שלכם).</p>
+  <p><strong>תוצאה צפויה:</strong> קישור ל-<bdi>PR</bdi> מודפס בשיחה. ה-<bdi>PR</bdi> קטן (בהרצה שלנו: 6 קבצים, סדר גודל של 60 שורות), עם תיאור שסוקר אנושי יכול לקרוא בדקה. זה המבחן הסופי של כל התהליך: אם הגעתם לכאן עם <bdi>Diff</bdi> שקל לסקור, התהליך עבד.</p>
+  <p>מבנה הקבצים אחרי, לסיכום התמונה:</p>
+  <div class="codeblock">
+    <div class="codehead">taskflow/ (after)</div>
+    <pre><code>taskflow/
+├── CLAUDE.md                     # + priority values convention
+├── README.md                     # + priority mention
+├── backend/
+│   ├── app/
+│   │   ├── database.py           # + priority column, + migration
+│   │   ├── models.py             # + TaskPriority, + 3 model changes
+│   │   └── routers/tasks.py      # + INSERT priority, + row mapping
+│   └── tests/test_tasks.py       # + 5 tests (כולל ממצא ה-review)
+└── frontend/src/
+    ├── App.tsx                   # + priority badge in list
+    └── types.ts                  # + TaskPriority, + 2 interfaces</code></pre>
+  </div>
+
+  <h2 id="mistakes">טעויות נפוצות</h2>
+  <ul>
+    <li><strong>לדלג על שלבים 1 עד 5 "כי המשימה ברורה":</strong> אם היא באמת ברורה במשפט אחד, בסדר. אבל רוב ה"ברור לי" מתגלה כלא ברור בשלב 11, ששם התיקון יקר יותר.</li>
+    <li><strong>לאשר עריכות בלי לקרוא:</strong> אחרי עשרה אישורים מתחילים ללחוץ בלי לקרוא. זה בדיוק הרגע לעצור, או לעבור במודע ל-<bdi>acceptEdits</bdi> ולהעביר את כל כובד הסקירה ל-<code>/diff</code> לפני ה-<bdi>Commit</bdi>. סקירה חייבת לקרות באחת הנקודות; בחרו איפה.</li>
+    <li><strong>פרוסה "קטנה" שהיא בעצם שלוש:</strong> אם ה-<bdi>Prompt</bdi> שלכם כולל "and" שלוש פעמים, אלו כנראה שלוש פרוסות.</li>
+    <li><strong>לתקן ממצאי Lint בכל ה-Repository:</strong> ערבוב ניקיון רוחבי לתוך <bdi>Branch</bdi> של <bdi>Feature</bdi> מנפח את ה-<bdi>Diff</bdi> והופך את הסקירה לחסרת ערך.</li>
+    <li><strong>להסתפק בבדיקות ירוקות:</strong> ראינו למעלה: הבדיקות רצות על בסיס נתונים טרי, והבאג האמיתי חיכה בבסיס נתונים ותיק. הריצו גם את המערכת עצמה.</li>
+    <li><strong>Commit אחד ענק בסוף היום:</strong> מאבד את כל היתרון של הפרוסות. עשו <bdi>Commit</bdi> בכל נקודה ירוקה.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>אבחון וטיפול</th></tr></thead>
+      <tbody>
+        <tr><td>Claude "בורח קדימה" ומממש את כל ה-Feature בפרוסה אחת</td><td>נסחו את הגבול במפורש ("Do not touch X yet"), וב-<bdi>Diff</bdi> דחו את החלקים העודפים. אם זה חוזר, בדקו שה-<bdi>Plan</bdi> שאושר באמת מחולק לפרוסות</td></tr>
+        <tr><td>הבדיקות נכשלות אחרי תיקון, שוב ושוב</td><td>אחרי שני סבבי תיקון כושלים, עצרו. לפי ההמלצה הרשמית: <code>/clear</code>, ו-<bdi>Prompt</bdi> חדש וממוקד שמסכם את מה שלמדתם. הקשר עמוס בניסיונות כושלים מזיק לניסיון הבא. על ניהול <bdi>Context</bdi> נרחיב ב<a href="ch14.html">פרק 14</a></td></tr>
+        <tr><td class="ltr"><code>gh: command not found</code></td><td>ה-<bdi>CLI</bdi> של <bdi>GitHub</bdi> לא מותקן. התקינו והתחברו (<code>gh auth login</code>), או בקשו מ-Claude לפתוח <bdi>PR</bdi> ידנית דרך ממשק האתר עם הטקסט שהכין</td></tr>
+        <tr><td>ה-Migration רצה אבל השרת עדיין נכשל על העמודה</td><td>ודאו שהשרת אותחל מחדש (ה-<code>init_db</code> רץ ב-<bdi>Lifespan</bdi> של האפליקציה) ושה-<code>TASKFLOW_DB</code> מצביע על הקובץ שאתם חושבים. <code>sqlite3 taskflow.db ".schema tasks"</code> מראה את האמת</td></tr>
+        <tr><td>עשיתם בלגן ורוצים להתחיל את הפרוסה מחדש</td><td><code>Esc Esc</code> או <code>/rewind</code> לשחזור קוד ושיחה ל-<bdi>Checkpoint</bdi> שלפני הפרוסה. זכרו: <bdi>Rewind</bdi> לא מבטל פקודות <bdi>Shell</bdi> ולא עריכות של <bdi>Subagents</bdi>; ה-<bdi>Branch</bdi> וה-<bdi>Commits</bdi> הם רשת הביטחון האמיתית (<a href="ch19.html">פרק 19</a>)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="cost">עלות ו-Context</h2>
+  <p>תהליך של 15 שלבים נשמע יקר, אבל בפועל הוא בדרך כלל זול יותר מ-<bdi>Prompt</bdi> גדול שנכשל: כישלון של פרוסה עולה סבב תיקון קצר, בעוד כישלון של <bdi>Big Bang</bdi> עולה את כל הניסיון מחדש. שלושה הרגלים חוסכים בפועל: ראשית, עשו את שלבי המחקר (2 עד 3) ממוקדים; חקירה פתוחה של כל ה-<bdi>Repository</bdi> ממלאת את ה-<bdi>Context</bdi> בקבצים שלא תצטרכו, ובפרויקט גדול עדיף להאציל אותה ל-<bdi>Subagent</bdi>. שנית, עקבו אחרי ההקשר עם <code>/context</code>, ואם סיימתם נושא, אל תגררו אותו הלאה: <bdi>Session</bdi> אחד ל-<bdi>Feature</bdi> אחד. שלישית, אל תדביקו פלטים ארוכים (למשל <bdi>Log</bdi> שלם של <bdi>CI</bdi>) כשמספיקות עשר השורות הרלוונטיות. על מבנה העלויות המלא נרחיב ב<a href="ch30.html">פרק 30</a>.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>נסחו "מה מחוץ לתחום" בכל דרישה. זו השורה שהכי מצמצמת הפתעות.</li>
+    <li>חקרו דפוס קיים (אצלנו: <code>status</code>) ובקשו ליישר את החדש אליו.</li>
+    <li>דרשו מ-Claude רשימת קבצים מושפעים מראש, והשוו אליה את ה-<code>/diff</code> בסוף.</li>
+    <li>כל פרוסה מסתיימת בפקודת אימות שרצה בפועל, ובראיות: פלט הבדיקות בשיחה, לא "הכול עובר" סתמי.</li>
+    <li>סקרו את ה-<bdi>Diff</bdi> בנקודה מוגדרת אחת לפחות: באישור העריכה או ב-<code>/diff</code> לפני ה-<bdi>Commit</bdi>.</li>
+    <li>סיימו כל ישיבת עבודה בנקודה ירוקה עם <bdi>Commit</bdi>, כדי שלמחרת תתחילו ממצב נקי.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>ה-Big Bang:</strong> "תממש הכול ותגיד לי כשסיימת" במצב שמאשר הכול אוטומטית, ואז לגלות בסוף היום <bdi>Diff</bdi> של 900 שורות שאיש לא סקר.</li>
+    <li><strong>הכחשת הלולאה:</strong> להתעקש "רק תתקן את הבדיקה" שוב ושוב במקום לחזור שלב אחורה ולתקן את ההבנה או את ה-<bdi>Plan</bdi>.</li>
+    <li><strong>ריכוך בדיקות:</strong> כשבדיקה נכשלת, "לתקן" אותה כך שתעבור (להחליש <bdi>Assert</bdi>, למחוק מקרה קצה) במקום לתקן את הקוד. בקשו במפורש: תקן את הקוד, לא את הבדיקה, אלא אם הבדיקה מוכחת כשגויה.</li>
+    <li><strong>Branch נצחי:</strong> <bdi>Branch</bdi> שחי שבועיים וסופג עוד ועוד "עוד דבר קטן". התהליך בנוי להגיע ל-<bdi>PR</bdi> קטן ולסיים.</li>
+    <li><strong>דילוג על תיעוד "בינתיים":</strong> אין בינתיים. תיעוד שלא עודכן באותו <bdi>Commit</bdi> לא יעודכן.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 9.1: שדה done_at, מקצה לקצה</div>
+    <div class="body">
+      <p>בצעו את כל 15 השלבים עבור דרישה חדשה ב-<bdi>TaskFlow</bdi>: לכל משימה יתווסף שדה <code>done_at</code>, חותמת זמן שמתמלאת אוטומטית כשמשימה עוברת לסטטוס <code>done</code>, ומתאפסת (<code>null</code>) כשהיא עוזבת אותו. השדה אינו מתקבל מהלקוח, רק מוחזר. דרישות: הוא מופיע בכל תשובות ה-<bdi>API</bdi> (כ-<code>null</code> כשאין ערך), נשמר לאורך עדכונים אחרים, ומכוסה בבדיקות. מחוץ לתחום: תצוגה ב-UI מעבר להוספת הטיפוס. נסחו בעצמכם את ה-<bdi>Acceptance Criteria</bdi> לפני שאתם מבקשים <bdi>Plan</bdi>, ושימו לב במיוחד לשאלה: מה קורה כשמעדכנים משימה שכבר <code>done</code> לסטטוס <code>done</code> שוב?</p>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>שלבים 1 עד 5:</strong> הנקודה העדינה בדרישה היא סמנטיקת המעברים, וזו בדיוק השאלה ששווה להציף בשלב 1: קבענו ש-<code>done</code> אל <code>done</code> לא מרענן את החותמת (המשימה "הושלמה" פעם אחת). קריטריונים מרכזיים: יצירה מחזירה <code>done_at: null</code>; מעבר ל-<code>done</code> ממלא ערך; מעבר מ-<code>done</code> לסטטוס אחר מאפס; עדכון שלא נוגע בסטטוס לא משנה את הערך; הלקוח לא יכול לקבוע את הערך בעצמו.</p>
+      <p><strong>קבצים מושפעים:</strong> <code>models.py</code> (הוספת <code>done_at: Optional[str] = None</code> למודל <code>Task</code> בלבד; לא ל-<code>TaskCreate</code> ולא ל-<code>TaskUpdate</code>, כי השדה אינו קלט), <code>database.py</code> (עמודה <code>done_at TEXT</code> בהגדרה, ו-<code>ALTER TABLE tasks ADD COLUMN done_at TEXT</code> ב-<bdi>Migration</bdi> כשהיא חסרה), <code>routers/tasks.py</code> (הלוגיקה), בדיקות, ו-<code>types.ts</code> (<code>done_at: string | null</code>).</p>
+      <p><strong>לב המימוש</strong> נמצא ב-<code>update_task</code>: לפני בניית ה-<code>UPDATE</code>, אם <code>fields</code> כולל <code>status</code>, משווים לסטטוס הנוכחי בבסיס הנתונים; מעבר אל <code>done</code> מוסיף <code>done_at = datetime('now')</code> לשדות המתעדכנים, מעבר החוצה מ-<code>done</code> מוסיף <code>done_at = NULL</code>, וכל מקרה אחר לא נוגע בעמודה. זה מחייב <code>SELECT</code> של המשימה לפני העדכון, וזה שינוי מבני קטן שראוי שיופיע במפורש ב-<bdi>Plan</bdi>. גם <code>_row_to_task</code> מתעדכן להעביר <code>done_at=row["done_at"]</code>; אם תשכחו, תפגשו בדיוק את כשל ה-<bdi>ValidationError</bdi> שראינו בשלב 11, והפעם תזהו אותו מיד.</p>
+      <p><strong>בדיקות מינימליות:</strong> ארבע: יצירה מחזירה <code>null</code>; <code>PATCH</code> ל-<code>done</code> ממלא ערך; <code>PATCH</code> חזרה ל-<code>todo</code> מאפס; עדכון כותרת בלבד על משימת <code>done</code> משאיר את הערך במקומו. בדיקת בונוס ששווה נקודות: שליחת <code>done_at</code> ב-<bdi>Payload</bdi> של <code>PATCH</code> פשוט מנוטרלת (ברירת המחדל של <bdi>Pydantic</bdi> מתעלמת משדות לא מוכרים), כלומר לא משנה את הערך.</p>
+      <p><strong>סיום:</strong> <code>/diff</code> מול רשימת הקבצים, <bdi>Lint</bdi>, <code>npm run typecheck</code>, <code>pytest -q</code>, <code>/code-review</code>, עדכון <code>CLAUDE.md</code> (שורת קונבנציה על סמנטיקת <code>done_at</code>), שני <bdi>Commits</bdi>, ו-<bdi>PR</bdi> עם הקריטריונים כרשימת סימון. אם כל זה לקח לכם פחות משעה, התהליך כבר יושב לכם ביד.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>עברנו תהליך שלם של שינוי מבוקר: הבנת דרישה עם גבולות מפורשים, מחקר של הדפוס הקיים, רשימת קבצים כחוזה, <bdi>Plan</bdi> בפרוסות, קריטריונים שהפכו לבדיקות, <bdi>Branch</bdi> מבודד, מימוש מדורג עם אימות אחרי כל פרוסה (<code>/diff</code>, <bdi>Lint</bdi>, <bdi>Type Check</bdi>, בדיקות), סקירה עצמית עם <code>/code-review</code>, תיעוד, <bdi>Commits</bdi> מפוצלים ו-<bdi>PR</bdi> קטן וקריא. ראינו גם שני כשלים אמיתיים בדרך, ואיך הלולאה הקצרה הופכת אותם לאירוע של דקות. התהליך הזה הוא השלד של כל שאר חלק ב: בפרק הבא נתמקד במה שקורה כשהקוד כבר שבור ולא ברור למה: <bdi>Debugging</bdi> שיטתי עם <bdi>Claude Code</bdi>.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/common-workflows">Common workflows (refactoring increments, PR creation, --from-pr)</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (verification, plan mode, small scopes, /code-review)</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands reference (/diff, /code-review, /security-review, /context)</a> |
+      <a href="https://code.claude.com/docs/en/checkpointing">Checkpointing (/rewind and its limits)</a>
+      | נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch08.html"><span class="lbl">הפרק הקודם</span>Claude Models ובחירת Model</a>
+    <a href="ch10.html"><span class="lbl">הפרק הבא</span>Debugging</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

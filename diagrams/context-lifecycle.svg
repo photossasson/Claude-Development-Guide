@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 660" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4552d"/>
+    </marker>
+  </defs>
+  <style>
+    .box { fill:#ffffff; stroke:#c9c2b8; stroke-width:1.5; }
+    .accent { fill:#f3e3da; stroke:#b4552d; }
+    .warnbox { fill:#fbeeda; stroke:#b8860b; }
+    .t { font-size:17px; fill:#1a1a1a; text-anchor:middle; direction:rtl; }
+    .s { font-size:13px; fill:#6b6b6b; text-anchor:middle; direction:rtl; }
+    .en { font-size:13px; fill:#6b6b6b; text-anchor:middle; }
+    .lbl { font-size:12.5px; fill:#8a6b45; text-anchor:middle; direction:rtl; }
+    .edge { stroke:#b4552d; stroke-width:2; fill:none; marker-end:url(#arr); }
+    .dashed { stroke-dasharray:6 5; }
+  </style>
+  <text x="440" y="32" class="t" font-size="21" font-weight="bold">מחזור החיים של ה-Context בתוך Session</text>
+
+  <!-- start -->
+  <rect x="290" y="52" width="300" height="68" rx="12" class="box accent"/>
+  <text x="440" y="79" class="t">פתיחת Session</text>
+  <text x="440" y="101" class="en">System Prompt + CLAUDE.md + MEMORY.md</text>
+
+  <!-- fill -->
+  <rect x="270" y="152" width="340" height="88" rx="12" class="box"/>
+  <text x="440" y="178" class="t">ה-Context מתמלא</text>
+  <text x="440" y="199" class="en">Files / Tool output / Conversation / MCP</text>
+  <text x="440" y="221" class="s">כל הודעה נשלחת עם כל ההיסטוריה</text>
+
+  <!-- warning -->
+  <rect x="290" y="272" width="300" height="64" rx="12" class="warnbox"/>
+  <text x="440" y="298" class="t">מתקרבים לגבול החלון</text>
+  <text x="440" y="320" class="s">אזהרה לפני Auto-Compact</text>
+
+  <!-- option A: compact -->
+  <rect x="40" y="392" width="250" height="104" rx="12" class="box accent"/>
+  <text x="165" y="418" class="t">סיכום השיחה</text>
+  <text x="165" y="439" class="en">Auto-Compact / /compact</text>
+  <text x="165" y="461" class="s">סיכום קצר מחליף את השיחה הישנה</text>
+  <text x="165" y="481" class="s">ההוראות הקבועות נטענות מחדש</text>
+
+  <!-- option B: clear -->
+  <rect x="320" y="392" width="240" height="104" rx="12" class="box"/>
+  <text x="440" y="418" class="t">התחלה נקייה</text>
+  <text x="440" y="439" class="en">/clear</text>
+  <text x="440" y="461" class="s">Context ריק, אותו פרויקט</text>
+  <text x="440" y="481" class="s">השיחה הקודמת נשמרת בדיסק</text>
+
+  <!-- option C: exit -->
+  <rect x="600" y="392" width="250" height="104" rx="12" class="box"/>
+  <text x="725" y="418" class="t">יציאה או החלפת משימה</text>
+  <text x="725" y="439" class="s">ה-Session נשמר אוטומטית</text>
+  <text x="725" y="461" class="en">~/.claude/projects/...</text>
+  <text x="725" y="481" class="s">אפשר לחזור אליו בכל רגע</text>
+
+  <!-- bottom row: resume / fork -->
+  <rect x="470" y="540" width="200" height="84" rx="12" class="box accent"/>
+  <text x="570" y="566" class="t">המשך שיחה</text>
+  <text x="570" y="587" class="en">claude -c / /resume</text>
+  <text x="570" y="608" class="s">אותו Session ID</text>
+
+  <rect x="690" y="540" width="180" height="84" rx="12" class="box"/>
+  <text x="780" y="566" class="t">פיצול</text>
+  <text x="780" y="587" class="en">/branch, --fork-session</text>
+  <text x="780" y="608" class="s">עותק עם Session ID חדש</text>
+
+  <!-- edges -->
+  <path class="edge" d="M 440 120 L 440 148"/>
+  <path class="edge" d="M 440 240 L 440 268"/>
+  <path class="edge" d="M 370 336 C 300 360 240 370 195 388"/>
+  <path class="edge" d="M 440 336 L 440 388"/>
+  <path class="edge" d="M 610 205 C 690 240 720 300 725 388" stroke-dasharray="6 5"/>
+  <text x="710" y="290" class="lbl">יציאה אפשרית בכל שלב</text>
+
+  <!-- loop: compact back to fill -->
+  <path class="edge dashed" d="M 100 392 C 70 300 140 210 266 192"/>
+  <text x="118" y="282" class="lbl">ממשיכים באותו Session</text>
+
+  <!-- loop: clear back to start -->
+  <path class="edge dashed" d="M 560 400 C 660 330 656 168 594 106"/>
+  <text x="672" y="180" class="lbl">שיחה חדשה</text>
+
+  <!-- exit to resume/fork -->
+  <path class="edge" d="M 685 496 C 650 512 610 522 585 536"/>
+  <path class="edge" d="M 765 496 L 778 536"/>
+</svg>

@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 33: Automation מקצועית</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ז | פרק 33</p>
+  <h1>Automation מקצועית</h1>
+  <p class="lead">בפרק 32 בנינו סוכן עם ה-SDK. בפרק הזה נשלים את התמונה מהצד השני: הפעלת <bdi>Claude Code</bdi> עצמו כרכיב אוטומציה, בלי אדם מול המסך. נצלול לעומק מצב <code>claude -p</code> על כל הדגלים שלו, נלמד לנתח <bdi>stream-json</bdi> עם <bdi>jq</bdi>, נבנה תבניות ל-CI, למשימות מתוזמנות ולעיבוד אצווה על הרבה <bdi>Repositories</bdi>, נכיר את סוכני הרקע (<code>--bg</code>), ונסיים בדוגמה עבודה מלאה: משימת לילה שממיינת <bdi>Issues</bdi> חדשים של <bdi>TaskFlow</bdi> לדוח מסודר. ובאמצע, החלק החשוב מכולם: גבולות הבטיחות של אוטומציה ללא השגחה.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-problem">מה זה מצב לא אינטראקטיבי ואיזו בעיה הוא פותר</h2>
+  <p>הדגל <code>-p</code> (או <code>--print</code>) הופך את <code>claude</code> מממשק שיחה לפקודת <bdi>Unix</bdi> רגילה: קלט נכנס (ארגומנט או <bdi>stdin</bdi>), הסוכן רץ את הלולאה המלאה שלו עם כלים, פלט יוצא ל-<bdi>stdout</bdi>, וקוד היציאה מדווח הצלחה או כישלון. זה מה שמאפשר לשלב את Claude Code בכל מקום שסקריפט יכול לרוץ בו: <bdi>CI</bdi>, <bdi>cron</bdi>, <bdi>Git Hooks</bdi>, סקריפטים של Build. התיעוד הרשמי מגדיר את זה כדרך להשתמש ב-<bdi>Agent SDK</bdi> "דרך ה-CLI", וזו גם הדרך הרשמית להפעיל את הלולאה מכל שפה שאינה <bdi>Python</bdi> או <bdi>TypeScript</bdi>.</p>
+  <p><strong>מתי להשתמש:</strong> משימות חד-כיווניות שאפשר לנסח מראש (סיכום, סיווג, בדיקה, דוח). <strong>מתי לא:</strong> כשנדרשת שיחה אמיתית עם החלטות תלויות-תשובה (לכו ל-SDK, פרק 31), או כשנדרש אישור אנושי בזמן אמת (אין מי שיאשר). ההבדל בין <code>claude -p</code> לבין ה-SDK אינו ביכולות (אותו מנוע), אלא בנוחות: הסקריפט נותן לכם טקסט או JSON וקוד יציאה; ה-SDK נותן אובייקטי הודעה מוקלדים, <bdi>Callbacks</bdi> להרשאות ושליטה עדינה יותר. לרוב האוטומציות של צוות פיתוח, <code>-p</code> מספיק ומהיר יותר לכתיבה.</p>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>Claude Code מותקן (פרק 2), היכרות עם כללי ההרשאות (פרק 4) ועם Hooks (פרק על Hooks), הכלים <bdi>jq</bdi> ו-<bdi>gh</bdi> מותקנים לדוגמאות, ומפתח <code>ANTHROPIC_API_KEY</code> לריצות במצב <code>--bare</code>.</p></div>
+
+  <h2 id="claude-p">צלילה לעומק: claude -p והדגלים שלו</h2>
+  <h3 id="basics">הבסיס וצינורות</h3>
+  <div class="terminal"><span class="p">$</span> claude -p "What does the auth module do?"
+<span class="p">$</span> cat build-error.txt | claude -p 'concisely explain the root cause of this build error' &gt; output.txt</div>
+  <p>מצב <code>-p</code> קורא <bdi>stdin</bdi>, כך שאפשר להזרים אליו נתונים כמו לכל כלי שורת פקודה. מגבלה מתועדת: קלט מוזרם מוגבל ל-10MB; מעבר לזה התהליך יוצא עם שגיאה ברורה וקוד יציאה שונה מאפס. לקבצים גדולים, כתבו לקובץ ותנו ל-Claude את הנתיב ב-<bdi>Prompt</bdi>. עוד דוגמה מהתיעוד שממחישה את הרעיון "Claude כפקודת Unix": סקריפט <bdi>npm</bdi> שמזרים <code>git diff main</code> ל-Claude כ-<bdi>Linter</bdi> של שגיאות כתיב, בלי לתת לו שום הרשאת <code>Bash</code>, כי ה-Diff כבר הגיע דרך הצינור.</p>
+  <h3 id="flags">הדגלים המרכזיים, אחד אחד</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>דגל</th><th>מה הוא עושה</th><th>הערות מהתיעוד</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>--output-format</code></td><td>פורמט הפלט: <code>text</code> (ברירת מחדל), <code>json</code> (תוצאה + מטא-נתונים: מזהה Session, שימוש, עלות), <code>stream-json</code> (שורת JSON לכל אירוע, בזמן אמת)</td><td>ב-<code>json</code> הטקסט נמצא בשדה <code>result</code>; העלות ב-<code>total_cost_usd</code> היא אומדן צד-לקוח</td></tr>
+        <tr><td class="ltr"><code>--json-schema</code></td><td>פלט מובנה: JSON שאומת מול הסכמה שסיפקתם, בשדה <code>structured_output</code></td><td>עובד עם <code>--output-format json</code>; סכמה לא תקינה מפילה את הריצה עם שגיאה מפורשת (מאז v2.1.205)</td></tr>
+        <tr><td class="ltr"><code>--include-partial-messages</code></td><td>מוסיף אירועי Streaming חלקיים (<bdi>Token</bdi> אחרי <bdi>Token</bdi>) לזרם</td><td>דורש <code>--print</code> וגם <code>--output-format stream-json</code> (ועל פי דוגמאות התיעוד גם <code>--verbose</code>)</td></tr>
+        <tr><td class="ltr"><code>--max-turns</code></td><td>תקרת סבבי כלים; חריגה מסתיימת בשגיאה</td><td>מצב print בלבד; אין מגבלה כברירת מחדל</td></tr>
+        <tr><td class="ltr"><code>--max-budget-usd</code></td><td>תקרת הוצאה משוערת לריצה</td><td>מצב print בלבד; הוצאות Subagents נספרות, ומ-v2.1.217 חציית התקרה גם עוצרת Subagents פעילים</td></tr>
+        <tr><td class="ltr"><code>--bare</code></td><td>מצב מינימלי: בלי טעינת Hooks, Skills, Plugins, שרתי MCP, זיכרון אוטומטי ו-CLAUDE.md</td><td>מומלץ רשמית לסקריפטים ול-CI; מהיר יותר וצפוי יותר (אותה תוצאה בכל מכונה). לא קורא אישורי OAuth, ולכן דורש <code>ANTHROPIC_API_KEY</code>. מתועד שיהפוך לברירת המחדל של <code>-p</code> בגרסה עתידית</td></tr>
+        <tr><td class="ltr"><code>--allowedTools</code> / <code>--disallowedTools</code></td><td>כללי Allow ו-Deny בתחביר כללי ההרשאות</td><td>הבסיס להרצה ללא השגחה; ראו סעיף הבטיחות</td></tr>
+        <tr><td class="ltr"><code>--permission-mode</code></td><td>מצב הרשאות בסיסי לריצה: <code>dontAsk</code> לריצות נעולות, <code>acceptEdits</code> לעריכות בלי שאלות, <code>plan</code> לתכנון בלבד</td><td>ב-<code>acceptEdits</code> פקודות Shell שאינן פעולות מערכת קבצים עדיין דורשות Allow, אחרת הריצה נעצרת כשמנסים אותן</td></tr>
+        <tr><td class="ltr"><code>--append-system-prompt</code></td><td>מוסיף הוראות ל-System Prompt בלי להחליף את ברירת המחדל</td><td>ב-<code>--bare</code> זו הדרך להזרים "פרסונה" (למשל: סוקר אבטחה) בלי CLAUDE.md</td></tr>
+        <tr><td class="ltr"><code>--continue</code> / <code>--resume</code></td><td>המשך השיחה האחרונה, או שיחה ספציפית לפי מזהה</td><td>את המזהה שולפים מפלט <code>json</code>: <code>jq -r '.session_id'</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>ב-<code>--bare</code> Claude מקבל את כלי ה-<code>Bash</code>, קריאת הקבצים ועריכת הקבצים; כל הקשר נוסף (הגדרות, שרתי MCP, Agents מותאמים, Plugin) מזריקים במפורש בדגלים: <code>--settings</code>, <code>--mcp-config</code>, <code>--agents</code>, <code>--plugin-dir</code>. זה בדיוק ההיפך מהמצב האינטראקטיבי, שבו הכול נטען אוטומטית מהתיקייה ומ-<code>~/.claude</code>, וזה מה שהופך את הריצה לניתנת לשחזור.</p>
+  <h3 id="exit">התנהגות יציאה וזמנים: מה שסקריפטים חייבים לדעת</h3>
+  <ul>
+    <li><strong>קודי יציאה:</strong> 0 בהצלחה, שונה מאפס בכישלון, כך שאפשר להתנות עליהם (<code>if claude -p ... ; then</code>). דגל לא תקין מדווח ל-<bdi>stderr</bdi> לפני הריצה; כשל בתוך הריצה (למשל בעיית אימות) מודפס כתוצאה ב-<bdi>stdout</bdi>.</li>
+    <li><strong>עצירה מבחוץ:</strong> <bdi>SIGTERM</bdi> (למשל <code>kill</code> או Supervisor) קוטע את התור, מסיים את עץ התהליכים של פקודות <code>Bash</code> רצות, מריץ <bdi>Hooks</bdi> מסוג <code>SessionEnd</code>, ויוצא עם קוד 143.</li>
+    <li><strong>משימות רקע בסיום:</strong> תהליך רקע ש-Claude פתח (כמו שרת פיתוח) מסתיים כחמש שניות אחרי התוצאה הסופית. <bdi>Subagents</bdi> ברקע מחריגים: הריצה ממתינה להם, עם תקרה של עשר דקות כברירת מחדל (משתנה <code>CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS</code>).</li>
+    <li><strong>Timeouts של API:</strong> אין "timeout כולל" מובנה לריצה; שולטים בהתנהגות מול ה-API עם משתני סביבה מתועדים כמו <code>API_TIMEOUT_MS</code> (ברירת מחדל 600000 מילישניות לבקשה) ו-<code>CLAUDE_CODE_MAX_RETRIES</code>. תקרת זמן כוללת לסקריפט אוכפים בכלי המערכת, למשל <code>timeout 20m claude -p ...</code>.</li>
+    <li><strong>ניסיונות חוזרים ב-API:</strong> בזרם <code>stream-json</code> מופיע אירוע <code>system/api_retry</code> לפני כל ניסיון חוזר, עם מספר הניסיון, ההשהיה וקטגוריית השגיאה (<code>rate_limit</code>, <code>overloaded</code>, <code>server_error</code> ועוד). שימושי להצגת התקדמות או ללוגיקת Backoff משלכם.</li>
+  </ul>
+  <h3 id="stream-jq">ניתוח stream-json עם jq</h3>
+  <p>ב-<code>stream-json</code> כל שורה היא אובייקט JSON: אירוע <code>system/init</code> עם מטא-נתונים, הודעות <code>assistant</code> ו-<code>user</code> (תוצאות כלים), אירועי <code>stream_event</code> חלקיים אם ביקשתם, ולבסוף שורת <code>result</code>. הדוגמה הרשמית להצגת הטקסט בלבד, <bdi>Token</bdi> אחרי <bdi>Token</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash</div>
+    <pre><code>claude -p "Write a poem" --output-format stream-json --verbose --include-partial-messages | \
+  jq -rj 'select(.type == "stream_event" and .event.delta.type? == "text_delta") | .event.delta.text'</code></pre>
+  </div>
+  <p>הדגל <code>-r</code> מדפיס מחרוזות גולמיות בלי מירכאות ו-<code>-j</code> מדביק בלי שורות חדשות, כך שהטקסט זורם ברצף. אם הצרכן קורא לאט, Claude Code ממתין לריקון התור לפני היציאה (עד 30 שניות), כך שסוף התשובה לא נחתך. הודעות של <bdi>Subagents</bdi> מופיעות בזרם עם <code>parent_tool_use_id</code> שמצביע על קריאת ה-Agent שיצרה אותן, ובברירת מחדל רק בלוקי הכלים שלהם נשלחים; הדגל <code>--forward-subagent-text</code> מוסיף גם את הטקסט שלהם לשחזור תמליל מלא. עוד שני שימושים מעשיים ב-<bdi>jq</bdi> על פלט <code>json</code> רגיל:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash</div>
+    <pre><code># שליפת הטקסט בלבד
+claude -p "Summarize this project" --output-format json | jq -r '.result'
+
+# שליפת עלות משוערת ומזהה Session לרישום
+claude -p "..." --output-format json | jq '{cost: .total_cost_usd, session: .session_id}'</code></pre>
+  </div>
+
+  <h2 id="ci">תבניות CI כלליות</h2>
+  <p>בפרק 28 ראינו את האינטגרציה הייעודית ל-<bdi>GitHub Actions</bdi>. התבנית הכללית, לכל מערכת CI (<bdi>GitLab CI</bdi>, <bdi>Jenkins</bdi>, <bdi>Buildkite</bdi> וכדומה), היא Job שמריץ <code>claude -p</code> עם ברירות מחדל בטוחות:</p>
+  <div class="codeblock">
+    <div class="codehead">ci-review.sh (תבנית Job גנרית ל-CI)</div>
+    <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+# סוקר Diff ב-CI: קריאה בלבד, מצב bare, תקציב ותקרות קשיחים.
+# דורש: ANTHROPIC_API_KEY כסוד של מערכת ה-CI (לעולם לא בקוד).
+
+git diff origin/main...HEAD | claude --bare -p \
+  "You are a code reviewer. List concrete problems in this diff: bugs, security issues, missing tests. If none, reply exactly: LGTM" \
+  --allowedTools "Read,Grep,Glob" \
+  --permission-mode dontAsk \
+  --max-turns 15 \
+  --max-budget-usd 0.50 \
+  --output-format json &gt; review.json
+
+jq -r '.result' review.json
+# שער איכות אופציונלי: הפלת ה-Job כשיש ממצאים
+if ! jq -er '.result | test("^LGTM$")' review.json &gt; /dev/null; then
+  echo "Review findings detected" &gt;&amp;2
+  exit 1
+fi</code></pre>
+  </div>
+  <p>הרכיבים שהופכים את זה לבטוח וצפוי: <code>--bare</code> מנתק את הריצה מהגדרות מקומיות של המכונה (Hook של מישהו ב-<code>~/.claude</code> לא ירוץ ב-CI שלכם); <code>--permission-mode dontAsk</code> דוחה בשקט כל מה שלא אושר במקום להיתקע על שאלה שאין מי שיענה עליה; רשימת <code>--allowedTools</code> היא קריאה בלבד; והצינור (<code>git diff | ...</code>) מזרים את ה-Diff פנימה כך ש-Claude לא צריך בכלל הרשאת <code>Bash</code> כדי לקרוא אותו. שימו לב גם לתקציב: ב-CI שרץ על כל Push, חצי דולר לריצה הם ההבדל בין ניסוי לחשבון מפתיע בסוף החודש.</p>
+  <p>שתי הערות על העברת הסקריפט למערכות CI שונות: ב-<bdi>GitLab CI</bdi> ה-Job מקבל את המפתח כ-<bdi>CI/CD Variable</bdi> מסומן Masked, וה-Runner צריך את <code>claude</code> ו-<code>jq</code> ב-Image (או שלב התקנה); ב-<bdi>Jenkins</bdi> משתמשים ב-<code>withCredentials</code> כדי לחשוף את המפתח רק לשלב הרלוונטי. בכל מערכת, זכרו ש-<code>git diff origin/main...HEAD</code> דורש שה-Checkout יכלול את ההיסטוריה של <code>main</code> (Fetch Depth מלא או לפחות ה-Branch הראשי), אחרת ה-Diff יהיה ריק והסוקר יענה "LGTM" על כלום.</p>
+  <div class="callout tip"><span class="title">Best Practice</span><p>בזרימת <code>stream-json</code> ב-CI אפשר גם לתפוס תקלות טעינה: אירוע ה-<code>system/init</code> כולל שדות <code>plugin_errors</code> ו-<code>mcp_server_errors</code> (כשהם לא ריקים), והתיעוד מציע להפיל את ה-Job כשהם קיימים, כדי ש-Plugin או שרת MCP שלא נטען לא יהפוך ל"עבר בשקט".</p></div>
+
+  <h2 id="scheduled">משימות מתוזמנות: cron + claude -p</h2>
+  <p>לתזמון קבוע משתמשים בכלי התזמון של מערכת ההפעלה. התבנית: סקריפט עטיפה שמגדיר סביבה, מריץ <code>claude -p</code> עם גבולות, ושומר פלט ולוג עם חותמת זמן. שורת <bdi>crontab</bdi> טיפוסית להרצה לילית ב-02:30:</p>
+  <div class="codeblock">
+    <div class="codehead">crontab -e</div>
+    <pre><code>30 2 * * * /home/dev/automation/nightly-triage.sh &gt;&gt; /home/dev/automation/triage.log 2&gt;&amp;1</code></pre>
+  </div>
+  <p>שלוש מלכודות של cron שכדאי להכיר: הסביבה של cron מינימלית (אין את ה-<code>PATH</code> וה-Aliases שלכם, אז נתיבים מלאים ומשתני סביבה מפורשים בתוך הסקריפט); אין טרמינל (בדיוק בשביל זה קיימים <code>-p</code> ו-<code>dontAsk</code>); ואין מי שיקרא שגיאות בזמן אמת (לכן הפניית הפלט ללוג היא חובה, לא קישוט). ב-<bdi>Windows</bdi> המקבילה היא <bdi>Task Scheduler</bdi> עם סקריפט <bdi>PowerShell</bdi>, ואותם עקרונות חלים. את הדוגמה המלאה של סקריפט הלילה תראו בסוף הפרק.</p>
+  <div class="callout note"><span class="title">ומה עם תזמון מתוך Claude עצמו?</span><p>קיימים גם כלים מובנים לתזמון (<code>CronCreate</code>, <code>CronList</code>, <code>CronDelete</code> ברשימת ה-Tools הרשמית) ומשימות מתוזמנות באפליקציות Claude. הם שייכים לעולם ה-Sessions האינטראקטיביים והמוצרים האחרים, ואינם תחליף ל-cron של מערכת ההפעלה כשמדובר בסקריפט <code>-p</code> על שרת. לאוטומציית שרת, cron (או המקבילה בקונטיינר) נשאר הכלי הנכון.</p></div>
+
+  <h2 id="batch">עיבוד אצווה על הרבה Repositories</h2>
+  <p>כשאותה משימה צריכה לרוץ על עשרות פרויקטים (סריקת חבילות פגיעות, איתור TODO ישנים, בדיקת עמידה בסטנדרט), התבנית היא לולאה עם תקציב כפול: תקציב לכל Repository ותקציב כולל לאצווה, בדיוק כמו שעשינו ב-SDK בפרק 32. מימוש ה-TypeScript המלא של התבנית הזאת נמצא בחבילת המדריך בקובץ <code>agent-sdk/typescript/02-automation.ts</code> (עבר בדיקת טיפוסים עם <code>tsc</code> מול גרסת ה-SDK הנוכחית); הנה אותה תבנית כ-Bash טהור:</p>
+  <div class="codeblock">
+    <div class="codehead">batch-scan.sh (קטע)</div>
+    <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+TOTAL_BUDGET=5.00
+SPENT=0
+
+for repo in ~/work/repos/*/ ; do
+  # עצירת האצווה כשהתקציב הכולל נגמר
+  if awk "BEGIN {exit !($SPENT &gt;= $TOTAL_BUDGET)}"; then
+    echo "batch budget reached (~\$$SPENT); stopping" &gt;&amp;2
+    break
+  fi
+  out=$(cd "$repo" &amp;&amp; claude --bare -p \
+    "Count TODO/FIXME comments and list files with none of their functions tested. Reply as a short report." \
+    --allowedTools "Read,Grep,Glob" \
+    --permission-mode dontAsk \
+    --max-turns 10 --max-budget-usd 0.25 \
+    --output-format json) || { echo "FAILED: $repo" &gt;&amp;2 ; continue ; }
+  cost=$(jq -r '.total_cost_usd // 0' &lt;&lt;&lt; "$out")
+  SPENT=$(awk "BEGIN {printf \"%.4f\", $SPENT + $cost}")
+  jq -r '.result' &lt;&lt;&lt; "$out" &gt; "reports/$(basename "$repo").md"
+done</code></pre>
+  </div>
+  <p>שימו לב ל-<code>|| { ...; continue; }</code>: כשל ב-Repository אחד לא מפיל את האצווה, אבל כן נרשם. ריצה סדרתית היא בכוונה: היא מפזרת עומס, מכבדת מגבלות קצב, ומשאירה את חשבון ה<bdi>Tokens</bdi> קריא. אם צריך מקבול, הריצו קבוצות קטנות והשוו עלויות קודם. ובאותו הקשר, אם אצווה של עשרות Repositories צריכה גם לכתוב (למשל תיקון אוטומטי של קובץ תצורה), הפכו כל שינוי ל-Branch ול-PR נפרד; אצווה שכותבת ישירות ל-main היא בדיוק סוג האוטומציה שהסעיף הבא אוסר.</p>
+
+  <h2 id="background">סוכני רקע: --bg, claude agents ו-daemon</h2>
+  <p>לצד <code>-p</code> הסינכרוני, ל-Claude Code יש מנגנון מתועד לסוכנים ברקע על המכונה שלכם:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פקודה</th><th>מה היא עושה</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>claude --bg "task"</code></td><td>מפעיל את המשימה כ-Session רקע וחוזר מיד, עם הדפסת מזהה ה-Session ופקודות הניהול. לא ניתן לשילוב עם <code>-p</code>. עם <code>--exec</code> מריץ פקודת Shell כ-Job רקע, ועם <code>--agent</code> מריץ Subagent מוגדר</td></tr>
+        <tr><td class="ltr"><code>claude agents</code></td><td>פותח את תצוגת הסוכנים (Agent View) למעקב ושליחת משימות; <code>--json</code> מדפיס את ה-Sessions הפעילים כמערך JSON לסקריפטים, ו-<code>--json --all</code> כולל גם Sessions שהסתיימו</td></tr>
+        <tr><td class="ltr"><code>claude daemon status</code></td><td>מדפיס את מצב תהליך ה-Supervisor שמארח את סוכני הרקע (גרסה, Socket, מספר Workers); קוד יציאה 1 אם אינו רץ</td></tr>
+        <tr><td class="ltr"><code>claude daemon stop --any</code></td><td>עוצר את ה-Supervisor ואת ה-Sessions שהוא מארח; עם <code>--keep-workers</code> משאיר את סוכני הרקע רצים לחיבור מחדש</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>ההבחנה החשובה: <code>--bg</code> נועד למשימות שאתם משגרים מהטרמינל וממשיכים לעבוד לידן (והן עדיין תחת מערכת ההרשאות הרגילה), בעוד <code>-p</code> נועד לאוטומציה סקריפטואלית. אל תערבבו: תזמון לילי בונים על <code>-p</code>, לא על <code>--bg</code>.</p>
+  <div class="callout note"><span class="title">Channels <span class="badge preview">Research Preview</span></span><p>מנגנון משלים בשם <bdi>Channels</bdi> מאפשר לדחוף אירועים חיצוניים (הודעות <bdi>Telegram</bdi>, <bdi>Discord</bdi> או <bdi>iMessage</bdi>, התראות, Webhooks) לתוך Session רץ של Claude Code, כך שהסוכן מגיב לדברים שקורים כשאתם לא ליד הטרמינל, ואף עונה חזרה באותו ערוץ. היכולת נמצאת ב-<bdi>Research Preview</bdi>: היא דורשת אימות Anthropic (claude.ai או מפתח Console), אינה זמינה על Bedrock / Vertex / Foundry, ארגוני Team ו-Enterprise צריכים להפעיל אותה במפורש, ותחביר הדגל <code>--channels</code> עשוי להשתנות. פרטים בתיעוד הרשמי.</p></div>
+
+  <h2 id="safety">גבולות בטיחות לאוטומציה</h2>
+  <div class="callout danger"><span class="title">מה לעולם לא מריצים ללא השגחה</span>
+    <p>סוכן אוטומטי טועה לפעמים, ובלי אדם בלולאה הטעות מבוצעת עד הסוף. לכן, ללא קשר לכמה ה-<bdi>Prompt</bdi> "בטוח", אל תתנו לריצה לא מושגחת יכולת לבצע: <strong>Deploy ל-Production</strong>, <strong>מיגרציות Database</strong>, <strong>git push --force</strong> (או בכלל push ישיר ל-main), מחיקות רחבות, שינויי הרשאות והוצאת סודות. הכלל המנחה: פעולה שאי אפשר לבטל בקלות דורשת אדם. והדגל <code>--dangerously-skip-permissions</code> שמור אך ורק לסביבות מבודדות (קונטיינר ללא רשת וללא סודות), כפי שהוזהר בפרקים 4 ו-24.</p>
+  </div>
+  <p><strong>שערי אישור אנושיים</strong> הם הדרך לקבל גם אוטומציה וגם שליטה:</p>
+  <ul>
+    <li><strong>הפרדת תכנון מביצוע:</strong> ריצה אוטומטית עם <code>--permission-mode plan</code> מפיקה תוכנית בלי לגעת בקבצים; אדם קורא את הפלט ומריץ את הביצוע בנפרד. זו גרסת ה-CLI לשער האישור שבנינו בפרק 32.</li>
+    <li><strong>זרימה מבוססת PR:</strong> האוטומציה רשאית לערוך רק ב-Branch ולפתוח <bdi>Pull Request</bdi>; ה-Merge נשאר אנושי, עם כל הגנות ה-Branch הרגילות. כך גם טעות של סוכן היא רק PR שנדחה.</li>
+    <li><strong>Hooks כשערים:</strong> Hook מסוג <code>PreToolUse</code> רץ לפני כל קריאת כלי, בכל מצב הרשאות כולל <code>bypassPermissions</code>, ולכן הוא השער האמין ביותר לחסימת פקודות אסורות (ראו ה-Hook החוסם שבנינו בפרק על Hooks). שימו לב: ב-<code>--bare</code> Hooks לא נטענים אוטומטית, אז מזריקים אותם דרך <code>--settings</code> אם הם חלק מהמעקות.</li>
+  </ul>
+  <p><strong>הרשאה מינימלית בדגלים:</strong> תמיד <code>--allowedTools</code> עם רשימה מפורשת וצרה (עדיף כללים עם תבנית, כמו <code>"Bash(git diff *)"</code>, מאשר <code>"Bash"</code> גורף), <code>--disallowedTools</code> לכל מה שאסור שיהיה קיים בכלל, ו-<code>--permission-mode dontAsk</code> כדי שכל השאר יידחה בשקט. בסביבות רגישות מוסיפים בידוד ברמת מערכת ההפעלה: קונטיינר ייעודי, משתמש מוגבל, ו-<bdi>Sandboxing</bdi> של Claude Code (פרק 24) לצמצום גישת קבצים ורשת. וכלל אחרון, מהניסיון: אוטומציה שכותבת צריכה Repository נקי בתחילת הריצה ו-<code>git diff</code> נשמר בסופה; כך תמיד אפשר לענות "מה בדיוק הסוכן שינה", וזו השאלה הראשונה שנשאלת כשמשהו משתבש.</p>
+
+  <h2 id="worked-example">דוגמה עבודה מלאה: טריאז' לילי ל-Issues של TaskFlow</h2>
+  <p>נחבר הכול: משימת לילה שאוספת את ה-<bdi>Issues</bdi> הפתוחים החדשים של פרויקט TaskFlow מ-<bdi>GitHub</bdi>, נותנת ל-Claude לסווג כל אחד (סוג, דחיפות, קבצים רלוונטיים בקוד) בעזרת חקירת ה-Repository בקריאה בלבד, ומפיקה דוח Markdown שממתין לצוות בבוקר. הסקריפט המלא:</p>
+  <div class="codeblock">
+    <div class="codehead">automation/nightly-triage.sh</div>
+    <pre><code>#!/usr/bin/env bash
+# Nightly triage of new TaskFlow issues into a Markdown report.
+# Requirements: claude, gh (authenticated), jq. ANTHROPIC_API_KEY must be set
+# (cron runs with a minimal environment, so we load it explicitly).
+set -euo pipefail
+
+REPO_DIR="$HOME/projects/taskflow"
+OUT_DIR="$HOME/automation/reports"
+STAMP="$(date +%Y-%m-%d)"
+REPORT="$OUT_DIR/triage-$STAMP.md"
+export PATH="/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin"
+# shellcheck source=/dev/null
+source "$HOME/automation/secrets.env"   # מכיל: export ANTHROPIC_API_KEY=...
+
+mkdir -p "$OUT_DIR"
+cd "$REPO_DIR"
+
+# 1. איסוף Issues פתוחים מהיממה האחרונה (gh מחזיר JSON מובנה)
+since="$(date -u -d 'yesterday' +%Y-%m-%dT%H:%M:%SZ)"
+gh issue list --state open --search "created:&gt;$since" \
+  --json number,title,body,labels &gt; /tmp/new-issues.json
+
+count="$(jq 'length' /tmp/new-issues.json)"
+if [ "$count" -eq 0 ]; then
+  echo "# TaskFlow triage $STAMP" &gt; "$REPORT"
+  echo "No new issues in the last 24 hours." &gt;&gt; "$REPORT"
+  exit 0
+fi
+
+# 2. סכמת הפלט: סיווג לכל Issue
+schema='{
+  "type": "object",
+  "properties": {
+    "triage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "issue_number": {"type": "number"},
+          "category": {"type": "string", "enum": ["bug", "feature", "question", "docs"]},
+          "priority": {"type": "string", "enum": ["high", "medium", "low"]},
+          "relevant_files": {"type": "array", "items": {"type": "string"}},
+          "suggested_next_step": {"type": "string"}
+        },
+        "required": ["issue_number", "category", "priority", "suggested_next_step"]
+      }
+    }
+  },
+  "required": ["triage"]
+}'
+
+# 3. הרצת הטריאז': קריאה בלבד, bare, תקציב ותקרות קשיחים
+cat /tmp/new-issues.json | timeout 20m claude --bare -p \
+  "These are new GitHub issues for this repository (JSON on stdin). For each issue: categorize it, set priority, locate the most relevant source files by exploring the repository, and suggest a concrete next step." \
+  --allowedTools "Read,Grep,Glob" \
+  --permission-mode dontAsk \
+  --max-turns 30 \
+  --max-budget-usd 1.00 \
+  --output-format json \
+  --json-schema "$schema" &gt; /tmp/triage-result.json
+
+# 4. כשל =&gt; דוח שגיאה במקום דוח ריק שקט
+if ! jq -e '.structured_output.triage' /tmp/triage-result.json &gt; /dev/null; then
+  {
+    echo "# TaskFlow triage $STAMP: FAILED"
+    echo '```'
+    jq -r '.result // "no result field"' /tmp/triage-result.json
+    echo '```'
+  } &gt; "$REPORT"
+  exit 1
+fi
+
+# 5. בניית דוח Markdown מהפלט המובנה
+{
+  echo "# TaskFlow triage $STAMP ($count new issues)"
+  echo
+  jq -r '.structured_output.triage[] |
+    "## Issue #\(.issue_number): \(.category) / \(.priority)\n" +
+    "- Next step: \(.suggested_next_step)\n" +
+    "- Files: \((.relevant_files // []) | join(", "))\n"' /tmp/triage-result.json
+  cost="$(jq -r '.total_cost_usd // 0' /tmp/triage-result.json)"
+  echo "---"
+  echo "Estimated cost: \$$cost (client-side estimate)"
+} &gt; "$REPORT"
+
+echo "Report written to $REPORT"</code></pre>
+  </div>
+  <p>נעבור על ההחלטות: ה-Issues נאספים עם <code>gh</code> ומוזרמים ב-stdin, כך שלסוכן אין שום הרשאת רשת או <code>gh</code> משלו; הכלים המאושרים הם קריאה בלבד, בדיוק מה שנדרש כדי לאתר קבצים רלוונטיים; <code>--json-schema</code> מבטיח שהדוח נבנה מנתונים מובנים ולא מניתוח טקסט שביר; <code>timeout 20m</code> נותן תקרת זמן כוללת; וכשל מפיק דוח שגיאה גלוי במקום כלום. חיברו את הסקריפט לשורת ה-crontab מהסעיף הקודם, וזהו: טריאז' אוטומטי, מוגבל תקציב, ללא יכולת כתיבה.</p>
+  <p><strong>תוצאה צפויה:</strong> קובץ <code>triage-2026-07-29.md</code> (לפי התאריך) עם כותרת לכל Issue, קטגוריה ודחיפות, צעד מומלץ ורשימת קבצים, ובסופו שורת עלות. <strong>אימות:</strong> הריצו את הסקריפט ידנית פעם אחת לפני שמחברים אותו ל-cron (<code>bash -x nightly-triage.sh</code> מציג כל פקודה), פתחו את הדוח שנוצר, ובדקו שהקבצים שהסוכן ציין אכן קיימים ב-Repository. אם הדוח מסומן FAILED, הטקסט הגולמי של Claude בתוכו יסביר למה, לרוב סכמה שלא סופקה או תקציב שנגמר על יותר מדי Issues.</p>
+  <div class="callout note"><span class="title">מה אומת</span><p>תחביר הסקריפט אומת עם <code>bash -n</code> ומבנה שאילתות ה-<bdi>jq</bdi> נבדק על נתוני דמה בסביבת העבודה של המדריך. הרצה מלאה מקצה לקצה דורשת מפתח API ו-<code>gh</code> מאומת, שאינם זמינים בסביבת הכתיבה; ההתנהגות מתוארת לפי התיעוד הרשמי של הדגלים.</p></div>
+
+  <h2 id="troubleshooting">שגיאות נפוצות ו-Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>סימפטום</th><th>סיבה שכיחה</th><th>פתרון</th></tr></thead>
+      <tbody>
+        <tr><td>הריצה ב-cron נכשלת אבל ידנית עובדת</td><td>סביבת cron מינימלית: אין PATH מלא או משתני סביבה</td><td>הגדירו <code>PATH</code> ו-<code>ANTHROPIC_API_KEY</code> בתוך הסקריפט; השתמשו בנתיבים מוחלטים</td></tr>
+        <tr><td>הריצה "נתקעת" בלי פלט</td><td>בקשת כלי לא מאושרת ממתינה לאישור שאין מי שייתן</td><td><code>--permission-mode dontAsk</code> עם <code>--allowedTools</code> מפורש; עטפו ב-<code>timeout</code></td></tr>
+        <tr><td class="ltr">--json-schema is not a valid JSON Schema</td><td>שגיאת תחביר או מבנה בסכמה</td><td>בדקו את הסכמה עם <code>jq . &lt;&lt;&lt; "$schema"</code>; זכרו ש-<code>format</code> מתקבל רק כהערה</td></tr>
+        <tr><td>הפלט המובנה חסר למרות הצלחה</td><td>הריצה הסתיימה בלי שהסוכן ייצר פלט מובנה</td><td>בדקו את <code>.structured_output</code> במפורש (כמו בסקריפט) ואל תסתפקו בקוד יציאה 0</td></tr>
+        <tr><td>Hook או MCP לא רצים ב-CI</td><td><code>--bare</code> לא טוען אותם, בכוונה</td><td>הזריקו במפורש: <code>--settings</code>, <code>--mcp-config</code>; ובדקו את <code>plugin_errors</code> / <code>mcp_server_errors</code> ב-<code>system/init</code></td></tr>
+        <tr><td>קלט מוזרם נדחה</td><td>חריגה מתקרת 10MB של stdin</td><td>כתבו את הנתונים לקובץ והפנו אליו ב-<bdi>Prompt</bdi></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="cost-context">שיקולי Cost ו-Context</h2>
+  <ul>
+    <li>אוטומציה מכפילה עלויות בשקט: ריצה של 0.30 דולר פעם בשעה היא בערך 216 דולר בחודש. תמיד <code>--max-budget-usd</code> לריצה, ורישום <code>total_cost_usd</code> מכל ריצה ללוג מרכזי (זכרו: אומדן, לא חיוב; לנתוני אמת ראו פרק 30).</li>
+    <li><code>--bare</code> חוסך גם Context: בלי CLAUDE.md, Skills ו-MCP שאינם רלוונטיים למשימה, ה-<bdi>Prompt</bdi> קטן והתוצאה יציבה יותר בין מכונות.</li>
+    <li>משימות ליליות הן מקום טבעי למודל קטן יותר: הוסיפו <code>--model haiku</code> (או כינוי מודל אחר זמין) למשימות סיווג פשוטות, ושמרו את המודל הגדול למשימות הסקה כבדות.</li>
+    <li>הזרמת הנתונים ב-stdin במקום לתת לסוכן "ללכת להביא" אותם חוסכת גם Turns וגם הרשאות: פחות קריאות כלים, פחות <bdi>Tokens</bdi>, ומשטח תקיפה קטן יותר.</li>
+  </ul>
+
+  <h2 id="prod-checklist">רשימת בדיקה: לפני שהאוטומציה רצה לבד</h2>
+  <ul class="check">
+    <li>כל הרצה לא-אינטראקטיבית מוגבלת בשלושה צירים: <code>--max-turns</code>, <code>--max-budget-usd</code> ו-<bdi>Timeout</bdi> של ה-<bdi>Job</bdi> או ה-<bdi>cron</bdi>.</li>
+    <li>סט הכלים מצומצם במפורש (<code>--allowedTools</code> או <code>--permission-mode dontAsk</code> עם חוקי <code>allow</code>), ואין <code>--dangerously-skip-permissions</code> מחוץ למכולה מבודדת.</li>
+    <li>האישורים הם מפתח או <bdi>Token</bdi> ייעודי לאוטומציה, שאפשר לבטל בלי לפגוע במפתחים, ונשמרים ב-<bdi>Secrets</bdi> של פלטפורמת ה-<bdi>CI</bdi>.</li>
+    <li>הפלט נאסף כ-<bdi>JSON</bdi> (<code>--output-format json</code>) ונבדק תוכניתית, כולל קוד היציאה; כישלון שקט אינו אפשרות.</li>
+    <li>כל תוצר שהסוכן מייצר (<bdi>PR</bdi>, תגובה, דוח) עובר דרך אדם לפני שהוא משפיע על אחרים.</li>
+    <li>יש נתיב עצירה ידני מתועד: <code>claude stop</code> לסוכני רקע, ביטול ה-<bdi>Workflow</bdi>, או הסרת ה-<bdi>cron</bdi>.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 33.1: שער איכות שבועי ל-Dependencies</div>
+    <div class="body"><p>כתבו סקריפט <code>weekly-deps.sh</code> שרץ כל יום ראשון ב-06:00 ועושה: (1) קורא את <code>backend/requirements.txt</code> של TaskFlow; (2) מריץ <code>claude --bare -p</code> שמסווג כל תלות לפי סיכון עדכון (<code>outdated_major</code> / <code>outdated_minor</code> / <code>current</code> / <code>unknown</code>) על סמך מה שידוע לו, עם פלט מובנה; (3) כותב דוח Markdown; (4) יוצא עם קוד 1 אם יש תלות בסיווג <code>outdated_major</code>, כדי שמערכת ניטור תתריע. דרישות בטיחות: קריאה בלבד, <code>dontAsk</code>, תקציב 0.20 דולר, ו-timeout כולל של 10 דקות. כתבו גם את שורת ה-crontab.</p></div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <div class="codeblock">
+        <div class="codehead">automation/weekly-deps.sh</div>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+REPO_DIR="$HOME/projects/taskflow"
+REPORT="$HOME/automation/reports/deps-$(date +%Y-%m-%d).md"
+export PATH="/usr/local/bin:/usr/bin:/bin"
+source "$HOME/automation/secrets.env"
+cd "$REPO_DIR"
+
+schema='{
+  "type": "object",
+  "properties": {
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "status": {"type": "string",
+            "enum": ["outdated_major", "outdated_minor", "current", "unknown"]},
+          "note": {"type": "string"}
+        },
+        "required": ["name", "status"]
+      }
+    }
+  },
+  "required": ["dependencies"]
+}'
+
+cat backend/requirements.txt | timeout 10m claude --bare -p \
+  "Classify each Python dependency on stdin by update risk based on your knowledge. If you are not sure, use unknown." \
+  --allowedTools "Read" \
+  --permission-mode dontAsk \
+  --max-turns 5 \
+  --max-budget-usd 0.20 \
+  --output-format json \
+  --json-schema "$schema" &gt; /tmp/deps.json
+
+jq -e '.structured_output.dependencies' /tmp/deps.json &gt; /dev/null
+
+{
+  echo "# Dependency risk report $(date +%Y-%m-%d)"
+  jq -r '.structured_output.dependencies[] |
+    "- **\(.name)**: \(.status) \(.note // "")"' /tmp/deps.json
+} &gt; "$REPORT"
+
+# קוד יציאה 1 אם קיימת תלות עם פער גרסה ראשי
+if jq -e '.structured_output.dependencies[] |
+    select(.status == "outdated_major")' /tmp/deps.json &gt; /dev/null; then
+  echo "Major-version gaps found; see $REPORT" &gt;&amp;2
+  exit 1
+fi</code></pre>
+      </div>
+      <div class="codeblock">
+        <div class="codehead">crontab -e</div>
+        <pre><code>0 6 * * 0 /home/dev/automation/weekly-deps.sh &gt;&gt; /home/dev/automation/deps.log 2&gt;&amp;1</code></pre>
+      </div>
+      <p>נקודות המפתח: הקובץ מוזרם ב-stdin כך שגם הרשאת <code>Read</code> כמעט מיותרת (נשארה למקרה שהסוכן ירצה להציץ ב-<code>pyproject.toml</code> וכדומה); הסכמה כוללת <code>unknown</code> כי למודל אין גישה לרשת כאן, וסיווג "לא בטוח" עדיף על ניחוש בטוח; ו-<code>jq -e</code> עם <code>select</code> הוא שער האיכות שהופך דוח לסטטוס יציאה שמערכת ניטור מבינה. שורת ה-cron משתמשת ב-<code>0</code> (יום ראשון) בשדה היום-בשבוע. גם כאן: תחביר הסקריפט ניתן לאימות עם <code>bash -n</code>; ההרצה המלאה דורשת מפתח API.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul class="check">
+    <li><code>claude -p</code> הופך את Claude Code לפקודת Unix: stdin נכנס, stdout יוצא, קוד יציאה מדווח, וכל דגלי השליטה (<code>--output-format</code>, <code>--json-schema</code>, <code>--max-turns</code>, <code>--max-budget-usd</code>) זמינים.</li>
+    <li><code>--bare</code> הוא ברירת המחדל הנכונה לסקריפטים ול-CI: מהיר, צפוי, ומנותק מהגדרות מקומיות.</li>
+    <li>הרביעייה הבטוחה לריצה ללא השגחה: <code>--bare</code> + <code>--allowedTools</code> צר + <code>--permission-mode dontAsk</code> + תקציב, ועל זה שערי אישור אנושיים (Plan, PR, Hooks) לכל פעולה בלתי הפיכה.</li>
+    <li><code>stream-json</code> עם <bdi>jq</bdi> נותן שליטה מלאה בזרם האירועים, כולל תפיסת שגיאות טעינה של Plugins ו-MCP ב-CI.</li>
+    <li>אצוות בונים כלולאה עם תקציב כפול והמשך-על-כשל; רקע אינטראקטיבי מנהלים עם <code>--bg</code>, <code>claude agents</code> ופקודות ה-daemon; ו-<bdi>Channels</bdi> (Research Preview) דוחף אירועים לתוך Session חי.</li>
+    <li>מה שלא בוטל בקליק אחד לא רץ בלי אדם: Deploys, מיגרציות ו-force-push נשארים מחוץ לאוטומציה.</li>
+  </ul>
+  <p>בפרק הבא נעזוב את התשתיות ונחזור לפיתוח עצמו: פרויקט מסכם שבו נבנה Feature מורכב מקצה לקצה עם כל הכלים שנאספו לאורך המדריך.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/headless">Run Claude Code programmatically (headless)</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">CLI reference</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/structured-outputs">Structured outputs</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/cost-tracking">Track cost and usage</a> |
+      <a href="https://code.claude.com/docs/en/permission-modes">Permission modes</a> |
+      <a href="https://code.claude.com/docs/en/tools-reference">Tools reference</a> |
+      <a href="https://code.claude.com/docs/en/channels">Channels (Research Preview)</a> |
+      <a href="https://code.claude.com/docs/en/agent-view">Agent view (background sessions)</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch32.html"><span class="lbl">הפרק הקודם</span>בניית Agent מותאם</a>
+    <a href="ch34.html"><span class="lbl">הפרק הבא</span>פיתוח Feature מורכב מקצה לקצה</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

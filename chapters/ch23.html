@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 23: MCP מעשי מקצה לקצה</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ה | פרק 23</p>
+  <h1>MCP מעשי מקצה לקצה</h1>
+  <p class="lead"><bdi>MCP</bdi> (Model Context Protocol) הוא הפרוטוקול הפתוח שמחבר את <bdi>Claude Code</bdi> לעולם שמחוץ לתיקיית הפרויקט: מסדי נתונים, מערכות ניהול משימות, ניטור Production, תיעוד ועוד מאות שירותים. בפרק הזה נבין את הפרוטוקול מהיסוד, נעבור על כל פעולות התפעול היומיומיות עם תחביר מדויק, נבנה חמש קונפיגורציות אמיתיות (כולן בחבילת המדריך בתיקייה <code>mcp/</code>), נכתוב שרת MCP מינימלי משלנו, ונשווה את MCP לכל מנגנוני ההרחבה האחרים שפגשנו בחלק הזה.</p>
+
+  <div class="callout tip"><span class="title">לומדה אינטראקטיבית</span><p>לפרק יש לומדה משלימה: <a href="../interactive/mcp-lomda.html">MCP ב-Claude Code</a>, עם שרת Python שנבדק מקצה לקצה ב-Claude Code 2.1.301 ו-mcp 2.3.0, בונה פקודות <code>claude mcp add</code>, בודק כללי הרשאה ובודק שמות כלים (16.10.2026).</p></div>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="foundations">23.1 יסודות: מהו MCP ואיך הוא בנוי</h2>
+
+  <h3 id="what-is-mcp">הפרוטוקול, השרת והלקוח</h3>
+  <p><bdi>MCP</bdi> הוא תקן פתוח לחיבור בין אפליקציות AI לכלים ומקורות מידע. במקום שכל כלי AI ימציא אינטגרציה משלו לכל שירות, MCP מגדיר שפה משותפת: <strong>שרת MCP</strong> (Server) עוטף שירות כלשהו, למשל GitHub או מסד נתונים, וחושף אותו בממשק אחיד; <strong>לקוח MCP</strong> (Client) הוא האפליקציה שמתחברת לשרתים כאלה. <bdi>Claude Code</bdi> הוא לקוח MCP, וכפי שנראה בסוף הפרק, הוא יודע לשמש גם שרת. כך נוצרת אקוסיסטמה: כל שרת שנכתב פעם אחת עובד עם כל לקוח תואם, ולהפך.</p>
+  <p>הבעיה שהפרוטוקול פותר מוכרת לכל מי שמצא את עצמו מעתיק ידנית הודעת שגיאה מ-Sentry לצ'אט, או מדביק תיאור משימה מ-Jira: המידע קיים במערכת אחרת, ו-Claude לא רואה אותו. עם שרת MCP מחובר, Claude ניגש למערכת בעצמו, שולף את מה שצריך, ובמקרים שתאשרו גם מבצע פעולות.</p>
+
+  <h3 id="primitives">שלושת ה-Primitives: Tools, Resources, Prompts</h3>
+  <p>שרת MCP יכול לחשוף שלושה סוגי יכולות, וכל אחד מהם מופיע ב-<bdi>Claude Code</bdi> בצורה אחרת:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Primitive</th><th>מה זה</th><th>איך זה מופיע ב-Claude Code</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>Tools</bdi></td><td>פעולות ש-Claude יכול להפעיל (שאילתה, יצירת Issue, חיפוש)</td><td class="ltr"><code>mcp__&lt;server&gt;__&lt;tool&gt;</code></td></tr>
+        <tr><td><bdi>Resources</bdi></td><td>פריטי תוכן שהשרת חושף (מסמך, סכימה, Issue)</td><td class="ltr"><code>@server:protocol://path</code></td></tr>
+        <tr><td><bdi>Prompts</bdi></td><td>תבניות Prompt מוכנות שהשרת מספק</td><td class="ltr"><code>/mcp__server__prompt</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>כלומר: כלים נקראים על ידי Claude בתוך הלולאה האגנטית (בכפוף להרשאות), Resources מוזכרים על ידכם עם <code>@</code> בתוך ה-Prompt ונשלפים כקבצים מצורפים, ו-Prompts הופכים לפקודות בתפריט ה-<code>/</code>, כולל ארגומנטים: <code>/mcp__github__pr_review 456</code>. שמות שרתים ו-Prompts מנורמלים, ורווחים הופכים לקו תחתון.</p>
+
+  <h3 id="transports">Transports: איך עוברות ההודעות</h3>
+  <ul>
+    <li><strong><bdi>stdio</bdi></strong> <span class="badge stable">Stable</span>: Claude Code מריץ את השרת כתהליך מקומי ומדבר איתו דרך קלט/פלט סטנדרטיים. ברירת המחדל לשרתים מקומיים, ומתאים לכל מה שצריך גישה למכונה שלכם (מסד נתונים מקומי, קבצים, דפדפן).</li>
+    <li><strong><bdi>http</bdi></strong> <span class="badge stable">Stable</span>: שרת מרוחק בכתובת URL. ה-Transport המומלץ לשירותי ענן, והיחיד שתומך ב-OAuth. בקבצי JSON אפשר לכתוב גם <code>"streamable-http"</code> (שם ה-Transport ב-Spec) והוא יתקבל כ-Alias.</li>
+    <li><strong><bdi>sse</bdi></strong> <span class="badge dep">Deprecated</span>: Server-Sent Events. מיושן רשמית; השתמשו בו רק כשהספק עדיין לא מציע נקודת קצה HTTP.</li>
+    <li><strong><bdi>ws</bdi></strong> (WebSocket): חיבור דו-כיווני מתמשך לשרתים שדוחפים אירועים. מוגדר רק דרך <code>.mcp.json</code> או <code>claude mcp add-json</code> (אין <code>--transport ws</code>), ואימות בו הוא בכותרות בלבד, ללא OAuth.</li>
+  </ul>
+  <div class="callout note"><span class="title">שגיאת תצורה נפוצה</span><p>רשומת JSON עם <code>url</code> אבל בלי <code>type</code> נקראת כשרת stdio ונפסלת עם הודעת שגיאה מפורשת. תמיד ציינו <code>"type"</code> ברשומות של שרתים מרוחקים.</p></div>
+
+  <h3 id="scopes">שלושת ה-Scopes וסדר העדיפויות</h3>
+  <p>כל שרת מוגדר באחד משלושה Scopes, שקובעים איפה ההגדרה נשמרת ומי רואה אותה:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Scope</th><th>נטען ב</th><th>משותף לצוות</th><th>נשמר ב</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>local</code> (ברירת מחדל)</td><td>הפרויקט הנוכחי בלבד</td><td>לא</td><td class="ltr"><code>~/.claude.json</code></td></tr>
+        <tr><td class="ltr"><code>project</code></td><td>הפרויקט הנוכחי בלבד</td><td>כן, דרך Git</td><td class="ltr"><code>.mcp.json</code></td></tr>
+        <tr><td class="ltr"><code>user</code></td><td>כל הפרויקטים שלכם</td><td>לא</td><td class="ltr"><code>~/.claude.json</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>כשאותו שם שרת מוגדר בכמה מקומות, Claude Code מתחבר פעם אחת לפי סדר עדיפויות: local, אחר כך project, אחר כך user, אחריהם שרתים מ-Plugins, ולבסוף Connectors מ-claude.ai. הרשומה המנצחת נלקחת בשלמותה; אין מיזוג שדות. שימו לב להבחנה: "local scope" של MCP נשמר ב-<code>~/.claude.json</code> בתיקיית הבית, בעוד שהגדרות local כלליות יושבות ב-<code>.claude/settings.local.json</code> בפרויקט (פרק 17).</p>
+  <p><strong>קובץ <code>.mcp.json</code> ואישור פרויקט:</strong> הקובץ יושב בשורש הפרויקט, נכנס ל-Git, ומקנה לכל הצוות אותם שרתים. מטעמי אבטחה, בפעם הראשונה ש-Claude Code פוגש שרת ברמת פרויקט הוא מבקש את אישורכם, כדי ש-Repository שקיבלתם מבחוץ לא יוכל להריץ תהליכים על המכונה בלי הסכמה. איפוס הבחירות: <code>claude mcp reset-project-choices</code>. אפשר לנהל את האישורים גם בהגדרות: <code>enableAllProjectMcpServers</code>, <code>enabledMcpjsonServers</code> ו-<code>disabledMcpjsonServers</code>; מאז גרסה 2.1.196, אישורים שמגיעים מקבצי הגדרות שנמצאים בתוך ה-Repository נכנסים לתוקף רק אחרי שאישרתם את Trust התיקייה, כך ש-Repo משובט לא יכול לאשר את השרתים של עצמו.</p>
+
+  <h3 id="auth-model">אימות: משתני סביבה, כותרות ו-OAuth</h3>
+  <p>שלוש דרכים עיקריות, מהפשוטה למתוחכמת:</p>
+  <ol>
+    <li><strong>משתני סביבה והרחבת <code>${VAR}</code>:</strong> בקבצי התצורה אפשר לכתוב <code>${VAR}</code> או <code>${VAR:-default}</code> בשדות <code>command</code>, <code>args</code>, <code>env</code>, <code>url</code> ו-<code>headers</code>. הסוד נשאר בסביבה שלכם, והקובץ המשותף מכיל רק הפניה. משתנה שלא הוגדר ואין לו ברירת מחדל גורר אזהרה ב-<code>claude mcp list</code> והטקסט נשאר כפי שהוא.</li>
+    <li><strong>כותרות סטטיות:</strong> <code>--header "Authorization: Bearer &lt;token&gt;"</code> בהוספה, או שדה <code>headers</code> בקובץ. לסכימות מיוחדות (Kerberos, SSO פנימי) יש <code>headersHelper</code>: פקודת Shell שמחזירה JSON של כותרות בזמן ההתחברות.</li>
+    <li><strong>OAuth 2.0:</strong> לשרתי HTTP מתארחים. מוסיפים את השרת בלי סודות, והשרת מסומן <code>Needs authentication</code>; ההתחברות בדפדפן דרך <code>/mcp</code> או <code>claude mcp login &lt;name&gt;</code>. ה-Tokens נשמרים באחסון מאובטח ומתרעננים אוטומטית. שרתים בלי Dynamic Client Registration נתמכים עם <code>--client-id</code>, <code>--client-secret</code> ו-<code>--callback-port</code>, ואפשר להצמיד Scopes מבוקשים עם <code>oauth.scopes</code>.</li>
+  </ol>
+
+  <h3 id="enterprise">MCP מנוהל בארגון</h3>
+  <p>מנהלי מערכת יכולים לשלוט ב-MCP ברמת הארגון (מתועד בעמוד <bdi>Managed MCP</bdi> הרשמי): קובץ <code>managed-mcp.json</code> בנתיב מערכת (ב-macOS: <code>/Library/Application Support/ClaudeCode/</code>, ב-Linux ו-WSL: <code>/etc/claude-code/</code>, ב-Windows: <code>C:\Program Files\ClaudeCode\</code>) פורס סט שרתים קבוע ובלעדי; מפה ריקה (<code>{"mcpServers": {}}</code>) מכבה MCP לגמרי. לחלופין, <code>allowedMcpServers</code> ו-<code>deniedMcpServers</code> מסננים שרתים לפי <code>serverUrl</code> (עם Wildcards), <code>serverCommand</code> (התאמה מדויקת של הפקודה) או <code>serverName</code>. חשוב: התאמת שם בלבד אינה בקרת אבטחה, כי כל משתמש יכול לקרוא לכל שרת בכל שם; אכיפה אמיתית נעשית לפי URL או פקודה. רשימת החסימה תמיד גוברת ומתמזגת מכל המקורות.</p>
+
+  <h3 id="trust-model">מודל האמון ומצבי כשל</h3>
+  <p>חיבור שרת MCP הוא מתן אמון כפול: אתם סומכים על קוד השרת (בשרת stdio: קוד שרץ על המכונה שלכם) ועל התוכן שהוא מחזיר, שנכנס ישירות ל-Context של המודל. Anthropic בודקת Connectors שנכנסים ל-Directory הרשמי לפי קריטריונים, אבל אינה מבצעת Audit אבטחה לשרתי MCP. התיעוד הרשמי מזהיר במפורש: שרתים שמושכים תוכן חיצוני חושפים אתכם לסיכון <bdi>Prompt Injection</bdi>. ההגנות בהתאמה: הרשאות מינימליות בצד השירות, כללי הרשאות בצד Claude Code, ואישור אנושי לפעולות כתיבה (הרחבה בפרק <a href="ch20.html">20, Security</a>).</p>
+  <p>מצבי הכשל שתפגשו, לפי הסטטוסים של <code>claude mcp list</code>: שרת שלא מגיב (<code>Failed to connect</code> או <code>Connection error</code>), שרת שמחובר אך דורש התחברות (<code>Needs authentication</code>), שרת שהתחבר אך לא הצליח למסור את רשימת הכלים (<code>Connected · tools fetch failed</code>), ושרת פרויקט שממתין לאישורכם (<code>Pending approval</code>). שרתי HTTP ו-SSE שנופלים באמצע Session מתחברים מחדש אוטומטית עם Backoff מעריכי (עד חמישה ניסיונות); שרתי stdio הם תהליכים מקומיים ולא מחוברים מחדש אוטומטית.</p>
+
+  <h2 id="operations">23.2 הוראות תפעוליות: 18 פעולות שחייבים לשלוט בהן</h2>
+  <p>כל הפקודות בסעיף זה רצות בטרמינל הרגיל (לא בתוך Session), אלא אם צוין שמדובר בפקודת <code>/</code> פנימית. כולן אומתו מול התיעוד הרשמי בתאריך המחקר.</p>
+
+  <h3 id="op-list">1. הצגת השרתים המחוברים</h3>
+  <div class="terminal"><span class="p">$</span> claude mcp list
+<span class="out">sentry: https://mcp.sentry.dev/mcp (HTTP) - ✔ Connected</span></div>
+  <p>מהטרמינל: <code>claude mcp list</code> מציג כל שרת עם סטטוס. בתוך Session: <code>/mcp</code> פותח פאנל ניהול עם מספר הכלים של כל שרת, מצב אימות ופעולות (התחברות, ניתוק, הפעלה וכיבוי). קונסולות Windows ישנות מציגות <code>√</code> ו-<code>×</code> במקום סימני היוניקוד.</p>
+
+  <h3 id="op-add">2. הוספת שרת: כל Transport, כל Scope</h3>
+  <div class="codeblock">
+    <div class="codehead">Bash / PowerShell</div>
+    <pre><code># שרת HTTP מרוחק (מומלץ), scope ברירת מחדל: local
+claude mcp add --transport http sentry https://mcp.sentry.dev/mcp
+
+# שרת SSE (מיושן, רק כשאין HTTP)
+claude mcp add --transport sse asana https://mcp.asana.com/sse
+
+# שרת stdio מקומי: הפקודה אחרי המפריד --
+claude mcp add playwright -- npx -y @playwright/mcp@latest
+
+# בחירת scope: project כותב ל-.mcp.json המשותף, user לכל הפרויקטים שלכם
+claude mcp add --scope project --transport http docs https://code.claude.com/docs/mcp
+claude mcp add --scope user --transport http docs https://code.claude.com/docs/mcp
+
+# מ-JSON מוכן (וגם הדרך היחידה ל-WebSocket)
+claude mcp add-json weather '{"type":"http","url":"https://api.example.com/mcp"}'
+
+# ייבוא הגדרות מאפליקציית Claude Desktop (macOS ו-WSL בלבד)
+claude mcp add-from-claude-desktop</code></pre>
+  </div>
+  <p>נקודות קריטיות: בשרתי stdio המפריד <code>--</code> חוצץ בין הדגלים של Claude Code לפקודת השרת; בלעדיו דגלי השרת ייקראו כדגלים של Claude Code. שמות שרתים מוגבלים לאותיות, ספרות, מקף וקו תחתון, וכמה שמות שמורים (<code>workspace</code> ועוד) נדחים. הפקודה שומרת את התצורה בלי לאמת אותה מול השרת: <code>Added</code> אומר "נשמר", לא "עובד"; בדקו עם <code>claude mcp list</code>.</p>
+
+  <h3 id="op-remove">3. הסרה והשבתה</h3>
+  <div class="codeblock">
+    <div class="codehead">Bash / PowerShell</div>
+    <pre><code>claude mcp remove sentry
+# אם השם קיים בכמה scopes, בחרו איזה עותק להסיר:
+claude mcp remove sentry --scope local</code></pre>
+  </div>
+  <p>השבתה בלי מחיקה: בפאנל <code>/mcp</code> אפשר לכבות שרת (Toggle). הבחירה נשמרת פר פרויקט ב-<code>~/.claude.json</code> ברשימת <code>disabledMcpServers</code>, וההגדרה עצמה נשארת. זה שימושי לשרת כבד שרוצים רק בחלק מהעבודה.</p>
+
+  <h3 id="op-local">4. תצורת שרת מקומי (stdio) בקובץ</h3>
+  <div class="codeblock">
+    <div class="codehead">.mcp.json</div>
+    <pre><code>{
+  "mcpServers": {
+    "project-docs": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${CLAUDE_PROJECT_DIR:-.}/docs"],
+      "env": {}
+    }
+  }
+}</code></pre>
+  </div>
+  <p><code>command</code> הוא קובץ ההפעלה, <code>args</code> רשימת ארגומנטים, <code>env</code> משתני סביבה שיוזרקו לתהליך. Claude Code מגדיר לתהליך השרת את <code>CLAUDE_PROJECT_DIR</code> (שורש הפרויקט), אבל מכיוון שהמשתנה קיים בסביבת השרת ולא בסביבת ההרחבה של הקובץ, שימוש בו בתוך <code>args</code> דורש ברירת מחדל: <code>${CLAUDE_PROJECT_DIR:-.}</code>.</p>
+
+  <h3 id="op-remote">5. תצורת שרת מרוחק בקובץ</h3>
+  <div class="codeblock">
+    <div class="codehead">.mcp.json</div>
+    <pre><code>{
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": { "Authorization": "Bearer ${GITHUB_MCP_PAT}" }
+    }
+  }
+}</code></pre>
+  </div>
+  <p>שדות אופציונליים נוספים לשרת מרוחק: <code>timeout</code> (מילישניות, תקרה לקריאת כלי בשרת הזה), <code>alwaysLoad</code> (טעינת כל הכלים מראש, ראו סעיף Cost), <code>oauth</code> (ראו פעולה 7) ו-<code>headersHelper</code>.</p>
+
+  <h3 id="op-env">6. העברת סודות בטוחה דרך משתני סביבה</h3>
+  <p>הכלל: סודות לעולם לא נכתבים בקבצים שנכנסים ל-Git. שלוש טכניקות מדורגות:</p>
+  <ol>
+    <li>בקובץ משותף: <code>"Authorization": "Bearer ${MY_TOKEN}"</code>, והסוד יושב רק בסביבת המשתמש של כל חבר צוות.</li>
+    <li>בשרת stdio: העבירו את הסוד דרך המפתח <code>env</code> (<code>"env": {"DSN": "${MY_RO_DSN}"}</code>) ולא בתוך <code>args</code>; ארגומנטים של תהליך גלויים ברשימת התהליכים של המערכת.</li>
+    <li>ברירות מחדל לא רגישות בלבד: <code>${API_BASE_URL:-https://api.example.com}</code> בסדר; ברירת מחדל שהיא סוד, לעולם לא.</li>
+  </ol>
+
+  <h3 id="op-auth">7. תהליך אימות OAuth מלא</h3>
+  <div class="terminal"><span class="p">$</span> claude mcp add --transport http sentry https://mcp.sentry.dev/mcp
+<span class="p">$</span> claude mcp login sentry
+<span class="out">Opening browser for authentication...</span></div>
+  <p>לחלופין, בתוך Session: <code>/mcp</code>, בחירת השרת, <code>Authenticate</code>. סיום גישה: <code>claude mcp logout sentry</code>, או "Clear authentication" בפאנל. במכונה בלי דפדפן (SSH): <code>claude mcp login sentry --no-browser</code> מדפיס כתובת; פותחים אותה מקומית ומדביקים חזרה את כתובת ה-Redirect. שרת שדורש רישום אפליקציה מראש (בלי Dynamic Client Registration): <code>claude mcp add --transport http --client-id YOUR_ID --client-secret --callback-port 8080 my-server https://mcp.example.com/mcp</code>; הסוד מוקלד בקלט מוסתר ונשמר במחזיק המפתחות של המערכת.</p>
+
+  <h3 id="op-discovery">8. גילוי Tools, Resources ו-Prompts</h3>
+  <ul>
+    <li><strong>Tools:</strong> <code>/mcp</code>, בחירת שרת, ותופיע רשימת הכלים המלאה עם שמותיהם הקנוניים. Claude מגלה אותם לבד לפי הצורך (ראו Tool Search בסעיף Cost).</li>
+    <li><strong>Resources:</strong> הקלידו <code>@</code> ב-Prompt; משאבי MCP מופיעים בהשלמה לצד קבצים, בפורמט <code>@server:protocol://resource/path</code>, עם חיפוש מטושטש (Fuzzy).</li>
+    <li><strong>Prompts:</strong> הקלידו <code>/</code>; פקודות מ-MCP מופיעות בשם <code>/mcp__servername__promptname</code> ומקבלות ארגומנטים מופרדים ברווחים.</li>
+  </ul>
+
+  <h3 id="op-restrict">9. הגבלת כלים עם כללי הרשאות</h3>
+  <div class="codeblock">
+    <div class="codehead">.claude/settings.json</div>
+    <pre><code>{
+  "permissions": {
+    "allow": ["mcp__github__get_*", "mcp__github__list_*"],
+    "ask": ["mcp__github"],
+    "deny": ["mcp__project-docs__write_file"]
+  }
+}</code></pre>
+  </div>
+  <p>התחביר: <code>mcp__&lt;server&gt;</code> תופס את כל כלי השרת, <code>mcp__&lt;server&gt;__&lt;tool&gt;</code> כלי בודד, ו-<code>mcp__&lt;server&gt;__*</code> שקול לצורת השרת. בכללי <code>allow</code>, תווי Glob מותרים רק אחרי קידומת מפורשת <code>mcp__&lt;server&gt;__</code> (למשל <code>mcp__github__get_*</code>); כלל allow לא מעוגן כמו <code>mcp__*</code> מדולג עם אזהרה. בכללי <code>deny</code> מותר גם <code>mcp__*</code> גורף. סדר ההכרעה תמיד: deny גובר על ask שגובר על allow (פרק 18). כלי של שרת מ-Plugin נקרא <code>mcp__plugin_&lt;plugin&gt;_&lt;server&gt;__&lt;tool&gt;</code>.</p>
+
+  <h3 id="op-inspect">10. בחינת קריאת כלי לפני אישור</h3>
+  <p>כשמופיע חלון אישור לקריאת כלי MCP, אל תאשרו אוטומטית. בדקו: (א) שם השרת והכלי בכותרת החלון, האם זה השרת שציפיתם לו; (ב) הפרמטרים המלאים המוצגים, למשל ה-SQL המדויק או תוכן ה-Issue שעומד להיכתב; (ג) האם הבקשה נובעת מההוראה שלכם או מתוכן חיצוני שהמודל קרא (סימן אזהרה קלאסי ל-Prompt Injection). ה-<bdi>Transcript</bdi> (<code>Ctrl+O</code>) מציג את קריאות הכלים המלאות גם בדיעבד. שרת יכול לסמן כלי רגיש ב-<code>_meta</code> עם <code>anthropic/requiresUserInteraction</code>, ואז החלון מופיע בכל קריאה, בלי אפשרות "אל תשאל שוב", גם במצבי הרשאות מתירניים.</p>
+
+  <h3 id="op-diagnose">11. אבחון כשלי חיבור</h3>
+  <p>סדר עבודה מומלץ כשהשרת לא מתחבר:</p>
+  <ol>
+    <li><code>claude mcp list</code> או <code>/mcp</code> לזיהוי הסטטוס המדויק.</li>
+    <li><code>claude mcp get &lt;name&gt;</code> להצגת ההגדרה בפועל, כולל מאיזה Scope היא נטענה ופירוט שגיאה.</li>
+    <li>לשרת מרוחק: <code>curl -I &lt;url&gt;</code> (ב-PowerShell: <code>curl.exe</code>). תשובת 404 או 405 פירושה שהשרת חי (הרבה נקודות קצה של MCP עונות רק ל-POST); 401 או 403 פירושו שצריך אימות; שום תשובה: בעיית רשת או כתובת.</li>
+    <li>לשרת stdio: הריצו את הפקודה המוגדרת ישירות בטרמינל. אם היא נתקעת בהמתנה לקלט, השרת תקין והבעיה בהגדרה (לרוב <code>--</code> חסר); אם היא נכשלת, ההודעה תגיד מה חסר (Node, חבילה, משתנה).</li>
+    <li>מידע עומק: הפעילו את Claude Code עם <code>claude --debug</code>, או השתמשו בפקודת <code>/debug</code> בתוך Session להפעלת רישום מפורט ואבחון מהלוג.</li>
+  </ol>
+  <p>גורמים נפוצים: הוספתם את השרת בפרויקט אחר (scope local קשור לפרויקט שבו רץ <code>add</code>); עריכת קובץ בנתיב שגוי (הקבצים הנכונים הם <code>~/.claude.json</code> ו-<code>.mcp.json</code> בשורש הפרויקט בלבד); JSON לא תקין (הפאנל <code>/mcp</code> מציג אזהרת Parse על רשומות פגומות); שרת פרויקט שדחיתם בעבר (<code>claude mcp reset-project-choices</code>).</p>
+
+  <h3 id="op-health">12. לוגים ובריאות שוטפת</h3>
+  <p>שגרת הבריאות היומיומית היא שילוב של: <code>/mcp</code> (סטטוס ומספרי כלים; הפאנל גם מסמן שרת שמכריז על יכולת Tools אבל לא חושף אף כלי), הודעת הפתיחה של Session שמציינת שרתים שדורשים אימות, ו-<code>claude mcp list</code> בסקריפטים. שרת מרוחק שמתנתק באמצע Session מסומן Pending בזמן שהחיבור מחודש אוטומטית, ואחרי חמישה כישלונות מסומן Failed עם אפשרות Retry ידני מהפאנל. שינויים ב-<code>.mcp.json</code> נקראים רק בהפעלת Session חדש.</p>
+
+  <h3 id="op-failures">13. טיפול ב-Timeouts, אי-התאמות סכימה וכשלי אימות</h3>
+  <ul>
+    <li><strong>Timeout באתחול:</strong> ברירת המחדל היא 30 שניות. הרצה ראשונה של שרת npx יכולה לחרוג בגלל הורדת החבילה: <code>MCP_TIMEOUT=60000 claude</code> (ב-PowerShell: <code>$env:MCP_TIMEOUT = "60000"; claude</code>).</li>
+    <li><strong>Timeout בקריאת כלי:</strong> שדה <code>timeout</code> פר שרת (מילישניות) גובר על משתנה הסביבה <code>MCP_TOOL_TIMEOUT</code>. קריאה שלא מחזירה כלום ולא שולחת Progress נעצרת גם לפי Timeout חוסר פעילות (חמש דקות לשרת מרוחק, שלושים לשרת stdio; <code>CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT</code> לשינוי). קריאה בשיחה הראשית שרצה מעל שתי דקות עוברת אוטומטית למשימת רקע ולא חוסמת אתכם (v2.1.212 ומעלה).</li>
+    <li><strong>אי-התאמת סכימה:</strong> שרת שמצהיר על סכימת קלט עם <code>anyOf</code>/<code>oneOf</code>/<code>allOf</code> ברמת השורש מטופל אוטומטית מגרסה 2.1.195 (הסכימה משוטחת); במקרים שאי אפשר לשטח, הכלי הבודד מדולג והסיבה נרשמת בלוג השרת, בלי להפיל את שאר הכלים.</li>
+    <li><strong>כשל אימות:</strong> תשובת 401 לשרת OAuth מחובר גוררת רענון Token וניסיון חוזר אחד אוטומטית; רק אם גם הוא נכשל השרת מסומן לחיבור מחדש, עם הפניה ל-<code>/mcp</code> ופעולת Re-authenticate.</li>
+  </ul>
+
+  <h3 id="op-secrets">14. מניעת חשיפת סודות</h3>
+  <ul class="check">
+    <li>סודות רק דרך <code>${VAR}</code>; אף פעם לא כתובים ב-<code>.mcp.json</code> או ב-<code>managed-mcp.json</code> (שקריא לכל משתמשי המכונה).</li>
+    <li>העדיפו OAuth על פני Tokens סטטיים; הוא משאיר את הקובץ נקי לגמרי.</li>
+    <li>זכרו ש-<code>claude mcp add --header</code> שומר את הערך המורחב ב-<code>~/.claude.json</code>; לקבצים משותפים השתמשו בהרחבת משתנים.</li>
+    <li>שלבו עם כללי deny על קבצי סודות (<code>Read(.env)</code> וכדומה, פרק 18) ועם ה-Hook לסריקת סודות מפרק 22.</li>
+  </ul>
+
+  <h3 id="op-prod">15. מניעת גישה בלתי מבוקרת ל-Production</h3>
+  <p>שלוש שכבות, מהחוץ פנימה: (1) <strong>בצד השירות:</strong> Credentials לקריאה בלבד (תפקיד SELECT במסד, PAT עם הרשאות Read), ורצוי מול Replica ולא מול Production עצמו; (2) <strong>בצד Claude Code:</strong> כללי <code>deny</code> לכלים מסוכנים וכלל <code>ask</code> גורף על השרת, כך שכל קריאה מוצגת לאישור; (3) <strong>בצד הארגון:</strong> allowlist מנוהל לפי URL או פקודה, כך שמשתמשים לא יכולים לחבר שרת Production לא מאושר בכלל. אל תסמכו על שכבה אחת: כלל deny מגן גם כשה-Token רחב מדי, ו-Token צר מגן גם כשמישהו שכח את הכלל.</p>
+
+  <h3 id="op-readonly">16. שימוש בשרת קריאה בלבד</h3>
+  <p>העיקרון: כשהמטרה היא לקרוא מידע (ניתוח נתונים, חקירת תקלות, סקירה), בחרו מראש תצורה שאינה מסוגלת לכתוב. הדוגמה המלאה בסעיף 23.3: DBHub עם <code>readonly = true</code> ברמת הכלי, מעל תפקיד מסד נתונים עם SELECT בלבד. אותו עיקרון חל על כל שירות: ב-GitHub זה PAT עם הרשאות Read בלבד, בשרת קבצים זו הגבלת התיקיות המורשות בתוספת deny על כלי הכתיבה שלו.</p>
+
+  <h3 id="op-build">17. בניית שרת MCP מינימלי משלכם</h3>
+  <p>ה-SDK הרשמי של Python (חבילת <code>mcp</code>, גרסה 2.0.0 בזמן המחקר, Python 3.10 ומעלה) הופך כל פונקציה עם Type Hints לכלי. הקוד הבא נבדק בפועל בזמן כתיבת הפרק: השרת עולה, הכלי מתגלה ומחזיר תשובה.</p>
+  <div class="codeblock">
+    <div class="codehead">server.py</div>
+    <pre><code>from mcp.server import MCPServer
+
+mcp = MCPServer("taskflow-docs")
+
+
+@mcp.tool()
+def search_docs(query: str) -&gt; str:
+    """Search the TaskFlow documentation for a query string."""
+    return f"Results for: {query}"
+
+
+@mcp.resource("docs://readme")
+def readme() -&gt; str:
+    """The project README."""
+    return "TaskFlow documentation index"
+
+
+if __name__ == "__main__":
+    mcp.run()</code></pre>
+  </div>
+  <div class="terminal"><span class="p">$</span> pip install "mcp[cli]"
+<span class="p">$</span> claude mcp add my-docs -- python /full/path/to/server.py
+<span class="p">$</span> claude mcp list
+<span class="out">my-docs: python /full/path/to/server.py - ✔ Connected</span></div>
+  <p>שימו לב שלא כתבתם JSON Schema, ולא קוד פרוטוקול: ה-Type Hints (<code>query: str</code>) הם הסכימה, וה-Docstring הוא תיאור הכלי שהמודל רואה. התוספת <code>[cli]</code> מוסיפה את כלי הפיתוח <code>mcp dev server.py</code> (בדיקה ב-Inspector). הערת גרסה חשובה: זהו התחביר של גרסה 2 של ה-SDK; בגרסאות 1.x המחלקה נקראה אחרת (FastMCP), וקוד ישן ברשת עדיין מציג אותה. <strong>עדכון 16.10.2026:</strong> בגרסה 2 של ה-SDK (נבדק עם 2.3.0), חריגה רגילה בתוך כלי נחשבת קריסה, והמודל מקבל רק <code>Error executing tool &lt;name&gt;</code>. כדי שהמודל יראה את סיבת הכשל, זרקו <code>ToolError</code> מ-<code>mcp.server.mcpserver.exceptions</code>. דוגמה מלאה עם שני כלים, משאב ו-Prompt נמצאת ב<a href="../interactive/mcp-lomda.html">לומדה על MCP</a>. מה שלא נבדק כאן: פריסה של שרת כזה כ-HTTP מרוחק עם אימות דורשת שרת אמיתי וחשבון, ולכן נשארת מחוץ לתחום הפרק; ל-Scaffolding מלא קיים גם ה-Plugin הרשמי <code>mcp-server-dev</code> (פרק <a href="ch26.html">26</a>).</p>
+
+  <h3 id="op-git">18. ניהול גרסאות של תצורות MCP ב-Git</h3>
+  <ul>
+    <li><code>.mcp.json</code> שייך ל-Git: הוא כל הרעיון של scope project. עברו עליו ב-Code Review כמו על כל שינוי תשתית: שרת חדש = משטח תקיפה חדש.</li>
+    <li>הצמידו גרסאות של שרתי stdio (<code>@bytebase/dbhub@1.0.0</code> ולא <code>@latest</code>) כדי שכל הצוות יריץ אותו קוד וכדי שעדכון זדוני של חבילה לא ייכנס לבד. עדכנו גרסה במכוון, דרך PR.</li>
+    <li>אל תכניסו ל-Git: <code>~/.claude.json</code> (מכיל מצב אישי וייתכנו בו Tokens), וכל קובץ סביבה עם סודות.</li>
+    <li>תיעדו בתוך ה-Repo (למשל README ליד הקובץ, כמו בחבילת המדריך) אילו משתני סביבה נדרשים ואיך משיגים אותם; חבר צוות חדש צריך להצליח להתחבר בלי לשאול.</li>
+  </ul>
+
+  <h2 id="examples">23.3 דוגמאות מעשיות: חמש תצורות מוכנות</h2>
+  <p>חמש התצורות הבאות נמצאות בחבילת המדריך בתיקייה <code>mcp/</code>, כל אחת עם <code>.mcp.json</code> תקין (נבדק ב-Parser) ו-README מפורט בעברית. כאן נציג כל אחת עם הקובץ המלא והנקודות החשובות; ההסברים המלאים שדה-שדה נמצאים ב-READMEs.</p>
+
+  <h3 id="ex-github">דוגמה 1: GitHub (שרת רשמי מרוחק, Token בכותרת)</h3>
+  <div class="codeblock">
+    <div class="codehead">mcp/github/.mcp.json</div>
+    <pre><code>{
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_MCP_PAT}"
+      }
+    }
+  }
+}</code></pre>
+  </div>
+  <p><strong>שדות:</strong> <code>type: "http"</code> כי זה שרת מתארח; <code>url</code> היא הכתובת הרשמית המתועדת; <code>headers</code> נושא את ה-Personal Access Token דרך משתנה הסביבה <code>GITHUB_MCP_PAT</code>, כך שהקובץ נקי מסודות. <strong>הרשאה מינימלית:</strong> צרו Fine-grained PAT המוגבל ל-Repositories ספציפיים עם הרשאות Read בלבד (Contents, Issues, Pull requests); הוסיפו Write רק אם אתם באמת רוצים ש-Claude ייצור PRs. <strong>הבדלי מערכת הפעלה:</strong> הגדרת המשתנה היא <code>export GITHUB_MCP_PAT="YOUR_GITHUB_PAT"</code> ב-Bash מול <code>[Environment]::SetEnvironmentVariable("GITHUB_MCP_PAT", "YOUR_GITHUB_PAT", "User")</code> ב-PowerShell. <strong>שימוש:</strong> "Review PR #456 and suggest improvements". זכרו: תוכן Issues ו-PRs הוא קלט לא מהימן.</p>
+
+  <h3 id="ex-tracker">דוגמה 2: Issue Tracker (OAuth, כולל Placeholder מסומן)</h3>
+  <div class="codeblock">
+    <div class="codehead">mcp/issue-tracker/.mcp.json</div>
+    <pre><code>{
+  "mcpServers": {
+    "asana": {
+      "type": "sse",
+      "url": "https://mcp.asana.com/sse"
+    },
+    "your-tracker": {
+      "type": "http",
+      "url": "${TRACKER_MCP_URL:-https://mcp.YOUR-TRACKER.example/mcp}"
+    }
+  }
+}</code></pre>
+  </div>
+  <p><strong>שדות:</strong> הרשומה <code>asana</code> היא הדוגמה הרשמית מהתיעוד לשרת SSE (זכרו: SSE מיושן <span class="badge dep">Deprecated</span>; העדיפו נקודת קצה HTTP כשהספק מציע). הרשומה <code>your-tracker</code> היא תבנית מסומנת במפורש: הדומיין <code>example</code> לא יתחבר, והכתובת האמיתית מגיעה ממשתנה הסביבה <code>TRACKER_MCP_URL</code> או מהחלפה ידנית. לפי התיעוד הרשמי, שירותים כמו Linear ו-Notion מפעילים שרתי MCP מאחורי OAuth; את הכתובות המדויקות קחו מתיעוד הספק. <strong>אימות:</strong> OAuth דרך <code>/mcp</code> או <code>claude mcp login asana</code>; אין סודות בקובץ. <strong>אבטחה:</strong> תיאורי משימות הם משטח Prompt Injection מובהק, כי כל אחד בארגון כותב אותם; השאירו כלל <code>ask</code> על השרת כולו.</p>
+
+  <h3 id="ex-db">דוגמה 3: מסד נתונים בקריאה בלבד (stdio, שלוש שכבות הגנה)</h3>
+  <div class="codeblock">
+    <div class="codehead">mcp/database-readonly/.mcp.json</div>
+    <pre><code>{
+  "mcpServers": {
+    "taskflow-db": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@bytebase/dbhub@latest",
+        "--transport", "stdio",
+        "--config", "${CLAUDE_PROJECT_DIR:-.}/mcp/database-readonly/dbhub.toml"
+      ],
+      "env": {
+        "DSN": "${TASKFLOW_DB_RO_DSN}"
+      }
+    }
+  }
+}</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">mcp/database-readonly/dbhub.toml</div>
+    <pre><code>[[sources]]
+id = "taskflow"
+dsn = "${DSN}"
+
+[[tools]]
+name = "execute_sql"
+source = "taskflow"
+readonly = true</code></pre>
+  </div>
+  <p><strong>שדות:</strong> DBHub (<code>@bytebase/dbhub</code>) הוא השרת שהתיעוד הרשמי של Claude Code משתמש בו בדוגמת PostgreSQL, והוא תומך גם ב-MySQL, MariaDB, SQL Server ו-SQLite. מחרוזת החיבור עוברת דרך משתנה הסביבה <code>DSN</code> במפתח <code>env</code> (ולא ב-<code>args</code>, כדי שלא תופיע ברשימת התהליכים), וקובץ ה-TOML מגדיר את כלי <code>execute_sql</code> כ-<code>readonly = true</code>. <strong>הערת גרסה שאימתנו מול החבילה עצמה:</strong> בגרסה 1.0.0 הדגל הישן <code>--readonly</code> הוסר; מי שמעתיק פקודות ישנות מהרשת יקבל שגיאה עם הפניה לתחביר ה-TOML הזה. נדרש Node.js 22.5.0 ומעלה. <strong>שלוש השכבות:</strong> תפקיד מסד נתונים עם SELECT בלבד (סקריפט SQL מלא ב-README), אכיפת readonly ב-DBHub, וכלל <code>ask</code> ב-Claude Code. <strong>וגם אז:</strong> העדיפו Replica או Staging על פני Production; גם קריאה חושפת נתוני אמת לתוך ה-Context.</p>
+
+  <h3 id="ex-monitoring">דוגמה 4: ניטור עם Sentry (OAuth נקי)</h3>
+  <div class="codeblock">
+    <div class="codehead">mcp/monitoring/.mcp.json</div>
+    <pre><code>{
+  "mcpServers": {
+    "sentry": {
+      "type": "http",
+      "url": "https://mcp.sentry.dev/mcp"
+    }
+  }
+}</code></pre>
+  </div>
+  <p><strong>שדות:</strong> שני שדות בלבד, וזה כל היופי: אין Token, אין סוד, אין מה להדליף. האימות כולו OAuth פר משתמש: אחרי ההוספה השרת במצב <code>Needs authentication</code>, ו-<code>claude mcp login sentry</code> (או <code>/mcp</code> ואז Authenticate) פותח את הדפדפן. <strong>שימוש:</strong> "What are the most common errors in the last 24 hours?", "Which deployment introduced these new errors?". <strong>אבטחה ועלות:</strong> הודעות שגיאה מ-Production הן קלט לא מהימן (משתמש זדוני יכול לשתול טקסט בשגיאה); ותוצאות שאילתות ניטור נוטות להיות גדולות, ראו סעיף Cost בהמשך. אפשר להצמיד Scopes עם <code>oauth.scopes</code> אם הארגון דורש.</p>
+
+  <h3 id="ex-docs">דוגמה 5: מקור תיעוד (מתארח + מקומי)</h3>
+  <div class="codeblock">
+    <div class="codehead">mcp/docs-source/.mcp.json</div>
+    <pre><code>{
+  "mcpServers": {
+    "claude-code-docs": {
+      "type": "http",
+      "url": "https://code.claude.com/docs/mcp"
+    },
+    "project-docs": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${CLAUDE_PROJECT_DIR:-.}/docs"
+      ]
+    }
+  }
+}</code></pre>
+  </div>
+  <p><strong>שדות:</strong> <code>claude-code-docs</code> הוא שרת התיעוד הרשמי המתארח של Claude Code, עם חיפוש טקסט מלא בתיעוד, בלי שום אימות; זה השרת שגם המדריך הרשמי פותח בו, והוא ישמש אותנו בתרגיל. <code>project-docs</code> הוא שרת ה-Filesystem הרשמי מפרויקט MCP, כשכל ארגומנט אחרי שם החבילה הוא תיקייה מורשית; כאן הוא מוגבל ל-<code>docs/</code> בלבד. <strong>הרשאה מינימלית:</strong> שרת ה-Filesystem כולל כלי כתיבה (<code>write_file</code>, <code>edit_file</code>, <code>move_file</code>, <code>create_directory</code>); ה-README מציג כללי deny מוכנים שחוסמים את ארבעתם. <strong>הבדלי מערכת הפעלה:</strong> הפקודות זהות; רק כתיב נתיבים שונה (<code>./docs</code> מול <code>.\docs</code>).</p>
+
+  <h2 id="comparison">23.4 השוואה: MCP מול כל מנגנוני ההרחבה</h2>
+  <p>אחרי שהכרנו Skills (פרק 21), Hooks (פרק 22), ועכשיו MCP, ולפני Connectors (פרק 24), Subagents (פרק 25) ו-Plugins (פרק 26), הטבלה הבאה ממפה מתי כל מנגנון הוא הכלי הנכון. "אינטגרציית API ישירה" פירושה סקריפט או קוד שאתם כותבים שקורא לשירות חיצוני, ו-Claude מריץ אותו ככלי Bash.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>ממד</th><th>MCP Server</th><th>Connector</th><th>Plugin</th><th>Skill</th><th>Hook</th><th>Subagent</th><th>API ישיר</th></tr></thead>
+      <tbody>
+        <tr><td>התקנה</td><td class="ltr"><code>claude mcp add</code> / <code>.mcp.json</code></td><td>חיבור ב-claude.ai (Connectors UI)</td><td class="ltr"><code>/plugin install</code> מ-Marketplace</td><td>תיקייה עם SKILL.md (או דרך Plugin)</td><td>רישום ב-settings.json (או Plugin)</td><td>קובץ Markdown ב-.claude/agents (או Plugin)</td><td>כתיבת סקריפט בפרויקט</td></tr>
+        <tr><td>אירוח</td><td>מקומי (stdio) או מרוחק (HTTP)</td><td>מרוחק, אצל הספק; מנוהל דרך claude.ai</td><td>קבצים מקומיים; יכול לכלול שרתי MCP</td><td>קבצים מקומיים בלבד</td><td>פקודות Shell מקומיות</td><td>מקומי; רץ בתוך Claude Code</td><td>אצלכם + השירות המרוחק</td></tr>
+        <tr><td>אימות</td><td>OAuth, כותרות, משתני סביבה</td><td>OAuth פר משתמש דרך claude.ai</td><td>אין משלו; יורש ממה שהוא מכיל</td><td>אין; טקסט הוראות</td><td>אין; רץ בהרשאות המשתמש</td><td>אין; יורש מה-Session</td><td>אתם מנהלים (מפתחות, סודות)</td></tr>
+        <tr><td>הרשאות</td><td class="ltr"><code>mcp__server__tool</code> + אישורי כלים</td><td>כמו MCP + בקרות ask/blocked ארגוניות פר כלי</td><td>לפי רכיביו (כלים, Hooks, שרתים)</td><td class="ltr">allowed-tools בתוך ה-Skill</td><td>עוקף אישורים: רץ תמיד באירוע שלו</td><td class="ltr">שדה tools + כללי Agent(...)</td><td class="ltr">כללי Bash(...) בלבד</td></tr>
+        <tr><td>הרחבה</td><td>כל שירות; אתם יכולים לכתוב שרת</td><td>מוגבל להיצע ה-Directory והארגון</td><td>אורז הכול: Skills, Hooks, MCP, Agents</td><td>ידע ותהליכים, לא יכולות חדשות</td><td>אוטומציה סביב אירועי Session</td><td>התמחות והקשר נפרד, לא יכולות חדשות</td><td>כל מה שתכתבו, בלי תקן</td></tr>
+        <tr><td>תחזוקה</td><td>עדכון גרסאות שרת + תצורה ב-Git</td><td>אצל הספק; כמעט אפס אצלכם</td><td>עדכוני Marketplace מרוכזים</td><td>עריכת קבצים; קלה</td><td>סקריפטים שלכם; שבירות בעדכוני כלים</td><td>עריכת קבצים; קלה</td><td>כולה עליכם, כולל שברי API</td></tr>
+        <tr><td>אבטחה</td><td>קוד צד שלישי + תוכן חיצוני לא מהימן; Injection</td><td>כמו MCP, עם סינון ובקרות אדמין</td><td>סומכים על ה-Marketplace; משטח מצטבר</td><td>נמוכה יחסית; עדיין הוראות למודל</td><td>גבוהה: Shell אוטומטי בלי אישור</td><td>נמוכה יחסית; תחום בכלים שהוגדרו</td><td>תלויה כולה בקוד שלכם</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>כלל אצבע: צריכים <strong>גישה למערכת חיצונית</strong>? MCP (או Connector אם הארגון מנהל זאת עבורכם). צריכים <strong>ידע או שיטת עבודה</strong>? Skill. צריכים <strong>אכיפה דטרמיניסטית</strong>? Hook. צריכים <strong>הקשר נפרד או התמחות</strong>? Subagent. רוצים <strong>לארוז ולהפיץ</strong> כמה מאלה יחד? Plugin. וסקריפט API ישיר טוב לחד-פעמי, עד שמישהו נוסף צריך אותו.</p>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>שגיאה</th><th>מה קורה</th><th>תיקון</th></tr></thead>
+      <tbody>
+        <tr><td>שכחת <code>--</code> לפני פקודת שרת stdio</td><td>Claude Code מנסה לפרש את דגלי השרת כדגלים שלו</td><td class="ltr"><code>claude mcp add name -- npx -y pkg --flag</code></td></tr>
+        <tr><td><code>url</code> בלי <code>type</code> ב-JSON</td><td>הרשומה נקראת כ-stdio ונפסלת</td><td>הוסיפו <code>"type": "http"</code> (או sse / ws)</td></tr>
+        <tr><td>הוספה בפרויקט אחד וציפייה שיעבוד באחר</td><td><code>/mcp</code> מציג No MCP servers configured</td><td>הוסיפו שוב בפרויקט הנכון או עם <code>--scope user</code></td></tr>
+        <tr><td>עריכת קובץ בנתיב מומצא (<code>~/.claude/mcp.json</code>)</td><td>ההגדרה לא נקראת בכלל</td><td>רק <code>~/.claude.json</code> או <code>.mcp.json</code> בשורש</td></tr>
+        <tr><td>סוד כתוב ישירות ב-<code>.mcp.json</code></td><td>ה-Token נכנס להיסטוריית Git</td><td><code>${VAR}</code> + החלפת ה-Token שנחשף</td></tr>
+        <tr><td>עריכת <code>.mcp.json</code> באמצע Session</td><td>שום דבר לא משתנה</td><td>הקובץ נקרא באתחול; פתחו Session חדש</td></tr>
+        <tr><td>allow גורף כמו <code>mcp__*</code></td><td>הכלל מדולג עם אזהרה ולא מאשר כלום</td><td>Glob רק אחרי <code>mcp__&lt;server&gt;__</code> מפורש</td></tr>
+        <tr><td>פקודות ישנות מהרשת (למשל <code>--readonly</code> של DBHub)</td><td>השרת נכשל באתחול</td><td>בדקו מול תיעוד הגרסה הנוכחית של השרת</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <ul>
+    <li><strong><code>Failed to connect</code> בשרת npx חדש:</strong> לרוב זו רק ההורדה הראשונה. המתינו והריצו <code>claude mcp list</code> שוב; אם נמשך, הריצו את פקודת השרת ידנית וקראו את השגיאה, או הגדילו את חלון האתחול: <code>MCP_TIMEOUT=60000 claude</code>.</li>
+    <li><strong><code>Needs authentication</code> שלא נעלם:</strong> השלימו <code>claude mcp login &lt;name&gt;</code>. אם הגדרתם גם <code>headers.Authorization</code> וגם השרת דוחה אותו, Claude Code מדווח כשל במקום לעבור ל-OAuth; הסירו את הכותרת או תקנו את ה-Token.</li>
+    <li><strong>שרת מחובר אבל בלי כלים:</strong> <code>/mcp</code>, בחרו את השרת; רשימה ריקה מרמזת כמעט תמיד על משתנה סביבה חסר (API Key). העבירו עם <code>--env KEY=value</code> או במפתח <code>env</code>.</li>
+    <li><strong>404 בבחירת שרת ב-<code>/mcp</code>:</strong> כתובת שגויה. השוו לנתיב המתועד של הספק (<code>/mcp</code> בסוף הכתובת נפוץ אך לא אוניברסלי), הסירו והוסיפו מחדש.</li>
+    <li><strong>Connector מ-claude.ai לא מופיע:</strong> Connectors נטענים רק כשההתחברות הפעילה היא מנוי claude.ai. הריצו <code>/status</code> לבדוק איזו שיטת אימות פעילה (משתנה <code>ANTHROPIC_API_KEY</code> פעיל חוסם אותם), ואז <code>/login</code>.</li>
+    <li><strong>שרת נעלם בלי הסבר:</strong> ייתכן שמדיניות ארגונית חדשה (allowlist או denylist) חסמה אותו; החסימה שקטה. בדקו מול מנהל המערכת (עמוד Managed MCP).</li>
+    <li><strong>פלט ענק שנחתך:</strong> אזהרה מעל 10,000 Tokens וחיתוך ב-25,000; הגדילו עם <code>MAX_MCP_OUTPUT_TOKENS</code> או בקשו שאילתות ממוקדות יותר.</li>
+    <li>תקלות רוחביות נוספות: פרק 39 (Troubleshooting מרוכז).</li>
+  </ul>
+
+  <h2 id="security">Security: קלט חיצוני הוא קלט עוין עד שהוכח אחרת</h2>
+  <div class="callout danger"><span class="title">סכנה</span><p>כל תוכן שמגיע דרך שרת MCP, הודעת שגיאה מ-Sentry, תיאור Issue, תוצאת שאילתה, הוא קלט לא מהימן שנכנס ישירות ל-Context של המודל. תוקף שיכול לכתוב לאחת המערכות המחוברות יכול לנסות לשתול בהן הוראות (Prompt Injection) שירוצו בהרשאות שלכם. התיעוד הרשמי מזהיר על כך במפורש.</p></div>
+  <ul class="check">
+    <li>חברו רק שרתים שאתם סומכים על מקורם; העדיפו שרתים רשמיים של הספק או מה-Directory של Anthropic.</li>
+    <li>הרשאה מינימלית בצד השירות: Read-only כברירת מחדל, הרחבה רק לפי צורך מוכח.</li>
+    <li>אישור אנושי לכל פעולת כתיבה שמקורה בתוכן חיצוני; חשדו בכל בקשת כלי שלא נובעת ישירות מההוראה שלכם.</li>
+    <li>סודות רק דרך משתני סביבה או OAuth; לעולם לא בקבצים משותפים.</li>
+    <li>בארגון: אכיפת allowlist לפי URL או פקודה, לא לפי שם.</li>
+    <li>העמיקו בפרק <a href="ch20.html">20, Security</a>: מודל האיומים המלא, Sandboxing ושכבות ההגנה המשלימות.</li>
+  </ul>
+
+  <h2 id="cost">Cost ו-Context: כמה עולה כל שרת מחובר</h2>
+  <p>לכל שרת מחובר יש מחיר הקשרי. בעבר כל סכימות הכלים נטענו מראש; היום ברירת המחדל היא <strong>Tool Search</strong>: רק שמות הכלים והוראות השרת נטענים בתחילת ה-Session, וסכימות מלאות נשלפות על ידי Claude רק כשכלי רלוונטי למשימה (מנגנון הכלים הנדחים, Deferred Tools). המשמעות: חיבור שרתים רבים משפיע מעט יחסית על ה-Context, והמגבלה המעשית היא תקציב ה-Context שלכם ולא מכסת שרתים. שליטה: <code>ENABLE_TOOL_SEARCH</code> (ערכים <code>true</code>, <code>false</code>, <code>auto</code>, <code>auto:N</code>), ופטור פר שרת עם <code>"alwaysLoad": true</code> לכלים שנחוצים בכל תור (במחיר Context קבוע). המנגנון דורש מודלים מ-Sonnet 4.5 ו-Opus 4.5 ומעלה.</p>
+  <p>הצד השני הוא תוצאות הכלים: שאילתת מסד נתונים רחבה או חיפוש לוגים יכולים להחזיר עשרות אלפי Tokens שיישבו ב-Context עד סוף ה-Session. Claude Code מזהיר מעל 10,000 Tokens לתוצאה וחותך ב-25,000 (<code>MAX_MCP_OUTPUT_TOKENS</code> להגדלה). הרגלים טובים: בקשו שאילתות ממוקדות, הסירו שרתים שאינם בשימוש, ועקבו עם <code>/context</code> (פרק 14) כמה מה-Context הולך לכלים ולתוצאותיהם.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>התחילו כל חיבור חדש עם שרת התיעוד (<code>claude-code-docs</code>): בלי אימות, בלי סיכון, ומלמד את כל המנגנון.</li>
+    <li>Scope לפי תפקיד: user לכלים אישיים חוצי פרויקטים, project לכל מה שהצוות צריך, local לניסויים.</li>
+    <li>OAuth כשאפשר, <code>${VAR}</code> כשחייבים Token, ולעולם לא סוד בקובץ.</li>
+    <li>הרשאה מינימלית כברירת מחדל: Read-only קודם, והרחבה נקודתית עם כללי allow לכלי קריאה בלבד.</li>
+    <li>הצמידו גרסאות שרתי stdio ב-<code>.mcp.json</code> ועדכנו דרך PR.</li>
+    <li>בדקו כל שרת חדש עם <code>claude mcp list</code> מיד אחרי ההוספה, ואל תניחו ש-Added פירושו Connected.</li>
+    <li>הסירו או כבו שרתים שאינם בשימוש; בדקו אחת לתקופה עם <code>/mcp</code> מה באמת מחובר.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>חיבור "כל מה שמצאתי ב-Reddit":</strong> שרת MCP הוא קוד שרץ בהרשאותיכם או שירות שמקבל את הנתונים שלכם. מקור לא מוכר = לא מחברים.</li>
+    <li><strong>DSN של Production עם משתמש Admin "רק לרגע":</strong> אין דבר כזה רק לרגע. תפקיד קריאה בלבד לוקח שתי דקות להקים.</li>
+    <li><strong>אישור עיוור של חלונות הרשאה:</strong> אם אתם מאשרים בלי לקרוא את הפרמטרים, ביטלתם את שכבת ההגנה החשובה ביותר.</li>
+    <li><strong>allow גורף לכל כלי השרת ביום הראשון:</strong> קודם תכירו את הכלים במצב ask, אחר כך תפתחו נקודתית.</li>
+    <li><strong>שימוש ב-MCP למה שכלי מובנה עושה:</strong> Claude קורא קבצים, מריץ Git ומחפש בקוד בכלים המובנים; שרת שמשכפל אותם רק מוסיף עלות ומשטח תקיפה.</li>
+    <li><strong>Token אחד משותף לכל הצוות:</strong> מבטל את יכולת ה-Audit ומרחיב את נזק הדליפה. אימות פר משתמש, תמיד.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל: חיבור מקור תיעוד ושאילתה</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 23.1</div>
+    <div class="body">
+      <p>חברו את שרת התיעוד הרשמי של Claude Code ובדקו אותו מקצה לקצה:</p>
+      <ol>
+        <li>הוסיפו את השרת <code>claude-code-docs</code> (כתובת: <code>https://code.claude.com/docs/mcp</code>) ב-scope local.</li>
+        <li>ודאו שהוא מחובר, ובדקו כמה כלים הוא חושף.</li>
+        <li>בתוך Session, בקשו מ-Claude לברר דרך השרת מה עושה משתנה הסביבה <code>MAX_MCP_OUTPUT_TOKENS</code>, וודאו בפלט שהתשובה אכן הגיעה מהשרת.</li>
+        <li>העבירו את השרת ל-scope user, כך שיהיה זמין בכל הפרויקטים שלכם.</li>
+        <li>נקו אחריכם: הסירו את השרת לגמרי וודאו שהוסר.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>שלב 1, הוספה (מהטרמינל, בתיקיית פרויקט כלשהי):</p>
+      <div class="terminal"><span class="p">$</span> claude mcp add --transport http claude-code-docs https://code.claude.com/docs/mcp
+<span class="out">Added HTTP MCP server claude-code-docs with URL: https://code.claude.com/docs/mcp to local config</span></div>
+      <p>שלב 2, בדיקה: <code>claude mcp list</code> אמור להציג <code>✔ Connected</code>. בתוך Session, <code>/mcp</code> ובחירת השרת מציגים את רשימת הכלים ומספרם.</p>
+      <p>שלב 3, שאילתה: פתחו <code>claude</code> וכתבו: <code>Use the claude-code-docs server to look up what MAX_MCP_OUTPUT_TOKENS does</code>. בקריאה הראשונה יופיע חלון אישור לכלי החדש; אשרו. בפלט תראו את קריאת הכלי מסומנת בשם השרת, וזו ההוכחה שהתשובה הגיעה מהשרת ולא מהידע הפנימי של המודל. התשובה הצפויה: המשתנה מעלה את תקרת פלט כלי ה-MCP מעל ברירת המחדל של 25,000 Tokens.</p>
+      <p>שלב 4, שינוי scope: ה-scope קבוע בעת ההוספה, ולכן הדרך היא הסרה והוספה מחדש:</p>
+      <div class="terminal"><span class="p">$</span> claude mcp remove claude-code-docs --scope local
+<span class="p">$</span> claude mcp add --scope user --transport http claude-code-docs https://code.claude.com/docs/mcp</div>
+      <p>שלב 5, ניקוי: <code>claude mcp remove claude-code-docs</code>, ואימות אחרון עם <code>claude mcp list</code> שהשרת אינו מופיע. שימו לב מה תרגלתם בדרך: הוספה, אימות חיבור, אישור כלי ראשון, ניהול scopes והסרה, שהם בדיוק מחזור החיים המלא של כל שרת MCP שתחברו אי פעם.</p>
+    </div>
+  </details>
+
+  <div class="verify">
+    <p><strong>אימות למידה:</strong> ודאו שאתם יודעים לענות בלי להציץ: מה ההבדל בין שלושת ה-Scopes ומי גובר על מי? למה שרת פרויקט דורש אישור בפעם הראשונה? איך כותבים כלל שמאשר רק כלי קריאה של שרת? ולמה תוצאה של שאילתת מסד נתונים היא גם שאלת אבטחה וגם שאלת Context?</p>
+  </div>
+
+  <h2 id="summary">סיכום</h2>
+  <p>MCP הוא שער היציאה של Claude Code לעולם: פרוטוקול פתוח אחד, שלושה Primitives (כלים, משאבים, Prompts), שלושה Scopes, ותשתית אימות והרשאות מלאה. למדנו להוסיף, לאמת, לאבחן ולהסיר שרתים בכל ה-Transports; לנהל סודות נכון (משתני סביבה ו-OAuth, לעולם לא בקבצים); לבנות הגנה בשכבות מול Production (הרשאות בצד השירות, כללים בצד Claude Code, מדיניות בצד הארגון); ואפילו לכתוב שרת משלנו בחמש עשרה שורות Python. חמש התצורות בתיקיית <code>mcp/</code> מוכנות להעתקה לפרויקטים שלכם. בפרק הבא נראה את הצד המנוהל של אותו מטבע: Connectors, שרתי MCP שמגיעים דרך claude.ai עם בקרות ארגוניות מובנות.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/mcp">Claude Code: Connect to tools via MCP</a> |
+      <a href="https://code.claude.com/docs/en/mcp-quickstart">Claude Code: MCP quickstart</a> |
+      <a href="https://code.claude.com/docs/en/managed-mcp">Claude Code: Managed MCP</a> |
+      <a href="https://code.claude.com/docs/en/permissions">Claude Code: Permissions</a> |
+      <a href="https://code.claude.com/docs/en/settings">Claude Code: Settings</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">Claude Code: CLI reference</a> |
+      <a href="https://pypi.org/project/mcp/">MCP Python SDK (PyPI, v2.0.0)</a> |
+      <a href="https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem">Filesystem MCP Server (npm)</a> |
+      <a href="https://www.npmjs.com/package/@bytebase/dbhub">DBHub (npm, v1.0.0)</a> |
+      <a href="https://py.sdk.modelcontextprotocol.io/">MCP Python SDK docs</a> (נבדק: 16.10.2026) |
+      נבדק: 28.07.2026. הערת שקיפות: האתר modelcontextprotocol.io לא היה נגיש מסביבת הכתיבה ביום המחקר; עובדות הפרוטוקול אומתו דרך התיעוד הרשמי של Anthropic ודרך חבילות ה-SDK הרשמיות ב-PyPI וב-npm, ודוגמת השרת המינימלי הורצה ונבדקה בפועל. כתובות שרתים של ספקים חיצוניים מופיעות רק כשהן מתועדות במקורות אלה.
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch22.html"><span class="lbl">הפרק הקודם</span>Hooks</a>
+    <a href="ch24.html"><span class="lbl">הפרק הבא</span>Connectors ו-Connected Services</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.2 | הפרק עודכן: 16.10.2026 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

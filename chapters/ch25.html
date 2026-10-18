@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 25: Subagents</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ה | פרק 25</p>
+  <h1>Subagents</h1>
+  <p class="lead">בפרק הזה נלמד להאציל עבודה: <bdi>Subagent</bdi> הוא עוזר ממוקד שרץ בתוך ה-<bdi>Session</bdi> שלכם, עם <bdi>Context Window</bdi> נפרד, <bdi>System Prompt</bdi> משלו והרשאות מוגבלות משלו. נבין את מנגנון בידוד ה-<bdi>Context</bdi>, נכיר את ה-<bdi>Subagents</bdi> המובנים, נעבור על כל שדות ההגדרה המתועדים, ונבנה חמישה <bdi>Subagents</bdi> מקצועיים לפרויקט <bdi>TaskFlow</bdi>: סוקר ארכיטקטורה, סוקר אבטחה, מומחה בדיקות, מומחה תיעוד וסוקר Database.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-is">מה זה Subagent ואיזו בעיה הוא פותר</h2>
+  <p><bdi>Subagent</bdi> הוא סוכן <bdi>AI</bdi> ייעודי ש-Claude מפעיל מתוך השיחה הראשית כדי לטפל במשימת צד. לכל <bdi>Subagent</bdi> יש שלושה מאפיינים מגדירים, לפי התיעוד הרשמי:</p>
+  <ul>
+    <li><strong><bdi>Context Window</bdi> נפרד.</strong> ה-<bdi>Subagent</bdi> עובד בהקשר משלו; החיפושים, הלוגים ותוכן הקבצים שהוא קורא לא נכנסים לשיחה הראשית. רק הסיכום הסופי חוזר אליה.</li>
+    <li><strong><bdi>System Prompt</bdi> מותאם.</strong> גוף קובץ ההגדרה הופך להנחיה הקבועה של הסוכן, במקום ה-<bdi>System Prompt</bdi> המלא של <bdi>Claude Code</bdi>.</li>
+    <li><strong>גישה מבוקרת לכלים ולהרשאות.</strong> אפשר להגביל אילו כלים מותר לו להפעיל, באיזה <bdi>Permission Mode</bdi> הוא רץ ואיזה מודל ישרת אותו.</li>
+  </ul>
+  <p>הבעיה שהמנגנון פותר היא בעיקר <strong>כלכלת <bdi>Context</bdi></strong>: הרצת חבילת בדיקות, סריקת <bdi>Codebase</bdi> גדול או ניתוח לוגים מייצרים אלפי שורות פלט שאתם לא תקראו שוב, אבל הן ממשיכות לתפוס מקום בחלון ההקשר ולדחוף החוצה מידע חשוב. האצלה ל-<bdi>Subagent</bdi> משאירה את הרעש אצלו, ומחזירה לשיחה הראשית רק את השורה התחתונה. בנוסף, המנגנון מאפשר <strong>אכיפת מגבלות</strong> (סוקר שאינו יכול לכתוב קבצים), <strong>שימוש חוזר</strong> (הגדרה אחת שמשרתת את כל הפרויקטים) ו<strong>שליטה בעלויות</strong> (ניתוב משימות פשוטות למודל זול כמו <bdi>Haiku</bdi>).</p>
+  <div class="callout note"><span class="title">גבולות מוצר</span><p>שלוש יכולות דומות ונבדלות: <bdi>Subagents</bdi> רצים <strong>בתוך</strong> <bdi>Session</bdi> אחד ומדווחים חזרה אליו; <bdi>Background Sessions</bdi> שמנוהלים דרך <code>claude agents</code> (Agent View) הם <bdi>Sessions</bdi> עצמאיים לגמרי; ו-<bdi>Agent Teams</bdi> <span class="badge exp">Experimental</span> הם קבוצת <bdi>Sessions</bdi> שמתקשרים זה עם זה (סעיף בהמשך, והרחבה בפרק 38).</p></div>
+
+  <h2 id="context-isolation">איך זה עובד: בידוד Context</h2>
+  <p>כל הפעלה של <bdi>Subagent</bdi> פותחת חלון הקשר טרי ומבודד. ה-<bdi>Subagent</bdi> לא רואה את היסטוריית השיחה שלכם, לא את הקבצים ש-Claude כבר קרא ולא את ה-<bdi>Skills</bdi> שכבר הופעלו. במקום זאת, Claude מנסח עבורו הודעת האצלה שמסכמת את המשימה. לפי התיעוד, ההקשר ההתחלתי של <bdi>Subagent</bdi> רגיל (שאינו <bdi>Fork</bdi>) מכיל:</p>
+  <ul>
+    <li><strong><bdi>System Prompt</bdi>:</strong> ההנחיה מגוף קובץ ההגדרה, בתוספת פרטי סביבה בסיסיים כמו תיקיית העבודה. לא ה-<bdi>System Prompt</bdi> המלא של <bdi>Claude Code</bdi>.</li>
+    <li><strong>הודעת המשימה:</strong> ה-<bdi>Prompt</bdi> ש-Claude כותב כשהוא מאציל את העבודה.</li>
+    <li><strong>קובצי <bdi>CLAUDE.md</bdi>:</strong> כל היררכיית ה-<bdi>CLAUDE.md</bdi> שהשיחה הראשית טוענת. יוצאי הדופן: הסוכנים המובנים <bdi>Explore</bdi> ו-<bdi>Plan</bdi> מדלגים עליה כדי להישאר מהירים וזולים.</li>
+    <li><strong>מצב <bdi>Git</bdi>:</strong> תמונת מצב שנלקחה בתחילת ה-<bdi>Session</bdi> של ההורה. <bdi>Explore</bdi> ו-<bdi>Plan</bdi> מדלגים גם עליה.</li>
+    <li><strong><bdi>Skills</bdi> שנטענו מראש:</strong> התוכן המלא של כל <bdi>Skill</bdi> שמופיע בשדה <code>skills</code> של ההגדרה.</li>
+  </ul>
+  <p>מה <strong>לא</strong> מגיע אליו: ה-<bdi>Output Style</bdi> של השיחה הראשית, ה-<bdi>Auto Memory</bdi> שלה, וגודל חלון ההקשר שלה (חלון ה-<bdi>Subagent</bdi> נקבע לפי המודל שלו עצמו). בסיום העבודה חוזר לשיחה הראשית רק הדוח הסופי של ה-<bdi>Subagent</bdi>, ולא אף תוצר ביניים. זה בדיוק מקור החיסכון, וגם מקור הסיכון של "הרעבת הקשר" שנטפל בו ב-<a href="#troubleshooting">Troubleshooting</a>: מה שלא כתבתם בהודעת ההאצלה, ה-<bdi>Subagent</bdi> פשוט לא יודע.</p>
+
+  <h2 id="built-in">ה-Subagents המובנים</h2>
+  <p><bdi>Claude Code</bdi> מגיע עם כמה <bdi>Subagents</bdi> מובנים, שכולם יורשים את הרשאות השיחה הראשית עם הגבלות כלים נוספות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Subagent</th><th>מודל</th><th>כלים</th><th>מתי Claude משתמש בו</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>Explore</code></td><td>יורש מהשיחה הראשית (ב-Claude API מוגבל עד <bdi>Opus</bdi>)</td><td>קריאה בלבד; <bdi>Write</bdi> ו-<bdi>Edit</bdi> חסומים</td><td>חיפוש קבצים, חיפוש קוד וחקירת <bdi>Codebase</bdi> בלי לשנות דבר. Claude מציין רמת יסודיות: <bdi>quick</bdi>, <bdi>medium</bdi> או <bdi>very thorough</bdi></td></tr>
+        <tr><td class="ltr"><code>Plan</code></td><td>יורש מהשיחה הראשית</td><td>קריאה בלבד</td><td>מחקר <bdi>Codebase</bdi> בזמן <bdi>Plan Mode</bdi>, כדי שפלט החקירה יישאר מחוץ לשיחה הראשית</td></tr>
+        <tr><td class="ltr"><code>general-purpose</code></td><td>יורש מהשיחה הראשית</td><td>כל הכלים הזמינים ל-<bdi>Subagents</bdi></td><td>משימות מורכבות שדורשות גם חקירה וגם ביצוע, או כמה שלבים תלויים זה בזה</td></tr>
+        <tr><td class="ltr"><code>statusline-setup</code></td><td><bdi>Sonnet</bdi></td><td>ייעודי</td><td>כשמריצים <code>/statusline</code></td></tr>
+        <tr><td class="ltr"><code>claude-code-guide</code></td><td><bdi>Haiku</bdi></td><td>ייעודי</td><td>כששואלים שאלות על יכולות <bdi>Claude Code</bdi></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>חשוב להכיר את החריגות של <bdi>Explore</bdi> ו-<bdi>Plan</bdi>: הם היחידים שלא טוענים <bdi>CLAUDE.md</bdi> ולא מצב <bdi>Git</bdi>, והם חד-פעמיים (One-shot): הם לא מחזירים <bdi>Agent ID</bdi> ולכן אי אפשר להמשיך אותם ב-<bdi>Resume</bdi>. אם כלל מ-<bdi>CLAUDE.md</bdi> חייב להגיע אליהם (למשל "להתעלם מתיקיית <code>vendor/</code>"), חזרו עליו בהודעת ההאצלה. הגדרה מקומית בשם <code>Explore</code> דורסת את המובנה ושומרת על שדה ה-<code>model</code> שלה, כך שאפשר להצמיד את החקירה ל-<bdi>Haiku</bdi> ולחסוך.</p>
+  <p>רוצים לכבות? שלוש דרכים מתועדות: חסימת סוג ספציפי עם <code>"deny": ["Agent(Explore)"]</code> בהגדרות ההרשאות; חסימת כלי ה-<bdi>Agent</bdi> כולו כדי למנוע כל האצלה; או משתנה הסביבה <code>CLAUDE_CODE_DISABLE_EXPLORE_PLAN_AGENTS=1</code> שמסיר רק את <bdi>Explore</bdi> ו-<bdi>Plan</bdi> (מגרסה 2.1.198). במצב לא אינטראקטיבי וב-<bdi>Agent SDK</bdi> קיים גם <code>CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS=1</code>.</p>
+
+  <h2 id="custom">הגדרת Subagents מותאמים אישית</h2>
+  <p><bdi>Subagent</bdi> מותאם הוא קובץ <bdi>Markdown</bdi> עם <bdi>YAML Frontmatter</bdi>. מיקום הקובץ קובע למי הוא זמין, וכשכמה הגדרות חולקות שם, המיקום בעל העדיפות הגבוהה מנצח:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מיקום</th><th>היקף</th><th>עדיפות</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr">Managed settings</td><td>כלל ארגוני, נפרס על ידי מנהלי מערכת</td><td>1 (הגבוהה ביותר)</td></tr>
+        <tr><td class="ltr"><code>--agents</code> (דגל CLI)</td><td>ה-<bdi>Session</bdi> הנוכחי בלבד, לא נשמר לדיסק</td><td>2</td></tr>
+        <tr><td class="ltr"><code>.claude/agents/</code></td><td>הפרויקט הנוכחי; מומלץ להכניס ל-<bdi>Version Control</bdi></td><td>3</td></tr>
+        <tr><td class="ltr"><code>~/.claude/agents/</code></td><td>כל הפרויקטים שלכם</td><td>4</td></tr>
+        <tr><td class="ltr">תיקיית <code>agents/</code> של Plugin</td><td>היכן שה-<bdi>Plugin</bdi> מופעל</td><td>5 (הנמוכה ביותר)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>הסריקה של <code>.claude/agents/</code> ושל <code>~/.claude/agents/</code> היא רקורסיבית, כך שמותר לארגן קבצים בתתי-תיקיות כמו <code>agents/review/</code>. הזהות נקבעת אך ורק לפי שדה ה-<code>name</code> ב-<bdi>Frontmatter</bdi> (שם הקובץ לא חייב להתאים), ולכן חובה לשמור על שמות ייחודיים: שני קבצים עם אותו <code>name</code> באותו עץ יגרמו לטעינת אחד מהם בלבד, וה-<bdi>Setup Checkup</bdi> של <code>/doctor</code> מדווח על כפילויות כאלה. אצל <bdi>Plugins</bdi> תת-התיקייה כן נכנסת למזהה: קובץ ב-<code>agents/review/security.md</code> של <bdi>Plugin</bdi> בשם <bdi>my-plugin</bdi> נרשם כ-<code>my-plugin:review:security</code>.</p>
+  <p>מבנה הקובץ, על פי התיעוד:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/agents/code-reviewer.md</div>
+    <pre><code>---
+name: code-reviewer
+description: Reviews code for quality and best practices
+tools: Read, Glob, Grep
+model: sonnet
+---
+
+You are a code reviewer. When invoked, analyze the code and provide
+specific, actionable feedback on quality, security, and best practices.</code></pre>
+  </div>
+  <p><bdi>Claude Code</bdi> עוקב אחרי שתי התיקיות: קובץ שנוסף או נערך נקלט תוך שניות בודדות, בלי הפעלה מחדש. שני מקרים כן דורשים הפעלה מחדש: כשתיקיית <code>agents</code> נוצרה לראשונה אחרי שה-<bdi>Session</bdi> כבר התחיל, ו-<bdi>Sessions</bdi> שהופעלו עם <code>--disable-slash-commands</code>.</p>
+  <h3 id="agents-command">הפקודה /agents והדגלים בשורת הפקודה</h3>
+  <p>שימו לב לשינוי התנהגות מתועד: מגרסה 2.1.198 הפקודה <code>/agents</code> כבר <strong>לא</strong> פותחת אשף יצירה אינטראקטיבי. הרצתה מדפיסה תזכורת לבקש מ-Claude ליצור או לנהל <bdi>Subagents</bdi>, או לערוך ישירות את <code>.claude/agents/</code> ואת <code>~/.claude/agents/</code>. בגרסאות 2.1.197 ומטה הפקודה פתחה ממשק ניהול מלא. הדרך המומלצת היום היא פשוט לבקש:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Create a project subagent in .claude/agents/ named security-reviewer that
+audits code for vulnerabilities. Make it read-only.</code></pre>
+  </div>
+  <p>להגדרה זמנית ל-<bdi>Session</bdi> יחיד משמש הדגל <code>--agents</code>, שמקבל <bdi>JSON</bdi> עם אותם שדות כמו ה-<bdi>Frontmatter</bdi>, בתוספת שדה <code>prompt</code> שמחליף את גוף ה-<bdi>Markdown</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash (macOS / Linux / WSL)</div>
+    <pre><code>claude --agents '{
+  "code-reviewer": {
+    "description": "Expert code reviewer. Use proactively after code changes.",
+    "prompt": "You are a senior code reviewer. Focus on quality and security.",
+    "tools": ["Read", "Grep", "Glob", "Bash"],
+    "model": "sonnet"
+  }
+}'</code></pre>
+  </div>
+  <p>דגל נפרד ושונה הוא <code>--agent &lt;name&gt;</code> (ביחיד): הוא מפעיל <bdi>Session</bdi> שלם שבו השיחה הראשית עצמה מאמצת את ה-<bdi>System Prompt</bdi>, הגבלות הכלים והמודל של אותו <bdi>Subagent</bdi>. אפשר לקבוע זאת כברירת מחדל לפרויקט עם ההגדרה <code>"agent"</code> ב-<code>.claude/settings.json</code>. במצב לא אינטראקטיבי קיים גם <code>--append-subagent-system-prompt</code> (מגרסה 2.1.205) שמוסיף טקסט לסוף ה-<bdi>System Prompt</bdi> של כל <bdi>Subagent</bdi>.</p>
+
+  <h2 id="frontmatter">כל שדות ה-Frontmatter</h2>
+  <p>רק <code>name</code> ו-<code>description</code> הם שדות חובה. אלה כל השדות המתועדים:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>שדה</th><th>חובה</th><th>מה הוא קובע</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>name</code></td><td>כן</td><td>מזהה ייחודי באותיות קטנות ומקפים. <bdi>Hooks</bdi> מקבלים אותו כ-<code>agent_type</code></td></tr>
+        <tr><td class="ltr"><code>description</code></td><td>כן</td><td>מתי Claude צריך להאציל לסוכן הזה. זה הטקסט שמנגנון ההאצלה האוטומטית קורא</td></tr>
+        <tr><td class="ltr"><code>tools</code></td><td>לא</td><td>רשימת היתר (Allowlist) של כלים. בהיעדרו יורש כל כלי שזמין ל-<bdi>Subagents</bdi></td></tr>
+        <tr><td class="ltr"><code>disallowedTools</code></td><td>לא</td><td>רשימת חסימה (Denylist); מוסרת מהרשימה שירש או שהוגדרה. מוחל לפני <code>tools</code></td></tr>
+        <tr><td class="ltr"><code>model</code></td><td>לא</td><td><code>sonnet</code>, <code>opus</code>, <code>haiku</code>, <code>fable</code>, מזהה מודל מלא (כמו <code>claude-opus-5</code>) או <code>inherit</code>. ברירת מחדל: <code>inherit</code></td></tr>
+        <tr><td class="ltr"><code>permissionMode</code></td><td>לא</td><td><code>default</code>, <code>acceptEdits</code>, <code>auto</code>, <code>dontAsk</code>, <code>bypassPermissions</code>, <code>plan</code>, או <code>manual</code> (כינוי ל-<code>default</code> מגרסה 2.1.200). מנוטרל אצל <bdi>Subagents</bdi> של <bdi>Plugins</bdi></td></tr>
+        <tr><td class="ltr"><code>maxTurns</code></td><td>לא</td><td>מספר מרבי של תורות סוכן לפני עצירה</td></tr>
+        <tr><td class="ltr"><code>skills</code></td><td>לא</td><td><bdi>Skills</bdi> שתוכנם המלא מוזרק להקשר בהפעלה. גם בלעדיו הסוכן יכול להפעיל <bdi>Skills</bdi> דרך כלי ה-<bdi>Skill</bdi></td></tr>
+        <tr><td class="ltr"><code>mcpServers</code></td><td>לא</td><td>שרתי <bdi>MCP</bdi> לסוכן הזה: הפניה בשם לשרת מוגדר, או הגדרה מוטמעת שמתחברת רק למשך ריצתו. מנוטרל אצל <bdi>Plugins</bdi></td></tr>
+        <tr><td class="ltr"><code>hooks</code></td><td>לא</td><td><bdi>Hooks</bdi> שרצים רק כשהסוכן הזה פעיל. מנוטרל אצל <bdi>Plugins</bdi></td></tr>
+        <tr><td class="ltr"><code>memory</code></td><td>לא</td><td>זיכרון מתמשך בין שיחות: <code>user</code>, <code>project</code> או <code>local</code></td></tr>
+        <tr><td class="ltr"><code>background</code></td><td>לא</td><td><code>true</code> מריץ תמיד ברקע. בהיעדרו Claude בוחר, ומגרסה 2.1.198 ברירת המחדל היא רקע</td></tr>
+        <tr><td class="ltr"><code>effort</code></td><td>לא</td><td>רמת מאמץ בזמן שהסוכן פעיל: <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>, <code>max</code>; תלוי מודל</td></tr>
+        <tr><td class="ltr"><code>isolation</code></td><td>לא</td><td><code>worktree</code> מריץ את הסוכן ב-<bdi>Git Worktree</bdi> זמני עם עותק מבודד של ה-<bdi>Repository</bdi></td></tr>
+        <tr><td class="ltr"><code>color</code></td><td>לא</td><td>צבע תצוגה ברשימת המשימות וב-<bdi>Transcript</bdi>: <code>red</code>, <code>blue</code>, <code>green</code>, <code>yellow</code>, <code>purple</code>, <code>orange</code>, <code>pink</code>, <code>cyan</code></td></tr>
+        <tr><td class="ltr"><code>initialPrompt</code></td><td>לא</td><td>נשלח אוטומטית כתור המשתמש הראשון כשהסוכן רץ כ-<bdi>Session</bdi> ראשי (דרך <code>--agent</code> או הגדרת <code>agent</code>)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>לגבי בחירת מודל, סדר ההכרעה המתועד הוא: משתנה הסביבה <code>CLAUDE_CODE_SUBAGENT_MODEL</code>, אחריו פרמטר <code>model</code> שהועבר בהפעלה הספציפית, אחריו שדה ה-<code>model</code> ב-<bdi>Frontmatter</bdi>, ולבסוף המודל של השיחה הראשית. מגרסה 2.1.198 ה-<bdi>Subagents</bdi> יורשים גם את הגדרת ה-<bdi>Extended Thinking</bdi> של השיחה הראשית; אין הגדרת חשיבה נפרדת לסוכן.</p>
+
+  <h2 id="tools-permissions">הגבלת כלים וירושת הרשאות</h2>
+  <p><bdi>Subagent</bdi> יורש את הכלים המובנים וכלי ה-<bdi>MCP</bdi> שזמינים בשיחה הראשית, אחרי שני מסננים מתועדים. המסנן הראשון מסיר מכל <bdi>Subagent</bdi> רשימה קצרה של כלים "שיחתיים" (בהם <code>AskUserQuestion</code>, <code>EnterPlanMode</code> ו-<code>ExitPlanMode</code>, אלא אם הסוכן ב-<code>permissionMode: plan</code>). המסנן השני חל על סוכנים שרצים ברקע (ברירת המחדל): הם שומרים על כל כלי ה-<bdi>MCP</bdi> אבל רק על קבוצה מוגדרת של כלים מובנים, ובהם <code>Read</code>, <code>Grep</code>, <code>Glob</code>, <code>Bash</code>, <code>Edit</code>, <code>Write</code>, <code>WebFetch</code> ו-<code>WebSearch</code>. המשמעות המעשית: אותה הגדרה יכולה להתפרש לכלים שונים ב-<bdi>Foreground</bdi> וב-<bdi>Background</bdi>.</p>
+  <p>מעל הירושה הזאת פועלות שתי הרשימות שלכם: <code>tools</code> כרשימת היתר ו-<code>disallowedTools</code> כרשימת חסימה. אם שתיהן מוגדרות, החסימה מוחלת קודם. שתיהן מקבלות גם תבניות ברמת שרת <bdi>MCP</bdi>: <code>mcp__github</code> או <code>mcp__github__*</code> לכל הכלים של שרת מסוים, ו-<code>mcp__*</code> בתוך <code>disallowedTools</code> להסרת כל כלי ה-<bdi>MCP</bdi>. אם אף ערך ברשימת <code>tools</code> לא מתורגם לכלי קיים (למשל בגלל שגיאת כתיב), הסוכן בדרך כלל מסרב לעלות עם שגיאה שמונה את הערכים הבעייתיים (מגרסה 2.1.208).</p>
+  <p><strong>הרשאות:</strong> ה-<bdi>Subagent</bdi> יורש את הקשר ההרשאות של השיחה הראשית ויכול לעקוף את המצב עם <code>permissionMode</code>, עם שלושה סייגים מתועדים: אם ההורה רץ ב-<code>bypassPermissions</code> או <code>acceptEdits</code>, מצב ההורה גובר ואי אפשר לעקוף אותו; ואם ההורה ב-<bdi>Auto Mode</bdi>, הסוכן יורש אותו וה-<code>permissionMode</code> שבקובץ מנוטרל. בקשות אישור של סוכן רקע צצות בשיחה הראשית שלכם עם שם הסוכן המבקש (מגרסה 2.1.186); אישור מאפשר לו להמשיך, ו-<code>Esc</code> דוחה את הקריאה הבודדת בלי לעצור אותו.</p>
+  <div class="callout warn"><span class="title">אזהרה</span><p><code>permissionMode: bypassPermissions</code> מדלג על בקשות האישור של הסוכן, כולל כתיבה לתיקיות רגישות כמו <code>.git</code> ו-<code>.claude</code>. השתמשו בו רק בסביבות מבודדות. חוקי <code>ask</code> מפורשים ומחיקות שורש עדיין עוצרים לאישור.</p></div>
+  <p>לשליטה עדינה יותר מרשימת כלים משתמשים ב-<bdi>Hooks</bdi>: <code>PreToolUse</code> בתוך ה-<bdi>Frontmatter</bdi> יכול לבדוק כל פקודה לפני ריצה ולחסום אותה עם קוד יציאה 2. נראה את זה חי אצל <a href="#db-reviewer">database-reviewer</a>. בנוסף, <bdi>Hooks</bdi> כלל-מערכתיים מ-<code>settings.json</code> חלים גם בתוך <bdi>Subagents</bdi>, והאירועים <code>SubagentStart</code> ו-<code>SubagentStop</code> מאפשרים להגיב להפעלה ולסיום שלהם.</p>
+
+  <h2 id="skills-memory">Skills וזיכרון מתמשך</h2>
+  <p>שדה <code>skills</code> מזריק את התוכן המלא של <bdi>Skills</bdi> נבחרים להקשר הסוכן כבר בהפעלה, כך שהוא מתחיל עם ידע התחום בלי לחפש אותו. גם בלי השדה, הסוכן יכול להפעיל <bdi>Skills</bdi> של פרויקט, משתמש ו-<bdi>Plugins</bdi> דרך כלי ה-<bdi>Skill</bdi>; כדי למנוע זאת מסירים את <code>Skill</code> מרשימת הכלים. אי אפשר לטעון מראש <bdi>Skills</bdi> שמוגדרים עם <code>disable-model-invocation: true</code>.</p>
+  <p>שדה <code>memory</code> מעניק לסוכן תיקיית זיכרון שנשמרת בין שיחות, בשלושה היקפים: <code>user</code> (<code>~/.claude/agent-memory/&lt;name&gt;/</code>, לכל הפרויקטים), <code>project</code> (<code>.claude/agent-memory/&lt;name&gt;/</code>, משותף דרך <bdi>Version Control</bdi>; ההיקף המומלץ בתיעוד) ו-<code>local</code> (<code>.claude/agent-memory-local/&lt;name&gt;/</code>, פרויקטלי אך לא נכנס ל-<bdi>Repository</bdi>). כשהזיכרון פעיל, ה-<bdi>System Prompt</bdi> של הסוכן מקבל הוראות ניהול זיכרון ואת תחילת קובץ <code>MEMORY.md</code> (עד 200 שורות או 25KB), והכלים <bdi>Read</bdi>, <bdi>Write</bdi> ו-<bdi>Edit</bdi> מופעלים אוטומטית כדי שיוכל לתחזק את קובצי הזיכרון שלו. שימו לב: הזיכרון הוא חלק מ-<bdi>Auto Memory</bdi>; אם כיביתם את <bdi>Auto Memory</bdi>, השדה לא עושה דבר.</p>
+
+  <h2 id="fg-bg">Foreground מול Background</h2>
+  <p>מגרסה 2.1.198 <bdi>Subagents</bdi> רצים <strong>ברקע כברירת מחדל</strong>: אתם ממשיכים לעבוד, והם עובדים במקביל. Claude מריץ סוכן ב-<bdi>Foreground</bdi> (חוסם את השיחה עד סיום) רק כשהוא צריך את התוצאה מיד. תוצאת סוכן רקע מגיעה ל-Claude כהתראת סיום בתור מאוחר יותר, ואם תשאלו על ההתקדמות לפני כן, הוא ידווח שהסוכן עדיין רץ. השליטה בידיים שלכם:</p>
+  <ul>
+    <li>בקשו במפורש ריצה ברקע או ב-<bdi>Foreground</bdi> בתוך ה-<bdi>Prompt</bdi>.</li>
+    <li>לחצו <code>Ctrl+B</code> כדי להעביר משימה רצה לרקע.</li>
+    <li>קבעו <code>background: true</code> ב-<bdi>Frontmatter</bdi> לסוכן שתמיד ירוץ ברקע.</li>
+    <li><code>/tasks</code> מציג את עבודות הרקע של ה-<bdi>Session</bdi>, כולל <bdi>Subagents</bdi> שסיימו (סוכן שהסתיים נשאר ברשימה מסומן כ-<bdi>Done</bdi>, מגרסה 2.1.208). פאנל הסוכנים מתחת לשורת הקלט מציג את עץ הריצה.</li>
+    <li><code>CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1</code> מכבה את כל מנגנון הרקע.</li>
+  </ul>
+  <p>אל תתבלבלו בין זה לבין <code>claude agents</code>: הפקודה הזאת פותחת את <bdi>Agent View</bdi>, מסך ניהול ל-<bdi>Background Sessions</bdi> עצמאיים (עם פקודות אחיות כמו <code>claude attach</code>, <code>claude logs</code> ו-<code>claude stop</code>). אלה <bdi>Sessions</bdi> נפרדים לגמרי, לא <bdi>Subagents</bdi> של השיחה הנוכחית, אם כי אפשר לשגר מהם משימה לסוכן מותאם עם תחילית <code>@&lt;agent-name&gt;</code>.</p>
+
+  <h2 id="resume">המשך עבודה: Resume ל-Subagent</h2>
+  <p>כל הפעלה של <bdi>Subagent</bdi> יוצרת מופע חדש עם הקשר טרי. כדי להמשיך עבודה קיימת במקום להתחיל מאפס, בקשו מ-Claude להמשיך את הסוכן: הוא משתמש בכלי <code>SendMessage</code> עם השם או ה-<bdi>Agent ID</bdi> של הסוכן, והסוכן מתעורר עם מלוא ההיסטוריה שלו, כולל כל קריאות הכלים והנימוקים הקודמים:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Use the security-reviewer subagent to audit the authentication module
+[הסוכן מסיים ומחזיר דוח]
+
+Continue that security review and now cover the authorization logic too</code></pre>
+  </div>
+  <p>ה-<bdi>Transcripts</bdi> של סוכנים נשמרים בנפרד מהשיחה הראשית, בקבצים <code>agent-{agentId}.jsonl</code> תחת <code>~/.claude/projects/{project}/{sessionId}/subagents/</code>. הם שורדים <bdi>Compaction</bdi> של השיחה הראשית, נשמרים עם ה-<bdi>Session</bdi> (כך שאפשר להמשיך סוכן גם אחרי הפעלה מחדש דרך המשכת אותו <bdi>Session</bdi>), ומנוקים לפי <code>cleanupPeriodDays</code> (ברירת מחדל: 30 יום). <bdi>Subagents</bdi> גם עוברים <bdi>Auto-compaction</bdi> באותו מנגנון של השיחה הראשית. זכרו: <bdi>Explore</bdi> ו-<bdi>Plan</bdi> חד-פעמיים ולא ניתנים להמשכה; לעבודה מתמשכת בחרו <code>general-purpose</code> או סוכן מותאם.</p>
+
+  <h2 id="delegation">דפוסי האצלה</h2>
+  <h3 id="auto-delegation">האצלה אוטומטית</h3>
+  <p>Claude מחליט להאציל לפי תיאור המשימה שביקשתם, שדה ה-<code>description</code> של כל סוכן וההקשר הנוכחי. לכן ה-<code>description</code> הוא שדה קריטי: כתבו בו מתי להשתמש בסוכן, לא רק מה הוא. התיעוד ממליץ לכלול ניסוח כמו <bdi>"use proactively"</bdi> כדי לעודד האצלה יזומה.</p>
+  <h3 id="explicit">הפעלה מפורשת</h3>
+  <p>שלושה דפוסים מתועדים, מהרך לקשיח:</p>
+  <ul>
+    <li><strong>שפה טבעית:</strong> נקבו בשם הסוכן ב-<bdi>Prompt</bdi> (<code>Use the test-specialist subagent to fix failing tests</code>); Claude בדרך כלל יאציל.</li>
+    <li><strong>אזכור עם <code>@</code>:</strong> הקלידו <code>@</code> ובחרו את הסוכן מההשלמה האוטומטית, או כתבו ידנית <code>@agent-&lt;name&gt;</code> (ל-<bdi>Plugins</bdi>: <code>@agent-my-plugin:code-reviewer</code>). זה מבטיח שהסוכן הספציפי ירוץ; Claude עדיין מנסח את הודעת המשימה שלו.</li>
+    <li><strong>כל ה-<bdi>Session</bdi>:</strong> <code>claude --agent code-reviewer</code> מפעיל את השיחה הראשית עצמה עם ההגדרה של הסוכן, או הגדרת <code>"agent"</code> ב-<code>settings.json</code> כברירת מחדל פרויקטלית.</li>
+  </ul>
+  <h3 id="fan-out">מניפת מחקר מקבילית ושרשור</h3>
+  <p>לחקירות בלתי תלויות, בקשו כמה סוכנים במקביל:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Research the authentication, database, and API modules in parallel
+using separate subagents</code></pre>
+  </div>
+  <p>כל סוכן חוקר את אזורו בנפרד, ו-Claude מסנתז את הממצאים. לזרימות רב-שלביות אפשר לשרשר: <code>Use the code-reviewer subagent to find performance issues, then use the optimizer subagent to fix them</code>. כברירת מחדל סוכן יכול גם להוליד סוכנים משלו עד שלוש שכבות מתחת לשיחה הראשית (ניתן לשינוי עם <code>CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH</code>, מגרסה 2.1.217). שתי מגבלות נוספות: עד 200 סוכנים ל-<bdi>Session</bdi> (<code>CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION</code>) ועד 20 רצים בו-זמנית (<code>CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS</code>); <code>/clear</code> מאפס את מונה ה-<bdi>Session</bdi>.</p>
+  <div class="callout warn"><span class="title">אזהרה</span><p>התוצאות של כל הסוכנים חוזרות לשיחה הראשית. מניפה של סוכנים רבים שכל אחד מחזיר דוח מפורט יכולה לצרוך הרבה <bdi>Context</bdi> בעצמה. בקשו מכל סוכן להחזיר סיכום קצר וממוקד.</p></div>
+
+  <h2 id="when-to-use">מתי Subagent, מתי בשיחה, מתי Session חדש</h2>
+  <p>מסגרת החלטה לפי התיעוד:</p>
+  <ul>
+    <li><strong>הישארו בשיחה הראשית</strong> כשצריך דו-שיח צמוד ותיקונים חוזרים, כשכמה שלבים חולקים הקשר משמעותי (תכנון, מימוש ובדיקות של אותו פיצ'ר), כשהשינוי קטן וממוקד, או כשהזמן קריטי: סוכן מתחיל מאפס וצריך זמן לאסוף הקשר.</li>
+    <li><strong>האצילו ל-<bdi>Subagent</bdi></strong> כשהמשימה מייצרת פלט מפורט שאין לכם צורך בו בהקשר הראשי, כשרוצים לאכוף הגבלות כלים והרשאות, או כשהעבודה עומדת בפני עצמה ויכולה לחזור כסיכום.</li>
+    <li><strong>לשאלת צד קטנה</strong> על משהו שכבר בשיחה, השתמשו ב-<code>/btw</code>: הוא רואה את מלוא ההקשר, בלי גישה לכלים, והתשובה לא מצטרפת להיסטוריה.</li>
+    <li><strong><bdi>Session</bdi> חדש</strong> (או <bdi>Background Session</bdi> דרך <code>claude agents</code>) מתאים כשהמשימה החדשה לא קשורה לנוכחית בכלל; אין סיבה לגרור את ההקשר הקיים.</li>
+    <li><strong><bdi>Skill</bdi></strong> עדיף כשרוצים הנחיות עבודה לשימוש חוזר שרצות דווקא בתוך ההקשר הראשי (פרק 21).</li>
+  </ul>
+
+  <h2 id="cost">עלות ו-Context</h2>
+  <p>כל <bdi>Subagent</bdi> הוא שיחת מודל עצמאית: הוא צורך <bdi>Tokens</bdi> משלו על ה-<bdi>System Prompt</bdi>, על קובצי <bdi>CLAUDE.md</bdi> שנטענים אליו, ועל כל קריאת כלים שלו, בנפרד מהשיחה הראשית ובנוסף לה. המשמעות: האצלה אינה "בחינם"; היא ממירה עומס הקשר בעלות <bdi>Tokens</bdi> נוספת. כמה עובדות מתועדות שכדאי לתמחר:</p>
+  <ul>
+    <li>סוכן בשם (Named) מתחיל עם <bdi>Prompt Cache</bdi> נפרד, בעוד <bdi>Fork</bdi> של השיחה (דרך <code>/subtask</code>) חולק את ה-<bdi>Cache</bdi> עם ההורה ולכן זול יותר להפעלה כשצריך את מלוא ההקשר. שימו לב שהולדת <bdi>Forks</bdi> על ידי Claude עצמו מסומנת בתיעוד כ-<span class="badge exp">Experimental</span>.</li>
+    <li>ניתוב משימות מכניות למודל זול (<code>model: haiku</code>) הוא כלי החיסכון המרכזי; כך עשינו ב-<a href="#doc-specialist">documentation-specialist</a>.</li>
+    <li><bdi>Explore</bdi> ו-<bdi>Plan</bdi> חוסכים בכך שהם מדלגים על <bdi>CLAUDE.md</bdi> ועל מצב <bdi>Git</bdi>.</li>
+    <li><code>maxTurns</code> שם תקרה על סוכן שנכנס ללולאה ושורף <bdi>Tokens</bdi>.</li>
+  </ul>
+
+  <h2 id="our-five">חמשת ה-Subagents של המדריך</h2>
+  <p>נבנה עכשיו ערכת סוקרים ומומחים מלאה לפרויקט <bdi>TaskFlow</bdi>. הקבצים נמצאים בחבילת המדריך בתיקייה <code>subagents/</code>; העתיקו אותם אל <code>.claude/agents/</code> בשורש הפרויקט (או אל <code>~/.claude/agents/</code> אם תרצו אותם בכל הפרויקטים):</p>
+  <div class="terminal"><span class="p">$</span> mkdir -p .claude/agents scripts
+<span class="p">$</span> cp /path/to/guide/subagents/*.md .claude/agents/
+<span class="p">$</span> cp /path/to/guide/subagents/scripts/validate-readonly-query.sh scripts/
+<span class="p">$</span> chmod +x scripts/validate-readonly-query.sh</div>
+
+  <h3 id="arch-reviewer">1. architecture-reviewer: סוקר הארכיטקטורה</h3>
+  <div class="codeblock">
+    <div class="codehead">.claude/agents/architecture-reviewer.md</div>
+    <pre><code>---
+name: architecture-reviewer
+description: Reviews code structure, layering, dependencies, and design decisions without modifying files. Use proactively after adding new modules, changing interfaces between components, or refactoring across more than one file.
+tools: Read, Grep, Glob
+model: inherit
+memory: project
+color: blue
+---
+
+You are a senior software architect performing read-only architecture reviews.
+
+When invoked:
+1. Map the affected area: entry points, modules, and the interfaces between them.
+2. Read the changed files and every module that depends on them.
+3. Review structure before style: boundaries, layering, and data flow come first.
+
+Review checklist:
+- Separation of concerns: each module has one clear responsibility
+- Dependency direction: high-level code does not depend on low-level details
+- No circular imports or hidden coupling between layers
+- Public interfaces are minimal, explicit, and consistent
+- Errors cross boundaries in a controlled, well-defined way
+- New code follows the existing patterns of the project, or documents why not
+
+Report findings ordered by impact:
+- Blocking: structural problems that will be expensive to undo later
+- Should fix: coupling or duplication that raises maintenance cost
+- Consider: reasonable alternatives worth discussing
+
+For each finding, name the files involved, explain the consequence of leaving
+it as is, and propose the smallest change that fixes the structure. You never
+modify project files; you only report.
+
+Update your agent memory with architectural decisions, module boundaries, and
+recurring patterns you discover, so future reviews start from established
+knowledge.</code></pre>
+  </div>
+  <p><strong>הרציונל לכלים:</strong> סוקר טהור. <code>Read</code>, <code>Grep</code> ו-<code>Glob</code> מספיקים לניווט ולקריאה, ואין <code>Bash</code> בכלל: ארכיטקטורה סוקרים מקוד המקור. <code>memory: project</code> מצטבר לידע ארכיטקטוני ב-<code>.claude/agent-memory/architecture-reviewer/</code> שמשותף לצוות דרך <bdi>Git</bdi>. שימו לב לניואנס מתועד: הפעלת <code>memory</code> מוסיפה אוטומטית <bdi>Read</bdi>, <bdi>Write</bdi> ו-<bdi>Edit</bdi> כדי שהסוכן יתחזק את קובצי הזיכרון שלו; ההנחיה בגוף הקובץ מגדירה שהוא לא נוגע בקובצי הפרויקט.</p>
+  <p><strong>הפעלה על <bdi>TaskFlow</bdi>:</strong> <code>Use the architecture-reviewer subagent to review the boundary between the routers and the database layer in backend/app</code>. <strong>תוצאה צפויה:</strong> דוח מדורג שיצביע, למשל, על כך ש-<code>routers/tasks.py</code> ניגש ישירות ל-<bdi>SQLite</bdi> בלי שכבת שירות, עם הצעת מבנה מינימלית. <strong>מקרה כשל:</strong> אם תבקשו ממנו "לתקן את המבנה", הוא לא יכול: אין לו <bdi>Edit</bdi> לקובצי פרויקט. זו התנהגות רצויה; את התיקון מבצעים בשיחה הראשית לפי הדוח.</p>
+
+  <h3 id="sec-reviewer">2. security-reviewer: סוקר האבטחה</h3>
+  <div class="codeblock">
+    <div class="codehead">.claude/agents/security-reviewer.md</div>
+    <pre><code>---
+name: security-reviewer
+description: Audits code for security vulnerabilities such as injection, broken authentication, exposed secrets, and unsafe dependencies. Read-only. Use proactively after changes to authentication, input handling, API endpoints, or dependency files.
+tools: Read, Grep, Glob, Bash
+model: inherit
+color: red
+---
+
+You are an application security reviewer. You audit code and configuration;
+you never modify files.
+
+When invoked:
+1. Run git diff to focus on recent changes; widen scope only when the changes
+   touch trust boundaries such as authentication or input parsing.
+2. Trace every external input to where it is parsed, stored, or executed.
+3. Check dependency and configuration files for known-risk patterns.
+
+Audit checklist:
+- Injection: SQL, command, path traversal, template, and header injection
+- Authentication and sessions: token storage, expiry, logout, privilege
+  checks on every route
+- Secrets: hardcoded keys, tokens, or passwords in code or configuration
+- Input validation and output encoding at every boundary
+- Insecure defaults: permissive CORS, debug mode, verbose errors in production
+- Dependencies: unpinned versions and known-vulnerable packages
+
+Use Bash for read-only inspection only: git diff, git log, and dependency
+audit tools. Do not run commands that change state.
+
+Report each finding with severity (Critical / High / Medium / Low), the exact
+file and line, evidence, the attack scenario, and a concrete fix. If you find
+no issues, state explicitly what you checked and what you could not verify.</code></pre>
+  </div>
+  <p><strong>הרציונל לכלים:</strong> כמו הסוקר הקודם, בלי <bdi>Write</bdi> ו-<bdi>Edit</bdi>, אבל עם <code>Bash</code>: ביקורת אבטחה אמיתית צריכה <code>git diff</code> וכלי בדיקת תלויות כמו <code>pip-audit</code> או <code>npm audit</code>. ההנחיה מגבילה את <bdi>Bash</bdi> לפקודות קריאה, ומעליה ממשיכות לחול ההרשאות הרגילות של ה-<bdi>Session</bdi>: פקודה שדורשת אישור תקפיץ בקשה בשיחה הראשית.</p>
+  <p><strong>הפעלה על <bdi>TaskFlow</bdi>:</strong> <code>Use the security-reviewer subagent to audit the task creation endpoint and the database access in backend/app</code>. <strong>תוצאה צפויה:</strong> ממצאים מדורגי חומרה עם קובץ ושורה, למשל <bdi>SQL</bdi> שנבנה בשרשור מחרוזות ב-<bdi>High</bdi> והיעדר הגבלת אורך לקלט ב-<bdi>Medium</bdi>, כל אחד עם תרחיש תקיפה ותיקון. <strong>מקרה כשל:</strong> להתייחס לדוח "לא נמצאו ממצאים" כהוכחת בטיחות. סוקר <bdi>AI</bdi> הוא שכבת הגנה אחת, לא תחליף ל-<bdi>Penetration Testing</bdi>; לכן ההנחיה מחייבת אותו לפרט מה בדק ומה לא הצליח לאמת.</p>
+
+  <h3 id="test-specialist">3. test-specialist: מומחה הבדיקות</h3>
+  <div class="codeblock">
+    <div class="codehead">.claude/agents/test-specialist.md</div>
+    <pre><code>---
+name: test-specialist
+description: Writes, repairs, and runs automated tests. Use proactively when tests fail, when new code lacks coverage, or when asked to add unit or integration tests.
+tools: Read, Grep, Glob, Bash, Edit, Write
+model: inherit
+maxTurns: 50
+color: green
+---
+
+You are a test specialist. You write, repair, and run automated tests.
+
+When invoked:
+1. Discover the test framework, runner, and conventions from existing tests
+   and configuration files.
+2. Run the relevant test suite first to establish a baseline.
+3. Make the smallest change that achieves the goal: a new test, a fixed
+   assertion, or a missing fixture.
+4. Re-run the suite and report before and after results.
+
+Rules:
+- Modify test files only. If a failing test reveals a bug in production code,
+  report the bug with evidence; do not patch production code.
+- Never weaken a test to make it pass. Deleting or skipping a test requires an
+  explicit justification in your report.
+- Each test verifies one behavior and has a name that describes it.
+- Cover the boundaries: empty input, invalid input, error paths, and
+  concurrency where relevant.
+- Keep tests deterministic: no real network calls, no wall-clock dependence,
+  no shared mutable state between tests.
+
+Report: what you ran, what failed and why, what you changed, and the final
+pass and fail counts.</code></pre>
+  </div>
+  <p><strong>הרציונל לכלים:</strong> זה לא סוקר אלא מבצע, ולכן הוא מקבל <code>Edit</code> ו-<code>Write</code> לצד <code>Bash</code> להרצת הבדיקות. הגבול עובר בהנחיה: קובצי בדיקות בלבד, ובאג בקוד הייצור מדווח ולא מתוקן. <code>maxTurns: 50</code> עוצר לולאת "תיקון-הרצה" אינסופית ששורפת <bdi>Tokens</bdi>.</p>
+  <p><strong>הפעלה על <bdi>TaskFlow</bdi>:</strong> <code>Use the test-specialist subagent to add tests for invalid input handling in backend/tests/test_tasks.py</code>. <strong>תוצאה צפויה:</strong> הרצת <bdi>Baseline</bdi> של <code>pytest</code>, הוספת מקרי קצה (גוף ריק, כותרת ארוכה מדי, סטטוס לא חוקי) ודוח לפני ואחרי עם ספירת עוברות ונכשלות. עשרות שורות פלט של <code>pytest</code> נשארות אצלו ולא מציפות את השיחה. <strong>מקרה כשל:</strong> אם בדיקה נכשלת בגלל באג אמיתי ב-<code>models.py</code>, סוכן בלי הכלל "אל תחליש בדיקה" עלול "לתקן" את ה-<bdi>Assertion</bdi> כך שתעבור. ההנחיה כאן אוסרת זאת במפורש ומחייבת דיווח מנומק.</p>
+
+  <h3 id="doc-specialist">4. documentation-specialist: מומחה התיעוד</h3>
+  <div class="codeblock">
+    <div class="codehead">.claude/agents/documentation-specialist.md</div>
+    <pre><code>---
+name: documentation-specialist
+description: Creates and updates README files, docstrings, API references, and changelogs from the code as it actually is. Use proactively after a feature is completed or a public interface changes.
+tools: Read, Grep, Glob, Write, Edit
+model: haiku
+color: cyan
+---
+
+You are a technical documentation specialist. You produce documentation that
+matches the code as it actually is.
+
+When invoked:
+1. Read the code you are documenting; never describe behavior you have not
+   verified in the source.
+2. Check existing documentation (README, docstrings, changelog) for style and
+   structure, and follow them.
+3. Update every place a change makes stale: README sections, docstrings, API
+   references, and examples.
+
+Rules:
+- Documentation only: you may create and edit Markdown files, docstrings, and
+  comments. Never change executable logic.
+- Every code example must be copy-paste runnable and consistent with the
+  current function signatures.
+- Prefer short sentences, active voice, and concrete examples over abstract
+  description.
+- Record breaking changes and migration steps explicitly.
+
+Report: files updated, sections added, and anything in the code that was
+ambiguous and needs an owner's decision.</code></pre>
+  </div>
+  <p><strong>הרציונל לכלים ולמודל:</strong> תיעוד דורש כתיבה, ולכן <code>Write</code> ו-<code>Edit</code>, אבל אין <code>Bash</code>: אין לו מה להריץ. זה גם המקום להדגים שליטה בעלויות: <code>model: haiku</code> מנתב משימה מכנית יחסית למודל מהיר וזול, בדיוק כפי שהתיעוד ממליץ.</p>
+  <p><strong>הפעלה על <bdi>TaskFlow</bdi>:</strong> <code>Use the documentation-specialist subagent to update README.md with the new task filtering endpoints</code>. <strong>תוצאה צפויה:</strong> <bdi>README</bdi> מעודכן עם דוגמאות שתואמות את החתימות בפועל ב-<code>routers/tasks.py</code>, ורשימת נקודות עמומות שדורשות החלטת בעלים. <strong>מקרה כשל:</strong> לבקש ממנו לתעד התנהגות שעדיין לא הוחלטה. סוכן שמנחים אותו "לתעד רק את מה שקיים בקוד" יסמן זאת כשאלה פתוחה במקום להמציא; בלי הכלל הזה תקבלו תיעוד בדוי שנראה אמין.</p>
+
+  <h3 id="db-reviewer">5. database-reviewer: סוקר ה-Database</h3>
+  <div class="codeblock">
+    <div class="codehead">.claude/agents/database-reviewer.md</div>
+    <pre><code>---
+name: database-reviewer
+description: Reviews database schemas, migrations, and SQL queries for correctness, performance, and safety. Read-only. Use proactively when migrations, ORM models, or raw SQL change.
+tools: Read, Grep, Glob, Bash
+color: purple
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: "./scripts/validate-readonly-query.sh"
+---
+
+You are a database reviewer specializing in schemas, migrations, and query
+safety. You are read-only: report, never modify.
+
+When invoked:
+1. Read the schema definitions, ORM models, and pending migrations.
+2. Trace each query from the application code to the tables and indexes it
+   touches.
+3. You may run read-only SELECT queries through Bash to inspect real data
+   shapes; a hook blocks any write statement.
+
+Review checklist:
+- Migrations: reversible, lock-aware, safe on large tables, no destructive
+  change without a backfill plan
+- Schema: correct types, NOT NULL and UNIQUE constraints, foreign keys,
+  sensible defaults
+- Queries: indexes match the WHERE and ORDER BY clauses, no N+1 patterns,
+  no unbounded result sets
+- Integrity: transactions around multi-step writes, race conditions on
+  unique values
+- Safety: no string-built SQL, parameterized queries everywhere,
+  least-privilege connection settings
+
+Report findings by severity with the exact file and line, the scenario in
+which it breaks, and the smallest safe fix. Flag any migration you would not
+run in production as Blocking.</code></pre>
+  </div>
+  <p>הסוכן מסתמך על סקריפט אימות (מבוסס על הדוגמה בתיעוד הרשמי) שחוסם כל פקודת כתיבה ב-<bdi>SQL</bdi> עם קוד יציאה 2:</p>
+  <div class="codeblock">
+    <div class="codehead">scripts/validate-readonly-query.sh</div>
+    <pre><code>#!/bin/bash
+# Blocks SQL write operations, allows SELECT queries.
+INPUT=$(cat)
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+if [ -z "$COMMAND" ]; then
+  exit 0
+fi
+if echo "$COMMAND" | grep -iE '\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|MERGE)\b' &gt; /dev/null; then
+  echo "Blocked: Write operations not allowed. Use SELECT queries only." &gt;&amp;2
+  exit 2
+fi
+exit 0</code></pre>
+  </div>
+  <p><strong>הרציונל לכלים:</strong> סוקר <bdi>Database</bdi> טוב חייב להציץ בנתונים אמיתיים (<code>sqlite3 taskflow.db "SELECT ..."</code>), ולכן יש לו <code>Bash</code>; אבל רשימת כלים לבדה לא מבדילה בין <bdi>SELECT</bdi> ל-<bdi>DROP</bdi>. כאן נכנס ה-<bdi>Hook</bdi>: <code>PreToolUse</code> בודק כל פקודת <bdi>Bash</bdi> לפני ריצה וחוסם כתיבה. זה הדפוס המתועד לשליטה מותנית, עדין יותר מהיתר או חסימה גורפים.</p>
+  <p><strong>הפעלה על <bdi>TaskFlow</bdi>:</strong> <code>Use the database-reviewer subagent to review the tasks table schema and the queries in backend/app/database.py</code>. <strong>תוצאה צפויה:</strong> דוח שמצביע, למשל, על היעדר <bdi>Index</bdi> לעמודת הסטטוס שמסוננת בכל בקשה, ועל שאילתה שנבנית בשרשור מחרוזות כממצא <bdi>Blocking</bdi>. <strong>מקרה כשל:</strong> אם שכחתם להעתיק את הסקריפט או לתת לו הרשאת ריצה, כל קריאת <bdi>Bash</bdi> של הסוכן תיכשל בשגיאת ה-<bdi>Hook</bdi>. וגם להפך: הסקריפט חוסם לפי מילות מפתח, ולכן פקודת קריאה לגיטימית שמכילה את המילה <bdi>CREATE</bdi> (למשל <code>SELECT sql FROM sqlite_master</code> שמחזירה הגדרות <bdi>CREATE TABLE</bdi> בפלט זה בסדר, אבל <code>grep CREATE migrations/</code> תיחסם) עלולה להיעצר בטעות. זו דוגמה טובה למחיר של <bdi>False Positives</bdi> באכיפה מבוססת תבניות.</p>
+
+  <h2 id="agent-teams">Agent Teams בקצרה <span class="badge exp">Experimental</span></h2>
+  <p><bdi>Agent Teams</bdi> הם השלב הבא בסולם ההקבלה: במקום סוכני עזר שמדווחים רק חזרה לשיחה הראשית, מוקם צוות של מופעי <bdi>Claude Code</bdi> מלאים, עם <bdi>Session</bdi> מוביל (Team Lead), רשימת משימות משותפת ותקשורת ישירה בין חברי הצוות. היכולת <strong>ניסיונית וכבויה כברירת מחדל</strong>: בלי המשתנה <code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code> (בסביבה או ב-<code>settings.json</code>) לא מוקם צוות, ו-Claude לא מציע ולא מוליד חברי צוות. ההבדל המהותי מ-<bdi>Subagents</bdi>: חברי צוות מתקשרים זה עם זה ומתאמים עבודה בעצמם, וכל אחד מהם הוא מופע Claude נפרד, ולכן צריכת ה-<bdi>Tokens</bdi> גבוהה משמעותית. נקודת חיבור נחמדה לפרק הזה: אפשר להשתמש בהגדרות ה-<bdi>Subagents</bdi> שבניתם כתבניות תפקיד לחברי צוות (<code>Spawn a teammate using the security-reviewer agent type</code>); חבר הצוות מכבד את רשימת ה-<code>tools</code> ואת ה-<code>model</code>, וגוף ההגדרה מצורף ל-<bdi>System Prompt</bdi> שלו. צלילה מלאה, כולל מצבי תצוגה, אישור תוכניות ומגבלות ידועות: <a href="ch38.html">פרק 38</a>.</p>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>סוקר עם כלי כתיבה.</strong> אם ל-<bdi>code-reviewer</bdi> יש <bdi>Edit</bdi>, יום אחד הוא "יתקן תוך כדי" ותקבלו סקירה שמערבבת שינויים. סוקרים מקבלים כלי קריאה בלבד; את התיקון מבצע גורם אחר.</li>
+    <li><strong><code>description</code> עמום.</strong> "Helps with code" לא נותן למנגנון ההאצלה האוטומטית שום דבר להיאחז בו. כתבו מתי להפעיל, על אילו קבצים ובאיזה טריגר, והוסיפו <bdi>"use proactively"</bdi> כשמתאים.</li>
+    <li><strong>שגיאת כתיב ברשימת <code>tools</code>.</strong> ערכים שלא מתורגמים לכלים גורמים לסוכן לסרב לעלות עם שגיאת "zero tools". בדקו איות מדויק של שמות כלים.</li>
+    <li><strong>ציפייה שהסוכן "יזכור" את השיחה.</strong> הוא מתחיל מהקשר טרי. כל פרט חיוני צריך להופיע בהודעת ההאצלה או בקובץ ההגדרה.</li>
+    <li><strong>בלבול בין <code>--agents</code> (הגדרת סוכנים ב-JSON ל-<bdi>Session</bdi>) לבין <code>--agent</code> (הפעלת ה-<bdi>Session</bdi> כולו כסוכן מסוים).</strong></li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <ul>
+    <li><strong>Claude לא בוחר בסוכן שלכם.</strong> קודם ודאו שהוא בכלל נטען: אם תיקיית <code>agents</code> נוצרה אחרי תחילת ה-<bdi>Session</bdi>, נדרשת הפעלה מחדש. אחר כך שפרו את ה-<code>description</code> (טריגרים קונקרטיים), בדקו כפילות שמות עם <code>/doctor</code>, וכפו ריצה עם אזכור <code>@agent-&lt;name&gt;</code> כדי לבודד את הבעיה.</li>
+    <li><strong>"הרעבת הקשר": הסוכן חוזר עם תשובה שטחית או לא רלוונטית.</strong> זכרו מה הוא לא מקבל: את היסטוריית השיחה. נסחו האצלה עשירה (קבצים, סימפטומים, מה כבר נוסה), טענו ידע קבוע דרך <code>skills</code>, או השתמשו ב-<bdi>Fork</bdi> (<code>/subtask</code>) כשנדרש מלוא ההקשר.</li>
+    <li><strong>שגיאת <bdi>"Agent would be spawned with zero tools"</bdi>.</strong> אף ערך ב-<code>tools</code> לא הפך לכלי זמין. בדקו איות, וזכרו שסוכן רקע מקבל סט כלים מובנים מצומצם: כלי שקיים ב-<bdi>Foreground</bdi> יכול להיעלם ב-<bdi>Background</bdi>.</li>
+    <li><strong>הסוכן נעצר עם <bdi>"Subagent spawn limit reached"</bdi> או <bdi>"Concurrent subagent limit reached"</bdi>.</strong> נגעתם במגבלות (200 ל-<bdi>Session</bdi>, 20 במקביל). <code>/clear</code> מאפס את מונה ה-<bdi>Session</bdi>, ומשתני הסביבה שהוזכרו מעלים את התקרות.</li>
+    <li><strong>סוכן רקע "נתקע" בלי תוצאה.</strong> ייתכן שהוא ממתין לאישור הרשאה שצץ בשיחה הראשית ולא שמתם לב, או שנפל על שגיאת <bdi>API</bdi>. בדקו את <code>/tasks</code>; מגרסה 2.1.199 כשל <bdi>API</bdi> מדווח ל-Claude ככשל, כולל הפלט החלקי, ואפשר לבקש <bdi>Resume</bdi> אחרי שהתקלה חלפה.</li>
+  </ul>
+
+  <h2 id="security">אבטחה</h2>
+  <p><bdi>Subagents</bdi> יורשים את גבולות האמון של ה-<bdi>Session</bdi>: הם פועלים תחת אותה מערכת הרשאות, ואישור שנתתם לשיחה הראשית משרת גם אותם (ולהפך, <bdi>Bypass</bdi> של ההורה גובר על כל הגדרה שלהם). כמה נקודות מתועדות שחשוב להפנים:</p>
+  <ul>
+    <li><strong>סוכן אינו משתמש.</strong> שום הודעה מסוכן אחר לא נחשבת לאישור הרשאות מטעמכם, ואינה יכולה לשנות הגדרות הרשאה, <bdi>CLAUDE.md</bdi> או תצורה. רק מערכת ההרשאות או אתם מאשרים.</li>
+    <li><strong>סריקת פלט (מגרסה 2.1.210).</strong> <bdi>Claude Code</bdi> סורק את הדוח הסופי של כל סוכן לפני ש-Claude קורא אותו, ומנטרל טקסט שמתחזה לפלט מערכת (כמו תגיות <bdi>system-reminder</bdi> מזויפות) על ידי הוספת לוכסן וסימון שורת אזהרה. הסריקה לא שופטת זדוניות ואינה תחליף להגבלת כלים: תוכן שסוכן קרא מקובץ או מדף אינטרנט עדיין יכול לנסות לכוון את השיחה הראשית (Prompt Injection).</li>
+    <li><strong>סוכני סקירה כשכבת בטיחות.</strong> ערכת הסוקרים שבנינו היא בקרה מפצה זולה: <bdi>security-reviewer</bdi> קורא כל שינוי רגיש לפני <bdi>Merge</bdi>, ו-<bdi>database-reviewer</bdi> עוצר <bdi>Migration</bdi> מסוכן. אבל אלה בקרות הסתברותיות; אל תוותרו בגללן על <bdi>Code Review</bdi> אנושי ו-<bdi>CI</bdi>.</li>
+    <li><strong><bdi>Plugins</bdi> מוגבלים בכוונה.</strong> סוכן שמגיע מ-<bdi>Plugin</bdi> לא יכול להביא איתו <code>hooks</code>, <code>mcpServers</code> או <code>permissionMode</code>; השדות מנוטרלים. כדי להשתמש בהם, העתיקו את הקובץ ל-<code>.claude/agents/</code> אחרי שבחנתם אותו.</li>
+    <li><strong>הגבילו לפי עיקרון ההרשאה המינימלית.</strong> כל כלי שאינו נחוץ לתפקיד הוא שטח תקיפה מיותר. סוקר לא צריך <bdi>Write</bdi>; מתעד לא צריך <bdi>Bash</bdi>.</li>
+  </ul>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>סוכן אחד, אחריות אחת. עדיף חמישה מומחים צרים על "עוזר-על" אחד.</li>
+    <li>כתבו <code>description</code> ממוקד טריגרים, עם <bdi>"use proactively"</bdi> כשההפעלה צריכה להיות יזומה.</li>
+    <li>העניקו רק את הכלים הנחוצים לתפקיד; לסוקרים כלי קריאה בלבד.</li>
+    <li>הכניסו את <code>.claude/agents/</code> ל-<bdi>Version Control</bdi> כדי שהצוות ישתפר יחד.</li>
+    <li>בקשו מכל סוכן דוח בפורמט קבוע וקצר; מה שחוזר לשיחה הראשית עולה <bdi>Context</bdi>.</li>
+    <li>נתבו משימות מכניות ל-<code>model: haiku</code> ושמרו את המודל החזק לשיחה הראשית.</li>
+    <li>השתמשו ב-<code>memory: project</code> אצל סוקרים קבועים כדי לצבור ידע מוסדי בין שיחות.</li>
+    <li>אמתו הגדרה חדשה מיד: <code>@agent-&lt;name&gt;</code> עם משימה קטנה, ובדקו שהדוח בפורמט שציפיתם לו.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>האצלה של הכול.</strong> משימה קטנה עם דו-שיח צמוד ב-<bdi>Subagent</bdi> רק מוסיפה עלות והשהיה. סוכן מצדיק את עצמו כשהפלט הביניים גדול או כשנדרשת אכיפת מגבלות.</li>
+    <li><strong>מניפת ענק שמחזירה דוחות ענק.</strong> עשרה סוכנים שכל אחד מחזיר 2,000 מילים יחנקו את השיחה הראשית שניסיתם להגן עליה.</li>
+    <li><strong>עקיפת הרשאות גורפת.</strong> <code>permissionMode: bypassPermissions</code> בקובץ סוכן שנכנס ל-<bdi>Repository</bdi> משותף הוא מתנה לתוקף עתידי.</li>
+    <li><strong>שכפול סוכנים כמעט זהים.</strong> אם שלושה סוכנים חולקים 90% מההנחיה, אחדו אותם ושימו את הידע המשותף ב-<bdi>Skill</bdi> שנטען דרך <code>skills</code>.</li>
+    <li><strong>שימוש בסוכן כתחליף ל-<code>/clear</code>.</strong> אם ההקשר הראשי התלכלך, נקו אותו; אל תבנו סביבו פיגומים.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל: בונים performance-reviewer</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 25.1</div>
+    <div class="body"><p>בנו <bdi>Subagent</bdi> חמישי-פלוס לערכה: <code>performance-reviewer</code> שסוקר קוד לבעיות ביצועים (לולאות מיותרות, שאילתות בתוך לולאה, מבני נתונים לא מתאימים, עבודת <bdi>I/O</bdi> חוזרת). דרישות: קריאה בלבד עם יכולת להריץ מדידות לא הרסניות; <code>description</code> שמפעיל אותו אוטומטית אחרי שינויים בנתיבי קוד חמים; דוח בפורמט קבוע שמדרג ממצאים לפי השפעה משוערת. שמרו אותו ב-<code>.claude/agents/</code>, ודאו שנקלט, והפעילו אותו על <code>backend/app/routers/tasks.py</code> ב-<bdi>TaskFlow</bdi>.</p></div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>ההגדרה המלאה:</p>
+      <div class="codeblock">
+        <div class="codehead">.claude/agents/performance-reviewer.md</div>
+        <pre><code>---
+name: performance-reviewer
+description: Reviews code for performance problems such as N+1 queries, redundant loops, repeated I/O, and inefficient data structures. Read-only. Use proactively after changes to request handlers, database access, or loops over large collections.
+tools: Read, Grep, Glob, Bash
+model: inherit
+color: orange
+---
+
+You are a performance reviewer. You analyze code for efficiency; you never
+modify files.
+
+When invoked:
+1. Read the changed code and identify the hot paths: request handlers,
+   loops, and database access.
+2. Trace the cost of each hot path: how many queries, allocations, and I/O
+   operations run per request.
+3. You may run non-destructive measurements through Bash (timing a test run,
+   EXPLAIN on a query). Never run load tests against shared environments.
+
+Look for:
+- N+1 queries and queries inside loops
+- Work repeated inside loops that could be hoisted or cached
+- Inefficient data structures (linear scans where a set or dict fits)
+- Unbounded result sets and missing pagination
+- Repeated file or network I/O that could be batched
+
+Report findings ordered by estimated impact. For each: file and line, why it
+is slow, expected effect at scale, and the smallest fix. State clearly which
+findings are measured and which are estimated from reading the code.</code></pre>
+      </div>
+      <p>נקודות המפתח: הכלים זהים לפרופיל של <bdi>security-reviewer</bdi> (קריאה בתוספת <bdi>Bash</bdi> למדידות), ה-<code>description</code> מונה טריגרים קונקרטיים כדי שההאצלה האוטומטית תעבוד, וההנחיה מחייבת הפרדה בין ממצא מדוד לממצא משוער, הרגל שמונע דוחות ביצועים מנופחים. מכיוון שהקובץ נכתב לתיקייה קיימת בזמן שה-<bdi>Session</bdi> רץ, הוא נקלט תוך שניות בלי הפעלה מחדש (אם התיקייה נוצרה רק עכשיו, הפעילו מחדש). אימות: <code>@agent-performance-reviewer review backend/app/routers/tasks.py</code>, ובדקו בדוח שהוא מזהה, למשל, שליפת משימות בלי <bdi>Pagination</bdi>.</p>
+    </div>
+  </details>
+
+  <div class="verify">
+    <p><strong>אימות מסכם לפרק:</strong> ודאו שחמשת הקבצים יושבים ב-<code>.claude/agents/</code>, הריצו <code>/doctor</code> לבדיקת כפילויות שמות, הקלידו <code>@</code> ובדקו שכל החמישה מופיעים בהשלמה האוטומטית, והפעילו סוכן אחד לפחות על <bdi>TaskFlow</bdi> ובדקו ב-<code>/tasks</code> שהוא רץ והסתיים.</p>
+  </div>
+
+  <h2 id="summary">סיכום</h2>
+  <p><bdi>Subagents</bdi> הם כלי ההאצלה הפנימי של <bdi>Claude Code</bdi>: הקשר מבודד, הנחיה ממוקדת, כלים והרשאות תפורים לתפקיד, ותוצאה שחוזרת כסיכום נקי. למדנו את שלושת המובנים המרכזיים (<bdi>Explore</bdi>, <bdi>Plan</bdi>, <bdi>general-purpose</bdi>), את כל שדות ה-<bdi>Frontmatter</bdi> ואת סדר העדיפויות בין מיקומי ההגדרה, את ברירת המחדל של ריצה ברקע ואת מנגנון ה-<bdi>Resume</bdi>, ובנינו ערכה של חמישה מומחים לפרויקט אמיתי. הכלל המנחה: האצילו כשהפלט רועש או כשצריך אכיפת מגבלות, הישארו בשיחה כשההקשר המשותף הוא הנכס, וזכרו שכל סוכן משלם <bdi>Tokens</bdi> משלו. בפרק הבא נראה איך אורזים סוכנים, <bdi>Skills</bdi> ו-<bdi>Hooks</bdi> לחבילה אחת ניתנת להפצה: <bdi>Plugins</bdi>.</p>
+
+  <div class="callout source"><span class="title">מקורות</span><p>
+    <a href="https://code.claude.com/docs/en/sub-agents">Create custom subagents</a> |
+    <a href="https://code.claude.com/docs/en/agent-teams">Orchestrate teams of Claude Code sessions</a> |
+    <a href="https://code.claude.com/docs/en/agent-view">Agent view (background sessions)</a> |
+    <a href="https://code.claude.com/docs/en/cli-reference">CLI reference</a> |
+    <a href="https://code.claude.com/docs/en/commands">Slash commands</a> |
+    נבדק: 28.07.2026
+  </p></div>
+
+  <div class="chapnav">
+    <a href="ch24.html"><span class="lbl">הפרק הקודם</span>Connectors ו-Connected Services</a>
+    <a href="ch26.html"><span class="lbl">הפרק הבא</span>Plugins</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

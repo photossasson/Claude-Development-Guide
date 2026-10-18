@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 19: Checkpoints, Rewind ו-Recovery</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ד | פרק 19</p>
+  <h1>Checkpoints, Rewind ו-Recovery</h1>
+  <p class="lead">גם עם מערכת הרשאות מכוונת היטב (<a href="ch18.html">פרק 18</a>), לפעמים משהו משתבש: <bdi>Refactoring</bdi> שהרס בדיקות, כיוון שהתברר כשגוי, או שיחה שהסתבכה. בפרק הזה נלמד את רשת הביטחון המובנית של <bdi>Claude Code</bdi>: מנגנון ה-<bdi>Checkpoints</bdi> שנשמר אוטומטית לפני כל <bdi>Prompt</bdi>, תפריט ה-<bdi>Rewind</bdi> על אפשרויות השחזור והסיכום שלו, והכי חשוב: מה המנגנון הזה לא מכסה, ואיך בונים תהליך <bdi>Recovery</bdi> מסודר שמשלב אותו עם <bdi>Git</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-are-checkpoints">מהם Checkpoints ואיזו בעיה הם פותרים</h2>
+  <p><bdi>Checkpointing</bdi> הוא מעקב אוטומטי של <bdi>Claude Code</bdi> אחרי עריכות הקבצים של Claude במהלך ה-<bdi>Session</bdi>. לפני כל <bdi>Prompt</bdi> שאתם שולחים נלכד מצב הקוד, כך שאפשר לחזור אחורה במהירות אם משהו יצא משליטה. הבעיה שהמנגנון פותר היא פסיכולוגית לא פחות משהיא טכנית: בלי רשת ביטחון, מפתחים מהססים לתת ל-<bdi>Agent</bdi> משימות רחבות ושאפתניות. עם <bdi>Checkpoints</bdi>, ניסוי שנכשל הוא לא אסון אלא <code>/rewind</code> אחד.</p>
+  <p>העובדות המתועדות על יצירת ה-<bdi>Checkpoints</bdi>:</p>
+  <ul>
+    <li><strong>כל Prompt של המשתמש יוצר Checkpoint חדש.</strong> הלכידה אוטומטית; אין פקודת "צור Checkpoint" ידנית.</li>
+    <li><strong>תקרה של 100:</strong> <bdi>Claude Code</bdi> שומר צילומי קבצים (Snapshots) עבור 100 ה-<bdi>Checkpoints</bdi> האחרונים ב-<bdi>Session</bdi>. כשה-<bdi>Checkpoint</bdi> הישן נזרק, קובצי ה-<bdi>Snapshot</bdi> שאינם נחוצים עוד נמחקים, מלבד ה-<bdi>Snapshot</bdi> הראשון של כל קובץ, שמשמש את הרחבת <bdi>VS Code</bdi> כבסיס להשוואות ה-<bdi>Diff</bdi> של ה-<bdi>Session</bdi>.</li>
+    <li><strong>נשמרים עם השיחה:</strong> ה-<bdi>Checkpoints</bdi> נשמרים יחד עם השיחה, כך שגם <bdi>Session</bdi> שחזרתם אליו עם <code>/resume</code> יכול לבצע <code>/rewind</code> אליהם.</li>
+    <li><strong>ניקוי אוטומטי:</strong> הם מנוקים יחד עם ה-<bdi>Sessions</bdi> אחרי 30 יום, וזמן זה ניתן לשינוי דרך ההגדרה <code>cleanupPeriodDays</code> (<a href="ch17.html">פרק 17</a>).</li>
+  </ul>
+
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>הפרק מניח היכרות בסיסית עם <bdi>Git</bdi> ועם זרימת העבודה מ<a href="ch13.html">פרק 13</a>, ועם מצבי ההרשאות מ<a href="ch18.html">פרק 18</a>. לתרגול נשתמש שוב בפרויקט <bdi>TaskFlow</bdi> מ<a href="ch03.html">פרק 3</a>; כל פרויקט תרגול אחר תחת <bdi>Git</bdi> יעבוד באותה מידה.</p></div>
+
+  <h2 id="when-to-use">מתי להשתמש ומתי לא</h2>
+  <p>התיעוד מונה ארבעה תרחישים שבהם ה-<bdi>Checkpoints</bdi> מצטיינים, וכדאי לאמץ אותם כהרגלי עבודה:</p>
+  <ul>
+    <li><strong>בחינת חלופות:</strong> מנסים גישת מימוש אחת, משחזרים לנקודת ההתחלה, מנסים גישה שנייה, ומשווים. בלי לפחד לאבד את נקודת המוצא.</li>
+    <li><strong>התאוששות מטעויות:</strong> ביטול מהיר של שינויים שהכניסו <bdi>Bug</bdi> או שברו פונקציונליות, בלי לחטט בהיסטוריית <bdi>Git</bdi> באמצע עבודה.</li>
+    <li><strong>איטרציה על Feature:</strong> ניסויים בווריאציות מתוך ידיעה שאפשר לחזור למצב עובד.</li>
+    <li><strong>פינוי Context:</strong> סיכום של קטע שיחה מפורט (למשל <bdi>Debugging</bdi> ארוך) תוך שמירת ההנחיות המקוריות בפירוט מלא.</li>
+  </ul>
+  <p>ומתי לא להסתמך עליהם? כשצריך היסטוריה קבועה, שיתוף עם הצוות, או ביטול של משהו שלא עבר דרך כלי הקבצים של Claude. עבודה שכללה סקריפטים, <bdi>Generators</bdi> או <bdi>Migrations</bdi> דורשת את <bdi>Git</bdi> ואת כלי השחזור של המערכות עצמן. נרחיב על הגבול הזה בסעיף הבא, כי הוא הלב של הפרק.</p>
+
+  <h2 id="what-saved">מה נשמר ומה לא</h2>
+  <p>זה הסעיף החשוב בפרק. <bdi>Checkpoint</bdi> שומר שני דברים בלבד:</p>
+  <ol>
+    <li><strong>עריכות קבצים שנעשו דרך כלי עריכת הקבצים של Claude</strong> (הכלים המובנים שעורכים וכותבים קבצים).</li>
+    <li><strong>את מצב השיחה</strong>, כך שאפשר לשחזר קוד, שיחה או שניהם.</li>
+  </ol>
+  <p>ומה לא נשמר? הרשימה המתועדת ארוכה ומפתיעה חלק מהמשתמשים:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>סוג שינוי</th><th>נלכד ב-Checkpoint?</th><th>הערות</th></tr></thead>
+      <tbody>
+        <tr><td>עריכה דרך כלי הקבצים של Claude</td><td>כן</td><td>הליבה של המנגנון</td></tr>
+        <tr><td>שינוי קבצים מפקודת <bdi>Bash</bdi></td><td>לא</td><td><code>rm file.txt</code>, <code>mv old.txt new.txt</code>, <code>cp</code>, סקריפטים, <bdi>Generators</bdi>: אי אפשר לבטל דרך <bdi>Rewind</bdi></td></tr>
+        <tr><td>עריכות ידניות שלכם מחוץ ל-<bdi>Session</bdi></td><td>לא</td><td>שינויים ב-<bdi>Editor</bdi> במקביל אינם במעקב</td></tr>
+        <tr><td>עריכות מ-<bdi>Sessions</bdi> מקבילים</td><td>לא</td><td>אלא אם במקרה נגעו באותם קבצים של ה-<bdi>Session</bdi> הנוכחי</td></tr>
+        <tr><td>עריכות של <bdi>Subagents</bdi></td><td>לא</td><td>נופלות מחוץ ל-<bdi>Checkpoints</bdi> של ה-<bdi>Session</bdi>, גם כשנעשו בכלי הקבצים; החריג היחיד: <bdi>Skill</bdi> עם <code>context: fork</code> שרץ בחזית</td></tr>
+        <tr><td>קבצים דרך <bdi>Symlink</bdi> או <bdi>Hard Link</bdi></td><td>חלקית</td><td>במעקב, אבל השחזור מדלג עליהם עם אזהרה</td></tr>
+        <tr><td>בסיסי נתונים ומערכות מרוחקות</td><td>לא</td><td><bdi>Migration</bdi> שרץ, <bdi>API</bdi> חיצוני שנקרא, <bdi>Push</bdi> שנשלח: שום <bdi>Rewind</bdi> לא מחזיר אותם</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn"><span class="title">אזהרה: הפער המסוכן</span><p>השילוב המצוי ביותר בפועל: Claude ערך קבצים (במעקב) וגם הריץ פקודות <bdi>Bash</bdi> שנגעו בקבצים (לא במעקב) באותו רצף עבודה. <bdi>Rewind</bdi> ישחזר רק את חלקו של הרצף, ותקבלו מצב ביניים שלא היה קיים מעולם: למשל קוד ישן לצד קובץ תצורה חדש שנוצר ב-<code>cp</code>. אחרי רצף מעורב כזה, השוו תמיד עם <code>git status</code> ו-<code>git diff</code> לפני שאתם ממשיכים. עוד מקרה מתועד: עריכות של <bdi>Subagents</bdi>, כולל ריצת <code>/code-review --fix</code> ברקע ו-<bdi>Skills</bdi> מפוצלים (Forked) שרצים ברקע, אינן משוחזרות; לביטולן השתמשו ב-<bdi>Git</bdi>.</p></div>
+
+  <h2 id="rewind-menu">תפריט ה-Rewind: /rewind ו-Esc Esc</h2>
+  <p>פותחים את התפריט עם <code>/rewind</code>, או בלחיצה כפולה על <code>Esc</code> כששורת הקלט ריקה (אם יש בה טקסט, ה-<code>Esc</code> הכפול מנקה אותו; הטקסט נשמר בהיסטוריית הקלט ו-<bdi>Up</bdi> מחזיר אותו). התפריט מציג את רשימת ה-<bdi>Prompts</bdi> ששלחתם ב-<bdi>Session</bdi>; בוחרים נקודה, ואז פעולה. אלה האפשרויות המתועדות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>אפשרות</th><th>מה היא עושה</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><bdi>Restore code and conversation</bdi></td><td>מחזירה גם את הקוד וגם את השיחה לנקודה שנבחרה</td></tr>
+        <tr><td class="ltr"><bdi>Restore conversation</bdi></td><td>מחזירה את השיחה לאותה הודעה, ומשאירה את הקוד הנוכחי</td></tr>
+        <tr><td class="ltr"><bdi>Restore code</bdi></td><td>מחזירה את שינויי הקבצים, ומשאירה את השיחה</td></tr>
+        <tr><td class="ltr"><bdi>Summarize from here</bdi></td><td>דוחסת את השיחה מהנקודה הזאת והלאה לסיכום, ומפנה מקום ב-<bdi>Context Window</bdi></td></tr>
+        <tr><td class="ltr"><bdi>Summarize up to here</bdi></td><td>דוחסת את השיחה שלפני הנקודה לסיכום, ומשאירה את ההודעות המאוחרות במלואן</td></tr>
+        <tr><td class="ltr"><bdi>Never mind</bdi></td><td>חוזרת לרשימת ההודעות בלי לשנות דבר</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>פרטים מתועדים שכדאי להכיר: שתי אפשרויות שחזור הקוד מופיעות רק כשל-<bdi>Checkpoint</bdi> הנבחר יש שינויי קבצים במעקב לשחזר; אם לא נלכדו עריכות אחרי אותה נקודה, התפריט מציע רק שחזור שיחה, סיכום ו-<bdi>Never mind</bdi>. אחרי שחזור שיחה או <bdi>Summarize from here</bdi>, ה-<bdi>Prompt</bdi> המקורי מההודעה שנבחרה מוחזר לשורת הקלט, מוכן לעריכה ולשליחה מחדש: זה מזמין את דפוס העבודה הנכון של "לנסח טוב יותר ולנסות שוב". ואם הרצתם <code>/clear</code> קודם באותה ריצה של <bdi>Claude Code</bdi>, בראש התפריט מופיעה שורה נוספת בנוסח <code>/resume &lt;session-id&gt; (previous session)</code> שמחזירה לשיחה שלפני הניקוי (מגרסה <bdi>2.1.191</bdi>).</p>
+
+  <p><strong>תוצאה צפויה ואימות:</strong> אחרי בחירה באפשרות שחזור, השיחה או הקבצים חוזרים לנקודה שבחרתם, ולא מוצגת שגיאה. אם השחזור דילג על קבצים, תופיע אזהרת <bdi>Restored the code, but skipped N files</bdi> (נטפל בה בהמשך הפרק). הרגל אימות מומלץ אחרי כל שחזור קוד: הריצו <code>git status</code> ו-<code>git diff</code> והשוו את מה שאתם רואים למה שציפיתם לו; זה הרגע לגלות פערים, לא אחרי עשרה <bdi>Prompts</bdi> נוספים.</p>
+
+  <h3 id="restore-vs-summarize">שחזור מול סיכום</h3>
+  <p>אפשרויות ה-<bdi>Restore</bdi> מחזירות מצב לאחור: קוד, שיחה או שניהם. אפשרויות ה-<bdi>Summarize</bdi> לא נוגעות בקבצים כלל; הן דוחסות חלק מהשיחה לסיכום שנוצר על ידי המודל, בדומה ל-<code>/compact</code> אבל ממוקד: אתם בוחרים איזה צד של ההודעה הנבחרת יידחס. <bdi>Summarize from here</bdi> שומר את ההקשר המוקדם במלואו ודוחס את ההמשך (מתאים למחוק דיון צדדי שהסתעף); <bdi>Summarize up to here</bdi> דוחס את ההתחלה ושומר את העבודה האחרונה בפירוט מלא (מתאים לדחוס דיוני הקמה ארוכים). ההודעות המקוריות נשמרות ב-<bdi>Transcript</bdi> של ה-<bdi>Session</bdi>, כך ש-Claude יכול לחזור לפרטים בעת הצורך, ובשיחה מופיע סמן <bdi>Summarized conversation</bdi> במקום ההודעות שנדחסו. אפשר גם לכוון את הסיכום: מסמנים אפשרות <bdi>Summarize</bdi> עם החיצים ומקלידים הנחיה בשדה <bdi>add context (optional)</bdi> לפני <bdi>Enter</bdi>.</p>
+  <div class="callout note"><span class="title">רוצים להסתעף במקום לדחוס?</span><p>סיכום משאיר אתכם באותו <bdi>Session</bdi>. אם המטרה היא לנסות כיוון אחר בלי לאבד את השיחה המקורית, השתמשו ב-<code>/branch</code> (או <code>claude --continue --fork-session</code>): הם יוצרים הסתעפות של השיחה ושומרים את המקור, שאפשר לחזור אליו עם <code>/resume</code>.</p></div>
+  <p>ב-<bdi>VS Code</bdi>, הרחבת <bdi>Claude Code</bdi> משתמשת ב-<bdi>Snapshot</bdi> הראשון של כל קובץ כבסיס להצגת ה-<bdi>Diffs</bdi> המצטברים של ה-<bdi>Session</bdi>; את פעולת ה-<bdi>Rewind</bdi> עצמה מבצעים דרך <code>/rewind</code> בממשק השיחה, בדיוק כמו ב-<bdi>Terminal</bdi>.</p>
+
+  <h2 id="rewind-vs-git">Rewind מול Git: טבלת השוואה</h2>
+  <p>קל להתבלבל ולחשוב ש-<bdi>Checkpoints</bdi> הם "Git קטן". התיעוד עצמו מנסח את ההבחנה: חשבו על <bdi>Checkpoints</bdi> כעל <bdi>Local Undo</bdi> ועל <bdi>Git</bdi> כעל <bdi>Permanent History</bdi>. ההשוואה המלאה:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>היבט</th><th>Checkpoints / Rewind</th><th>Git</th></tr></thead>
+      <tbody>
+        <tr><td>מה במעקב</td><td>עריכות דרך כלי הקבצים של Claude, ומצב השיחה</td><td>כל שינוי בקבצים שבמעקב, מכל מקור: כלי Claude, <bdi>Bash</bdi>, עריכה ידנית</td></tr>
+        <tr><td>יחידת השמירה</td><td>אוטומטית, לפני כל <bdi>Prompt</bdi></td><td>מכוונת, ב-<bdi>Commit</bdi> שאתם (או Claude באישורכם) יוצרים</td></tr>
+        <tr><td>התמדה</td><td>עד 100 <bdi>Checkpoints</bdi> אחרונים ב-<bdi>Session</bdi>; ניקוי עם ה-<bdi>Sessions</bdi> אחרי 30 יום (<code>cleanupPeriodDays</code>)</td><td>קבועה; היסטוריה נשמרת כל עוד ה-<bdi>Repository</bdi> קיים</td></tr>
+        <tr><td>שיתוף</td><td>אין; מקומי ל-<bdi>Session</bdi> שלכם</td><td>מלא: <bdi>Push</bdi>, <bdi>Branches</bdi>, <bdi>Pull Requests</bdi>, עבודת צוות</td></tr>
+        <tr><td>שחזור שיחה</td><td>כן: יכול להחזיר גם את מצב השיחה</td><td>לא; <bdi>Git</bdi> לא יודע דבר על השיחה</td></tr>
+        <tr><td>שינויים מפקודות <bdi>Bash</bdi></td><td>לא משוחזרים</td><td>משוחזרים כרגיל (אם הקבצים במעקב)</td></tr>
+        <tr><td>ייעוד</td><td>ביטול מהיר ברמת ה-<bdi>Session</bdi>, ניסוי בחלופות</td><td>היסטוריה קבועה, שיתוף פעולה, <bdi>Releases</bdi></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <figure>
+    <img src="../diagrams/checkpoint-git.svg" alt="תרשים שני צירי זמן מקבילים: שכבת ה-Session עם Checkpoint לפני כל Prompt, ושכבת Git עם Commits; ביניהם מסומן מה שנופל מחוץ ל-Checkpoints: שינויים מ-Bash, עריכות ידניות, Subagents ומערכות מרוחקות">
+    <figcaption>שתי שכבות ביטחון משלימות: ה-<bdi>Checkpoints</bdi> מכסים את עריכות ה-<bdi>Session</bdi>, <bdi>Git</bdi> מקבע את הכול. מה שביניהן, כמו שינויים מפקודות <bdi>Bash</bdi>, נתפס רק על ידי <bdi>Git</bdi>.</figcaption>
+  </figure>
+  <p>המסקנה המעשית, שהתיעוד חוזר עליה במפורש: <bdi>Checkpoints</bdi> משלימים את ניהול הגרסאות אך אינם מחליפים אותו. המשיכו להשתמש ב-<bdi>Git</bdi> ל-<bdi>Commits</bdi>, <bdi>Branches</bdi> והיסטוריה ארוכת טווח, כפי שלמדנו ב<a href="ch13.html">פרק 13</a>. ההרגל החשוב ביותר: <bdi>Commit</bdi> של נקודת בסיס עובדת לפני כל משימה גדולה. ה-<bdi>Commit</bdi> הזה הוא מה שהופך כל תקלה, כולל אלה ש-<bdi>Rewind</bdi> לא מכסה, לניתנת לשחזור.</p>
+  <p>איך זה נראה ביום עבודה טיפוסי? חשבו על שלוש רזולוציות של ביטחון: ברזולוציית הדקות, ה-<bdi>Checkpoints</bdi> מכסים אתכם אוטומטית בין <bdi>Prompt</bdi> ל-<bdi>Prompt</bdi>. ברזולוציית אבני הדרך, אתם יוצרים <bdi>Commit</bdi> אחרי כל שלב שעובד: "המודל עודכן והבדיקות ירוקות", "ה-<bdi>Endpoint</bdi> החדש עובד". וברזולוציית השיתוף, <bdi>Push</bdi> ו-<bdi>Pull Request</bdi> מקבעים את העבודה מול הצוות. כשכל שלוש הרזולוציות פעילות, אין תרחיש תקלה שמשאיר אתכם בלי דרך חזרה: מה שה-<bdi>Rewind</bdi> לא מכסה, ה-<bdi>Commit</bdi> האחרון מכסה, ומה שנמחק מקומית קיים ב-<bdi>Remote</bdi>.</p>
+
+  <h2 id="limitations">מגבלות לעומק</h2>
+  <ul>
+    <li><strong>פקודות Bash:</strong> המגבלה המרכזית, שכבר הכרנו. <code>rm</code>, <code>mv</code>, <code>cp</code>, סקריפטים, <code>npm install</code> שמשנה את <code>node_modules</code> ו-<code>package-lock.json</code>: כל אלה מחוץ למעקב.</li>
+    <li><strong>Subagents:</strong> עריכות שמחיל <bdi>Subagent</bdi> נופלות מחוץ ל-<bdi>Checkpoints</bdi> של ה-<bdi>Session</bdi> שלכם, גם כשהוא עורך בכלי הקבצים של Claude. החריג המתועד היחיד: <bdi>Skill</bdi> עם <code>context: fork</code> שרץ בחזית, כי הוא עורך את עץ העבודה בתוך התור שלכם; מגרסה <bdi>2.1.218</bdi> <bdi>Skill</bdi> מפוצל רץ ברקע כברירת מחדל, ורק <code>background: false</code> מחזיר אותו לחזית.</li>
+    <li><strong>Symlinks ו-Hard Links:</strong> שחזור קוד מדלג על כל נתיב במעקב שהוא קישור, ומציג אזהרת <bdi>Restored the code, but skipped N files</bdi>. הקבצים המדולגים שומרים את תוכנם הנוכחי. דוגמאות מהתיעוד: קובצי תצורה שמנהל <bdi>Dotfiles</bdi> מקשר לפרויקט, וקבצים ש-<bdi>pnpm</bdi> מקשר ב-<bdi>Hard Link</bdi>. כדי לראות אילו נתיבים דולגו, הפעילו <code>/debug</code> לפני השחזור; יומן ה-<bdi>Debug</bdi> ב-<code>~/.claude/debug/&lt;session-id&gt;.txt</code> מפרט כל נתיב.</li>
+    <li><strong>עריכות חיצוניות ומקבילות:</strong> שינויים ידניים שלכם ו-<bdi>Sessions</bdi> אחרים שרצים במקביל אינם נלכדים בדרך כלל, אלא אם נגעו באותם קבצים שה-<bdi>Session</bdi> הנוכחי ערך. עבודה על אותו עץ קבצים משני <bdi>Sessions</bdi> היא מתכון לשחזורים מפתיעים; לזה נועדו <bdi>Worktrees</bdi>.</li>
+    <li><strong>העולם שמחוץ לקבצים:</strong> <bdi>Rewind</bdi> לא מבטל <bdi>Migration</bdi> שרץ על בסיס נתונים, <bdi>Push</bdi> שיצא ל-<bdi>Remote</bdi>, קריאת <bdi>API</bdi> חיצונית או הודעה שנשלחה. לכל אלה נדרשים כלי השחזור של המערכת המתאימה.</li>
+  </ul>
+
+  <h2 id="recovery-runbook">תהליך Recovery: תקרית ב-TaskFlow צעד אחר צעד</h2>
+  <p>נתרגל את הכול על תקרית מציאותית. ביקשתם מ-Claude, בפרויקט ה-<bdi>TaskFlow</bdi>, "restructure the tasks router to support subtasks". במצב <code>acceptEdits</code> הוא ערך את <code>backend/app/routers/tasks.py</code> ואת <code>models.py</code>, ובאמצע גם הריץ <code>mv backend/app/routers/tasks.py backend/app/routers/items.py</code> ויצר קובץ חדש. עכשיו <code>pytest</code> נכשל עם שמונה שגיאות <bdi>Import</bdi>, והכיוון כולו נראה שגוי. הריצו את ה-<bdi>Runbook</bdi> הבא:</p>
+  <ol>
+    <li><strong>עצרו והעריכו נזק.</strong> <code>Esc</code> עוצר את Claude מיד. אל תשלחו "תתקן את זה" בפאניקה; קודם תמונה מלאה:
+      <div class="terminal"><span class="p">$</span> git status
+<span class="out">renamed:  backend/app/routers/tasks.py -&gt; backend/app/routers/items.py
+modified: backend/app/models.py
+untracked: backend/app/routers/subtasks.py</span>
+<span class="p">$</span> git diff --stat</div>
+      השוו את הפלט למה שאתם זוכרים מהשיחה: אילו שינויים באו מעריכות (במעקב <bdi>Checkpoint</bdi>) ואילו מפקודות <bdi>Bash</bdi> כמו ה-<code>mv</code> (לא במעקב).</li>
+    <li><strong>בחרו כלי שחזור לפי סוג הנזק.</strong> זו טבלת ההחלטה:
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>מצב</th><th>כלי השחזור הנכון</th></tr></thead>
+          <tbody>
+            <tr><td>רק עריכות של Claude דרך כלי הקבצים</td><td><code>/rewind</code> עם <bdi>Restore code and conversation</bdi> לנקודה שלפני ה-<bdi>Prompt</bdi> הבעייתי</td></tr>
+            <tr><td>גם פקודות <bdi>Bash</bdi> נגעו בקבצים (כמו כאן)</td><td><bdi>Git</bdi>: שחזור מה-<bdi>Commit</bdi> האחרון של נקודת הבסיס, ואז <code>/rewind</code> לשיחה בלבד אם רוצים לנקות גם אותה</td></tr>
+            <tr><td>הקוד דווקא בסדר, השיחה הסתבכה</td><td><bdi>Restore conversation</bdi> בלבד, או <bdi>Summarize from here</bdi></td></tr>
+            <tr><td>אין <bdi>Commit</bdi> בסיס ו-<bdi>Bash</bdi> שינה קבצים</td><td>שחזור ידני בעזרת <code>git diff</code>, ה-<bdi>Transcript</bdi> (<code>Ctrl+O</code>) ויומן הפקודות; זה התרחיש שרציתם להימנע ממנו</td></tr>
+          </tbody>
+        </table>
+      </div>
+      בתקרית שלנו יש שינוי <bdi>Bash</bdi> (ה-<code>mv</code>), ולכן <bdi>Git</bdi> הוא הכלי. עשינו <bdi>Commit</bdi> בסיס לפני המשימה, אז השחזור בטוח ופשוט. אם עוד לא עצרתם לגמרי את הכיוון, אפשר לבקש מ-Claude עצמו לבצע את פקודות השחזור; ליתר ביטחון בצעו אותן ידנית:
+      <div class="terminal"><span class="p">$</span> git restore --source=HEAD --staged --worktree backend/
+<span class="p">$</span> git clean -fd backend/
+<span class="out"># מסיר קבצים חדשים שאינם במעקב; בדקו קודם עם git clean -nd</span></div></li>
+    <li><strong>אמתו שהבסיס חזר.</strong> שחזור בלי אימות הוא ניחוש:
+      <div class="verify">
+        <ul class="check">
+          <li><code>git status</code> נקי (או מציג רק מה שציפיתם להשאיר).</li>
+          <li><code>pytest backend/tests</code> ירוק כפי שהיה בנקודת הבסיס.</li>
+          <li>אין קבצים "יתומים" חדשים: <code>git clean -nd</code> לא מציע דבר.</li>
+        </ul>
+      </div></li>
+    <li><strong>נקו את השיחה וגשו מחדש, חכם יותר.</strong> הקוד שוחזר, אבל ה-<bdi>Context</bdi> עדיין מלא בכיוון השגוי, והוא ישפיע על הניסיון הבא. פתחו את <code>/rewind</code> ובחרו <bdi>Restore conversation</bdi> לנקודה שלפני הבקשה; ה-<bdi>Prompt</bdi> המקורי יחזור לשורת הקלט לעריכה. הפעם נסחו טוב יותר את מה שלמדתם מהכישלון, והתחילו ב-<bdi>Plan Mode</bdi>:
+      <div class="codeblock">
+        <div class="codehead">Prompt משופר (אחרי מעבר ל-Plan Mode עם Shift+Tab)</div>
+        <pre><code>plan a minimal subtasks feature: keep the existing tasks router file name,
+add a Subtask model and a nested route. do not rename or move existing files.
+list every file you intend to touch before making changes</code></pre>
+      </div></li>
+  </ol>
+  <p>שימו לב לעיקרון הכללי שה-<bdi>Runbook</bdi> מדגים: קודם מעריכים (שלב 1), אחר כך בוחרים כלי לפי מה שבאמת השתנה (שלב 2), מאמתים עם בדיקות (שלב 3), ורק בסוף מנסים שוב, עם תוכנית והיקף מצומצם יותר (שלב 4). <bdi>Rewind</bdi> בלי אימות ובלי לקח הוא רק דחיית הכישלון הבא.</p>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>להסתמך על Rewind אחרי רצף שכלל פקודות Bash.</strong> תקבלו שחזור חלקי ומצב ביניים לא עקבי. בדקו קודם מה באמת השתנה ואיך.</li>
+    <li><strong>לדלג על Commit הבסיס "כי יש Checkpoints".</strong> ה-<bdi>Checkpoints</bdi> מוגבלים ל-100 האחרונים, נמחקים אחרי 30 יום, לא משותפים ולא מכסים <bdi>Bash</bdi>. נקודת הבסיס האמיתית היא <bdi>Commit</bdi>.</li>
+    <li><strong>לצפות שהתפריט יציע Restore code כשאין מה לשחזר.</strong> אם לא נלכדו עריכות אחרי הנקודה שנבחרה, אפשרויות שחזור הקוד פשוט לא מופיעות; זו התנהגות מתועדת, לא תקלה.</li>
+    <li><strong>לשחזר קוד ולהשאיר שיחה מזוהמת.</strong> ה-<bdi>Context</bdi> עם הכיוון השגוי ימשיך להשפיע. שחזרו או סכמו גם את השיחה.</li>
+    <li><strong>לבלבל בין Summarize ל-Restore.</strong> סיכום דוחס שיחה ולא נוגע בקבצים; שחזור מחזיר מצב. אם המטרה היא לפנות <bdi>Context</bdi>, סיכום; אם לבטל נזק, שחזור.</li>
+    <li><strong>לעבוד על אותם קבצים משני Sessions ולצפות ל-Rewind נקי.</strong> עריכות מ-<bdi>Session</bdi> מקביל אינן במעקב של ה-<bdi>Session</bdi> הנוכחי.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <ul>
+    <li><strong>"Restored the code, but skipped N files":</strong> הנתיבים המדולגים הם <bdi>Symlinks</bdi> או <bdi>Hard Links</bdi>. הפעילו <code>/debug</code> ושחזרו שוב כדי לקבל את רשימת הנתיבים ביומן <code>~/.claude/debug/&lt;session-id&gt;.txt</code>, ואז בטלו את השינוי בקבצים האלה ידנית או בקשו מ-Claude להפוך את העריכה.</li>
+    <li><strong>Esc Esc לא פותח את התפריט:</strong> ודאו ששורת הקלט ריקה; כשיש בה טקסט, הלחיצה הכפולה מנקה אותו במקום לפתוח את התפריט (הטקסט שנוקה זמין עם <bdi>Up</bdi>).</li>
+    <li><strong>עשיתם /clear ומתחרטים:</strong> פתחו את <code>/rewind</code> וחפשו בראש הרשימה את השורה <code>/resume &lt;session-id&gt; (previous session)</code>; היא זמינה עד יציאה מהתוכנית או מעבר ל-<bdi>Session</bdi> אחר. בגרסאות ישנות יותר: <code>/resume</code> ובחירה מהרשימה.</li>
+    <li><strong>שחזרתם אבל הקבצים לא חזרו:</strong> בדקו אם השינויים המדוברים נעשו בכלל דרך כלי הקבצים: שינויי <bdi>Bash</bdi> ועריכות <bdi>Subagents</bdi> אינם משוחזרים. ה-<bdi>Transcript</bdi> (<code>Ctrl+O</code>) מראה בדיוק איזה כלי ביצע כל שינוי.</li>
+    <li><strong>Session ישן בלי Checkpoints:</strong> <bdi>Sessions</bdi> ו-<bdi>Checkpoints</bdi> מנוקים אחרי 30 יום (ברירת מחדל). בדקו את <code>cleanupPeriodDays</code> בהגדרות אם אתם צריכים חלון ארוך יותר.</li>
+  </ul>
+
+  <h2 id="security">Security</h2>
+  <p>שלוש נקודות אבטחה סביב שחזורים:</p>
+  <ul>
+    <li><strong>Rewind אינו מבטל דליפות.</strong> אם סוד נכתב לקובץ, נשלח ב-<bdi>Push</bdi>, הודפס ל-<bdi>Log</bdi> או הגיע לשיחה, שחזור הקבצים לא מחזיר את הגלגל: הסוד כבר יצא. הטיפול הנכון הוא החלפת הסוד (Rotation), כפי שלמדנו בפרקי ה-<bdi>Git</bdi> וה-<bdi>Security</bdi> (<a href="ch20.html">פרק 20</a>).</li>
+    <li><strong>שחזור אינו Undo לפעולות מרוחקות.</strong> <bdi>Migration</bdi> שרץ, <bdi>Deployment</bdi> שיצא, <bdi>API</bdi> שנקרא: אלה דורשים נהלי שחזור משלהם. תכננו אותם לפני הפעולה, לא אחריה.</li>
+    <li><strong>ה-Transcript נשמר.</strong> גם אחרי סיכום, ההודעות המקוריות נשמרות ב-<bdi>Transcript</bdi> של ה-<bdi>Session</bdi> על הדיסק. אם עבר בשיחה תוכן רגיש, זכרו שהוא קיים שם עד ניקוי ה-<bdi>Sessions</bdi>.</li>
+  </ul>
+
+  <h2 id="cost">Cost ו-Context</h2>
+  <p>ה-<bdi>Checkpoints</bdi> עצמם הם מנגנון מקומי: הלכידה לא עולה <bdi>Tokens</bdi>. ההשפעה הכלכלית האמיתית היא של אפשרויות ה-<bdi>Summarize</bdi>: הסיכום נוצר על ידי המודל (כלומר עולה <bdi>Tokens</bdi> חד פעמית), אבל מפנה נתח גדול מה-<bdi>Context Window</bdi>, וזה בדיוק הכלי כשדיון <bdi>Debugging</bdi> ארוך גמר לכם את המקום. גם שחזור שיחה הוא כלי חיסכון: במקום להמשיך לשלם על <bdi>Context</bdi> מלא בכיוון שגוי (שגם מטה את התשובות הבאות), חוזרים לנקודת פיצול נקייה. כלל אצבע: כיוון שגוי שמת, מסכמים או משחזרים; לא גוררים אותו הלאה.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li><bdi>Commit</bdi> של נקודת בסיס עובדת לפני כל משימה גדולה; זו התשתית שכל ה-<bdi>Recovery</bdi> נשען עליה.</li>
+    <li>אחרי תקלה: קודם <code>git status</code> ו-<code>git diff</code>, רק אחר כך החלטת שחזור.</li>
+    <li>השתמשו ב-<bdi>Rewind</bdi> לניסוי מכוון בחלופות: נסו גישה א', שחזרו, נסו גישה ב', והשוו. זה אחד השימושים שהתיעוד ממליץ עליהם במפורש.</li>
+    <li>אחרי שחזור, הריצו את הבדיקות לפני שממשיכים; שחזור לא מאומת הוא הנחה, לא עובדה.</li>
+    <li>כשה-<bdi>Prompt</bdi> המקורי חוזר לשורת הקלט אחרי שחזור שיחה, שפרו אותו לפני שליחה מחדש: הוסיפו את האילוץ שחסר בניסיון הקודם.</li>
+    <li>ל-<bdi>Sessions</bdi> מקבילים על אותו פרויקט, השתמשו ב-<bdi>Worktrees</bdi> נפרדים כדי שה-<bdi>Checkpoints</bdi> לא ידרכו זה על זה.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>"Checkpoints זה כמו Git, אז לא צריך Commits".</strong> ההשוואה בטבלה למעלה מפריכה כל עמודה: תקרת 100, ניקוי אחרי 30 יום, אפס שיתוף, ואפס כיסוי ל-<bdi>Bash</bdi>.</li>
+    <li><strong>Rewind כפתרון פאניקה אוטומטי.</strong> שחזור עיוור בלי הערכת נזק עלול למחוק דווקא עבודה טובה שנעשתה אחרי הנקודה, או להשאיר חצי מהנזק (החצי של ה-<bdi>Bash</bdi>) במקום.</li>
+    <li><strong>לגרור שיחה כושלת "עוד ניסיון אחד" שוב ושוב.</strong> כל ניסיון מוסיף רעש ל-<bdi>Context</bdi> ומקטין את סיכויי ההצלחה. אחרי שני כישלונות באותו כיוון: שחזור שיחה ו-<bdi>Prompt</bdi> חדש, או <code>/branch</code> לניסוי מקביל.</li>
+    <li><strong>לתת ל-Claude להריץ פקודות שחזור Git הרסניות בלי בדיקה.</strong> פקודות כמו <code>git reset --hard</code> ו-<code>git clean -fd</code> מוחקות עבודה לא שמורה לצמיתות. בדקו קודם עם <code>git status</code> ו-<code>git clean -nd</code>, וזכרו שב-<bdi>auto mode</bdi> ה-<bdi>Classifier</bdi> חוסם אותן כברירת מחדל בדיוק מהסיבה הזאת.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 19.1: תרגול Recovery מבוקר</div>
+    <div class="body">
+      <p>בעותק התרגול של <bdi>TaskFlow</bdi> (ודאו קודם <bdi>Commit</bdi> נקי):</p>
+      <ol>
+        <li>בקשו מ-Claude להוסיף שדה <code>due_date</code> ל-<code>models.py</code> ולעדכן את ה-<bdi>Router</bdi> (עריכות דרך כלי הקבצים).</li>
+        <li>בקשו ממנו גם: "create a backup copy of models.py using cp" (שינוי דרך <bdi>Bash</bdi>).</li>
+        <li>עכשיו פתחו <code>/rewind</code>, בחרו את הנקודה שלפני שלב 1, ובצעו <bdi>Restore code and conversation</bdi>.</li>
+        <li>בדקו עם <code>git status</code>: מה שוחזר ומה נשאר? הסבירו למה, ונקו את השאריות.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>אחרי השחזור תגלו חלוקה מדויקת לפי כללי המעקב: השינויים ב-<code>models.py</code> וב-<bdi>Router</bdi> נעלמו, כי נעשו דרך כלי עריכת הקבצים של Claude והיו ב-<bdi>Checkpoint</bdi>. לעומת זאת, קובץ הגיבוי (למשל <code>models.py.bak</code>) עדיין קיים: הוא נוצר בפקודת <code>cp</code> דרך <bdi>Bash</bdi>, ושינויים כאלה אינם במעקב ה-<bdi>Checkpoints</bdi> ואינם משוחזרים. <code>git status</code> יציג אותו כקובץ לא במעקב (untracked). הניקוי בטוח כאן כי מדובר בקובץ בודד וידוע: מחקו אותו ידנית או עם <code>git clean -f</code> אחרי בדיקה עם <code>git clean -n</code>. הלקח הכפול: א. <bdi>Rewind</bdi> משחזר בדיוק את מה שהוא מתעד, לא יותר; ב. ההרגל להשוות ל-<code>git status</code> אחרי כל שחזור הוא מה שחושף את השאריות. אם תרצו הרחבה, חזרו על התרגיל כששלב 2 מוחלף ב-<code>mv</code> במקום <code>cp</code>, וראו איך נוצר מצב ביניים מסוכן יותר: הקובץ המקורי חזר דרך ה-<bdi>Checkpoint</bdi>, והעותק שהוזז נשאר גם הוא.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul>
+    <li><bdi>Checkpoint</bdi> נלכד אוטומטית לפני כל <bdi>Prompt</bdi>; נשמרים צילומי קבצים ל-100 ה-<bdi>Checkpoints</bdi> האחרונים, והם מנוקים עם ה-<bdi>Sessions</bdi> אחרי 30 יום (<code>cleanupPeriodDays</code>).</li>
+    <li>נשמרות עריכות דרך כלי הקבצים של Claude ומצב השיחה. לא נשמרים: שינויי <bdi>Bash</bdi>, עריכות ידניות, <bdi>Sessions</bdi> מקבילים, עריכות <bdi>Subagents</bdi> (למעט <bdi>Fork</bdi> בחזית), קישורים, ומערכות מרוחקות.</li>
+    <li><code>/rewind</code> או <code>Esc Esc</code> פותחים תפריט עם שש אפשרויות: שלוש של שחזור (קוד ושיחה, שיחה, קוד), שתיים של סיכום (מכאן והלאה, עד כאן) ו-<bdi>Never mind</bdi>.</li>
+    <li><bdi>Rewind</bdi> הוא <bdi>Local Undo</bdi>; <bdi>Git</bdi> הוא ההיסטוריה הקבועה והמשותפת. הם משלימים, לא מתחרים, ו-<bdi>Commit</bdi> בסיס לפני משימה גדולה הוא ההרגל שמאחד אותם.</li>
+    <li>תהליך <bdi>Recovery</bdi> נכון: לעצור ולהעריך, לבחור כלי לפי סוג הנזק, לאמת עם בדיקות, ולגשת מחדש עם תוכנית ו-<bdi>Prompt</bdi> טובים יותר.</li>
+  </ul>
+  <p>בפרק הבא נעלה קומה: מ-<bdi>Recovery</bdi> נקודתי אל תמונת האבטחה המלאה של עבודה עם <bdi>Agent</bdi>: מודל האיומים, <bdi>Prompt Injection</bdi>, ניהול סודות והגנות הארגון.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/checkpointing">Checkpointing</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands (/rewind, /clear, /resume, /branch)</a> |
+      <a href="https://code.claude.com/docs/en/permission-modes">Choose a permission mode</a> |
+      <a href="https://code.claude.com/docs/en/auto-mode-config">Configure auto mode</a>
+      <br>נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch18.html"><span class="lbl">הפרק הקודם</span>Permission Modes</a>
+    <a href="ch20.html"><span class="lbl">הפרק הבא</span>Security</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

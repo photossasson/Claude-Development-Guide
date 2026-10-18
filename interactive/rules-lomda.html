@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>כותבים Rules ל-Claude Code</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="לומדה אינטראקטיבית בעברית: איך כותבים Rules בתיקייה .claude/rules/ של Claude Code, עם תבניות paths שנבדקו בפועל.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Secular+One&display=swap">
+<style>
+:root{--paper:#F2F5F3; --surface:#FFFFFF; --sunken:#E3ECE8; --ink:#11201B; --ink-2:#384A43; --ink-3:#5A6D66; --line:#C9D8D1; --accent:#0B6B5C; --accent-ink:#FFFFFF; --accent-soft:#DCEFEA; --marker:#9FE3CF; --marker-ink:#06261F; --ok:#147548; --ok-soft:#DBF1E6; --warn:#8F5300; --warn-soft:#FAEACB; --bad:#AE242A; --bad-soft:#F7DEDF; --code-bg:#0E1A17; --code-fg:#D9E7E2; --code-dim:#86A39A; --code-key:#9FE3CF; --code-str:#F2D58A; --f-display:"Secular One","IBM Plex Sans Hebrew",Arial,sans-serif; --f-body:"IBM Plex Sans Hebrew","Segoe UI",Arial,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; --r:10px;}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--paper:#0C1513; --surface:#13201C; --sunken:#192A25; --ink:#E2ECE8; --ink-2:#B0C2BB; --ink-3:#86998F; --line:#28403A; --accent:#5FD3B9; --accent-ink:#04201A; --accent-soft:#163A33; --marker:#5FD3B9; --marker-ink:#04201A; --ok:#5ED09C; --ok-soft:#113428; --warn:#F1B65E; --warn-soft:#382810; --bad:#FF8C91; --bad-soft:#3B191C; --code-bg:#08110F; --code-fg:#D9E7E2; --code-dim:#7E9A91; --code-key:#5FD3B9; --code-str:#F2D58A; color-scheme:dark;}}
+:root[data-theme="dark"]{--paper:#0C1513; --surface:#13201C; --sunken:#192A25; --ink:#E2ECE8; --ink-2:#B0C2BB; --ink-3:#86998F; --line:#28403A; --accent:#5FD3B9; --accent-ink:#04201A; --accent-soft:#163A33; --marker:#5FD3B9; --marker-ink:#04201A; --ok:#5ED09C; --ok-soft:#113428; --warn:#F1B65E; --warn-soft:#382810; --bad:#FF8C91; --bad-soft:#3B191C; --code-bg:#08110F; --code-fg:#D9E7E2; --code-dim:#7E9A91; --code-key:#5FD3B9; --code-str:#F2D58A; color-scheme:dark;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{direction:rtl}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16.5px;line-height:1.7;direction:rtl;text-align:right}
+a{color:var(--accent);text-underline-offset:3px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+h1,h2,h3,h4{font-family:var(--f-display);font-weight:400;line-height:1.25;text-wrap:balance;margin:0}
+h2{font-size:clamp(1.55rem,2.6vw,2.05rem)}
+h3{font-size:1.25rem;margin-top:.4rem}
+h4{font-size:1.05rem}
+p{margin:0}
+code,kbd,pre,samp,.ltr{direction:ltr;unicode-bidi:isolate;text-align:left}
+code{font-family:var(--f-mono);font-size:.88em;background:var(--sunken);padding:.08em .38em;border-radius:5px;overflow-wrap:anywhere}
+kbd{font-family:var(--f-mono);font-size:.85em;border:1px solid var(--line);border-bottom-width:2px;padding:0 .35em;border-radius:5px;background:var(--surface)}
+.ui{unicode-bidi:isolate;direction:ltr;font-weight:600;background:var(--accent-soft);color:var(--ink);padding:0 .35em;border-radius:5px;white-space:nowrap}
+.muted{color:var(--ink-3)}
+.small{font-size:.9rem}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.top-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:16px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{font-family:var(--f-display);font-size:1.1rem;color:var(--ink);text-decoration:none;white-space:nowrap}
+.brand b{unicode-bidi:isolate;direction:ltr;display:inline-block;background:var(--marker);color:var(--marker-ink);font-weight:400;padding:0 .3em;border-radius:4px;margin-inline-start:.25em}
+.prog{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
+.prog-bar{flex:1;height:8px;background:var(--sunken);border-radius:99px;overflow:hidden}
+.prog-bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .3s}
+.prog-label{font-size:.85rem;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.theme-btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:4px 10px;font:inherit;font-size:.85rem;cursor:pointer}
+
+/* shell */
+.shell{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:270px minmax(0,1fr);gap:32px;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.map{position:sticky;top:calc(env(safe-area-inset-top,0px) + 72px);align-self:start;max-height:calc(100vh - 96px);overflow:auto}
+.map details>summary{display:none}
+.map h2{font-size:1rem;color:var(--ink-3);font-family:var(--f-body);font-weight:600;letter-spacing:.02em;margin:18px 0 6px}
+.map ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.map a{display:flex;gap:10px;align-items:baseline;padding:7px 10px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:.95rem;line-height:1.4}
+.map a .n{font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);min-width:1.6em;font-variant-numeric:tabular-nums}
+.map a:hover{background:var(--sunken)}
+.map a[aria-current="page"]{background:var(--accent-soft);color:var(--ink);font-weight:600}
+.map a.done .n::after{content:" ✓";color:var(--ok)}
+.map .start-link{font-weight:600}
+
+/* topics */
+main{min-width:0}
+.topic{display:grid;gap:26px;scroll-margin-top:90px}
+.fence{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:0;overflow:hidden}
+.fence .bar{height:22px;background:var(--marker);color:var(--marker-ink);font-family:var(--f-mono);font-size:.8rem;display:flex;align-items:center;padding-inline:14px;direction:ltr;justify-content:flex-end;letter-spacing:.2em}
+.fence .in{padding:20px 22px;display:grid;gap:10px}
+.kicker{font-size:.85rem;letter-spacing:.02em;color:var(--ink-3);direction:rtl}
+.kicker b{color:var(--ink-2);font-weight:500}
+.lead{font-size:1.08rem;color:var(--ink-2);max-width:70ch}
+.goal{font-size:.95rem;color:var(--ink-2);border-top:1px dashed var(--line);padding-top:10px}
+.goal strong{color:var(--ink)}
+.prose{display:grid;gap:14px;max-width:72ch}
+.prose ul,.prose ol{margin:0;padding-inline-start:1.3em;display:grid;gap:6px}
+.block{display:grid;gap:14px}
+.block-title{font-size:.88rem;font-weight:600;color:var(--ink-3);letter-spacing:.02em}
+
+.callout{border-radius:var(--r);padding:14px 16px;display:grid;gap:6px;border:1px solid var(--line);background:var(--surface);max-width:78ch}
+.callout .t{font-weight:700}
+.callout.note{border-inline-start:5px solid var(--accent)}
+.callout.warn{border-inline-start:5px solid var(--warn);background:var(--warn-soft);border-color:transparent}
+.callout.danger{border-inline-start:5px solid var(--bad);background:var(--bad-soft);border-color:transparent}
+.callout.ok{border-inline-start:5px solid var(--ok);background:var(--ok-soft);border-color:transparent}
+.callout.src{font-size:.92rem;background:var(--sunken);border-color:transparent}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.flip{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:16px;text-align:right;font:inherit;color:inherit;cursor:pointer;display:grid;gap:8px;align-content:start;min-height:100%}
+.flip:hover{border-color:var(--accent)}
+.flip .term{font-family:var(--f-display);font-size:1.25rem;direction:ltr;text-align:right}
+.flip .hint{font-size:.85rem;color:var(--ink-3)}
+.flip .back{font-size:.95rem;color:var(--ink-2)}
+.flip[aria-expanded="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.flip[aria-expanded="true"] .hint{display:none}
+
+/* tabs */
+.tabs{display:grid;gap:0}
+.tablist{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--line);padding-bottom:0}
+.tablist button{font:inherit;font-size:.95rem;border:1px solid var(--line);border-bottom:none;background:var(--sunken);color:var(--ink-2);padding:7px 14px;border-radius:8px 8px 0 0;cursor:pointer;margin-bottom:-1px}
+.tablist button[aria-selected="true"]{background:var(--surface);color:var(--ink);font-weight:600;border-color:var(--line)}
+.tabpanel{background:var(--surface);border:1px solid var(--line);border-top:none;border-radius:0 0 var(--r) var(--r);padding:18px;display:grid;gap:12px;min-width:0}
+
+/* steps */
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:10px;counter-reset:s}
+.steps>li{counter-increment:s;display:grid;grid-template-columns:2.1em minmax(0,1fr);gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.steps>li::before{content:counter(s);font-family:var(--f-mono);font-weight:500;background:var(--ink);color:var(--paper);border-radius:50%;width:2em;height:2em;display:grid;place-items:center;font-size:.85rem}
+.steps .when{display:block;font-size:.83rem;color:var(--ink-3)}
+.tag{display:inline-block;font-size:.75rem;font-weight:600;padding:0 .5em;border-radius:99px;margin-inline-start:.4em;vertical-align:.1em}
+.tag.doc{background:var(--ok-soft);color:var(--ok)}
+.tag.sug{background:var(--warn-soft);color:var(--warn)}
+
+/* code */
+.code{background:var(--code-bg);color:var(--code-fg);border-radius:var(--r);overflow:hidden;min-width:0}
+.code-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 12px;background:rgba(255,255,255,.06);font-family:var(--f-mono);font-size:.8rem;color:var(--code-dim);direction:ltr}
+.code pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--f-mono);font-size:.84rem;line-height:1.6;white-space:pre}
+.code pre code{background:none;padding:0;font-size:inherit;color:inherit}
+.copy{font:inherit;font-family:var(--f-body);font-size:.8rem;background:var(--code-key);color:#1A1500;border:none;border-radius:6px;padding:3px 10px;cursor:pointer;direction:rtl}
+.prompt{background:var(--surface);border:1px dashed var(--accent);border-radius:var(--r);padding:14px 16px;display:grid;gap:10px}
+.prompt .ptext{white-space:pre-wrap;font-size:.98rem}
+.prompt .row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.prompt .copy{background:var(--accent);color:var(--accent-ink)}
+.k{color:var(--code-key)} .s{color:var(--code-str)} .c{color:var(--code-dim)}
+
+/* tables */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.93rem;min-width:560px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;text-align:right}
+th{background:var(--sunken);font-weight:600;font-size:.88rem}
+tr:last-child td{border-bottom:none}
+
+/* tree explorer */
+.explorer{display:grid;grid-template-columns:240px minmax(0,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.tree{background:var(--sunken);padding:12px 6px;direction:ltr;font-family:var(--f-mono);font-size:.86rem;display:grid;align-content:start;gap:2px}
+.tree .dir{padding:4px 10px;color:var(--ink-3)}
+.tree button{font:inherit;text-align:left;border:none;background:none;color:var(--ink-2);padding:5px 10px;border-radius:6px;cursor:pointer;border-left:3px solid transparent}
+.tree button[aria-pressed="true"]{background:var(--surface);color:var(--ink);border-left-color:var(--accent);font-weight:500}
+.tree .d1{padding-left:26px}
+.tree .d2{padding-left:42px}
+.explain{padding:16px;display:grid;gap:12px;min-width:0}
+
+/* line walkthrough */
+.walk{display:grid;gap:6px}
+.wline{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.wline>code{display:block;background:var(--code-bg);color:var(--code-fg);border-radius:0;padding:8px 12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.82rem}
+.wline p{padding:8px 12px;font-size:.92rem;color:var(--ink-2)}
+
+/* forms */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:14px;min-width:0}
+.field{display:grid;gap:5px}
+.field label{font-weight:600;font-size:.93rem}
+.field .help{font-size:.84rem;color:var(--ink-3)}
+input[type="text"],textarea,select{font:inherit;font-size:.95rem;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+textarea{min-height:130px;resize:vertical}
+input.ltrin,textarea.ltrin{direction:ltr;text-align:left;font-family:var(--f-mono);font-size:.88rem}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.checks li{display:grid;grid-template-columns:1.6em minmax(0,1fr);gap:6px;font-size:.93rem}
+.checks li::before{font-weight:700}
+.checks li.pass::before{content:"✓";color:var(--ok)}
+.checks li.fail::before{content:"✗";color:var(--bad)}
+.checks li.warn::before{content:"!";color:var(--warn)}
+.meter{display:grid;gap:4px}
+.meter .track{height:10px;border-radius:99px;background:var(--sunken);overflow:hidden;direction:ltr}
+.meter .track i{display:block;height:100%;background:var(--ok)}
+.meter .track i.over{background:var(--bad)}
+.meter .lbl{display:flex;justify-content:space-between;font-size:.82rem;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.btn{font:inherit;font-weight:600;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px}
+.choice{display:flex;flex-wrap:wrap;gap:8px}
+.choice label{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:99px;padding:5px 12px;cursor:pointer;font-size:.92rem;background:var(--paper)}
+.choice input{accent-color:var(--accent)}
+
+/* findings */
+.findings{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.findings li{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:10px;align-items:baseline;background:var(--paper);border-radius:8px;padding:7px 10px;font-size:.92rem}
+.findings .pos{font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);direction:ltr}
+.code-tag{font-family:var(--f-mono);font-size:.78rem;font-weight:500;padding:0 .45em;border-radius:5px}
+.code-tag.E{background:var(--bad-soft);color:var(--bad)}
+.code-tag.W{background:var(--warn-soft);color:var(--warn)}
+.status{font-weight:600}
+.status.ok{color:var(--ok)} .status.bad{color:var(--bad)}
+
+/* quiz & sorter */
+.q{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:10px}
+.q .opts{display:grid;gap:6px}
+.q .opts button{font:inherit;text-align:right;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:8px;padding:9px 12px;cursor:pointer}
+.q .opts button.right{border-color:var(--ok);background:var(--ok-soft)}
+.q .opts button.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.q .fb{font-size:.93rem;color:var(--ink-2)}
+.score{font-weight:600}
+
+/* disclosure diagram */
+.levels{display:grid;gap:12px}
+.ctx{display:grid;gap:6px;direction:ltr}
+.ctx .slot{display:flex;align-items:center;gap:10px;direction:rtl;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--paper);transition:background .2s,border-color .2s}
+.ctx .slot .sz{margin-inline-start:auto;font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);direction:ltr}
+.ctx .slot.on{background:var(--accent-soft);border-color:var(--accent)}
+.ctx .slot.off{opacity:.55}
+.ctx .slot .dot{width:10px;height:10px;border-radius:50%;background:var(--line);flex:none}
+.ctx .slot.on .dot{background:var(--accent)}
+
+/* zip compare */
+.zips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.zip{border-radius:var(--r);padding:14px;display:grid;gap:8px}
+.zip.good{background:var(--ok-soft)} .zip.bad{background:var(--bad-soft)}
+.zip pre{margin:0;font-family:var(--f-mono);font-size:.84rem;direction:ltr;text-align:left;white-space:pre;overflow-x:auto}
+
+details.acc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+details.acc>summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style-position:inside}
+details.acc>div{padding:0 16px 14px;display:grid;gap:10px}
+details.solution{border:1px dashed var(--ok);border-radius:var(--r);background:var(--surface)}
+details.solution>summary{cursor:pointer;padding:10px 14px;font-weight:600;color:var(--ok)}
+details.solution>div{padding:0 14px 14px;display:grid;gap:10px}
+.exercise{border:2px solid var(--ink);border-radius:var(--r);padding:16px;display:grid;gap:10px;background:var(--surface)}
+.exercise .h{font-family:var(--f-display);font-size:1.1rem}
+
+.nav-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:18px}
+.nav-foot .btn{min-width:150px}
+.checklist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.checklist label{display:grid;grid-template-columns:1.4em minmax(0,1fr);gap:8px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer}
+.checklist input{accent-color:var(--ok);margin-top:.35em}
+
+/* start screen */
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:28px;align-items:center}
+.hero h1{font-size:clamp(2.1rem,4.6vw,3.3rem)}
+.hero h1 span{background:linear-gradient(transparent 62%,var(--marker) 62%);padding:0 .1em}
+.folder{background:var(--surface);border:1px solid var(--line);border-radius:4px var(--r) var(--r) var(--r);position:relative;padding:18px;margin-top:22px;box-shadow:0 8px 24px rgba(19,32,42,.08)}
+.folder::before{content:attr(data-label);position:absolute;top:-24px;right:-1px;font-family:var(--f-mono);font-size:.78rem;background:var(--marker);color:var(--marker-ink);padding:3px 12px;border-radius:8px 8px 0 0;direction:ltr}
+.frows{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.frows li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px;align-items:baseline;font-size:.9rem}
+.frows .fn{background:none;padding:0;color:var(--ink);font-weight:500;justify-self:start}
+.frows .fn.d{color:var(--ink-3);font-weight:400}
+.frows .fn.i{margin-right:1.4em}
+.frows span{color:var(--ink-2)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.meta div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:.9rem}
+.meta b{display:block;font-size:.78rem;color:var(--ink-3);font-weight:600}
+.parts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.part{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:8px;align-content:start}
+.part ol{margin:0;padding-inline-start:1.2em;font-size:.94rem;color:var(--ink-2)}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:18px}
+  .map{position:static;max-height:none}
+  .map details{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:4px 10px}
+  .map details>summary{display:block;cursor:pointer;padding:8px 4px;font-weight:600}
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .explorer{grid-template-columns:minmax(0,1fr)}
+  .wline{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:520px){
+  .prog-label{display:none}
+  .brand{font-size:1rem}
+  .fence .in{padding:16px}
+  .findings li{grid-template-columns:auto minmax(0,1fr)}
+  .findings .pos{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+/* Widgets added for the Rules and Hooks modules */
+.q .opts.grid-opts{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.pill{display:inline-block;font-size:.76rem;font-weight:600;padding:.05em .6em;border-radius:99px;white-space:nowrap;vertical-align:.08em}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.info{background:var(--accent-soft);color:var(--ink)}
+
+/* load-order stack */
+.stack{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:st}
+.stack li{counter-increment:st;display:grid;grid-template-columns:2em minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px}
+.stack li::before{content:counter(st);font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);text-align:center}
+.stack li.lazy{border-style:dashed;background:var(--paper)}
+.stack .what{display:grid;gap:2px;min-width:0}
+.stack .what code{justify-self:start}
+
+/* session simulator */
+.sim{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:16px;align-items:start}
+.sim .acts{display:grid;gap:8px}
+.sim .acts button{font:inherit;font-size:.92rem;text-align:right;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:9px 12px;cursor:pointer;display:grid;gap:2px}
+.sim .acts button small{color:var(--ink-3);font-size:.8rem;direction:ltr;text-align:right;font-family:var(--f-mono)}
+.sim .acts button:hover{border-color:var(--accent)}
+.sim .acts button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.sim .log{font-size:.88rem;color:var(--ink-2);background:var(--paper);border-radius:8px;padding:10px 12px;min-height:3.2em}
+.ctx .slot .src{font-size:.78rem;color:var(--ink-3);margin-inline-start:6px}
+
+/* glob tester */
+.gt-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.gt-res{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.gt-res li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:baseline;background:var(--paper);border-radius:8px;padding:7px 10px;font-size:.9rem}
+.gt-res li code{justify-self:start}
+.gt-res .why{grid-column:2;font-size:.82rem;color:var(--ink-3)}
+
+/* lifecycle */
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.flow button{font:inherit;font-family:var(--f-mono);font-size:.82rem;direction:ltr;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer}
+.flow button.blk{border-color:var(--bad)}
+.flow button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.flow .arr{color:var(--ink-3);font-size:.9rem}
+.flow-group{display:grid;gap:6px}
+.flow-group h4{font-family:var(--f-body);font-weight:600;font-size:.86rem;color:var(--ink-3)}
+.evdetail{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:6px}
+.evfilter{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* hook simulator */
+.io{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.io .pane{background:var(--code-bg);color:var(--code-fg);border-radius:8px;padding:10px 12px;display:grid;gap:4px;min-width:0}
+.io .pane b{font-family:var(--f-mono);font-size:.75rem;color:var(--code-dim);font-weight:500;direction:ltr;text-align:left}
+.io .pane pre{margin:0;font-family:var(--f-mono);font-size:.8rem;white-space:pre-wrap;overflow-wrap:anywhere;direction:ltr;text-align:left;min-height:1.4em}
+.verdict{border-radius:var(--r);padding:12px 14px;display:grid;gap:4px;font-size:.95rem}
+.verdict.ok{background:var(--ok-soft)} .verdict.bad{background:var(--bad-soft)} .verdict.warn{background:var(--warn-soft)}
+
+@media (max-width:900px){
+  .sim,.gt-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:520px){
+  .stack li{grid-template-columns:1.6em minmax(0,1fr)}
+  .stack li .pill{grid-column:2;justify-self:start}
+}
+.grid-gap{display:grid;gap:10px;min-width:0}
+.nw{white-space:nowrap}
+.frows .fn{white-space:nowrap}
+.verdict code{justify-self:start;max-width:100%}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#start">כותבים Rules<b>paths:</b></a>
+    <div class="prog" aria-live="polite">
+      <div class="prog-bar" aria-hidden="true"><i id="progFill"></i></div>
+      <span class="prog-label" id="progLabel">מסך פתיחה</span>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="החלפת ערכת צבעים">ערכת צבעים</button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="map" aria-label="מפת הלומדה">
+    <details id="mapDetails" open>
+      <summary>מפת הלומדה</summary>
+      <ol><li><a href="#start" class="start-link" data-go="start"><span class="n">00</span>פתיחה</a></li></ol>
+      <h2>חלק א: להבין</h2>
+      <ol>
+        <li><a href="#t1" data-go="t1"><span class="n">01</span>מה זה Rule</a></li>
+        <li><a href="#t2" data-go="t2"><span class="n">02</span>Rule או כלי אחר</a></li>
+        <li><a href="#t3" data-go="t3"><span class="n">03</span>מתי Rule נטען</a></li>
+      </ol>
+      <h2>חלק ב: לבנות</h2>
+      <ol>
+        <li><a href="#t4" data-go="t4"><span class="n">04</span>הדוגמה: TaskFlow</a></li>
+        <li><a href="#t5" data-go="t5"><span class="n">05</span>paths ותבניות Glob</a></li>
+        <li><a href="#t6" data-go="t6"><span class="n">06</span>כותבים Rule טוב</a></li>
+        <li><a href="#t7" data-go="t7"><span class="n">07</span>לבנות עם Claude</a></li>
+      </ol>
+      <h2>חלק ג: להתקין, לבדוק, לשתף</h2>
+      <ol>
+        <li><a href="#t8" data-go="t8"><span class="n">08</span>מיקומים ושיתוף</a></li>
+        <li><a href="#t9" data-go="t9"><span class="n">09</span>בדיקה ותקלות</a></li>
+        <li><a href="#t10" data-go="t10"><span class="n">10</span>בטיחות, צוות ותוכנית</a></li>
+      </ol>
+    </details>
+  </nav>
+
+  <main id="main" tabindex="-1">
+
+<!-- ============ START ============ -->
+<section class="topic" id="start" data-title="מסך פתיחה">
+  <div class="hero">
+    <div class="prose">
+      <p class="kicker">לומדה אינטראקטיבית | מדריך פיתוח ב-Claude Code | עשרה נושאים</p>
+      <h1>כותבים <span>Rules</span> <span class="nw">ל-Claude Code,</span> שנטענים בדיוק כשצריך</h1>
+      <p class="lead">בלומדה הזו תבנו סט Rules אמיתי לפרויקט: קובצי Markdown קצרים בתיקייה <code>.claude/rules/</code>, שחלקם נטענים בכל Session וחלקם רק כש-Claude נוגע בקבצים מסוימים. תלמדו לכתוב תבניות <code>paths</code> נכונות, לבדוק מה נטען בפועל, ולדעת מתי Rule הוא בכלל לא הכלי הנכון.</p>
+      <p>הדוגמה היא TaskFlow, פרויקט הדוגמה של המדריך: Backend ב-FastAPI ו-Frontend ב-React עם TypeScript. כל Rule בלומדה נבדק ב-Claude Code, וכל תבנית בבודק התבניות מתנהגת כמו שהיא התנהגה בבדיקה.</p>
+      <div class="btnrow"><button class="btn" type="button" data-go="t1">בואו נתחיל</button><button class="btn ghost" type="button" data-go="t5">ישר לבודק התבניות</button></div>
+    </div>
+    <div class="folder" data-label=".claude/rules/" aria-label="מבנה התיקייה של ה-Rules לדוגמה">
+      <ul class="frows">
+        <li><code class="fn">code-style.md</code><span>נטען תמיד: סגנון קוד</span></li>
+        <li><code class="fn">security.md</code><span>נטען תמיד: כללי אבטחה</span></li>
+        <li><code class="fn">testing.md</code><span>רק כשנוגעים בבדיקות</span></li>
+        <li><code class="fn d">backend/</code><span></span></li>
+        <li><code class="fn i">api.md</code><span>רק בקובצי ה-API</span></li>
+        <li><code class="fn d">frontend/</code><span></span></li>
+        <li><code class="fn i">components.md</code><span>רק בקובצי ה-Frontend</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div><b>תאריך מחקר</b>15.10.2026</div>
+    <div><b>Claude Code שנבדק</b><span class="ltr">2.1.300</span></div>
+    <div><b>מערכת שנבדקה</b>Linux. ההוראות ל-macOS ול-Windows מבוססות על התיעוד</div>
+    <div><b>בדיקה בפועל</b>16 תבניות נבדקו עם Hook שרושם כל טעינה של Rule</div>
+  </div>
+
+  <div class="parts">
+    <div class="part"><h3>חלק א: להבין</h3><ol><li>מה זה Rule</li><li>Rule או כלי אחר</li><li>מתי Rule נטען</li></ol></div>
+    <div class="part"><h3>חלק ב: לבנות</h3><ol start="4"><li>הדוגמה: TaskFlow</li><li><code>paths</code> ותבניות Glob</li><li>כותבים Rule טוב</li><li>לבנות עם Claude</li></ol></div>
+    <div class="part"><h3>חלק ג: להתקין, לבדוק, לשתף</h3><ol start="8"><li>מיקומים ושיתוף</li><li>בדיקה ותקלות</li><li>בטיחות, צוות ותוכנית</li></ol></div>
+  </div>
+
+  <div class="callout note">
+    <span class="t">למי הלומדה מתאימה</span>
+    <p>למי שעובד עם Claude Code (במסוף, ב-IDE או בלשונית Code של אפליקציית שולחן העבודה) וקובץ ה-<code>CLAUDE.md</code> שלו התחיל להתארך. אין צורך לדעת YAML מראש. זו לומדה משלימה ל<a href="../chapters/ch15.html">פרק 15: CLAUDE.md</a> ול<a href="../chapters/ch16.html">פרק 16: Memory</a> במדריך. יש גם לומדות על <a class="sib" data-sib="skills" href="skills-lomda.html">Skills</a> ועל <a class="sib" data-sib="hooks" href="hooks-lomda.html">Hooks</a>.</p>
+  </div>
+</section>
+
+<!-- ============ T1 ============ -->
+<section class="topic" id="t1" data-title="מה זה Rule" hidden>
+  <div class="fence"><div class="bar">paths:</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 01</p>
+    <h2>מה זה Rule?</h2>
+    <p class="lead">Rule הוא קובץ Markdown קצר בתיקייה <code>.claude/rules/</code> שמכיל הוראות ל-Claude בנושא אחד. Rule בלי הגבלה נטען בכל Session, כמו <code>CLAUDE.md</code>. Rule עם שדה <code>paths</code> נטען רק כש-Claude עובד על קבצים שמתאימים לתבנית.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> מה ההבדל בין Rule ל-<code>CLAUDE.md</code>, למה Rules חוסכים מקום בשיחה, ומה הם לא עושים.</p>
+  </div><div class="bar">paths:</div></div>
+
+  <div class="prose">
+    <p><strong>מאיפה זה בא.</strong> לפי התיעוד של Claude Code, בפרויקט גדול אפשר לחלק את ההוראות לכמה קבצים בתיקייה <code>.claude/rules/</code>. כל קובץ עוסק בנושא אחד, עם שם שמתאר אותו, כמו <code>testing.md</code> או <code>api-design.md</code>. Claude Code מוצא את כל קובצי ה-<code>.md</code> בתיקייה, גם בתתי-תיקיות.</p>
+    <p><strong>הבעיה ש-Rules פותרים.</strong> קובץ <code>CLAUDE.md</code> אחד נטען במלואו בכל Session. כשהוא מכיל גם כללי API, גם כללי React וגם כללי בדיקות, כל Session משלם על הכול, גם כשהעבודה נוגעת רק בחלק אחד. התיעוד ממליץ לשמור כל <code>CLAUDE.md</code> מתחת ל-200 שורות, ולהעביר הוראות שרלוונטיות רק לחלק מהקוד ל-Rules עם <code>paths</code>.</p>
+    <p><strong>מה Rule לא עושה.</strong> Claude מתייחס ל-Rules כמו ל-<code>CLAUDE.md</code>: כהקשר, לא כתצורה שנאכפת. Rule שאומר "אסור לערוך את <code>.env</code>" הוא בקשה. כדי לחסום באמת משתמשים בהרשאות או ב-Hook (נושא 2 ו-10).</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">חמישה מונחים שחוזרים בכל הלומדה · לחצו על כרטיס כדי לקרוא</p>
+    <div class="cards">
+      <button class="flip" type="button" aria-expanded="false"><span class="term">CLAUDE.md</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>קובץ ההוראות הראשי של הפרויקט. נטען בתחילת כל Session במלואו. <strong>מה לשים בו:</strong> פקודות Build ובדיקה, מבנה הפרויקט, וכללים שנכונים לכל הקוד.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Rule</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>קובץ Markdown בתיקייה <code>.claude/rules/</code>, בנושא אחד. בלי <code>paths</code> הוא נטען בפתיחה, באותה עדיפות כמו <code>.claude/CLAUDE.md</code>. <strong>מה לעשות עכשיו:</strong> חשבו על נושא אחד ב-<code>CLAUDE.md</code> שלכם שרלוונטי רק לחלק מהקוד.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">paths</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>השדה היחיד ש-Claude Code קורא מה-Frontmatter של Rule. רשימה של תבניות Glob, כמו <code>backend/**/*.py</code>. Rule עם <code>paths</code> נטען רק כש-Claude קורא, כותב או עורך קובץ מתאים. שדות אחרים נבלעים בלי שגיאה.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Auto memory</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>הערות ש-Claude כותב לעצמו מתוך התיקונים וההעדפות שלכם. Rules אתם כותבים; Auto memory Claude כותב. שניהם נטענים בתחילת Session, ושניהם הקשר ולא אכיפה.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Hook</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>סקריפט ש-Claude Code מריץ באירוע קבוע, למשל לפני כל עריכת קובץ. Hook לא תלוי בשיקול הדעת של Claude, ולכן הוא הכלי לאכיפה. <strong>בלומדה הבאה:</strong> <a class="sib" data-sib="hooks" href="hooks-lomda.html">Hooks</a>.</span></button>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">לפני ואחרי · אותו פרויקט, שתי דרכים לארגן הוראות</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>הכול ב-<code>CLAUDE.md</code></th><th>עם <code>.claude/rules/</code></th></tr></thead>
+      <tbody>
+        <tr><td>קובץ של 300 שורות שנטען בכל Session, גם כשעובדים רק על CSS.</td><td><code>CLAUDE.md</code> של 12 שורות. כללי ה-API נטענים רק כש-Claude נוגע בקובצי ה-API.</td></tr>
+        <tr><td>כשמשהו משתנה בכללי הבדיקות, מחפשים את הסעיף בתוך קובץ ענק.</td><td>פותחים את <code>testing.md</code>. ב-Pull Request רואים בדיוק איזה נושא השתנה.</td></tr>
+        <tr><td>שני מפתחים עורכים את אותו קובץ ונוצרות התנגשויות.</td><td>צוות ה-Frontend אחראי על <code>frontend/</code>, וצוות ה-Backend על <code>backend/</code>.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="callout warn"><span class="t">איפה Rules עובדים</span><p>התיקייה <code>.claude/rules/</code> היא יכולת של Claude Code: במסוף, בהרחבות ל-IDE ובלשונית Code של אפליקציית שולחן העבודה. בשיחה רגילה באפליקציית Claude (Web, Desktop או Mobile) אין קובצי Rules; המקבילה שם היא ההוראות של Project. Rule שנמצא ב-Repository נוסע איתו לכל מי שמשכפל אותו. Rule שנמצא רק ב-<code>~/.claude/rules/</code> במחשב שלכם לא קיים במחשבים אחרים.</p></div>
+
+  <div class="callout note"><span class="t">ומה עם AGENTS.md?</span><p>מגרסה <span class="ltr">2.1.277</span>, Claude Code קורא <code>AGENTS.md</code> כשאין <code>CLAUDE.md</code> בפרויקט. קובצי <code>.claude/rules/</code> לא נספרים בבדיקה הזו: הם ממשיכים להיטען לצד <code>AGENTS.md</code>. כך אפשר להשאיר <code>AGENTS.md</code> משותף לכלים אחרים, ולהוסיף Rules ייעודיים ל-Claude.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/memory">How Claude remembers your project</a> · <a href="https://code.claude.com/docs/en/features-overview">Extend Claude Code</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T2 ============ -->
+<section class="topic" id="t2" data-title="Rule או כלי אחר" hidden>
+  <div class="fence"><div class="bar">paths:</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 02</p>
+    <h2>מתי Rule, ומתי כלי אחר?</h2>
+    <p class="lead">ב-Claude Code יש כמה מקומות לשים "ידע" ו"כללים". הם נבדלים בשני דברים: מתי הם נטענים, והאם הם הנחיה או אכיפה.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לבחור בין <code>CLAUDE.md</code>, Rule כללי, Rule עם <code>paths</code>, Skill, Hook, הרשאות ו-Auto memory.</p>
+  </div><div class="bar">paths:</div></div>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>כלי</th><th>מי כותב</th><th>מתי נטען</th><th>הנחיה או אכיפה</th><th>מתי לבחור בו</th></tr></thead>
+    <tbody>
+      <tr><td><strong><code>CLAUDE.md</code></strong></td><td>אתם</td><td>בכל Session, במלואו</td><td>הנחיה</td><td>פקודות, מבנה, כללים לכל הקוד. קצר.</td></tr>
+      <tr><td><strong>Rule בלי <code>paths</code></strong></td><td>אתם</td><td>בכל Session</td><td>הנחיה</td><td>נושא שרלוונטי לכל הקוד, אבל ראוי לקובץ משלו (אבטחה, סגנון).</td></tr>
+      <tr><td><strong>Rule עם <code>paths</code></strong></td><td>אתם</td><td>כש-Claude נוגע בקובץ מתאים</td><td>הנחיה</td><td>מוסכמות של חלק אחד בקוד: API, רכיבים, בדיקות, מיגרציות.</td></tr>
+      <tr><td><strong>Skill</strong></td><td>אתם</td><td>תיאור תמיד, גוף רק כשמופעל</td><td>הנחיה</td><td>נוהל של כמה שלבים שחוזר, עם תבנית או סקריפט.</td></tr>
+      <tr><td><strong>Hook</strong></td><td>אתם</td><td>רץ באירוע, לא נטען לשיחה</td><td>אכיפה</td><td>משהו שחייב לקרות או להיחסם בכל פעם.</td></tr>
+      <tr><td><strong>הרשאות (<code>permissions.deny</code>)</strong></td><td>אתם או הארגון</td><td>נבדק לפני כל הפעלת כלי</td><td>אכיפה</td><td>חסימה גורפת של כלי, פקודה או נתיב.</td></tr>
+      <tr><td><strong>Auto memory</strong></td><td>Claude</td><td>בכל Session (200 שורות או 25KB ראשונים)</td><td>הנחיה</td><td>העדפות ותיקונים ש-Claude לומד מכם תוך כדי עבודה.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout note"><span class="t">הכלל המהיר</span><p>התיעוד מנסח את זה כך: ב-<code>CLAUDE.md</code> שמים עובדות ש-Claude צריך בכל Session. נוהל של כמה שלבים עובר ל-Skill, והוראה שרלוונטית רק לחלק מהקוד עוברת ל-Rule עם <code>paths</code>. ומה שחייב לרוץ בנקודה קבועה, כמו לפני כל Commit, נכתב כ-Hook.</p></div>
+
+  <div class="block">
+    <p class="block-title">תרגול: מה הכלי הנכון? · בחרו תשובה לכל מצב</p>
+    <div id="sorter" class="block"></div>
+    <p class="score" id="sorterScore" aria-live="polite"></p>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/memory">How Claude remembers your project</a> · <a href="https://code.claude.com/docs/en/permissions">Configure permissions</a> · <a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T3 ============ -->
+<section class="topic" id="t3" data-title="מתי Rule נטען" hidden>
+  <div class="fence"><div class="bar">paths:</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 03</p>
+    <h2>מתי Rule נטען, ומה קורה לו אחר כך</h2>
+    <p class="lead">Rules נטענים בשני רגעים: בפתיחת ה-Session, או ברגע ש-Claude נוגע בקובץ שמתאים לתבנית. מה שנטען נשאר בשיחה, עד שהיא נדחסת.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> מה סדר הטעינה, מה בדיוק מפעיל Rule עם <code>paths</code>, ומה שורד את <code>/compact</code>.</p>
+  </div><div class="bar">paths:</div></div>
+
+  <div class="block">
+    <p class="block-title">סדר הטעינה בפתיחת Session · מהרחב לספציפי</p>
+    <ol class="stack">
+      <li><span class="what"><strong>הוראות ארגוניות (Managed)</strong><span class="small muted"><code>CLAUDE.md</code> שהארגון מפיץ, או המפתח <code>claudeMd</code> ב-Managed settings. אי אפשר להחריג אותו.</span></span><span class="pill info">בפתיחה</span></li>
+      <li><span class="what"><strong>הוראות אישיות</strong><span class="small muted"><code>~/.claude/CLAUDE.md</code>, ואחריו ה-Rules האישיים ב-<code>~/.claude/rules/</code>.</span></span><span class="pill info">בפתיחה</span></li>
+      <li><span class="what"><strong>הוראות הפרויקט</strong><span class="small muted"><code>CLAUDE.md</code> או <code>.claude/CLAUDE.md</code>, וכל Rule בלי <code>paths</code>, באותה עדיפות.</span></span><span class="pill info">בפתיחה</span></li>
+      <li><span class="what"><strong>הוראות מקומיות</strong><span class="small muted"><code>CLAUDE.local.md</code>: אישי לפרויקט הזה, לא נכנס ל-Git.</span></span><span class="pill info">בפתיחה</span></li>
+      <li class="lazy"><span class="what"><strong>Rules עם <code>paths</code></strong><span class="small muted">כש-Claude קורא, כותב או עורך קובץ מתאים.</span></span><span class="pill warn">לפי דרישה</span></li>
+      <li class="lazy"><span class="what"><strong>הוראות של תתי-תיקיות</strong><span class="small muted"><code>CLAUDE.md</code> ותיקיית <code>.claude/rules/</code> בתוך תת-תיקייה, כש-Claude עובד על קובץ שם.</span></span><span class="pill warn">לפי דרישה</span></li>
+    </ol>
+    <p class="small muted">שום קובץ לא דורס קובץ אחר: כולם מצטרפים להקשר, וה-Rules האישיים נקראים לפני ה-Rules של הפרויקט. אם שני Rules סותרים זה את זה, Claude עלול לבחור באחד מהם באקראי. לכן הפתרון לסתירה הוא למחוק אחד מהם, לא לסמוך על הסדר.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">סימולטור Session · לחצו על פעולות לפי הסדר וראו אילו Rules נכנסים להקשר</p>
+    <div class="panel">
+      <div class="sim">
+        <div class="acts" id="simActs" role="group" aria-label="פעולות ב-Session"></div>
+        <div class="grid-gap">
+          <div class="ctx" id="simCtx"></div>
+          <p class="log" id="simLog" aria-live="polite"></p>
+        </div>
+      </div>
+      <p class="muted small">הסימולציה מבוססת על התיעוד ועל הבדיקה שלנו ב-Claude Code <span class="ltr">2.1.300</span>. השמות בסוגריים הם ערכי <code>load_reason</code> ש-Hook מסוג <code>InstructionsLoaded</code> מקבל (נושא 9).</p>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">מה בדיוק מפעיל Rule עם <code>paths</code></p>
+    <div class="prose"><ul>
+      <li><strong>קריאה, כתיבה או עריכה</strong> של קובץ מתאים בכלים <code>Read</code>, <code>Write</code> ו-<code>Edit</code>.</li>
+      <li><strong>הצגת קובץ בודד ב-Bash</strong> בפקודה שנחשבת לקריאה, כמו <code>cat</code> או <code>head</code> על קובץ אחד.</li>
+      <li><strong>לא</strong> הרצת בדיקות או Build. <code>pytest</code> שרץ על כל התיקייה לא טוען את <code>testing.md</code>; קריאה של קובץ בדיקה כן.</li>
+      <li>אחרי שנטען, ה-Rule נשאר בהקשר עד סוף השיחה. בבדיקה שלנו, Claude המשיך ליישם את כללי ה-API גם כשעבר לדון בקובץ בדיקה.</li>
+    </ul></div>
+  </div>
+
+  <div class="callout warn"><span class="t">מה שורד את /compact</span><p>לפי התיעוד: <code>CLAUDE.md</code> שבשורש הפרויקט ו-Rules בלי <code>paths</code> נטענים מחדש מהדיסק אחרי דחיסה. Rules עם <code>paths</code> והוראות של תתי-תיקיות נדחסים יחד עם שאר השיחה, ונטענים שוב רק כש-Claude נוגע שוב בקובץ מתאים. אם כלל חייב לשרוד דחיסה, הסירו ממנו את <code>paths</code> או העבירו אותו ל-<code>CLAUDE.md</code> שבשורש.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/memory">How Claude remembers your project</a> · <a href="https://code.claude.com/docs/en/context-window">Explore the context window</a> · <a href="https://code.claude.com/docs/en/hooks">Hooks reference: InstructionsLoaded</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T4 ============ -->
+<section class="topic" id="t4" data-title="הדוגמה: TaskFlow" hidden>
+  <div class="fence"><div class="bar">paths:</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 04</p>
+    <h2>הדוגמה שנבנה: TaskFlow עם חמישה Rules</h2>
+    <p class="lead">ב-TaskFlow יש <code>CLAUDE.md</code> קצר, שני Rules שנטענים תמיד ושלושה שנטענים לפי נתיב. כל קובץ כאן הוא הקובץ שבדקנו, לא דוגמה מקוצרת.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> איך מחלקים הוראות בין <code>CLAUDE.md</code> ל-Rules, מה תפקיד כל קובץ, ואיך יוצרים את המבנה בעצמכם.</p>
+  </div><div class="bar">paths:</div></div>
+
+  <div class="prose">
+    <p><strong>ההיגיון של החלוקה.</strong> ב-<code>CLAUDE.md</code> נשארו רק מה הפרויקט ואיך מריצים אותו. סגנון קוד ואבטחה רלוונטיים לכל קובץ, ולכן הם Rules בלי <code>paths</code>. כללי ה-API, הרכיבים והבדיקות רלוונטיים רק לחלק מהקבצים, ולכן הם מוגבלים לנתיבים. כך Session שעוסק ב-CSS לא טוען את כללי ה-API.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">סייר הקבצים · לחצו על קובץ כדי לראות את התוכן ומתי הוא נטען</p>
+    <div class="explorer">
+      <div class="tree" role="group" aria-label="קובצי ההוראות של TaskFlow">
+        <span class="dir">taskflow/</span>
+        <button type="button" class="d1" data-file="claude" aria-pressed="true">CLAUDE.md</button>
+        <span class="dir d1">.claude/rules/</span>
+        <button type="button" class="d2" data-file="style" aria-pressed="false">code-style.md</button>
+        <button type="button" class="d2" data-file="security" aria-pressed="false">security.md</button>
+        <button type="button" class="d2" data-file="testing" aria-pressed="false">testing.md</button>
+        <span class="dir d2">backend/</span>
+        <button type="button" class="d2" data-file="api" aria-pressed="false" style="padding-left:58px">api.md</button>
+        <span class="dir d2">frontend/</span>
+        <button type="button" class="d2" data-file="components" aria-pressed="false" style="padding-left:58px">components.md</button>
+      </div>
+      <div class="explain" id="fileExplain"></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">יוצרים את המבנה · מתוך שורש הפרויקט</p>
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist">
+        <button role="tab" type="button" aria-selected="true">macOS ו-Linux</button>
+        <button role="tab" type="button" aria-selected="false">Windows (PowerShell)</button>
+      </div>
+      <div class="tabpanel" role="tabpanel">
+        <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>mkdir -p .claude/rules/backend .claude/rules/frontend</code></pre></div>
+        <p class="small muted">הפקודה יוצרת תיקיות ריקות ולא מוחקת דבר אם הן כבר קיימות. אחר כך שומרים בהן את הקבצים מסייר הקבצים בשמות שמופיעים שם. שמות התיקיות <code>backend/</code> ו-<code>frontend/</code> בתוך <code>rules/</code> הם רק לסדר: מה שקובע מתי Rule נטען הוא השדה <code>paths</code>, לא התיקייה שבה הוא יושב.</p>
+      </div>
+      <div class="tabpanel" role="tabpanel" hidden>
+        <div class="code"><div class="code-head"><span>PowerShell</span><button class="copy" type="button">העתק</button></div><pre><code>New-Item -ItemType Directory -Force -Path ".claude\rules\backend", ".claude\rules\frontend"</code></pre></div>
+        <p class="small muted">הדגל <code>-Force</code> מונע שגיאה אם התיקיות קיימות. בתוך הקבצים עצמם כותבים נתיבים עם <code>/</code>, גם ב-Windows.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout ok"><span class="t">מה בדקנו</span><p>בבדיקה, Claude קרא קובץ API וקובץ בדיקה בפרויקט עם המבנה הזה. <code>CLAUDE.md</code>, <code>code-style.md</code> ו-<code>security.md</code> נטענו בפתיחה. <code>api.md</code> נטען ברגע שנקרא <code>backend/app/api/tasks.py</code>, ו-<code>testing.md</code> כשנקרא קובץ הבדיקה. Claude ציטט נכון כלל מכל קובץ.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/memory">How Claude remembers your project</a> · יומן הבדיקה נשמר עם הלומדה · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T5 ============ -->
+<section class="topic" id="t5" data-title="paths ותבניות Glob" hidden>
+  <div class="fence"><div class="bar">paths:</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 05</p>
+    <h2><code>paths</code> ותבניות Glob</h2>
+    <p class="lead">שורה אחת של Frontmatter קובעת מתי Rule נטען. תבנית שגויה פירושה Rule שאף פעם לא נטען, או שנטען בכל מקום. כאן נעבור על התחביר, ונבדוק תבניות בבודק חי.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לכתוב <code>paths</code> תקין, לצפות אילו קבצים יפעילו אותו, ולהימנע משלוש מלכודות נפוצות.</p>
+  </div><div class="bar">paths:</div></div>
+
+  <div class="block">
+    <p class="block-title">ה-Frontmatter של <code>api.md</code> · כל שורה וההסבר שלה</p>
+    <div class="walk" id="walkFront"></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">בודק תבניות · כתבו תבניות ונתיבי קבצים וראו מה מפעיל את ה-Rule</p>
+    <div class="panel">
+      <div class="gt-grid">
+        <div class="field"><label for="gtPat">תבניות <code>paths</code>, אחת בכל שורה</label><textarea id="gtPat" class="ltrin" spellcheck="false"></textarea></div>
+        <div class="field"><label for="gtFiles">נתיבי קבצים מהפרויקט, אחד בכל שורה</label><textarea id="gtFiles" class="ltrin" spellcheck="false"></textarea></div>
+      </div>
+      <div class="btnrow" role="group" aria-label="דוגמאות מוכנות">
+        <button class="btn ghost" type="button" data-gt="api">כללי ה-API</button>
+        <button class="btn ghost" type="button" data-gt="tests">שני סוגי בדיקות</button>
+        <button class="btn ghost" type="button" data-gt="root">רק בשורש?</button>
+        <button class="btn ghost" type="button" data-gt="dir">שם תיקייה</button>
+        <button class="btn ghost" type="button" data-gt="neg">החרגה עם <code>!</code></button>
+      </div>
+      <ul class="gt-res" id="gtOut" aria-live="polite"></ul>
+      <p class="small muted" id="gtNote"></p>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">מה בדקנו בפועל · Claude Code <span class="ltr">2.1.300</span> ב-Linux</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>תבנית</th><th>מה הפעיל אותה</th><th>מה לא</th></tr></thead>
+      <tbody>
+        <tr><td><code>backend/app/api/**/*.py</code></td><td><code>backend/app/api/users.py</code>, בכל עומק מתחת ל-<code>api/</code></td><td>קבצים מחוץ ל-<code>api/</code></td></tr>
+        <tr><td><code>frontend/src/**/*.{ts,tsx}</code></td><td>קובצי <code>.ts</code> ו-<code>.tsx</code> בכל עומק. הסוגריים נפתחים לשתי תבניות</td><td>קובצי <code>.css</code></td></tr>
+        <tr><td><code>frontend/src/*.tsx</code></td><td>רק קבצים ישירות ב-<code>frontend/src/</code></td><td><code>frontend/src/components/Button.tsx</code></td></tr>
+        <tr><td><code>*.md</code></td><td><code>NOTES.md</code> בשורש, <strong>וגם</strong> <code>docs/guide.md</code></td><td>קבצים שאינם <code>.md</code></td></tr>
+        <tr><td><code>/*.md</code></td><td>רק <code>NOTES.md</code> בשורש</td><td><code>docs/guide.md</code></td></tr>
+        <tr><td><code>Button.tsx</code></td><td>הקובץ בכל עומק</td><td>כל קובץ אחר</td></tr>
+        <tr><td><code>docs</code> או <code>backend/</code></td><td>כל קובץ בתוך התיקייה</td><td>קבצים מחוץ לה</td></tr>
+        <tr><td><code>Backend/**</code></td><td>גם <code>backend/...</code>: ההתאמה לא הבחינה בין אותיות גדולות לקטנות</td><td></td></tr>
+        <tr><td><code>!backend/**</code></td><td>שום קובץ, גם כשהופיעה ברשימה לצד תבנית רגילה</td><td>לא החריגה דבר</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="callout warn"><span class="t">פער בין התיעוד לבדיקה</span><p>טבלת הדוגמאות בתיעוד אומרת ש-<code>*.md</code> תופס קובצי Markdown בשורש הפרויקט. בבדיקה שלנו, תבנית בלי <code>/</code> תפסה את שם הקובץ בכל עומק, כמו בקובץ <code>.gitignore</code>. מה שכן עבד כמו שצריך: תבנית עם <code>/</code> באמצע מעוגנת לשורש. ההמלצה שלנו: תמיד לכתוב תבנית עם תיקייה בהתחלה, כמו <code>docs/**/*.md</code>, ולא לסמוך על שם קובץ לבד. ואם צריך רק את השורש, <code>/*.md</code> עבד בבדיקה, אבל הוא לא מתועד.</p></div>
+
+  <div class="block">
+    <p class="block-title">חוקי התחביר לפי התיעוד</p>
+    <div class="prose"><ul>
+      <li><strong>שתי צורות.</strong> רשימת YAML (שורה לכל תבנית, עם <code>-</code>), או מחרוזת אחת עם פסיקים. עדיף רשימה, וכל תבנית במירכאות כפולות.</li>
+      <li><strong>סוגריים מסולסלים.</strong> <code>{ts,tsx}</code> נפתח לשתי תבניות. כל קבוצה מכפילה: <code>{a,b}/{c,d}/*.{ts,tsx}</code> הן שמונה תבניות. לכל Rule יש תקציב של 1,000 תבניות פתוחות ו-4 MiB; תבנית שחורגת ממנו לא תופסת אף קובץ.</li>
+      <li><strong>סוגריים מרובעים.</strong> <code>[</code> פותח קבוצת תווים כמו <code>[abc]</code>. תבנית עם <code>[</code> שלא נסגר לא תקפה ולא תופסת דבר. לתו <code>[</code> רגיל בשם קובץ כותבים <code>\[</code>.</li>
+      <li><strong>YAML שבור.</strong> אם ה-Frontmatter לא עובר ניתוח, Claude Code מתעלם ממנו וטוען את ה-Rule כאילו אין לו <code>paths</code>, כלומר בכל Session. בבדיקה שלנו זה בדיוק מה שקרה. <code>claude --debug</code> מציג את שגיאת הניתוח.</li>
+      <li><strong>שדות אחרים.</strong> <code>paths</code> הוא השדה היחיד שנקרא. <code>description</code> או <code>name</code> ב-Rule לא עושים כלום, ולא מציגים שגיאה. ה-Frontmatter עצמו מוסר לפני שה-Rule נכנס להקשר.</li>
+    </ul></div>
+  </div>
+
+  <div class="exercise">
+    <p class="h">תרגיל 5.1: Rule למיגרציות</p>
+    <p>ב-TaskFlow, קובצי המיגרציה נמצאים ב-<code>backend/migrations/versions/</code> ושמם נגמר ב-<code>.py</code>. כתבו Frontmatter ל-Rule בשם <code>migrations.md</code> שנטען רק כשנוגעים בקבצים האלה, ובדקו אותו בבודק התבניות עם שלושה נתיבים: אחד שצריך להפעיל ושניים שלא.</p>
+    <details class="solution"><summary>פתרון מוסבר</summary><div>
+      <div class="code"><div class="code-head"><span>.claude/rules/backend/migrations.md</span><button class="copy" type="button">העתק</button></div><pre><code>---
+paths:
+  - "backend/migrations/versions/*.py"
+---
+
+# Migration rules
+
+- Never edit a migration that is already merged. Create a new one instead.
+- Every migration has a working downgrade().</code></pre></div>
+      <p>התבנית מתחילה בתיקייה, ולכן היא מעוגנת לשורש. <code>*</code> לא עובר בין תיקיות, אז רק קבצים ישירות ב-<code>versions/</code> יפעילו אותה. נתיבים לבדיקה: <code>backend/migrations/versions/0003_add_due_date.py</code> (מפעיל), <code>backend/migrations/env.py</code> (לא), <code>backend/app/models/task.py</code> (לא). הכלל הראשון ב-Rule הוא הנחיה: כדי לחסום עריכה באמת, מוסיפים Hook (ראו את הלומדה על Hooks).</p>
+    </div></details>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/memory">How Claude remembers your project: path-specific rules</a> · יומן הבדיקה נשמר עם הלומדה · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T6 ============ -->
+<section class="topic" id="t6" data-title="כותבים Rule טוב" hidden>
+  <div class="fence"><div class="bar">paths:</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 06</p>
+    <h2>כותבים Rule ש-Claude באמת מיישם</h2>
+    <p class="lead">Claude מקבל את ה-Rules כהודעה אחרי ה-System prompt, ומנסה ליישם אותם. אין ערובה לציות מלא, במיוחד להוראות מעורפלות או סותרות. ככל שהכלל מדויק יותר, הוא מיושם בעקביות רבה יותר.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לזהות כלל מעורפל, לשכתב אותו לכלל שאפשר לבדוק, ולדעת מתי הכלל בכלל שייך לכלי אחר.</p>
+  </div><div class="bar">paths:</div></div>
+
+  <div class="block">
+    <p class="block-title">חמישה עקרונות מהתיעוד</p>
+    <ol class="steps">
+      <li><div><strong>קונקרטי מספיק כדי לבדוק.</strong> "Use 2-space indentation" ולא "Format code properly". <span class="when">מבחן: האם בודק אנושי יכול להגיד כן או לא?</span></div></li>
+      <li><div><strong>נושא אחד לקובץ.</strong> שם הקובץ אומר מה בפנים: <code>testing.md</code>, <code>api-design.md</code>.</div></li>
+      <li><div><strong>מבנה.</strong> כותרות Markdown ונקודות. התיעוד מציין שמבנה מאורגן קל יותר ל-Claude לעקוב אחריו מפסקאות צפופות.</div></li>
+      <li><div><strong>קצר.</strong> כל קובץ נטען כולו. ההמלצה לכל <code>CLAUDE.md</code> היא פחות מ-200 שורות, וכל קובץ Rule נספר בנפרד באזהרות האורך שמופיעות בפתיחה וב-<code>/status</code>.</div></li>
+      <li><div><strong>בלי סתירות.</strong> אם שני קבצים אומרים דברים שונים, Claude עלול לבחור באחד באקראי. עברו על <code>CLAUDE.md</code>, על הקבצים בתתי-תיקיות ועל <code>.claude/rules/</code> מדי פעם.</div></li>
+    </ol>
+  </div>
+
+  <div class="block">
+    <p class="block-title">לפני ואחרי</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>מעורפל</th><th>אפשר לבדוק</th></tr></thead>
+      <tbody>
+        <tr><td>Write clean API code.</td><td>Validate every request body with a Pydantic model from <code>backend/app/schemas/</code>.</td></tr>
+        <tr><td>Handle errors properly.</td><td>Return errors as <code>{"error": {"code", "message"}}</code> with the matching HTTP status.</td></tr>
+        <tr><td>Test your changes.</td><td>Every new endpoint gets a test in <code>backend/tests/api/</code> in the same change.</td></tr>
+        <tr><td>כתוב קומפוננטות מסודרות.</td><td>One component per file; the file name matches the component name.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small muted">ה-Rules בדוגמה כתובים באנגלית, כמו שמות הקבצים והפקודות בקוד. Claude מבין גם Rules בעברית. מה שחשוב הוא שפה אחת עקבית בכל הקבצים, ושמות מזהים בקוד (פונקציות, נתיבים, פקודות) יופיעו בדיוק כפי שהם בקוד.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">בודק איכות ל-Rule · הדביקו Rule וקבלו הערות</p>
+    <div class="panel">
+      <div class="field"><label for="rqIn">תוכן קובץ ה-Rule</label><textarea id="rqIn" class="ltrin" spellcheck="false"></textarea><span class="help">הבדיקות כאן הן היוריסטיקות שלנו, לא בדיקה רשמית של Claude Code. הן מחפשות מילים מעורפלות, Frontmatter שגוי, סודות, ותוכן ששייך ל-Skill או ל-Hook.</span></div>
+      <div class="btnrow"><button class="btn" type="button" id="rqRun">בדוק</button><button class="btn ghost" type="button" id="rqBad">דוגמה חלשה</button><button class="btn ghost" type="button" id="rqGood">הדוגמה מהלומדה</button></div>
+      <ul class="checks" id="rqOut" aria-live="polite"></ul>
+    </div>
+  </div>
+
+  <div class="callout note"><span class="t">הערות לבני אדם</span><p>הערות HTML כמו <code>&lt;!-- maintainer notes --&gt;</code> מוסרות לפני שההוראות נכנסות להקשר, כך שאפשר להשאיר הסבר לצוות בלי לבזבז הקשר. התיעוד מתאר את זה ל-<code>CLAUDE.md</code>; בבדיקה שלנו זה עבד גם בקובץ Rule: Claude לא ראה הוראה שהוסתרה בהערה.</p></div>
+
+  <div class="exercise">
+    <p class="h">תרגיל 6.1: שכתבו Rule חלש</p>
+    <p>זה Rule שמישהו בצוות כתב: "Make the frontend nice and accessible. Always run the tests before you finish. Never touch the env file." מצאו בו שלוש בעיות ושכתבו אותו.</p>
+    <details class="solution"><summary>פתרון מוסבר</summary><div>
+      <p>(1) "nice" ו-"accessible" לא ניתנים לבדיקה; צריך כלל קונקרטי. (2) "Always run the tests before you finish" הוא משהו שחייב לקרות בנקודה קבועה, ולכן מקומו ב-Hook מסוג <code>Stop</code>. (3) "Never touch the env file" הוא איסור שחייב להיאכף, ולכן הוא שייך להרשאות או ל-Hook מסוג <code>PreToolUse</code>. מה שנשאר ב-Rule:</p>
+      <div class="code"><div class="code-head"><span>.claude/rules/frontend/components.md</span><button class="copy" type="button">העתק</button></div><pre><code>---
+paths:
+  - "frontend/src/**/*.{ts,tsx}"
+---
+
+# Frontend component rules
+
+- Every interactive element has an accessible name (visible label or aria-label).
+- Images have alt text; decorative images use alt="".
+- Run `npm test -- TaskCard` after changing TaskCard.tsx.</code></pre></div>
+    </div></details>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/memory">How Claude remembers your project: write effective instructions</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T7 ============ -->
+<section class="topic" id="t7" data-title="לבנות עם Claude" hidden>
+  <div class="fence"><div class="bar">paths:</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 07</p>
+    <h2>לבנות Rules בעזרת Claude</h2>
+    <p class="lead">לא חייבים לכתוב Rules מאפס. Claude יכול לפצל <code>CLAUDE.md</code> קיים, להציע תבניות <code>paths</code> לפי מבנה הפרויקט, להמיר כללים של כלים אחרים, ולבדוק סתירות.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> אילו פקודות קיימות לזה, ואיך לנסח בקשה שמובילה ל-Rules טובים.</p>
+  </div><div class="bar">paths:</div></div>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>פקודה</th><th>מה היא עושה</th><th>הערות</th></tr></thead>
+    <tbody>
+      <tr><td><code>/init</code></td><td>יוצרת <code>CLAUDE.md</code> התחלתי, או מציעה שיפורים לקיים. קוראת גם כללים של Cursor (<code>.cursor/rules/</code>, <code>.cursorrules</code>) ושל Copilot (<code>.github/copilot-instructions.md</code>) ומשלבת את הרלוונטי.</td><td>עם <code>CLAUDE_CODE_NEW_INIT=1</code> הזרימה אינטראקטיבית, ומכסה גם את <code>.windsurf/rules/</code>, <code>.devin/rules/</code> ו-<code>.clinerules</code>.</td></tr>
+      <tr><td><code>/doctor prompt-audit</code></td><td>בודקת את קובצי ההוראות, כולל <code>.claude/rules/</code>, ומחפשת הוראות מיושנות, הפניות לקבצים שלא קיימים וסתירות. מחזירה דוח עם הצעות, ולא משנה דבר עד שמבקשים.</td><td>מגרסה <span class="ltr">2.1.283</span>. אפשר להעביר נתיב, למשל <code>/doctor prompt-audit .claude/rules</code>.</td></tr>
+      <tr><td><code>/import</code></td><td>מעתיקה תצורה של כלי קוד אחר, כולל קובצי הוראות כמו <code>AGENTS.md</code>, ל-<code>CLAUDE.md</code> המתאים.</td><td>מגרסה <span class="ltr">2.1.213</span>. העתקה חד-פעמית.</td></tr>
+      <tr><td><code>/memory</code></td><td>מציגה את קובצי ההוראות ופותחת אותם בעורך.</td><td>שימושית לעריכה ידנית אחרי ש-Claude הציע.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="block">
+    <p class="block-title">בונה הבקשה · בחרו מה אתם צריכים וקבלו בקשה מוכנה להדבקה ב-Claude Code</p>
+    <div class="panel">
+      <div class="field"><span class="small"><strong>מה המשימה?</strong></span>
+        <div class="choice" id="pbTask">
+          <label><input type="radio" name="pbTask" value="split" checked>לפצל CLAUDE.md ארוך ל-Rules</label>
+          <label><input type="radio" name="pbTask" value="discover">לגלות מוסכמות מהקוד ולכתוב Rules</label>
+          <label><input type="radio" name="pbTask" value="migrate">להמיר כללים של Cursor</label>
+        </div></div>
+      <div class="field"><span class="small"><strong>תוספות</strong></span>
+        <div class="choice" id="pbExtra">
+          <label><input type="checkbox" value="paths" checked>להציע <code>paths</code> לכל Rule</label>
+          <label><input type="checkbox" value="short" checked>עד 40 שורות לקובץ</label>
+          <label><input type="checkbox" value="enforce" checked>לסמן כללים ששייכים ל-Hook או להרשאות</label>
+          <label><input type="checkbox" value="plan">להציג תוכנית לפני כתיבה</label>
+        </div></div>
+      <div class="prompt"><div class="row"><strong>הבקשה</strong><button class="copy" type="button" data-copy-from="pbOut">העתק</button></div><p class="ptext" id="pbOut"></p></div>
+    </div>
+  </div>
+
+  <div class="callout warn"><span class="t">בדקו את מה ש-Claude כתב</span><p>Claude מתעד את מה שהוא מגלה בקוד, ולא יודע את מה שלא כתוב בו: החלטות של הצוות, מלכודות היסטוריות, דברים שאסור לעשות. קראו כל Rule לפני ה-Commit, בדקו את תבניות ה-<code>paths</code> בבודק מנושא 5, ומחקו כל כלל ש-Claude יכול להסיק לבד מהקוד.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/memory">How Claude remembers your project</a> · <a href="https://code.claude.com/docs/en/commands">Commands</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T8 ============ -->
+<section class="topic" id="t8" data-title="מיקומים ושיתוף" hidden>
+  <div class="fence"><div class="bar">paths:</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 08</p>
+    <h2>איפה שמים Rules, ואיך משתפים אותם</h2>
+    <p class="lead">המיקום של Rule קובע מי מקבל אותו: רק אתם, כל הצוות, כמה פרויקטים, או חלק אחד ב-Monorepo.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לבחור מיקום, לשתף Rules בין פרויקטים, ולשלוט במה שנטען ב-Monorepo גדול.</p>
+  </div><div class="bar">paths:</div></div>
+
+  <div class="tabs" data-tabs>
+    <div class="tablist" role="tablist">
+      <button role="tab" type="button" aria-selected="true">פרויקט</button>
+      <button role="tab" type="button" aria-selected="false">אישי</button>
+      <button role="tab" type="button" aria-selected="false">כמה פרויקטים</button>
+      <button role="tab" type="button" aria-selected="false">Monorepo</button>
+      <button role="tab" type="button" aria-selected="false">ארגון</button>
+    </div>
+    <div class="tabpanel" role="tabpanel">
+      <p><strong><code>.claude/rules/</code> בשורש הפרויקט.</strong> נכנס ל-Git, וכל מי שמשכפל את ה-Repository מקבל אותו. זה המקום לכללים של הצוות.</p>
+      <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>git add .claude/rules
+git commit -m "Add path-scoped rules for API, components and tests"</code></pre></div>
+      <p class="small muted">Rules של פרויקט לא נטענים אם מריצים עם <code>--setting-sources</code> שלא כולל <code>project</code>. לפני גרסה <span class="ltr">2.1.211</span> Rules שנטענים לפי דרישה נטענו גם אז.</p>
+    </div>
+    <div class="tabpanel" role="tabpanel" hidden>
+      <p><strong><code>~/.claude/rules/</code> בתיקייה האישית.</strong> חל על כל הפרויקטים במחשב שלכם, ונטען לפני ה-Rules של הפרויקט. מתאים להעדפות אישיות שאינן של הפרויקט.</p>
+      <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>mkdir -p ~/.claude/rules
+printf '# My preferences\n\n- Explain trade-offs before large refactors.\n' &gt; ~/.claude/rules/preferences.md</code></pre></div>
+      <p class="small muted">אם Rule אישי ו-Rule של הפרויקט סותרים, אף אחד לא גובר: Claude עלול ללכת לפי כל אחד מהם. שמרו על עקביות. ב-PowerShell התיקייה היא <code>$HOME\.claude\rules</code>.</p>
+    </div>
+    <div class="tabpanel" role="tabpanel" hidden>
+      <p><strong>Symlink לסט משותף.</strong> מחזיקים סט Rules אחד ומקשרים אותו לכמה פרויקטים. Claude Code מזהה קישורים מעגליים ומטפל בהם.</p>
+      <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>ln -s ~/shared-claude-rules .claude/rules/shared
+ln -s ~/company-standards/security.md .claude/rules/security.md</code></pre></div>
+      <p class="small">שימו לב לשלושה דברים: (1) קישור שמצביע מחוץ לתיקיית העבודה מטופל כמו Import חיצוני: הוא לא נטען עד שמאשרים בדיאלוג שמופיע פעם אחת לפרויקט. (2) גם אחרי האישור, נטענים מקישור כזה רק Rules <strong>בלי</strong> <code>paths</code>. (3) קישור לנתיב רשת (כמו <code>\\server\share</code>) לא נטען בכלל. כדי לשתף בלי אישור, שמים את הכללים ב-<code>~/.claude/rules/</code>.</p>
+      <p class="small muted">ב-Windows יצירת Symlink דורשת הרשאות Administrator או Developer Mode.</p>
+    </div>
+    <div class="tabpanel" role="tabpanel" hidden>
+      <p><strong>Rules בתוך תת-תיקייה.</strong> תיקיית <code>.claude/rules/</code> בתוך חבילה, כמו <code>packages/api/.claude/rules/</code>, נטענת לפי דרישה כש-Claude עובד על קובץ בחבילה. בבדיקה שלנו, Rule ב-<code>backend/.claude/rules/</code> נטען ברגע ש-Claude קרא קובץ תחת <code>backend/</code>.</p>
+      <p><strong>להחריג הוראות של צוותים אחרים.</strong> ההגדרה <code>claudeMdExcludes</code> מדלגת על קבצים לפי נתיב או תבנית, ומתאימה לקובץ <code>.claude/settings.local.json</code> כדי שההחרגה תישאר אצלכם:</p>
+      <div class="code"><div class="code-head"><span>.claude/settings.local.json</span><button class="copy" type="button">העתק</button></div><pre><code>{
+  "claudeMdExcludes": [
+    "**/monorepo/CLAUDE.md",
+    "/home/user/monorepo/other-team/.claude/rules/**"
+  ]
+}</code></pre></div>
+      <p class="small muted">התבניות מושוות לנתיבים מוחלטים. אי אפשר להחריג הוראות ארגוניות (Managed).</p>
+    </div>
+    <div class="tabpanel" role="tabpanel" hidden>
+      <p><strong>לארגון כולו.</strong> התיעוד מתאר <code>CLAUDE.md</code> מנוהל במיקום של מערכת ההפעלה (למשל <code>/etc/claude-code/CLAUDE.md</code> ב-Linux), או את המפתח <code>claudeMd</code> בתוך <code>managed-settings.json</code>. הוא נטען לפני הוראות המשתמש והפרויקט, ולא ניתן להחרגה.</p>
+      <div class="code"><div class="code-head"><span>managed-settings.json</span><button class="copy" type="button">העתק</button></div><pre><code>{
+  "claudeMd": "Always run `make lint` before committing.\nNever push directly to main."
+}</code></pre></div>
+      <p class="small muted">ההפרדה לפי התיעוד: הנחיות התנהגות ב-<code>CLAUDE.md</code> המנוהל, ואכיפה טכנית (חסימת כלים, Sandbox) ב-Managed settings.</p>
+    </div>
+  </div>
+
+  <div class="callout note"><span class="t">תיקיות נוספות</span><p>הדגל <code>--add-dir</code> נותן גישה לתיקייה נוספת, אבל לא טוען ממנה הוראות. כדי לטעון גם את <code>CLAUDE.md</code> ואת <code>.claude/rules/*.md</code> שלה, מגדירים <code>CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1</code>.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/memory">How Claude remembers your project</a> · <a href="https://code.claude.com/docs/en/large-codebases">Monorepos and large repos</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T9 ============ -->
+<section class="topic" id="t9" data-title="בדיקה ותקלות" hidden>
+  <div class="fence"><div class="bar">paths:</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 09</p>
+    <h2>לבדוק שה-Rules נטענים, ולתקן כשלא</h2>
+    <p class="lead">Rule שלא נטען לא עושה כלום, ובשקט. לכן בודקים: מה נטען בפתיחה, מה נטען לפי דרישה, ולמה.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> שלוש דרכים לבדוק טעינה, ולפתור את שבע התקלות הנפוצות.</p>
+  </div><div class="bar">paths:</div></div>
+
+  <div class="block">
+    <p class="block-title">שלוש דרכים לבדוק</p>
+    <ol class="steps">
+      <li><div><strong><code>/context</code></strong> מציג רשימה תחת <span class="ui">Memory files</span>: מה נטען בפתיחה. Rules עם <code>paths</code> לא יופיעו שם עד שהם נטענים. <span class="when">כש-Rule נטען לפי דרישה, מופיעה במסוף שורת <code>Loaded</code> עם הנתיב שלו.</span></div></li>
+      <li><div><strong><code>/memory</code></strong> מציג את קובצי ההוראות בכל הרמות ופותח אותם לעריכה.</div></li>
+      <li><div><strong>Hook מסוג <code>InstructionsLoaded</code></strong> רושם כל טעינה: איזה קובץ, למה (<code>session_start</code>, <code>path_glob_match</code>, <code>nested_traversal</code>, <code>include</code>, <code>compact</code>), אילו תבניות, ואיזה קובץ הפעיל אותו. זה הכלי שבו בדקנו את כל התבניות בלומדה.</div></li>
+    </ol>
+  </div>
+
+  <div class="block">
+    <p class="block-title">ה-Hook שבדקנו איתו · להעתקה</p>
+    <div class="code"><div class="code-head"><span>.claude/hooks/log_instructions.py</span><button class="copy" type="button">העתק</button></div><pre><code>#!/usr/bin/env python3
+import json, sys, os
+d = json.load(sys.stdin)
+rec = {k: d.get(k) for k in ("hook_event_name", "file_path", "memory_type",
+                             "load_reason", "globs", "trigger_file_path")}
+with open(os.path.join(os.environ.get("CLAUDE_PROJECT_DIR", "."), "instructions.log"), "a") as f:
+    f.write(json.dumps(rec) + "\n")</code></pre></div>
+    <div class="code"><div class="code-head"><span>.claude/settings.local.json</span><button class="copy" type="button">העתק</button></div><pre><code>{
+  "hooks": {
+    "InstructionsLoaded": [
+      { "hooks": [ { "type": "command", "command": "python3",
+                     "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/log_instructions.py"] } ] }
+    ]
+  }
+}</code></pre></div>
+    <p class="small muted">שורה לדוגמה מהיומן שלנו: <code>{"file_path": ".../.claude/rules/backend/api.md", "load_reason": "path_glob_match", "globs": ["backend/app/api/**/*.py"], "trigger_file_path": ".../backend/app/api/users.py"}</code>. ה-Hook הזה לא יכול לחסום ולא משנה דבר; הוא רק רושם. הוסיפו את <code>instructions.log</code> ל-<code>.gitignore</code>.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">תקלות נפוצות · לחצו על תקלה</p>
+    <details class="acc"><summary>Rule עם <code>paths</code> אף פעם לא נטען</summary><div>
+      <p><strong>סיבות אפשריות:</strong> התבנית לא תואמת את הנתיב היחסי לשורש הפרויקט; Claude לא קרא או ערך קובץ מתאים (הרצת בדיקות לא נחשבת); <code>[</code> לא סגור הפך את התבנית ללא תקפה.</p>
+      <p><strong>מה לעשות:</strong> בדקו את התבנית בבודק מנושא 5 עם הנתיב המדויק. בקשו מ-Claude לקרוא קובץ מתאים, וחפשו שורת <code>Loaded</code> או רשומה ב-Hook.</p>
+    </div></details>
+    <details class="acc"><summary>Rule עם <code>paths</code> נטען בכל Session</summary><div>
+      <p><strong>הסיבה הסבירה:</strong> ה-YAML ב-Frontmatter שבור, ולכן Claude Code מתעלם ממנו וטוען את ה-Rule כאילו אין לו <code>paths</code>. גם שורת <code>---</code> חסרה בהתחלה גורמת לכך שאין Frontmatter בכלל.</p>
+      <p><strong>מה לעשות:</strong> הריצו <code>claude --debug</code> וחפשו את שגיאת הניתוח. ודאו שהשורה הראשונה בקובץ היא <code>---</code>, ושכל תבנית במירכאות כפולות.</p>
+    </div></details>
+    <details class="acc"><summary>Rule נטען בקבצים שלא התכוונתי אליהם</summary><div>
+      <p><strong>הסיבה הסבירה:</strong> תבנית בלי <code>/</code>, כמו <code>*.md</code> או <code>index.ts</code>, תופסת את שם הקובץ בכל עומק (בבדיקה שלנו).</p>
+      <p><strong>מה לעשות:</strong> הוסיפו תיקייה בתחילת התבנית: <code>docs/**/*.md</code>.</p>
+    </div></details>
+    <details class="acc"><summary>ה-Rule נטען, אבל Claude לא מיישם אותו</summary><div>
+      <p><strong>סיבות אפשריות:</strong> כלל מעורפל; סתירה עם קובץ אחר; התנגשות עם הנחיות מובנות של Claude Code, למשל לגבי Commits ו-Pull Requests.</p>
+      <p><strong>מה לעשות:</strong> שכתבו לכלל שאפשר לבדוק (נושא 6). הריצו <code>/doctor prompt-audit</code> כדי למצוא סתירות. אם הכלל עוסק ב-Git, התיעוד מציע לכבות את ההנחיות המובנות עם <code>includeGitInstructions</code>. ואם הכלל חייב לקרות בכל פעם, הפכו אותו ל-Hook.</p>
+    </div></details>
+    <details class="acc"><summary>אחרי <code>/compact</code> Claude "שכח" כלל</summary><div>
+      <p><strong>הסיבה:</strong> Rules עם <code>paths</code> נדחסים יחד עם השיחה, ונטענים שוב רק כשנוגעים שוב בקובץ מתאים.</p>
+      <p><strong>מה לעשות:</strong> כלל שחייב לשרוד דחיסה עובר ל-Rule בלי <code>paths</code> או ל-<code>CLAUDE.md</code> שבשורש.</p>
+    </div></details>
+    <details class="acc"><summary>Rules מקישור (Symlink) לא נטענים</summary><div>
+      <p><strong>סיבות אפשריות:</strong> לא אישרתם את דיאלוג ה-Imports החיצוניים; ל-Rule יש <code>paths</code> (מקישור חיצוני נטענים רק Rules בלי <code>paths</code>); הקישור מצביע לנתיב רשת.</p>
+      <p><strong>מה לעשות:</strong> העבירו את הכללים ל-<code>~/.claude/rules/</code>, או העתיקו אותם לפרויקט.</p>
+    </div></details>
+    <details class="acc"><summary>אף Rule של הפרויקט לא נטען</summary><div>
+      <p><strong>סיבות אפשריות:</strong> הרצה עם <code>--setting-sources</code> בלי <code>project</code>; ההגדרה <span class="ui">Project instructions</span> ב-<code>/config</code> קבועה על <code>managed-only</code>; הקבצים לא נגמרים ב-<code>.md</code>.</p>
+      <p><strong>מה לעשות:</strong> בדקו את שלושתם, ואז הריצו <code>/context</code>.</p>
+    </div></details>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/memory">How Claude remembers your project: troubleshoot</a> · <a href="https://code.claude.com/docs/en/hooks">Hooks reference: InstructionsLoaded</a> · <a href="https://code.claude.com/docs/en/debug-your-config">Debug your configuration</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T10 ============ -->
+<section class="topic" id="t10" data-title="בטיחות, צוות ותוכנית" hidden>
+  <div class="fence"><div class="bar">paths:</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 10</p>
+    <h2>בטיחות, עבודת צוות ותוכנית התחלה</h2>
+    <p class="lead">Rules הם טקסט ש-Claude קורא כהוראות. זה כוחם, וזה גם הסיכון: כל מי שיכול לכתוב Rule ב-Repository יכול להשפיע על מה ש-Claude עושה אצלכם.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> מה לא לשים ב-Rules, איך לסקור Rules בצוות, ואיך להתחיל.</p>
+  </div><div class="bar">paths:</div></div>
+
+  <div class="block">
+    <p class="block-title">ארבעה דברים לזכור · לחצו על כרטיס</p>
+    <div class="cards">
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Not enforcement</span><span class="hint">לחצו להסבר</span><span class="back" hidden>Rule הוא הנחיה. התיעוד אומר במפורש: כדי לחסום פעולה בלי קשר למה ש-Claude מחליט, משתמשים ב-Hook מסוג <code>PreToolUse</code>. לחסימה גורפת של כלי או נתיב משתמשים ב-<code>permissions.deny</code>.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Secrets</span><span class="hint">לחצו להסבר</span><span class="back" hidden>לעולם לא מפתחות, סיסמאות או כתובות פנימיות רגישות. Rules נכנסים ל-Git ולהקשר של כל Session. מפנים לשם של משתנה סביבה, לא לערך שלו.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Cloned repos</span><span class="hint">לחצו להסבר</span><span class="back" hidden>ב-Repository שלא כתבתם, קראו את <code>CLAUDE.md</code> ואת <code>.claude/rules/</code> לפני שעובדים איתו. הוראה כמו "שלח את התוכן לכתובת X" היא סימן אזהרה. Rules לא מריצים קוד, אבל הם מנחים את Claude מה לעשות.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Code review</span><span class="hint">לחצו להסבר</span><span class="back" hidden>שינוי ב-<code>.claude/rules/</code> הוא שינוי בהתנהגות של הכלי לכל הצוות. מעבירים אותו Pull Request וסקירה כמו קוד. אפשר להגדיר בעלים לתיקייה ב-<code>CODEOWNERS</code>.</span></button>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">מה לשים איפה · הכלל לצוות</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>הכלל</th><th>איפה</th><th>למה</th></tr></thead>
+      <tbody>
+        <tr><td>"Validate every request body with a Pydantic model"</td><td>Rule עם <code>paths</code> ל-API</td><td>מוסכמה של חלק אחד בקוד</td></tr>
+        <tr><td>"Never edit <code>.env</code>"</td><td>Hook מסוג <code>PreToolUse</code> והרשאת <code>deny</code></td><td>חייב להיאכף, גם כש-Claude מנסה כלי אחר</td></tr>
+        <tr><td>"Run the tests before you finish"</td><td>Hook מסוג <code>Stop</code></td><td>חייב לקרות בנקודה קבועה</td></tr>
+        <tr><td>"How we write release notes"</td><td>Skill</td><td>נוהל של כמה שלבים</td></tr>
+        <tr><td>"Backend tests: <code>cd backend &amp;&amp; pytest -q</code>"</td><td><code>CLAUDE.md</code></td><td>עובדה ש-Claude צריך בכל Session</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">בדקו את עצמכם · שש שאלות</p>
+    <div id="quiz" class="block"></div>
+    <p class="score" id="quizScore" aria-live="polite"></p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">התוכנית שלכם ל-Rules הראשונים · סמנו מה כבר עשיתם</p>
+    <ul class="checklist" id="checklist">
+      <li><label><input type="checkbox" id="r1"><span>עברתי על <code>CLAUDE.md</code> וסימנתי כל סעיף שרלוונטי רק לחלק מהקוד.</span></label></li>
+      <li><label><input type="checkbox" id="r2"><span>יצרתי <code>.claude/rules/</code> והעברתי כל נושא לקובץ משלו, עם שם שמתאר אותו.</span></label></li>
+      <li><label><input type="checkbox" id="r3"><span>הוספתי <code>paths</code> לכל Rule שלא צריך בכל Session, ובדקתי כל תבנית בבודק מנושא 5.</span></label></li>
+      <li><label><input type="checkbox" id="r4"><span>שכתבתי כל כלל מעורפל לכלל שאפשר לבדוק.</span></label></li>
+      <li><label><input type="checkbox" id="r5"><span>העברתי כל איסור שחייב להיאכף ל-Hook או להרשאות, וכל נוהל ארוך ל-Skill.</span></label></li>
+      <li><label><input type="checkbox" id="r6"><span>הרצתי <code>/context</code> וראיתי מה נטען בפתיחה.</span></label></li>
+      <li><label><input type="checkbox" id="r7"><span>ביקשתי מ-Claude לקרוא קובץ מתאים, וראיתי שה-Rule עם <code>paths</code> נטען.</span></label></li>
+      <li><label><input type="checkbox" id="r8"><span>העברתי את השינוי Pull Request וסקירה של הצוות.</span></label></li>
+    </ul>
+    <p class="small muted">הסימונים נשמרים רק בדפדפן הזה.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">כל המקורות · נבדקו ב-15.10.2026</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>מקור</th><th>מה לקחנו ממנו</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://code.claude.com/docs/en/memory">How Claude remembers your project</a> (Claude Code)</td><td>Rules, <code>paths</code>, תבניות, Symlinks, Rules אישיים, AGENTS.md, תקלות</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/context-window">Explore the context window</a> (Claude Code)</td><td>מה שורד דחיסה, שורת <code>Loaded</code></td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/hooks">Hooks reference</a> (Claude Code)</td><td>האירוע <code>InstructionsLoaded</code> והשדות שלו</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/commands">Commands</a> (Claude Code)</td><td><code>/init</code>, <code>/import</code>, <code>/memory</code>, <code>/context</code>, <code>/doctor</code></td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/permissions">Configure permissions</a> (Claude Code)</td><td>אכיפה עם <code>deny</code>, אמון בתיקייה</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/large-codebases">Monorepos and large repos</a> (Claude Code)</td><td>Rules ב-Monorepo</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/changelog">Claude Code changelog</a></td><td>הגרסה שנבדקה: 2.1.300</td></tr>
+        <tr><td>יומן הבדיקה של הלומדה</td><td>16 תבניות ו-4 מצבי טעינה, נבדקו ב-<code>claude -p</code> עם Hook מסוג <code>InstructionsLoaded</code></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="callout note"><span class="t">מה הלאה</span><p>ב<a href="../chapters/ch15.html">פרק 15</a> במדריך תמצאו את כל מה שנכנס ל-<code>CLAUDE.md</code> ואנטי-דפוסים, וב<a href="../chapters/ch16.html">פרק 16</a> את Auto memory. כדי להפוך כלל לאכיפה אמיתית, המשיכו ללומדה על <a class="sib" data-sib="hooks" href="hooks-lomda.html">Hooks</a>.</p></div>
+</section>
+
+    <div class="nav-foot" id="navFoot">
+      <button class="btn ghost" type="button" id="prevBtn">הקודם</button>
+      <button class="btn" type="button" id="nextBtn">הבא</button>
+    </div>
+  </main>
+</div>
+
+<script id="fileData" type="application/json">{"claude": "# TaskFlow\n\nTask manager: FastAPI backend in `backend/`, React + TypeScript frontend in `frontend/`, SQLite in development.\n\n## Commands\n- Backend tests: `cd backend && pytest -q`\n- Frontend tests: `cd frontend && npm test`\n- Type check: `cd frontend && npm run typecheck`\n\nDetailed conventions live in `.claude/rules/`. Rules with `paths` load only when Claude works on matching files.\n", "style": "# Code style\n\n- Python: 4-space indentation, type hints on every public function, `snake_case` names.\n- TypeScript: 2-space indentation, named exports only, no `any`.\n- Keep functions under 40 lines; extract a helper instead of nesting deeper than 3 levels.\n- Write comments in English. Explain why, not what.\n", "security": "# Security\n\n- Never print, log or commit secrets, tokens or the contents of `.env` files.\n- Read configuration through `backend/app/settings.py`; never call `os.environ` directly elsewhere.\n- Every SQL query uses bound parameters. Never build SQL with f-strings or string concatenation.\n\nThese are instructions, not enforcement. The project also blocks edits to `.env` with a PreToolUse hook.\n", "testing": "---\npaths:\n  - \"backend/tests/**/*.py\"\n  - \"frontend/src/**/*.test.{ts,tsx}\"\n---\n\n# Testing rules\n\n- One behavior per test; the test name states the behavior.\n- No real network, clock or shared state; use the fixtures in `backend/tests/conftest.py`.\n- A bug fix starts with a failing regression test.\n", "api": "---\npaths:\n  - \"backend/app/api/**/*.py\"\n---\n\n# Backend API rules\n\n- Each router lives in `backend/app/api/<resource>.py` and is registered in `backend/app/main.py`.\n- Validate every request body with a Pydantic model from `backend/app/schemas/`.\n- Return errors as `{\"error\": {\"code\": \"...\", \"message\": \"...\"}}` with the matching HTTP status.\n- Every new endpoint gets a test in `backend/tests/api/` in the same change.\n", "components": "---\npaths:\n  - \"frontend/src/**/*.{ts,tsx}\"\n---\n\n# Frontend component rules\n\n- One component per file; the file name matches the component name (`TaskCard.tsx`).\n- Fetch data only through the hooks in `frontend/src/api/`; components never call `fetch` directly.\n- Every interactive element has an accessible name (visible label or `aria-label`).\n"}</script>
+<script>
+window.LOMDA={
+  store:"rulesLomda.v1",
+  sorter:{
+    tools:["CLAUDE.md","Rule בלי paths","Rule עם paths","Skill","Hook","הרשאות"],
+    items:[
+      ["Claude צריך לדעת בכל Session שהבדיקות רצות עם pytest -q מתוך backend/.","CLAUDE.md","עובדה קצרה שנכונה תמיד ונדרשת כמעט בכל משימה. המקום הטבעי שלה הוא CLAUDE.md."],
+      ["כל endpoint חדש מחזיר שגיאות במבנה JSON קבוע. זה רלוונטי רק לקבצים ב-backend/app/api/.","Rule עם paths","מוסכמה של חלק אחד בקוד. עם paths היא נטענת רק כש-Claude נוגע בקובצי ה-API."],
+      ["כללי אבטחה לכל הקוד: לא להדפיס סודות, שאילתות SQL רק עם פרמטרים. זה ארוך מכדי להישאר ב-CLAUDE.md.","Rule בלי paths","רלוונטי לכל קובץ, אבל ראוי לקובץ נפרד שהצוות מתחזק. בלי paths הוא נטען בכל Session."],
+      ["אסור בשום מצב ש-Claude יערוך את package-lock.json, גם אם ביקשו ממנו.","Hook","איסור שחייב להיאכף בכל פעם. Rule הוא בקשה; Hook מסוג PreToolUse חוסם בפועל."],
+      ["כל שבוע מכינים דוח שינויים בתבנית של שישה סעיפים, עם בדיקה שאף סעיף לא חסר.","Skill","נוהל של כמה שלבים שחוזר. Skill נטען רק כשצריך ויכול לכלול סקריפט בדיקה."],
+      ["לחסום ל-Claude כל הרצה של curl בפרויקט הזה.","הרשאות","חסימה גורפת של פקודה מתאימה לכלל deny בהגדרות ההרשאות, בלי סקריפט."]
+    ]
+  },
+  quiz:[
+    ["איזה שדה Claude Code קורא מה-Frontmatter של Rule?",["name ו-description","רק paths","paths ו-description"],1,"paths הוא השדה היחיד. שדות אחרים נבלעים בלי שגיאה."],
+    ["Rule בלי paths. מתי הוא נטען?",["בכל Session, בפתיחה","רק כשמבקשים אותו","רק אחרי /compact"],0,"Rule בלי paths נטען בפתיחה, באותה עדיפות כמו .claude/CLAUDE.md."],
+    ["מה טוען Rule עם paths: \"backend/app/api/**/*.py\"?",["הרצת pytest על כל הפרויקט","Claude קורא או עורך את backend/app/api/tasks.py","פתיחת Session בתיקייה backend"],1,"קריאה, כתיבה או עריכה של קובץ מתאים. הרצת בדיקות לא נחשבת."],
+    ["ה-YAML ב-Frontmatter של Rule שבור. מה יקרה?",["ה-Rule לא ייטען אף פעם","Claude Code יציג שגיאה ויעצור","ה-Rule ייטען בכל Session, כאילו אין לו paths"],2,"התיעוד והבדיקה שלנו מסכימים: Frontmatter שלא עובר ניתוח נבלע, וה-Rule נטען ללא תנאי."],
+    ["Rule אומר \"Never edit .env\". האם Claude חסום מלערוך את הקובץ?",["כן, Rules נאכפים","לא, זו הנחיה. חסימה עושים עם Hook או הרשאות","רק במצב Plan"],1,"Claude מתייחס ל-Rules כהקשר, לא כתצורה שנאכפת."],
+    ["כלל עם paths נעלם אחרי /compact. מה הפתרון אם הוא חייב לשרוד?",["להוסיף עוד תבניות","להסיר את paths או להעביר אותו ל-CLAUDE.md שבשורש","להריץ /memory"],1,"Rules בלי paths ו-CLAUDE.md שבשורש נטענים מחדש מהדיסק אחרי דחיסה."]
+  ],
+  init:function(U){
+    var $=U.$, $$=U.$$, esc=U.esc;
+
+    /* ---------- T3 session simulator ---------- */
+    var SLOTS=[
+      ["claude","CLAUDE.md","פרויקט","start"],
+      ["style","code-style.md","Rule בלי paths","start"],
+      ["security","security.md","Rule בלי paths","start"],
+      ["api","backend/api.md","paths: backend/app/api/**/*.py","lazy"],
+      ["components","frontend/components.md","paths: frontend/src/**/*.{ts,tsx}","lazy"],
+      ["testing","testing.md","paths: backend/tests/**/*.py ועוד","lazy"]
+    ];
+    var ACTS=[
+      {id:"start",t:"פתיחת Session",s:"claude",on:["claude","style","security"],reason:"session_start",log:"נטענו CLAUDE.md ושני ה-Rules בלי paths (session_start). שלושת ה-Rules עם paths עדיין לא בהקשר."},
+      {id:"readapi",t:"Claude קורא קובץ API",s:"Read backend/app/api/tasks.py",on:["api"],reason:"path_glob_match",log:"הנתיב מתאים ל-backend/app/api/**/*.py, ולכן api.md נטען (path_glob_match). במסוף מופיעה שורת Loaded."},
+      {id:"pytest",t:"Claude מריץ את הבדיקות",s:"Bash: cd backend && pytest -q",on:[],reason:"",log:"הרצת פקודה שאינה קריאה של קובץ בודד לא טוענת Rules. testing.md עדיין לא בהקשר."},
+      {id:"readtest",t:"Claude קורא קובץ בדיקה",s:"Read backend/tests/api/test_tasks.py",on:["testing"],reason:"path_glob_match",log:"קריאה של קובץ שמתאים ל-backend/tests/**/*.py טוענת את testing.md (path_glob_match)."},
+      {id:"editfe",t:"Claude עורך רכיב",s:"Edit frontend/src/components/TaskCard.tsx",on:["components"],reason:"path_glob_match",log:"גם עריכה מפעילה Rule. components.md נטען. כל מה שנטען עד עכשיו נשאר בהקשר."},
+      {id:"compact",t:"/compact",s:"דחיסת השיחה",on:"compact",reason:"compact",log:"CLAUDE.md וה-Rules בלי paths נטענים מחדש מהדיסק (compact). שלושת ה-Rules עם paths נדחסו עם השיחה, וייטענו שוב רק כשנוגעים שוב בקובץ מתאים."}
+    ];
+    var simState={};
+    function renderSim(){
+      $("#simCtx").innerHTML=SLOTS.map(function(s){
+        var st=simState[s[0]];
+        return '<div class="slot '+(st?"on":"off")+'"><span class="dot"></span><span><code>'+esc(s[1])+'</code><span class="src">'+esc(s[2])+'</span></span><span class="sz">'+(st?esc(st):"לא בהקשר")+'</span></div>';
+      }).join("");
+    }
+    $("#simActs").innerHTML=ACTS.map(function(a){ return '<button type="button" data-act="'+a.id+'" aria-pressed="false">'+esc(a.t)+'<small>'+esc(a.s)+'</small></button>'; }).join("")+'<button type="button" data-act="reset" aria-pressed="false">התחלה מחדש<small>Session חדש</small></button>';
+    $$("#simActs button").forEach(function(b){ b.addEventListener("click",function(){
+      var id=b.getAttribute("data-act");
+      if(id==="reset"){ simState={}; $$("#simActs button").forEach(function(x){x.setAttribute("aria-pressed","false")}); $("#simLog").textContent="לחצו על פתיחת Session כדי להתחיל."; renderSim(); return; }
+      var a=ACTS.filter(function(x){return x.id===id})[0];
+      if(id!=="start" && !simState.claude){ $("#simLog").textContent="קודם פותחים Session."; return; }
+      if(a.on==="compact"){ var n={}; SLOTS.forEach(function(s){ if(s[3]==="start") n[s[0]]="compact"; }); simState=n; }
+      else a.on.forEach(function(k){ if(!simState[k]) simState[k]=a.reason; });
+      b.setAttribute("aria-pressed","true");
+      $("#simLog").textContent=a.log; renderSim();
+    }); });
+    $("#simLog").textContent="לחצו על פתיחת Session כדי להתחיל."; renderSim();
+
+    /* ---------- T4 explorer ---------- */
+    var FD=JSON.parse(document.getElementById("fileData").textContent);
+    U.explorer({
+      claude:{path:"taskflow/CLAUDE.md",role:"מה הפרויקט ואיך מריצים אותו. 12 שורות בלבד: כל השאר עבר ל-Rules.",level:"בכל Session, בפתיחה",text:FD.claude},
+      style:{path:".claude/rules/code-style.md",role:"סגנון קוד ל-Python ול-TypeScript. בלי Frontmatter, ולכן חל על כל הקוד.",level:"בכל Session, בפתיחה (session_start)",text:FD.style},
+      security:{path:".claude/rules/security.md",role:"כללי אבטחה. השורה האחרונה מזכירה שאלה הנחיות, ושהחסימה של <code>.env</code> נעשית ב-Hook.",level:"בכל Session, בפתיחה (session_start)",text:FD.security},
+      testing:{path:".claude/rules/testing.md",role:"כללי בדיקות. שתי תבניות: בדיקות Python ובדיקות TypeScript. הסוגריים בתבנית השנייה נפתחים לשתיים, כך שבפועל יש שלוש.",level:"כש-Claude נוגע בקובץ בדיקה (path_glob_match)",text:FD.testing},
+      api:{path:".claude/rules/backend/api.md",role:"מוסכמות ה-API. כל כלל ניתן לבדיקה: איפה Router יושב, איך מאמתים קלט, מה מבנה השגיאה, איפה הבדיקה.",level:"כש-Claude נוגע בקובץ ב-backend/app/api/ (path_glob_match)",text:FD.api},
+      components:{path:".claude/rules/frontend/components.md",role:"כללי רכיבי React, כולל נגישות. התבנית תופסת קובצי .ts ו-.tsx בכל עומק תחת frontend/src/.",level:"כש-Claude נוגע בקובץ TypeScript ב-Frontend (path_glob_match)",text:FD.components}
+    },"claude");
+
+    /* ---------- T5 walkthrough ---------- */
+    U.walk("#walkFront",[
+      ["---","השורה הראשונה בקובץ. בלעדיה אין Frontmatter, וה-Rule נטען בכל Session."],
+      ["paths:","השדה היחיד ש-Claude Code קורא. רשימת YAML או מחרוזת אחת עם פסיקים."],
+      ["  - \"backend/app/api/**/*.py\"","תבנית אחת, במירכאות. <code>**</code> עובר בין תיקיות, <code>*</code> רק בתוך שם אחד. מתחילה בתיקייה, ולכן מעוגנת לשורש הפרויקט."],
+      ["---","סוגר את ה-Frontmatter. Claude Code מסיר את כל החלק הזה לפני שה-Rule נכנס להקשר."],
+      ["# Backend API rules","מכאן ההוראות עצמן, ב-Markdown רגיל: כותרת ונקודות קצרות."]
+    ]);
+
+    /* ---------- T5 glob tester (models the behavior observed in Claude Code 2.1.300) ---------- */
+    function expandBraces(p){
+      var m=p.match(/\{([^{}]*)\}/); if(!m) return [p];
+      var out=[]; m[1].split(",").forEach(function(alt){ expandBraces(p.slice(0,m.index)+alt+p.slice(m.index+m[0].length)).forEach(function(x){out.push(x)}); });
+      return out;
+    }
+    function globToRe(body){
+      var re="", i=0;
+      while(i<body.length){
+        var c=body[i];
+        if(c==="*"){
+          if(body[i+1]==="*"){
+            if(body[i+2]==="/"){ re+="(?:.*/)?"; i+=3; continue; }
+            re+=".*"; i+=2; continue;
+          }
+          re+="[^/]*"; i++; continue;
+        }
+        if(c==="?"){ re+="[^/]"; i++; continue; }
+        if(c==="\\"&&i+1<body.length){ re+="\\"+body[i+1]; i+=2; continue; }
+        if(c==="["){ var j=body.indexOf("]",i+1); if(j<0) return null; var cls=body.slice(i+1,j).replace(/\\/g,"\\\\"); if(cls[0]==="!") cls="^"+cls.slice(1); re+="["+cls+"]"; i=j+1; continue; }
+        re+=c.replace(/[.+^${}()|]/g,"\\$&"); i++;
+      }
+      return re;
+    }
+    function testOne(pattern,path){
+      var p=pattern.trim();
+      if(!p) return null;
+      if(p[0]==="!") return {m:false,why:"תבנית שמתחילה ב-! לא תפסה דבר בבדיקה, ולא החריגה קבצים מתבניות אחרות."};
+      var variants=expandBraces(p), notes=[];
+      for(var k=0;k<variants.length;k++){
+        var v=variants[k], anchored=v[0]==="/";
+        if(anchored) v=v.slice(1);
+        var dirOnly=/\/$/.test(v); if(dirOnly) v=v.replace(/\/+$/,"");
+        var hasSlash=v.indexOf("/")>=0;
+        var inside=false; if(/\/\*\*$/.test(v)){ v=v.slice(0,-3); inside=true; }
+        var body=globToRe(v);
+        if(body===null) return {m:false,why:"תבנית לא תקפה: [ בלי ]. היא לא תופסת אף קובץ. לתו [ רגיל כותבים \\[."};
+        var prefix=(anchored||hasSlash)?"":"(?:.*/)?";
+        var tail=(dirOnly||inside)?"/.*":"(?:/.*)?";
+        var re=new RegExp("^"+prefix+body+tail+"$","i");
+        if(re.test(path)){
+          var why=anchored?"התבנית מתחילה ב-/ ולכן מעוגנת לשורש."
+            :!hasSlash?"תבנית בלי /: נבדקת מול שם הקובץ או התיקייה בכל עומק."
+            :"התבנית מכילה / ולכן מעוגנת לשורש הפרויקט.";
+          if(variants.length>1) why+=" נפתחה מסוגריים ל: "+variants.join(" , ")+".";
+          if(re.test(path) && !new RegExp("^"+prefix+body+tail+"$").test(path)) why+=" ההתאמה הצליחה רק בהתעלמות מאותיות גדולות וקטנות.";
+          return {m:true,why:why};
+        }
+      }
+      return {m:false,why:variants.length>1?"אף אחת מהתבניות שנפתחו מהסוגריים לא תואמת.":"הנתיב לא תואם."};
+    }
+    var GT={
+      api:["backend/app/api/**/*.py","backend/app/api/tasks.py\nbackend/app/api/v2/users.py\nbackend/app/models/task.py\nbackend/tests/api/test_tasks.py"],
+      tests:["backend/tests/**/*.py\nfrontend/src/**/*.test.{ts,tsx}","backend/tests/api/test_tasks.py\nfrontend/src/components/TaskCard.test.tsx\nfrontend/src/components/TaskCard.tsx\nbackend/app/main.py"],
+      root:["*.md\n/*.md","README.md\ndocs/guide.md\nfrontend/README.md"],
+      dir:["docs\nbackend/","docs/guide.md\ndocs/api/errors.md\nbackend/app/main.py\nfrontend/src/main.tsx"],
+      neg:["backend/**\n!backend/app/api/**","backend/app/api/tasks.py\nbackend/core/db.py"]
+    };
+    function runGT(){
+      var pats=$("#gtPat").value.split("\n").map(function(x){return x.trim()}).filter(Boolean);
+      var files=$("#gtFiles").value.split("\n").map(function(x){return x.trim().replace(/^\.\//,"").replace(/\\/g,"/")}).filter(Boolean);
+      var out=files.map(function(f){
+        var hit=null, whys=[];
+        pats.forEach(function(p){ var r=testOne(p,f); if(!r) return; if(r.m&&!hit) hit={p:p,why:r.why}; else if(!r.m && p[0]==="!") whys.push(r.why); });
+        if(hit) return '<li><span class="pill ok">נטען</span><code>'+esc(f)+'</code><span class="why">לפי <code>'+esc(hit.p)+'</code>. '+esc(hit.why)+(whys.length?" "+esc(whys[0]):"")+'</span></li>';
+        var reason=pats.map(function(p){var r=testOne(p,f);return r?r.why:""}).filter(Boolean)[0]||"אין תבניות.";
+        return '<li><span class="pill bad">לא נטען</span><code>'+esc(f)+'</code><span class="why">'+esc(reason)+'</span></li>';
+      });
+      $("#gtOut").innerHTML=out.join("");
+      $("#gtNote").textContent="הבודק משחזר את ההתנהגות שראינו ב-Claude Code 2.1.300 ב-Linux, כולל התעלמות מאותיות גדולות וקטנות. הוא לא מחליף בדיקה אצלכם (נושא 9).";
+    }
+    $$("[data-gt]").forEach(function(b){ b.addEventListener("click",function(){ var g=GT[b.getAttribute("data-gt")]; $("#gtPat").value=g[0]; $("#gtFiles").value=g[1]; runGT(); }); });
+    $("#gtPat").addEventListener("input",runGT); $("#gtFiles").addEventListener("input",runGT);
+    $("#gtPat").value=GT.api[0]; $("#gtFiles").value=GT.api[1]; runGT();
+
+    /* ---------- T6 rule quality checker (heuristics) ---------- */
+    var VAGUE=/\b(properly|proper|clean|nice|good|appropriate(ly)?|best practices?|as needed|when possible|if possible|try to|reasonable|well[- ]structured)\b|כמו שצריך|בצורה נכונה|מסודר|יפה|נקי|כשאפשר|לנסות/i;
+    var SECRET=/AKIA[0-9A-Z]{16}|sk-ant-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(password|passwd|api[_-]?key|secret)\s*[:=]\s*["']?[A-Za-z0-9_\-]{8,}/i;
+    var ENFORCE=/\b(never allow|must never|block|forbid|prevent|always run|before (every|each) commit|after (every|each) edit)\b|אסור בשום|לחסום|חסום|לפני כל commit|אחרי כל עריכה/i;
+    function rq(){
+      var t=$("#rqIn").value, items=[];
+      function add(c,m){ items.push('<li class="'+c+'">'+m+'</li>'); }
+      var lines=t.split("\n"), body=t, fm=null;
+      if(/^---\s*\n/.test(t)){
+        var end=t.indexOf("\n---",3);
+        if(end<0){ add("fail","יש <code>---</code> בהתחלה בלי <code>---</code> סוגר. ה-Frontmatter לא ינותח, וה-Rule ייטען בכל Session."); }
+        else { fm=t.slice(4,end); body=t.slice(end+4);
+          var keys=(fm.match(/^[A-Za-z_][\w-]*(?=\s*:)/gm)||[]);
+          if(keys.indexOf("paths")<0) add("warn","יש Frontmatter בלי <code>paths</code>. ה-Rule ייטען בכל Session.");
+          else add("pass","יש <code>paths</code>: ה-Rule ייטען רק כש-Claude נוגע בקבצים מתאימים.");
+          keys.filter(function(k){return k!=="paths"}).forEach(function(k){ add("warn","השדה <code>"+esc(k)+"</code> לא נקרא ב-Rule, ונבלע בלי שגיאה."); });
+          (fm.match(/["']([^"']+)["']/g)||[]).forEach(function(q){ var p=q.slice(1,-1); if(p.indexOf("/")<0 && p[0]!=="!") add("warn","התבנית <code>"+esc(p)+"</code> בלי <code>/</code> תופסת את השם בכל עומק. שקלו להוסיף תיקייה בהתחלה."); if(p[0]==="!") add("warn","התבנית <code>"+esc(p)+"</code> עם <code>!</code> לא החריגה דבר בבדיקה."); if(/\[[^\]]*$/.test(p)) add("fail","התבנית <code>"+esc(p)+"</code> פותחת <code>[</code> בלי <code>]</code> ולא תתפוס דבר."); });
+        }
+      } else add("pass","אין Frontmatter: ה-Rule ייטען בכל Session. זה בסדר לכלל שחל על כל הקוד.");
+      if(SECRET.test(t)) add("fail","נראה שיש כאן סוד (מפתח, טוקן או סיסמה). הוציאו אותו מהקובץ ומה-Git.");
+      var vm=body.match(VAGUE); if(vm) add("warn","המילה <code>"+esc(vm[0])+"</code> מעורפלת. כתבו מה בדיוק צריך לקרות, כך שאפשר יהיה לבדוק.");
+      else add("pass","לא נמצאו מילים מעורפלות מהרשימה שלנו.");
+      if(/`[^`]+`|\b[\w.-]+\/[\w./*-]+|\b(npm|pytest|python3?|git|make|pnpm|uv)\b/.test(body)) add("pass","יש נתיב, פקודה או קוד קונקרטי.");
+      else add("warn","אין אף נתיב, פקודה או שם מזהה. כלל קונקרטי בדרך כלל מזכיר אחד מהם.");
+      if(/^\s*([-*]|\d+\.)\s/m.test(body)) add("pass","הכללים כתובים כנקודות.");
+      else add("warn","אין רשימת נקודות. כללים קצרים בנקודות קלים יותר ליישום מפסקה.");
+      var steps=(body.match(/^\s*\d+\.\s/gm)||[]).length; if(steps>=5) add("warn",steps+" שלבים ממוספרים: זה נשמע כמו נוהל. שקלו Skill במקום Rule.");
+      var em=body.match(ENFORCE); if(em) add("warn","\""+esc(em[0])+"\" נשמע כמו משהו שחייב להיאכף. Rule הוא הנחיה; לאכיפה השתמשו ב-Hook או בהרשאות.");
+      var n=lines.length; add(n>80?"warn":"pass",n+" שורות."+(n>80?" ארוך לנושא אחד; שקלו לפצל.":""));
+      $("#rqOut").innerHTML=items.join("");
+    }
+    var BAD="---\ndescription: frontend rules\npaths:\n  - \"*.tsx\"\n---\n\nMake the frontend nice and accessible. Always run the tests before you finish. Never touch the env file.";
+    $("#rqRun").addEventListener("click",rq);
+    $("#rqBad").addEventListener("click",function(){ $("#rqIn").value=BAD; rq(); });
+    $("#rqGood").addEventListener("click",function(){ $("#rqIn").value=FD.api; rq(); });
+    $("#rqIn").value=BAD; rq();
+
+    /* ---------- T7 prompt builder ---------- */
+    var TASK={
+      split:"קרא את CLAUDE.md ופצל אותו ל-Rules בתיקייה .claude/rules/. השאר ב-CLAUDE.md רק את מה שנדרש בכל Session: מה הפרויקט, פקודות Build ובדיקה, ומבנה התיקיות. כל נושא אחר עובר לקובץ Rule משלו עם שם שמתאר אותו.",
+      discover:"עבור על הקוד בפרויקט, מצא את המוסכמות שחוזרות בו (מבנה קבצים, טיפול בשגיאות, בדיקות, שמות), וכתוב אותן כ-Rules בתיקייה .claude/rules/. כתוב רק מוסכמות שאינן ברורות מהקוד עצמו, ולכל כלל תן דוגמה מהקוד.",
+      migrate:"המר את הכללים שב-.cursor/rules/ ל-Rules של Claude Code בתיקייה .claude/rules/. שמור על התוכן, אבל התאם את המבנה: קובץ לנושא, וכללים קצרים כנקודות."
+    };
+    function pb(){
+      var t=($("input[name=pbTask]:checked")||{}).value||"split";
+      var ex=$$("#pbExtra input:checked").map(function(i){return i.value});
+      var L=[TASK[t]];
+      if(ex.indexOf("plan")>=0) L.push("לפני שאתה כותב קבצים, הצג לי את רשימת ה-Rules שאתה מתכנן, עם שם קובץ ומשפט אחד על כל אחד, וחכה לאישור שלי.");
+      if(ex.indexOf("paths")>=0) L.push("לכל Rule שרלוונטי רק לחלק מהקוד, הוסף Frontmatter עם paths. כל תבנית מתחילה בתיקייה (למשל backend/app/api/**/*.py) ולא בשם קובץ בלבד. Rules שרלוונטיים לכל הקוד נשארים בלי Frontmatter.");
+      if(ex.indexOf("short")>=0) L.push("כל קובץ עד 40 שורות. כל כלל ניתן לבדיקה: במקום \"write clean code\" כתוב מה בדיוק צריך לקרות.");
+      if(ex.indexOf("enforce")>=0) L.push("אם יש כלל שחייב להיאכף בכל מקרה (איסור לערוך קובץ, משהו שחייב לרוץ לפני Commit), אל תכתוב אותו כ-Rule. רשום אותו בסוף ברשימה נפרדת, עם המלצה אם הוא שייך ל-Hook או להרשאות.");
+      L.push("אל תכלול סודות, מפתחות או כתובות פנימיות. בסוף, הצג טבלה: קובץ, paths, ומתי הוא ייטען.");
+      $("#pbOut").textContent=L.join("\n");
+    }
+    $$("#pbTask input, #pbExtra input").forEach(function(i){ i.addEventListener("change",pb); });
+    pb();
+  }
+};
+</script>
+<script>
+/* Shared engine for the guide's interactive modules: theme, routing, progress,
+   copy buttons, flip cards, tabs, sorter drills, quiz, checklist, walkthroughs, file explorer.
+   Each page defines window.LOMDA before this script runs. */
+(function(){
+  "use strict";
+  var L=window.LOMDA||{};
+  var $=function(s,r){return (r||document).querySelector(s)}, $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+  function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+  var ORDER=$$("section.topic").map(function(s){return s.id});
+  var TOTAL=ORDER.length-1;
+  var STORE=L.store||"lomda.v1";
+  function load(){try{return JSON.parse(localStorage.getItem(STORE))||{}}catch(e){return {}}}
+  function save(s){try{localStorage.setItem(STORE,JSON.stringify(s))}catch(e){}}
+  var state=load(); state.visited=state.visited||{}; state.checks=state.checks||{};
+
+  /* theme */
+  var root=document.documentElement;
+  if(state.theme) root.setAttribute("data-theme",state.theme);
+  $("#themeBtn").addEventListener("click",function(){
+    var cur=root.getAttribute("data-theme");
+    var dark=cur?cur==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var next=dark?"light":"dark"; root.setAttribute("data-theme",next); state.theme=next; save(state);
+  });
+
+  /* router */
+  var current="start";
+  function title(id){ return document.getElementById(id).getAttribute("data-title"); }
+  function show(id,focus){
+    if(ORDER.indexOf(id)<0) id="start";
+    current=id;
+    ORDER.forEach(function(t){ document.getElementById(t).hidden=(t!==id); });
+    $$(".map a").forEach(function(a){
+      var g=a.getAttribute("data-go");
+      if(g===id) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current");
+      a.classList.toggle("done",!!state.visited[g]&&g!=="start");
+    });
+    var i=ORDER.indexOf(id);
+    if(id!=="start") state.visited[id]=true;
+    state.last=id; save(state);
+    var n=Object.keys(state.visited).filter(function(k){return k!=="start"&&ORDER.indexOf(k)>=0}).length;
+    $("#progFill").style.width=(n/TOTAL*100)+"%";
+    $("#progLabel").textContent= id==="start" ? ("מסך פתיחה · "+n+" מתוך "+TOTAL+" נושאים נפתחו") : ("נושא "+i+" מתוך "+TOTAL+" · "+title(id));
+    $("#prevBtn").hidden=(i===0);
+    $("#nextBtn").hidden=(i===ORDER.length-1);
+    $("#nextBtn").textContent= i===0 ? "לנושא הראשון" : "הבא: "+title(ORDER[Math.min(i+1,ORDER.length-1)]);
+    if(focus){ window.scrollTo(0,0); $("#main").focus({preventScroll:true}); }
+    if(focus && window.matchMedia("(max-width:900px)").matches){ $("#mapDetails").open=false; }
+  }
+  function go(id){ if(location.hash!=="#"+id){ try{history.pushState(null,"","#"+id);}catch(e){} } show(id,true); }
+  document.addEventListener("click",function(e){
+    var t=e.target.closest("[data-go]"); if(!t) return;
+    e.preventDefault(); go(t.getAttribute("data-go"));
+  });
+  $("#prevBtn").addEventListener("click",function(){ go(ORDER[Math.max(0,ORDER.indexOf(current)-1)]); });
+  $("#nextBtn").addEventListener("click",function(){ go(ORDER[Math.min(ORDER.length-1,ORDER.indexOf(current)+1)]); });
+  window.addEventListener("hashchange",function(){ show(location.hash.slice(1)||"start",true); });
+  window.addEventListener("popstate",function(){ show(location.hash.slice(1)||"start",true); });
+  if(window.matchMedia("(max-width:900px)").matches){ $("#mapDetails").open=false; }
+
+  /* copy */
+  function copyText(text,btn){
+    var done=function(){ var o=btn.textContent; btn.textContent="הועתק"; setTimeout(function(){btn.textContent=o},1400); };
+    var fallback=function(){ var ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); var ok=false; try{ok=document.execCommand("copy")}catch(e){} document.body.removeChild(ta); if(ok) done(); else btn.textContent="סמנו והעתיקו ידנית"; };
+    try{ navigator.clipboard.writeText(text).then(done,fallback); }catch(e){ fallback(); }
+  }
+  document.addEventListener("click",function(e){
+    var b=e.target.closest(".copy"); if(!b) return;
+    var src=b.getAttribute("data-copy-from"), text;
+    if(src) text=document.getElementById(src).textContent;
+    else { var box=b.closest(".code"); var code=box&&box.querySelector("pre"); text=code?code.textContent:""; }
+    copyText(text,b);
+  });
+
+  /* flip cards */
+  $$(".flip").forEach(function(b){ b.addEventListener("click",function(){ var open=b.getAttribute("aria-expanded")==="true"; b.setAttribute("aria-expanded",String(!open)); b.querySelector(".back").hidden=open; }); });
+
+  /* tabs */
+  $$("[data-tabs]").forEach(function(box){
+    var tabs=$$(":scope > .tablist > [role=tab]",box), panels=$$(":scope > [role=tabpanel]",box);
+    tabs.forEach(function(t,i){ t.addEventListener("click",function(){ tabs.forEach(function(x,j){ x.setAttribute("aria-selected",String(i===j)); panels[j].hidden=(i!==j); }); }); });
+  });
+
+  /* sorter: choose the right tool for each scenario */
+  if(L.sorter && $("#sorter")){
+    var sorter=$("#sorter"), sScore={};
+    L.sorter.items.forEach(function(s,i){
+      var q=document.createElement("div"); q.className="q";
+      q.innerHTML='<p><strong>מצב '+(i+1)+'.</strong> '+esc(s[0])+'</p><div class="opts grid-opts"></div><p class="fb" aria-live="polite"></p>';
+      var opts=q.querySelector(".opts");
+      L.sorter.tools.forEach(function(t){ var b=document.createElement("button"); b.type="button"; b.textContent=t; b.addEventListener("click",function(){
+        $$("button",opts).forEach(function(x){x.classList.remove("right","wrong")});
+        var ok=t===s[1]; b.classList.add(ok?"right":"wrong");
+        if(!ok) $$("button",opts).forEach(function(x){ if(x.textContent===s[1]) x.classList.add("right"); });
+        q.querySelector(".fb").textContent=(ok?"נכון. ":"התשובה: "+s[1]+". ")+s[2];
+        if(!(i in sScore)) sScore[i]=ok;
+        var c=Object.keys(sScore).length, r=Object.keys(sScore).filter(function(k){return sScore[k]}).length;
+        $("#sorterScore").textContent="עניתם על "+c+" מתוך "+L.sorter.items.length+", "+r+" נכונות בניסיון הראשון.";
+      }); opts.appendChild(b); });
+      sorter.appendChild(q);
+    });
+  }
+
+  /* quiz */
+  if(L.quiz && $("#quiz")){
+    var quiz=$("#quiz"), qs={};
+    L.quiz.forEach(function(q,i){
+      var d=document.createElement("div"); d.className="q";
+      d.innerHTML='<p><strong>'+(i+1)+'. '+esc(q[0])+'</strong></p><div class="opts"></div><p class="fb" aria-live="polite"></p>';
+      var o=d.querySelector(".opts");
+      q[1].forEach(function(a,j){ var b=document.createElement("button"); b.type="button"; b.textContent=a; b.addEventListener("click",function(){
+        $$("button",o).forEach(function(x){x.classList.remove("right","wrong")});
+        var ok=j===q[2]; b.classList.add(ok?"right":"wrong"); o.children[q[2]].classList.add("right");
+        d.querySelector(".fb").textContent=(ok?"נכון. ":"לא בדיוק. ")+q[3];
+        if(!(i in qs)) qs[i]=ok;
+        var c=Object.keys(qs).length, r=Object.keys(qs).filter(function(k){return qs[k]}).length;
+        $("#quizScore").textContent=r+" נכונות מתוך "+c+" שעניתם"+(c===L.quiz.length?(r===L.quiz.length?". כל הכבוד, סיימתם את הלומדה.":". אפשר לחזור לנושאים הרלוונטיים ולנסות שוב."):".");
+      }); o.appendChild(b); });
+      quiz.appendChild(d);
+    });
+  }
+
+  /* checklist */
+  $$("#checklist input").forEach(function(c){
+    c.checked=!!state.checks[c.id];
+    c.addEventListener("change",function(){ state.checks[c.id]=c.checked; save(state); });
+  });
+
+  /* helpers for page scripts */
+  window.LOMDA_UTIL={
+    $:$, $$:$$, esc:esc,
+    walk:function(el,rows){ $(el).innerHTML=rows.map(function(r){ return '<div class="wline"><code>'+esc(r[0])+'</code><p>'+r[1]+'</p></div>'; }).join(""); },
+    explorer:function(files,first){
+      function showFile(k){
+        var f=files[k];
+        $$(".tree button").forEach(function(b){ b.setAttribute("aria-pressed",String(b.getAttribute("data-file")===k)); });
+        $("#fileExplain").innerHTML='<p><strong>תפקיד:</strong> '+f.role+'</p><p class="small muted">נטען: '+f.level+'</p><div class="code"><div class="code-head"><span>'+esc(f.path)+'</span><button class="copy" type="button">העתק</button></div><pre><code>'+esc(f.text)+'</code></pre></div>';
+      }
+      $$(".tree button").forEach(function(b){ b.addEventListener("click",function(){ showFile(b.getAttribute("data-file")); }); });
+      showFile(first);
+    }
+  };
+  if(typeof L.init==="function") L.init(window.LOMDA_UTIL);
+
+  show(location.hash.slice(1)||"start",false);
+  window.scrollTo(0,0);
+})();
+</script>
+</body>
+</html>

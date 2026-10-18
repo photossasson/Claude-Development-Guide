@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 28: GitHub Actions ו-Code Review</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ו | פרק 28</p>
+  <h1>GitHub Actions ו-Code Review</h1>
+  <p class="lead">בפרק הזה Claude Code עוזב את המחשב שלכם ועובר לעבוד ב-CI: עונה לאזכורי <code>@claude</code> ב-Issues וב-Pull Requests, הופך Issues ל-PRs, מריץ משימות תחזוקה מתוזמנות, וסוקר כל PR אוטומטית. נקים את האינטגרציה בשני מסלולים, נפרק ארבע דוגמאות <bdi>Workflow</bdi> מלאות שורה אחרי שורה, נכיר את שירות ה-<bdi>Code Review</bdi> המנוהל ואת <code>/code-review</code> המקומי, ונסגור עם אבטחה, עלויות, <bdi>GitHub Enterprise Server</bdi> ו-<bdi>GitLab CI/CD</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what">מה האינטגרציה עושה, ומה היא לא</h2>
+  <p><bdi>Claude Code GitHub Actions</bdi> היא <bdi>GitHub Action</bdi> רשמית (<code>anthropics/claude-code-action</code>) שמריצה את Claude Code בתוך ה-Workflows של ה-Repository, על ה-Runners שלכם. שני מצבי עבודה: מזכירים <code>@claude</code> בתגובה ל-Issue או PR ו-Claude מנתח, מיישם ודוחף Commits; או נותנים לו <bdi>Prompt</bdi> קבוע שרץ אוטומטית על כל אירוע GitHub, מפתיחת Issue ועד לוח זמנים של <bdi>Cron</bdi>.</p>
+  <p>כמה מוצרים חולקים את השם, וחשוב להפריד:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מוצר</th><th>מה הוא</th><th>איפה רץ</th><th>סטטוס</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>claude-code-action</code></td><td>Action שמגדירים בקובצי Workflow, נושא הפרק</td><td>ה-Runners שלכם</td><td><span class="badge stable">v1</span></td></tr>
+        <tr><td>Code Review</td><td>סקירה אוטומטית מנוהלת על כל PR, בלי Workflow</td><td>תשתית Anthropic</td><td><span class="badge preview">Research Preview</span></td></tr>
+        <tr><td>Claude Code on the web</td><td>Sessions בענן מהדפדפן והנייד</td><td>תשתית Anthropic</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>GitLab CI/CD</td><td>אינטגרציה מקבילה ל-GitLab, מתוחזקת על ידי GitLab</td><td>ה-Runners שלכם</td><td><span class="badge beta">Beta</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>Repository ב-GitHub עם הרשאות Admin, מפתח API מ-<bdi>Claude Console</bdi> או מנוי Claude בתשלום, והיכרות בסיסית עם <bdi>GitHub Actions</bdi> (קובצי YAML ב-<code>.github/workflows/</code>). למסלול המהיר נדרש גם <bdi>GitHub CLI</bdi> (<code>gh</code>) מחובר.</p></div>
+
+  <h2 id="quick-setup">התקנה מהירה: /install-github-app</h2>
+  <p>המסלול המהיר עושה הכול מתוך Claude Code. התקינו את <bdi>GitHub CLI</bdi> והתחברו עם <code>gh auth login</code>, פתחו <code>claude</code> בתיקיית ה-Repository, והריצו:</p>
+  <div class="terminal"><span class="p">$</span> claude
+<span class="p">&gt;</span> /install-github-app</div>
+  <p>מה קורה מאחורי הקלעים, לפי הסדר:</p>
+  <ol>
+    <li><strong>התקנת ה-GitHub App:</strong> Claude Code מתקין את <bdi>Claude GitHub App</bdi> על ה-Repository (פירוט ההרשאות בהמשך).</li>
+    <li><strong>יצירת Secret לאימות:</strong> אם ל-Claude Code כבר יש מפתח API, הוא מציע להשתמש בו; אחרת בוחרים בין יצירת Token ארוך-טווח מהמנוי (נשמר בשם <code>CLAUDE_CODE_OAUTH_TOKEN</code>) לבין הדבקת מפתח API (נשמר בשם <code>ANTHROPIC_API_KEY</code>).</li>
+    <li><strong>יצירת ה-Workflows:</strong> Claude Code דוחף Branch עם קובצי ה-Workflow שבחרתם, כבר מכוונים ל-Secret הנכון, ופותח את הדפדפן עם PR מוכן ליצירה. ממזגים את ה-PR, ו-<code>@claude</code> עובד.</li>
+  </ol>
+  <p>המסלול המהיר עובד עם ה-API הישיר ועם מנויי Claude בלבד; ל-<bdi>Bedrock</bdi>, <bdi>Agent Platform</bdi> או <bdi>Foundry</bdi> יש מדריך ספקי ענן נפרד. ב-<bdi>GitHub Enterprise Server</bdi> הפקודה לא זמינה (ראו סעיף בהמשך).</p>
+
+  <h2 id="manual-setup">התקנה ידנית</h2>
+  <p>שלושה צעדים, שימושיים כשלא מריצים Claude Code מקומית או כשרוצים שליטה מלאה:</p>
+  <ol>
+    <li><strong>התקינו את <a href="https://github.com/apps/claude">Claude GitHub App</a></strong> על ה-Repository. ה-Action נשען על שלוש הרשאות: <bdi>Contents</bdi> (קריאה וכתיבה, שינוי קבצים), <bdi>Issues</bdi> (קריאה וכתיבה, מענה ל-Issues) ו-<bdi>Pull requests</bdi> (קריאה וכתיבה, יצירת PRs ודחיפת שינויים).</li>
+    <li><strong>הוסיפו Secret לאימות</strong> ב-<bdi>Settings</bdi> ואז <bdi>Secrets and variables</bdi> ואז <bdi>Actions</bdi>: או <code>ANTHROPIC_API_KEY</code> (מפתח מ-Claude Console), או <code>CLAUDE_CODE_OAUTH_TOKEN</code> (נוצר מקומית עם <code>claude setup-token</code>, זמין במנויי Pro, Max, Team ו-Enterprise).</li>
+    <li><strong>העתיקו את קובץ ה-Workflow</strong> <code>examples/claude.yml</code> מה-Repository של ה-Action אל <code>.github/workflows/</code> אצלכם. הקובץ הוא Workflow עובד, לא רק דוגמה. אם בחרתם ב-Token של מנוי, החליפו את שורת <code>anthropic_api_key</code> ב-<code>claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}</code>.</li>
+  </ol>
+  <h3 id="app-permissions">הרשאות ה-GitHub App: מה מאשרים בפועל</h3>
+  <p>ה-App המשותף משרת את כל האינטגרציות של Claude עם GitHub (Actions, Code Review, Auto-fix של Web), ולכן סט ההרשאות המלא רחב מהנדרש ל-Action לבדו: <bdi>Actions</bdi>, <bdi>Checks</bdi>, <bdi>Contents</bdi>, <bdi>Discussions</bdi>, <bdi>Issues</bdi>, <bdi>Repository hooks</bdi> ו-<bdi>Workflows</bdi> בקריאה וכתיבה; <bdi>Members</bdi>, <bdi>Metadata</bdi> ו-<bdi>Statuses</bdi> בקריאה. GitHub לא מאפשר לאשר תת-קבוצה. ארגון שדורש צמצום מוחלט יכול ליצור <bdi>GitHub App</bdi> מותאם עם Contents, Issues ו-Pull requests בלבד ולהעביר אותו דרך הקלט <code>github_token</code>; אבל App מותאם מכסה רק את ה-Action, ו-Code Review ו-Auto-fix עדיין דורשים את ה-App הרשמי.</p>
+  <p><strong>פריסה ארגונית:</strong> מתקינים את ה-App פעם אחת ברמת הארגון, שומרים את ה-Secret כ-<bdi>Organization Secret</bdi> (עדיף מפתח API ולא OAuth Token, שקשור למנוי של אדם אחד), ומוסיפים את ה-Workflow לכל Repository או מגדירים <bdi>Reusable Workflow</bdi> אחד. כדי לוותר על Secret ארוך-טווח לגמרי, ה-Action תומך ב-<bdi>Workload Identity Federation</bdi>: החלפת ה-Token של GitHub OIDC בגישת API דרך Service Account ב-Console (קלטים: <code>anthropic_federation_rule_id</code>, <code>anthropic_organization_id</code> ועוד), עם הרשאת <code>id-token: write</code> ב-Workflow.</p>
+
+  <h2 id="inputs">הגרסה הנוכחית והקלטים של ה-Action</h2>
+  <p>הגרסה הראשית הנוכחית היא <strong><code>anthropics/claude-code-action@v1</code></strong>. אם ירשתם Workflows עם <code>@beta</code>, עדכנו: החליפו ל-<code>@v1</code>, הסירו את הקלט <code>mode</code> (המצב מזוהה אוטומטית), החליפו <code>direct_prompt</code> ב-<code>prompt</code>, והעבירו קלטים כמו <code>max_turns</code> ו-<code>model</code> אל תוך <code>claude_args</code>. הקלטים המרכזיים, מאומתים מול התיעוד הרשמי:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>קלט</th><th>מה הוא עושה</th><th>ברירת מחדל</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>prompt</code></td><td>הוראות ל-Claude: טקסט חופשי או הפעלת Skill (כמו <code>/skill-name</code>). בהיעדרו, ה-Action ממתין לביטוי ההפעלה (מצב אינטראקטיבי)</td><td class="ltr">-</td></tr>
+        <tr><td class="ltr"><code>claude_args</code></td><td>ארגומנטים של ה-CLI המועברים ישירות: <code>--max-turns</code>, <code>--model</code>, <code>--allowedTools</code>, <code>--mcp-config</code>, <code>--debug</code> ועוד</td><td class="ltr">""</td></tr>
+        <tr><td class="ltr"><code>anthropic_api_key</code></td><td>מפתח API (ל-API הישיר; לא נדרש עם Bedrock / Vertex / Foundry)</td><td class="ltr">-</td></tr>
+        <tr><td class="ltr"><code>claude_code_oauth_token</code></td><td>Token של מנוי Claude, נוצר עם <code>claude setup-token</code></td><td class="ltr">-</td></tr>
+        <tr><td class="ltr"><code>github_token</code></td><td>Token לפעולות GitHub. משמיטים כדי שה-Action יאומת כ-Claude GitHub App; מספקים רק עם App מותאם משלכם</td><td class="ltr">-</td></tr>
+        <tr><td class="ltr"><code>trigger_phrase</code></td><td>ביטוי ההפעלה בתגובות, גוף Issues וכותרות</td><td class="ltr"><code>@claude</code></td></tr>
+        <tr><td class="ltr"><code>assignee_trigger</code> / <code>label_trigger</code></td><td>הפעלה על ידי הקצאת Issue למשתמש מסוים או הדבקת Label מסוים</td><td class="ltr">-</td></tr>
+        <tr><td class="ltr"><code>branch_prefix</code></td><td>קידומת ל-Branches ש-Claude יוצר</td><td class="ltr"><code>claude/</code></td></tr>
+        <tr><td class="ltr"><code>settings</code></td><td>הגדרות Claude Code כמחרוזת JSON או נתיב לקובץ (כולל חוקי <code>permissions.allow</code>)</td><td class="ltr">""</td></tr>
+        <tr><td class="ltr"><code>plugin_marketplaces</code> / <code>plugins</code></td><td>התקנת Plugins לפני הריצה; <code>plugins</code> בפורמט <code>name@marketplace</code>, מופרדים בשורות</td><td class="ltr">""</td></tr>
+        <tr><td class="ltr"><code>track_progress</code></td><td>תגובת מעקב עם תיבות סימון שמתעדכנות תוך כדי עבודה</td><td class="ltr"><code>false</code></td></tr>
+        <tr><td class="ltr"><code>use_sticky_comment</code></td><td>תגובה אחת מתעדכנת במקום תגובות מרובות (לאירועי <code>pull_request</code>)</td><td class="ltr"><code>false</code></td></tr>
+        <tr><td class="ltr"><code>use_bedrock</code> / <code>use_vertex</code> / <code>use_foundry</code></td><td>ניתוב ההסקה דרך Amazon Bedrock, Google Cloud's Agent Platform או Microsoft Foundry (אימות OIDC)</td><td class="ltr"><code>false</code></td></tr>
+        <tr><td class="ltr"><code>allowed_bots</code></td><td>רשימת Bots שמורשים להפעיל את ה-Action (ריק = אף Bot)</td><td class="ltr">""</td></tr>
+        <tr><td class="ltr"><code>use_commit_signing</code> / <code>ssh_signing_key</code></td><td>חתימת Commits: דרך ה-API של GitHub, או עם מפתח SSH (מאפשר גם Rebase)</td><td class="ltr"><code>false</code> / ""</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>קלטים שהוצאו משימוש <span class="badge dep">Deprecated</span>: <code>mode</code>, <code>direct_prompt</code>, <code>override_prompt</code>, <code>custom_instructions</code>, <code>max_turns</code>, <code>model</code>, <code>allowed_tools</code>, <code>disallowed_tools</code>, <code>mcp_config</code>, <code>claude_env</code>. כולם הוחלפו ב-<code>prompt</code>, <code>claude_args</code> או <code>settings</code>.</p>
+
+  <h2 id="modes">מצב אינטראקטיבי מול אוטומציה</h2>
+  <p>ה-Action מזהה את המצב לבד מהתצורה, בלי קלט <code>mode</code>:</p>
+  <ul>
+    <li><strong>מצב אינטראקטיבי (אין <code>prompt</code>):</strong> Claude ממתין לביטוי ההפעלה (<code>@claude</code> כברירת מחדל) בתגובת Issue או PR, בסקירת PR, או בגוף ובכותרת של Issue חדש, ואז מגיב. ההתקדמות והתוצאות מופיעות כתגובה על ה-Issue או ה-PR.</li>
+    <li><strong>מצב אוטומציה (יש <code>prompt</code>):</strong> Claude רץ מיד על כל אירוע שה-Workflow מאזין לו, בלי להמתין לאזכור. התוצאות מופיעות בלוג של ריצת ה-Workflow, לא כתגובה (אלא אם ה-Prompt מנחה לפרסם תגובות עם כלים מורשים).</li>
+  </ul>
+  <p><strong>מי יכול להפעיל, ומניעת לולאות:</strong> לפני שה-Action מריץ את Claude הוא בודק שניים, ונכשל אם אחד נדחה:</p>
+  <ul>
+    <li><strong>הרשאת כתיבה:</strong> באירועי Issue ו-PR, המשתמש המפעיל חייב הרשאת Write ל-Repository. חריגים דורשים <code>allowed_non_write_users</code> יחד עם <code>github_token</code> משלכם (מסוכן; ראו אבטחה). אירועים בלי מחבר אנושי, כמו <code>schedule</code>, מדלגים על הבדיקה.</li>
+    <li><strong>שחקן אנושי:</strong> ה-Action דוחה Bots אלא אם נרשמו ב-<code>allowed_bots</code>. זה מנגנון מניעת הלולאות: בלעדיו, Bot אחד שמגיב ל-Bot אחר יכול להפעיל את Claude שוב ושוב. שימו לב שגם ריצות מתוזמנות מיוחסות למשתמש (בדרך כלל מי ששינה אחרון את ה-Cron); אם זה Bot, הוסיפו אותו לרשימה.</li>
+  </ul>
+
+  <h2 id="example1">דוגמה 1: עונה ל-@claude</h2>
+  <p>ה-Workflow הקנוני, מבוסס על הדוגמה הרשמית, במצב אינטראקטיבי מלא:</p>
+  <div class="codeblock">
+    <div class="codehead">.github/workflows/claude.yml</div>
+    <pre><code>name: Claude Code
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened]
+  pull_request_review:
+    types: [submitted]
+jobs:
+  claude:
+    if: |
+      contains(github.event.comment.body, '@claude') ||
+      contains(github.event.issue.body, '@claude') ||
+      contains(github.event.review.body, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}</code></pre>
+  </div>
+  <p>שורה אחרי שורה:</p>
+  <ul>
+    <li><strong><code>on:</code></strong> ארבעת סוגי האירועים שבהם אזכור יכול להופיע: תגובת Issue, תגובת סקירה על שורת קוד, Issue חדש (גוף וכותרת), וסקירת PR.</li>
+    <li><strong><code>if:</code></strong> מסנן ברמת ה-Job: לא מרימים Runner (ולא משלמים על דקות Actions) עבור תגובות בלי <code>@claude</code>. ה-Action בודק את ביטוי ההפעלה גם בעצמו, אז הסינון הזה הוא חיסכון, לא אבטחה.</li>
+    <li><strong><code>permissions:</code></strong> ההרשאות שה-Job מקבל: <code>contents: write</code> לדחיפת Commits, <code>pull-requests</code> ו-<code>issues: write</code> לתגובות, <code>id-token: write</code> נדרש לאימות ברירת המחדל של ה-Action מול ה-GitHub App, ו-<code>actions: read</code> מאפשר ל-Claude לקרוא תוצאות CI על PRs.</li>
+    <li><strong><code>actions/checkout@v6</code></strong> נותן ל-Claude עותק מקומי של ה-Repository; <code>fetch-depth: 1</code> משכפל רק את ה-Commit האחרון, מהר יותר.</li>
+    <li><strong>הצעד של ה-Action:</strong> במצב אינטראקטיבי מספיק ה-Secret. אין <code>github_token</code>: ה-Action מאומת כ-Claude GitHub App, מה שגם מאפשר ל-CI לרוץ על ה-Commits של Claude (Commits עם <code>GITHUB_TOKEN</code> רגיל לא מפעילים Workflows).</li>
+  </ul>
+  <p>אחרי המיזוג, מזכירים בכל תגובה: <code>@claude fix the TypeError in the user dashboard component</code>, ו-Claude עונה בתגובה על אותו Issue או PR ומעדכן אותה תוך כדי עבודה.</p>
+
+  <h2 id="example2">דוגמה 2: סקירת PR אוטומטית</h2>
+  <p>מצב אוטומציה: <code>prompt</code> קבוע שרץ על כל PR חדש או מעודכן, מבוסס על הדוגמה הרשמית במדריך הפתרונות של ה-Action:</p>
+  <div class="codeblock">
+    <div class="codehead">.github/workflows/claude-review.yml</div>
+    <pre><code>name: Claude PR Review
+on:
+  pull_request:
+    types: [opened, synchronize]
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request. Focus on:
+            - Logic errors and edge cases
+            - Security issues (injection, secrets, authorization)
+            - Violations of the guidelines in CLAUDE.md
+
+            Use `gh pr comment` for a summary comment.
+            Use `mcp__github_inline_comment__create_inline_comment`
+            (with `confirmed: true`) for line-specific issues.
+            Do not approve or request changes.
+          claude_args: |
+            --max-turns 15
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"</code></pre>
+  </div>
+  <p>מה חדש כאן לעומת דוגמה 1:</p>
+  <ul>
+    <li><strong><code>types: [opened, synchronize]</code>:</strong> ריצה בפתיחת PR ובכל דחיפת Commits אליו. אין צורך ב-<code>if</code>: יש <code>prompt</code>, אז כל אירוע מפעיל ריצה.</li>
+    <li><strong><code>contents: read</code> בלבד:</strong> סוקר לא צריך לכתוב קבצים. עיקרון ההרשאה המינימלית בפעולה.</li>
+    <li><strong><code>use_sticky_comment: true</code>:</strong> תגובה אחת שמתעדכנת בכל ריצה במקום תגובה חדשה על כל Push.</li>
+    <li><strong>ה-Prompt כולל את פרטי ההקשר:</strong> התבנית הרשמית ממליצה לכלול תמיד <code>REPO</code> ו-<code>PR NUMBER</code> במצב אוטומציה. Claude מקבל את ה-Branch כבר משוכפל בתיקיית העבודה.</li>
+    <li><strong><code>--allowedTools</code>:</strong> במצב אוטומציה עם Prompt טקסטואלי, ל-Claude אין גישה ל-Shell או ל-API של GitHub עד שמעניקים אותה מפורשות. כאן מותרים בדיוק ארבעה כלים: כלי התגובה על שורות (שרת MCP מובנה של ה-Action) ושלוש פקודות <code>gh</code> ספציפיות. שום <code>Edit</code>, שום <code>Write</code>: הסוקר פיזית לא יכול לשנות קוד.</li>
+    <li><strong><code>--max-turns 15</code>:</strong> תקרת סבבים שמונעת ריצות אינסופיות ומגבילה עלות.</li>
+  </ul>
+  <div class="callout note"><span class="title">חלופה מתועדת: Plugin של code-review</span><p>התיעוד הרשמי מציג גם גרסה שמריצה את אותו Plugin שמאחורי סקירת ה-Workflows של ההתקנה המהירה: קלטי <code>plugin_marketplaces</code> ו-<code>plugins</code> עם <code>prompt: "/code-review:code-review ..."</code>. ולמי שלא רוצה לתחזק Workflow בכלל, שירות ה-Code Review המנוהל בהמשך הפרק עושה זאת בלי YAML.</p></div>
+
+  <h2 id="example3">דוגמה 3: מ-Issue ל-PR עם Guardrails</h2>
+  <p>הדוגמה השלישית משתמשת בקלט המתועד <code>label_trigger</code>: הדבקת Label בשם <code>claude-implement</code> על Issue שולחת את Claude ליישם אותו. זה מצב אינטראקטיבי (אין <code>prompt</code>), כך שכל ההקשר של ה-Issue נטען אוטומטית:</p>
+  <div class="codeblock">
+    <div class="codehead">.github/workflows/claude-implement.yml</div>
+    <pre><code>name: Issue to PR
+on:
+  issues:
+    types: [labeled]
+jobs:
+  implement:
+    if: github.event.label.name == 'claude-implement'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: claude-issue-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          label_trigger: "claude-implement"
+          branch_prefix: "claude/"
+          claude_args: |
+            --max-turns 20
+            --model claude-sonnet-5</code></pre>
+  </div>
+  <p>שלושת ה-Guardrails בדוגמה:</p>
+  <ul>
+    <li><strong><code>timeout-minutes: 30</code>:</strong> מנגנון סטנדרטי של GitHub Actions שהורג את ה-Job אחרי חצי שעה, גם אם Claude נתקע. תקרת עלות קשיחה על דקות Actions.</li>
+    <li><strong><code>concurrency:</code></strong> קבוצת מקביליות פר Issue: אם מישהו מדביק ומסיר את ה-Label שוב ושוב, ריצות לא יצטברו במקביל על אותו Issue.</li>
+    <li><strong><code>--max-turns 20</code>:</strong> תקרת סבבי שיחה על צריכת ה-Tokens. יישום Feature דורש יותר סבבים מסקירה, לכן 20 ולא 15. (עצה מעשית: התחילו נמוך והעלו אם ריצות לגיטימיות נעצרות באמצע.)</li>
+  </ul>
+  <p><strong>ומה עם ה-PR עצמו?</strong> נקודה חשובה שמתועדת במסמכי האבטחה של ה-Action: בתצורת ברירת המחדל <strong>Claude לא יוצר Pull Requests בעצמו</strong>. הוא דוחף את השינויים ל-Branch חדש (עם הקידומת <code>claude/</code> שקבענו) ומצרף לתגובתו קישור לעמוד יצירת ה-PR. אתם לוחצים, סוקרים ויוצרים. פיקוח אנושי מובנה בתהליך, לא תוספת.</p>
+
+  <h2 id="example4">דוגמה 4: תחזוקה מתוזמנת</h2>
+  <p>מצב אוטומציה על לוח זמנים: דוח תחזוקה שבועי המבוסס על הדוגמה הרשמית, מותאם לפרויקט TaskFlow:</p>
+  <div class="codeblock">
+    <div class="codehead">.github/workflows/claude-maintenance.yml</div>
+    <pre><code>name: Weekly Maintenance
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            REPO: ${{ github.repository }}
+
+            Perform weekly repository maintenance:
+            1. Check for outdated dependencies in requirements.txt
+               and frontend/package.json
+            2. Review open issues older than 90 days
+            3. Look for TODO comments added in the last week
+
+            Create a single GitHub issue that summarizes the findings.
+          claude_args: |
+            --max-turns 15
+            --allowedTools "Read,Grep,Glob,Bash(gh issue list:*),Bash(gh issue create:*),Bash(git log:*)"</code></pre>
+  </div>
+  <ul>
+    <li><strong><code>cron: "0 6 * * 1"</code>:</strong> כל יום שני ב-06:00 UTC. שתי מגבלות מתועדות של GitHub: Workflows מתוזמנים רצים רק מה-Branch הראשי, וב-Repositories ציבוריים התזמון מושבת אחרי 60 יום ללא פעילות.</li>
+    <li><strong><code>workflow_dispatch:</code></strong> מוסיף כפתור הרצה ידנית בלשונית Actions, שימושי לבדיקת ה-Workflow בלי לחכות ליום שני.</li>
+    <li><strong><code>fetch-depth: 0</code>:</strong> היסטוריית Git מלאה, כי המשימה כוללת ניתוח <code>git log</code>.</li>
+    <li><strong>הכלים המורשים</strong> הם בדיוק מה שהמשימה צריכה: קריאת קבצים וחיפוש (<code>Read</code>, <code>Grep</code>, <code>Glob</code>), רשימת Issues ויצירת Issue, ולוג של Git. אין הרשאת עריכה, אין <code>gh pr</code>.</li>
+    <li><strong>בדיקת השחקן:</strong> ריצת <code>schedule</code> מיוחסת למשתמש שעדכן אחרון את התזמון. אם זה חשבון אנושי, אין בעיה; אם Bot ארגוני, הוסיפו אותו ל-<code>allowed_bots</code>.</li>
+  </ul>
+
+  <h2 id="code-review-service">Code Review: השירות המנוהל</h2>
+  <p><bdi>Code Review</bdi> <span class="badge preview">Research Preview</span> הוא שירות סקירה מנוהל שרץ על תשתית Anthropic, זמין למנויי <bdi>Team</bdi> ו-<bdi>Enterprise</bdi> (לא לארגונים עם <bdi>Zero Data Retention</bdi>). בניגוד ל-Workflow מדוגמה 2, כאן אין YAML בכלל: Owner מפעיל פעם אחת ב-<a href="https://claude.ai/admin-settings/claude-code">admin-settings</a>, מתקין את ה-GitHub App, בוחר Repositories, וזהו.</p>
+  <p><strong>איך זה עובד:</strong> צי של Agents מתמחים מנתח את ה-Diff בהקשר של כל ה-Codebase במקביל, כל אחד מחפש סוג בעיה אחר (שגיאות לוגיקה, פרצות אבטחה, מקרי קצה שבורים, רגרסיות עדינות). שלב אימות בודק מועמדים מול התנהגות הקוד בפועל כדי לסנן התרעות שווא, והממצאים מדורגים ומפורסמים כתגובות Inline על השורות הרלוונטיות. סקירה אורכת כ-20 דקות בממוצע. כל ממצא מתויג ברמת חומרה:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>סימון</th><th>חומרה</th><th>משמעות</th></tr></thead>
+      <tbody>
+        <tr><td>אדום</td><td>Important</td><td>Bug שראוי לתקן לפני מיזוג</td></tr>
+        <tr><td>צהוב</td><td>Nit</td><td>בעיה מינורית, כדאי אך לא חוסם</td></tr>
+        <tr><td>סגול</td><td>Pre-existing</td><td>Bug שקיים ב-Codebase אך לא נוצר ב-PR הזה</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>מתי סקירה רצה:</strong> לכל Repository בוחרים התנהגות: <bdi>Once after PR creation</bdi> (פעם אחת בפתיחה), <bdi>After every push</bdi> (בכל דחיפה, הכי יקר), או <bdi>Manual</bdi>. בנוסף, פקודות תגובה עובדות בכל מצב: <code>@claude review</code> מריץ סקירה בודדת, <code>@claude review always</code> מריץ ומנוי את ה-PR לסקירות בכל Push, ו-<code>@claude review once</code> זהה לפקודה הבסיסית. הפקודה חייבת להיות תגובה ראשית (לא Inline), בתחילת התגובה, ממשתמש עם גישת Owner, Member או Collaborator, על PR פתוח.</p>
+  <p><strong>התאמה אישית:</strong> שני קבצים מנחים את הסקירה. <code>CLAUDE.md</code> נקרא כהקשר פרויקט, והפרות חדשות שלו מדווחות כ-Nits. <code>REVIEW.md</code> בשורש ה-Repository הוא הוראות ייעודיות לסקירה, מוזרקות לכל Agent בעדיפות הגבוהה ביותר: הגדרה מחדש של Important עבור ה-Repo שלכם, תקרת Nits לסקירה, רשימות דילוג (קוד מיוצר, Lockfiles), בדיקות חובה ("לכל Route חדש חייב Integration Test") ורף ראיות לממצאים.</p>
+  <p><strong>ה-Check Run לא חוסם:</strong> הסקירה מפרסמת Check Run בשם <bdi>Claude Code Review</bdi> שמסתיים תמיד במסקנה ניטרלית, כך שהוא לא חוסם מיזוג דרך <bdi>Branch Protection</bdi>. מי שרוצה לשער (Gate) מיזוגים על ממצאים קורא את השורה האחרונה של ה-Details, שהיא הערה קריאת-מכונה עם ספירת ממצאים לפי חומרה, ומעבד אותה ב-CI משלו עם <code>gh</code> ו-<code>jq</code>.</p>
+  <p><strong>תמחור:</strong> לפי התיעוד הרשמי (נבדק 29.07.2026), Code Review מחויב לפי שימוש ב-Tokens, בעלות ממוצעת של 15 עד 25 דולר לסקירה, תלוי בגודל ה-PR ובמורכבות. החיוב נפרד, דרך <bdi>Usage Credits</bdi>, ולא נספר במכסת המנוי. Owner יכול לקבוע תקרת הוצאה חודשית ב-<a href="https://claude.ai/admin-settings/usage">admin-settings/usage</a>; כשהתקרה נחצית, סקירות מדלגות עם תגובה מסבירה וחוזרות בתחילת תקופת החיוב הבאה. מעקב בלוח ה-Analytics ב-<a href="https://claude.ai/analytics/code-review">claude.ai/analytics/code-review</a>.</p>
+
+  <h3 id="code-review-local">/code-review מקומי, ורמת ultra בענן</h3>
+  <p>בלי GitHub App ובלי מנוי Team אפשר לסקור Diff מקומית: הפקודה <code>/code-review</code> (עם הכינוי <code>/review</code>) רצה בכל Session של Claude Code כ-<bdi>Subagent</bdi> ברקע עם חלון הקשר משלה, וסוקרת את ה-Commits של ה-Branch שלכם מעל ה-Upstream בתוספת שינויים לא שמורים. אפשר להעביר יעד (נתיב, מספר PR, שם Branch או טווח כמו <code>main...my-feature</code>) ודגלים: <code>--fix</code> מחיל את התיקונים על עץ העבודה, <code>--comment</code> מפרסם ממצאים כתגובות Inline על ה-PR.</p>
+  <p>מעבירים גם רמת מאמץ, מ-<code>low</code> עד <code>max</code>: רמות נמוכות מדווחות רק ממצאים בביטחון גבוה (פחות התרעות שווא), רמות גבוהות מרחיבות כיסוי. הרמה המיוחדת <code>ultra</code> מסלימה ל-<bdi>Ultrareview</bdi>: סקירה עמוקה שרצה בענן ומחזירה ממצאים ל-Session (<code>/code-review ultra --fix</code> גם מחיל אותם). דרישות ultra המתועדות: אימות עם חשבון <bdi>claude.ai</bdi>; לא זמין דרך Bedrock, Agent Platform או Foundry, ולא לארגונים עם Zero Data Retention. כשהסקירה תחייב Usage Credits, Claude Code עוצר לאישור חיוב אינטראקטיבי (בסקריפטים משתמשים ב-<code>claude ultrareview</code>, שהרצתו היא הסכמה לחיוב). כש-ultra אינו זמין, הפקודה מריצה סקירה מקומית במקום.</p>
+
+  <h2 id="ci-local">מהכשל ב-CI חזרה לטרמינל</h2>
+  <p>ה-CI נכשל על PR שיצרתם עם Claude? שתי דרכים מתועדות לחזור להקשר במהירות:</p>
+  <ul>
+    <li><strong><code>claude --from-pr 123</code>:</strong> פותח את בוחר ה-Sessions מסונן ל-Sessions המקושרים ל-PR (הקישור נוצר אוטומטית כש-Claude יצר את ה-PR). מקבל מספר PR או URL של GitHub, GitHub Enterprise, GitLab ו-Bitbucket. ממשיכים בדיוק את השיחה שבנתה את הקוד, עם כל ההקשר.</li>
+    <li><strong><code>/autofix-pr</code>:</strong> מפעיל Session של Claude Code on the web שצופה ב-PR של ה-Branch הנוכחי ודוחף תיקונים כשה-CI נכשל או כשסוקרים משאירים הערות. מזהה את ה-PR עם <code>gh pr view</code>; אפשר לצמצם את המנדט, למשל <code>/autofix-pr only fix lint and type errors</code>. דורש <code>gh</code> וגישה ל-Claude Code on the web.</li>
+  </ul>
+
+  <h2 id="ghes-gitlab">GitHub Enterprise Server ו-GitLab CI/CD</h2>
+  <p><strong>GitHub Enterprise Server (GHES):</strong> נתמך במנויי <bdi>Team</bdi> ו-<bdi>Enterprise</bdi>. Owner מחבר את מופע ה-GHES פעם אחת דרך admin-settings (יצירת GitHub App במופע שלכם, מונחית או ידנית), ואז Code Review, Sessions בענן ו-Teleport עובדים כמו ב-github.com. שני הבדלים חשובים ל-Actions: <code>/install-github-app</code> עובד רק מול github.com, כך שב-GHES מתאימים את <code>examples/claude.yml</code> ידנית; ושרת ה-MCP של GitHub לא עובד מול GHES, ולכן העצה הרשמית היא <code>gh</code> מחובר למופע שלכם (<code>gh auth login --hostname github.example.com</code>). דרישת רשת: המופע חייב להיות נגיש מתשתית Anthropic עבור Sessions מנוהלים וסקירות (Allowlist לכתובות ה-API של Anthropic), אלא אם רצים בסביבה בניהול עצמי.</p>
+  <p><strong>GitLab CI/CD</strong> <span class="badge beta">Beta</span>: אינטגרציה מקבילה שמתוחזקת על ידי GitLab, בנויה על ה-CLI וה-<bdi>Agent SDK</bdi>. ההקמה: משתנה CI/CD ממוסך (Masked) בשם <code>ANTHROPIC_API_KEY</code> ב-<bdi>Settings</bdi> ואז <bdi>CI/CD</bdi> ואז <bdi>Variables</bdi>, ו-Job ב-<code>.gitlab-ci.yml</code> שמתקין את ה-CLI ומריץ <code>claude -p</code> עם הרשאות וכלים מוגדרים. הדוגמה הרשמית מריצה על אירועי Merge Request והפעלות Web, ותומכת גם ב-Bedrock ו-Agent Platform דרך OIDC בלי מפתחות סטטיים. כל שינוי עובר דרך MR, כך שסקירות ואישורים ארגוניים נשמרים. לתמיכה: ה-Issue הרשמי של GitLab.</p>
+
+  <h2 id="security">אבטחה</h2>
+  <div class="callout danger"><span class="title">Prompt Injection דרך תוכן של זרים</span><p>כל טקסט ב-Issue, בתגובה או ב-PR הוא קלט למודל. תורם חיצוני יכול להטמין הוראות נסתרות בהערות HTML, בתווים בלתי נראים, ב-Alt Text של תמונות או במאפיינים חבויים. ה-Action מסנן את הטכניקות האלה (Stripping של הערות HTML, תווים נסתרים, Alt Text ועוד), אבל טכניקות עקיפה חדשות צצות. ההמלצות הרשמיות: סקרו את התוכן הגולמי של קלט מתורמים חיצוניים לפני ש-Claude מעבד אותו; ב-Repos ציבוריים השתמשו ב-<code>include_comments_by_actor</code> כדי להעביר ל-Claude רק תגובות ממשתמשים ברשימה, וב-<code>exclude_comments_by_actor</code> לסינון רעשי Bots; והגבילו את הכלים המורשים למינימום, כך שגם הזרקה מוצלחת לא יכולה לעשות הרבה.</p></div>
+  <ul>
+    <li><strong>Secrets תמיד ב-GitHub Secrets.</strong> לעולם לא מפתח API בתוך קובץ Workflow. ה-Token שה-App מקבל הוא קצר-חיים ותחום ל-Repository שבו הריצה; אין גישה בין Repositories.</li>
+    <li><strong>PRs מ-Forks:</strong> ב-Repositories ציבוריים, GitHub מונע Secrets מריצות שהופעלו על ידי PR מ-Fork, ולכן Workflow הסקירה מדוגמה 2 רץ רק על PRs מ-Branches באותו Repository. אל תעקפו זאת עם <code>pull_request_target</code> בקלות דעת: אירוע כזה רץ עם ה-Secrets של ה-Repository הבסיסי, והכלל הקריטי המתועד הוא <strong>לא לבצע Checkout של Ref לא מהימן לשורש סביבת העבודה לפני ה-Action</strong>. אם חייבים את קובצי ה-PR, משכפלים אותם לתת-תיקייה ומעבירים עם <code>--add-dir</code>.</li>
+    <li><strong>תצורת Claude מה-Branch הבסיסי:</strong> בריצה על PR, ה-Action משחזר רשימה קבועה של נתיבי תצורה (<code>.claude/</code>, <code>CLAUDE.md</code>, <code>.mcp.json</code> ועוד) מ-Branch הבסיס, כך ש-PR זדוני לא יכול לשתול Hooks או הרשאות משלו. גרסאות ה-PR נשמרות ב-<code>.claude-pr/</code> לעיון בלבד.</li>
+    <li><strong><code>allowed_bots</code> בזהירות:</strong> Bots שברשימה לא נבדקים להרשאות כתיבה. ב-Repo ציבורי עם <code>'*'</code>, כל GitHub App חיצוני שפותח Issue או תגובה יכול להפעיל את ה-Action עם Prompt בשליטתו. העדיפו רשימה מפורשת.</li>
+    <li><strong><code>allowed_non_write_users</code> מסומן רשמית כמסוכן:</strong> עוקף את מנגנון האבטחה המרכזי. אם בכל זאת, רק עם <code>github_token: ${{ secrets.GITHUB_TOKEN }}</code> (לא PAT סטטי) ועם הרשאות Workflow מינימליות.</li>
+  </ul>
+
+  <h2 id="cost">עלות ובקרתה</h2>
+  <p>כל ריצה צורכת שני משאבים: <strong>דקות GitHub Actions</strong> (ה-Runner) ו-<strong>Tokens</strong> (מפתח API לפי תמחור API, או המנוי אם אימתתם עם OAuth Token). אמצעי הבקרה המתועדים, מהזול ליקר:</p>
+  <ul class="check">
+    <li>בקשות <code>@claude</code> ספציפיות: פחות סבבים עד לסיום. תבניות Issue שמספקות הקשר מראש עוזרות.</li>
+    <li><code>CLAUDE.md</code> תמציתי: הוא נקרא בכל ריצה.</li>
+    <li><code>--max-turns</code> ב-<code>claude_args</code>: תקרת סבבים.</li>
+    <li><code>--model</code>: בחרו מודל זול יותר למשימות פשוטות כמו תיוג Issues.</li>
+    <li><code>timeout-minutes</code> ברמת ה-Job: תקרת זמן קשיחה.</li>
+    <li><code>concurrency</code>: מניעת ריצות מקבילות מיותרות.</li>
+    <li>סינון <code>if</code> ברמת ה-Job: לא מרימים Runner בכלל על אירועים לא רלוונטיים.</li>
+  </ul>
+  <p>עלות Code Review המנוהל נפרדת (Usage Credits) ונשלטת דרך בחירת ה-Trigger (סקירה בכל Push היא הכפלה במספר ה-Pushes) ותקרת הוצאה חודשית ב-admin-settings.</p>
+
+  <h2 id="branch-protection">Branch Protection וביקורת אנושית</h2>
+  <p>שום דבר בפרק הזה לא נועד להחליף סוקר אנושי, והמערכת בנויה כך בכוונה: Claude לא יוצר PR בעצמו בתצורת ברירת המחדל אלא רק Branch וקישור; ממצאי Code Review לא מאשרים ולא חוסמים PR, וה-Check Run תמיד ניטרלי. את שכבת האכיפה בונים בצד שלכם עם GitHub: חוקי <bdi>Branch Protection</bdi> (או <bdi>Rulesets</bdi>) שדורשים לפחות סוקר אנושי אחד ובדיקות CI ירוקות לפני מיזוג. כך גם אם ה-Automation השתבש, שום קוד לא נכנס ל-<code>main</code> בלי עיניים אנושיות. סקרו את ה-Commits של Claude כפי שהייתם סוקרים תורם חדש: בדיקות עוברות אינן תחליף לקריאת ה-Diff.</p>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>להעביר <code>github_token: ${{ secrets.GITHUB_TOKEN }}</code> בלי סיבה.</strong> זה מבטל את אימות ה-GitHub App, וה-CI מפסיק לרוץ על ה-Commits של Claude (GitHub לא מפעיל Workflows על Commits של ה-Token המובנה). משמיטים, אלא אם יש App מותאם.</li>
+    <li><strong>לצפות שסקירת האוטומציה תגיב על ה-PR בלי כלים.</strong> במצב אוטומציה עם Prompt טקסטואלי אין גישת Shell או GitHub API כברירת מחדל; בלי <code>--allowedTools</code> הממצאים נשארים בלוג הריצה.</li>
+    <li><strong>לכתוב <code>/claude</code> או <code>@claude-bot</code>.</strong> ביטוי ההפעלה הוא <code>@claude</code> כמילה שלמה (אלא אם שיניתם עם <code>trigger_phrase</code>).</li>
+    <li><strong>לשכוח את <code>id-token: write</code>.</strong> ההרשאה נדרשת לאימות ברירת המחדל של ה-Action, וגם ל-Workload Identity Federation.</li>
+    <li><strong>OAuth Token כ-Secret ארגוני.</strong> ה-Token קשור למנוי של מי שהריץ <code>claude setup-token</code>; כשהוא עוזב, הכול נשבר. לארגון: מפתח API או Federation.</li>
+    <li><strong>לנסות להריץ מחדש סקירת Code Review כושלת מכפתור Re-run.</strong> הכפתור בלשונית Checks לא מפעיל סקירה מחדש; מגיבים <code>@claude review</code> או דוחפים Commit.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <p><strong>Claude לא מגיב ל-@claude:</strong> ודאו שה-GitHub App מותקן על ה-Repository, ש-Workflows מופעלים, שה-Secret קיים בשם הנכון, שהתגובה מכילה <code>@claude</code> כמילה שלמה, ושלמגיב יש הרשאת Write. בדקו את לשונית Actions: אם ה-Workflow בכלל לא רץ, הבעיה ב-Trigger או ב-<code>if</code>; אם רץ ונכשל, פתחו את הלוג.</p>
+  <p><strong>שגיאות אימות:</strong> בדקו את המפתח או ה-Token מקומית עם <code>claude</code> לפני שחופרים ב-Workflow. מפתח שנמחק מה-Console או Token שפג נכשלים באותה צורה.</p>
+  <p><strong>CI לא רץ על Commits של Claude:</strong> כמעט תמיד <code>github_token</code> מיותר ב-<code>with:</code>. הסירו אותו. בנוסף ודאו שה-Triggers של ה-CI כוללים את האירועים שהדחיפות של Claude מייצרות (<code>push</code>, <code>pull_request</code>).</p>
+  <p><strong>סקירת Code Review נכשלה או פגה:</strong> Check Run עם כותרת <bdi>Code review encountered an error</bdi> או <bdi>timed out</bdi> אינו חוסם, אך גם לא מנסה שוב לבד. הגיבו <code>@claude review</code> לסקירה טרייה.</p>
+  <p><strong>הסקירה דילגה עם הודעת תקרת הוצאה:</strong> תקרת ה-Spend החודשית נחצתה. Owner מעלה אותה ב-admin-settings/usage או ממתינים לתקופת החיוב הבאה.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>התחילו מהמסלול המהיר (<code>/install-github-app</code>) וערכו את ה-Workflows שנוצרו, במקום לכתוב מאפס.</li>
+    <li>הגדירו סטנדרטים ב-<code>CLAUDE.md</code> וכללי סקירה ב-<code>REVIEW.md</code>; שני הקבצים משרתים גם את ה-Action וגם את Code Review.</li>
+    <li>הרשאות Workflow לפי הצורך בפועל: לסוקר <code>contents: read</code>, למיישם <code>contents: write</code>. אף פעם לא יותר.</li>
+    <li>תמיד <code>--max-turns</code> ו-<code>timeout-minutes</code> על Workflows של אוטומציה. תקרה שלא הגדרתם היא חשבון שלא תכננתם.</li>
+    <li>צרו Label ייעודי (כמו <code>claude-implement</code>) במקום להפעיל אוטומציה על כל Issue חדש; שליטה אנושית על מה נכנס לתור.</li>
+    <li>שלבו את השכבות לפי תקציב: <code>/code-review</code> מקומי לפני Push (חינם במסגרת המנוי), Workflow אוטומציה זול על כל PR, ו-Code Review מנוהל על Repos קריטיים.</li>
+    <li>אכפו Branch Protection עם דרישת סוקר אנושי על <code>main</code> לפני שמפעילים כל אוטומציה כותבת.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong><code>allowed_bots: '*'</code> ב-Repository ציבורי.</strong> הזמנה פתוחה לכל App חיצוני להריץ את Claude עם Prompt זר.</li>
+    <li><strong>Checkout של Ref מ-Fork לשורש ה-Workspace תחת <code>pull_request_target</code>.</strong> הקוד הלא מהימן פוגש את ה-Secrets שלכם. השתמשו בתבנית <code>--add-dir</code> המתועדת.</li>
+    <li><strong><code>--allowedTools</code> רחב מהצורך במצב אוטומציה,</strong> למשל <code>Bash</code> לא מסויג לסוקר. תנו בדיוק את הפקודות הדרושות בתחביר <code>Bash(gh pr comment:*)</code>.</li>
+    <li><strong>Code Review במצב After every push על Repository עמוס בלי תקרת הוצאה.</strong> העלות מוכפלת במספר ה-Pushes; קבעו Spend Cap קודם.</li>
+    <li><strong>מיזוג אוטומטי של PRs שנוצרו מהאוטומציה בלי סוקר.</strong> ביטול הפיקוח האנושי מבטל את מודל האבטחה של כל השרשרת.</li>
+    <li><strong>הפעלת <code>show_full_output</code> (או Debug Mode של Actions) ב-Repo ציבורי.</strong> הלוגים ציבוריים ועלולים לחשוף תוכן קבצים ופלטי פקודות רגישים.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 28.1: סקירה אוטומטית ל-TaskFlow</div>
+    <div class="body">
+      <p>העלו את פרויקט <bdi>TaskFlow</bdi> ל-Repository פרטי חדש ב-GitHub והוסיפו לו סקירת PR אוטומטית:</p>
+      <ol>
+        <li>הקימו את האינטגרציה במסלול המהיר או הידני, עם Secret בשם <code>ANTHROPIC_API_KEY</code>.</li>
+        <li>כתבו Workflow בשם <code>claude-review.yml</code> שרץ על <code>opened</code> ו-<code>synchronize</code>, עם הרשאות מינימליות, תגובה אחת מתעדכנת, <code>--max-turns 10</code>, וכלים מורשים לתגובות בלבד.</li>
+        <li>הוסיפו לשורש ה-Repository קובץ <code>REVIEW.md</code> קצר: הגדירו ש-Important הוא רק שגיאת לוגיקה, פרצת אבטחה או קריסה; הגבילו ל-3 Nits לכל סקירה; והוסיפו בדיקת חובה אחת: "כל Endpoint חדש ב-backend חייב בדיקה ב-tests".</li>
+        <li>פתחו PR שמוסיף ל-<code>backend/app/routers/tasks.py</code> ‏Endpoint חדש <em>בכוונה בלי בדיקה</em>, וצפו בסקירה.</li>
+        <li>שאלת בונוס: למה ה-Workflow לא ירוץ על PR שיגיע מ-Fork של ה-Repository אם תהפכו אותו לציבורי?</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>שלבים 1 עד 2:</strong> ה-Workflow זהה במבנהו לדוגמה 2 של הפרק, עם <code>--max-turns 10</code> ורשימת הכלים <code>mcp__github_inline_comment__create_inline_comment</code> ופקודות <code>gh pr</code> לקריאה ולתגובה. ההרשאות: <code>contents: read</code>, <code>pull-requests: write</code>, <code>id-token: write</code>. שימו לב ש-<code>REVIEW.md</code> אינו נטען אוטומטית על ידי ה-Action כמו ב-Code Review המנוהל; כדי שהסוקר שלכם יכבד אותו, הוסיפו ל-Prompt שורה כמו <code>Follow the review rules in REVIEW.md</code> והוסיפו <code>Read</code> לכלים המורשים.</p>
+      <p><strong>שלב 4:</strong> תוצאה צפויה: תגובת סיכום אחת על ה-PR (בזכות <code>use_sticky_comment</code>) והערת Inline על ה-Endpoint החדש שמציינת את היעדר הבדיקה, בהתאם לכלל שהגדרתם. אם הוספתם גם Bug מכוון, הוא אמור להיתפס כ-Important.</p>
+      <p><strong>שלב 5 (בונוס):</strong> ב-Repositories ציבוריים GitHub מונע Secrets מריצות שהופעלו על ידי PR מ-Fork, ולכן <code>ANTHROPIC_API_KEY</code> לא יהיה זמין וה-Action לא יוכל לאמת. זו התנהגות רצויה: אל תעקפו אותה עם <code>pull_request_target</code> בלי להבין את סיכוני ה-Checkout שתוארו בסעיף האבטחה.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul>
+    <li><code>anthropics/claude-code-action@v1</code> מריץ את Claude Code ב-Workflows שלכם: מצב אינטראקטיבי עם <code>@claude</code> (בלי <code>prompt</code>) ומצב אוטומציה (עם <code>prompt</code>), בזיהוי אוטומטי.</li>
+    <li>ההקמה: <code>/install-github-app</code> או ידנית (App, ‏Secret, קובץ Workflow). התצורה זורמת דרך <code>prompt</code>, <code>claude_args</code> ו-<code>settings</code>; הקלטים הישנים הוצאו משימוש.</li>
+    <li>Guardrails חובה: <code>--max-turns</code>, ‏<code>timeout-minutes</code>, ‏<code>concurrency</code>, הרשאות מינימליות ו-<code>--allowedTools</code> מדויק.</li>
+    <li>Code Review המנוהל (Research Preview, ‏Team ו-Enterprise) סוקר PRs על תשתית Anthropic ב-15 עד 25 דולר לסקירה בממוצע דרך Usage Credits; <code>/code-review</code> המקומי חינמי במסגרת המנוי, ו-ultra מסלים לסקירת ענן עמוקה.</li>
+    <li>אבטחה: Secrets רק ב-GitHub Secrets, זהירות מ-Forks ומ-<code>pull_request_target</code>, סינון Prompt Injection מובנה אך לא מושלם, ו-Branch Protection עם סוקר אנושי כשכבת האכיפה האחרונה.</li>
+    <li>GHES נתמך (הקמה ידנית ל-Actions); GitLab CI/CD זמין ב-Beta בתחזוקת GitLab.</li>
+  </ul>
+  <p>בפרק הבא נרחיב מהאוטומציה של Repository בודד אל זרימות עבודה של צוות שלם: תצורה משותפת, סטנדרטים ארגוניים ושיתוף ידע בין מפתחים.</p>
+
+  <div class="callout source"><span class="title">מקורות</span><p>
+    <a href="https://code.claude.com/docs/en/github-actions">Claude Code GitHub Actions</a> |
+    <a href="https://github.com/anthropics/claude-code-action">claude-code-action (README)</a> |
+    <a href="https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md">Action Usage &amp; Inputs</a> |
+    <a href="https://github.com/anthropics/claude-code-action/blob/main/docs/solutions.md">Action Solutions Guide</a> |
+    <a href="https://github.com/anthropics/claude-code-action/blob/main/docs/security.md">Action Security</a> |
+    <a href="https://code.claude.com/docs/en/code-review">Code Review</a> |
+    <a href="https://code.claude.com/docs/en/github-enterprise-server">GitHub Enterprise Server</a> |
+    <a href="https://code.claude.com/docs/en/gitlab-ci-cd">GitLab CI/CD</a> |
+    <a href="https://code.claude.com/docs/en/sessions">Sessions (--from-pr)</a> |
+    <a href="https://code.claude.com/docs/en/claude-code-on-the-web">Claude Code on the web (/autofix-pr)</a> |
+    נבדק: 29.07.2026
+  </p></div>
+
+  <div class="chapnav">
+    <a href="ch27.html"><span class="lbl">הפרק הקודם</span>Claude Code בתוך VS Code ו-JetBrains</a>
+    <a href="ch29.html"><span class="lbl">הפרק הבא</span>Team Workflows</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

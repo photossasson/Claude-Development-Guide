@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hooks ב-Claude Code</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="לומדה אינטראקטיבית בעברית: איך בונים Hooks ב-Claude Code שחוסמים, בודקים ומזינים משוב, עם דוגמה שנבדקה בפועל.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Secular+One&display=swap">
+<style>
+:root{--paper:#F6F3EF; --surface:#FFFFFF; --sunken:#EEE7DF; --ink:#22170F; --ink-2:#4B3B2F; --ink-3:#6E5D51; --line:#DDD0C3; --accent:#B4410E; --accent-ink:#FFFFFF; --accent-soft:#F8E4D8; --marker:#FFB37A; --marker-ink:#2A1405; --ok:#147548; --ok-soft:#DBF1E6; --warn:#8F5300; --warn-soft:#FAEACB; --bad:#AE242A; --bad-soft:#F7DEDF; --code-bg:#1B130E; --code-fg:#EEE3D9; --code-dim:#A89384; --code-key:#FFB37A; --code-str:#9FDDC0; --f-display:"Secular One","IBM Plex Sans Hebrew",Arial,sans-serif; --f-body:"IBM Plex Sans Hebrew","Segoe UI",Arial,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; --r:10px;}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--paper:#15100C; --surface:#1F1712; --sunken:#2A1F18; --ink:#F0E7DF; --ink-2:#C9B9AC; --ink-3:#A08F82; --line:#3E2F25; --accent:#FF9A57; --accent-ink:#2A1405; --accent-soft:#4A2814; --marker:#FF9A57; --marker-ink:#2A1405; --ok:#5ED09C; --ok-soft:#113428; --warn:#F1B65E; --warn-soft:#382810; --bad:#FF8C91; --bad-soft:#3B191C; --code-bg:#120C08; --code-fg:#EEE3D9; --code-dim:#9C8676; --code-key:#FF9A57; --code-str:#9FDDC0; color-scheme:dark;}}
+:root[data-theme="dark"]{--paper:#15100C; --surface:#1F1712; --sunken:#2A1F18; --ink:#F0E7DF; --ink-2:#C9B9AC; --ink-3:#A08F82; --line:#3E2F25; --accent:#FF9A57; --accent-ink:#2A1405; --accent-soft:#4A2814; --marker:#FF9A57; --marker-ink:#2A1405; --ok:#5ED09C; --ok-soft:#113428; --warn:#F1B65E; --warn-soft:#382810; --bad:#FF8C91; --bad-soft:#3B191C; --code-bg:#120C08; --code-fg:#EEE3D9; --code-dim:#9C8676; --code-key:#FF9A57; --code-str:#9FDDC0; color-scheme:dark;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{direction:rtl}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16.5px;line-height:1.7;direction:rtl;text-align:right}
+a{color:var(--accent);text-underline-offset:3px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+h1,h2,h3,h4{font-family:var(--f-display);font-weight:400;line-height:1.25;text-wrap:balance;margin:0}
+h2{font-size:clamp(1.55rem,2.6vw,2.05rem)}
+h3{font-size:1.25rem;margin-top:.4rem}
+h4{font-size:1.05rem}
+p{margin:0}
+code,kbd,pre,samp,.ltr{direction:ltr;unicode-bidi:isolate;text-align:left}
+code{font-family:var(--f-mono);font-size:.88em;background:var(--sunken);padding:.08em .38em;border-radius:5px;overflow-wrap:anywhere}
+kbd{font-family:var(--f-mono);font-size:.85em;border:1px solid var(--line);border-bottom-width:2px;padding:0 .35em;border-radius:5px;background:var(--surface)}
+.ui{unicode-bidi:isolate;direction:ltr;font-weight:600;background:var(--accent-soft);color:var(--ink);padding:0 .35em;border-radius:5px;white-space:nowrap}
+.muted{color:var(--ink-3)}
+.small{font-size:.9rem}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.top-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:16px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{font-family:var(--f-display);font-size:1.1rem;color:var(--ink);text-decoration:none;white-space:nowrap}
+.brand b{unicode-bidi:isolate;direction:ltr;display:inline-block;background:var(--marker);color:var(--marker-ink);font-weight:400;padding:0 .3em;border-radius:4px;margin-inline-start:.25em}
+.prog{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
+.prog-bar{flex:1;height:8px;background:var(--sunken);border-radius:99px;overflow:hidden}
+.prog-bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .3s}
+.prog-label{font-size:.85rem;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.theme-btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:4px 10px;font:inherit;font-size:.85rem;cursor:pointer}
+
+/* shell */
+.shell{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:270px minmax(0,1fr);gap:32px;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.map{position:sticky;top:calc(env(safe-area-inset-top,0px) + 72px);align-self:start;max-height:calc(100vh - 96px);overflow:auto}
+.map details>summary{display:none}
+.map h2{font-size:1rem;color:var(--ink-3);font-family:var(--f-body);font-weight:600;letter-spacing:.02em;margin:18px 0 6px}
+.map ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.map a{display:flex;gap:10px;align-items:baseline;padding:7px 10px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:.95rem;line-height:1.4}
+.map a .n{font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);min-width:1.6em;font-variant-numeric:tabular-nums}
+.map a:hover{background:var(--sunken)}
+.map a[aria-current="page"]{background:var(--accent-soft);color:var(--ink);font-weight:600}
+.map a.done .n::after{content:" ✓";color:var(--ok)}
+.map .start-link{font-weight:600}
+
+/* topics */
+main{min-width:0}
+.topic{display:grid;gap:26px;scroll-margin-top:90px}
+.fence{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:0;overflow:hidden}
+.fence .bar{height:22px;background:var(--marker);color:var(--marker-ink);font-family:var(--f-mono);font-size:.8rem;display:flex;align-items:center;padding-inline:14px;direction:ltr;justify-content:flex-end;letter-spacing:.2em}
+.fence .in{padding:20px 22px;display:grid;gap:10px}
+.kicker{font-size:.85rem;letter-spacing:.02em;color:var(--ink-3);direction:rtl}
+.kicker b{color:var(--ink-2);font-weight:500}
+.lead{font-size:1.08rem;color:var(--ink-2);max-width:70ch}
+.goal{font-size:.95rem;color:var(--ink-2);border-top:1px dashed var(--line);padding-top:10px}
+.goal strong{color:var(--ink)}
+.prose{display:grid;gap:14px;max-width:72ch}
+.prose ul,.prose ol{margin:0;padding-inline-start:1.3em;display:grid;gap:6px}
+.block{display:grid;gap:14px}
+.block-title{font-size:.88rem;font-weight:600;color:var(--ink-3);letter-spacing:.02em}
+
+.callout{border-radius:var(--r);padding:14px 16px;display:grid;gap:6px;border:1px solid var(--line);background:var(--surface);max-width:78ch}
+.callout .t{font-weight:700}
+.callout.note{border-inline-start:5px solid var(--accent)}
+.callout.warn{border-inline-start:5px solid var(--warn);background:var(--warn-soft);border-color:transparent}
+.callout.danger{border-inline-start:5px solid var(--bad);background:var(--bad-soft);border-color:transparent}
+.callout.ok{border-inline-start:5px solid var(--ok);background:var(--ok-soft);border-color:transparent}
+.callout.src{font-size:.92rem;background:var(--sunken);border-color:transparent}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.flip{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:16px;text-align:right;font:inherit;color:inherit;cursor:pointer;display:grid;gap:8px;align-content:start;min-height:100%}
+.flip:hover{border-color:var(--accent)}
+.flip .term{font-family:var(--f-display);font-size:1.25rem;direction:ltr;text-align:right}
+.flip .hint{font-size:.85rem;color:var(--ink-3)}
+.flip .back{font-size:.95rem;color:var(--ink-2)}
+.flip[aria-expanded="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.flip[aria-expanded="true"] .hint{display:none}
+
+/* tabs */
+.tabs{display:grid;gap:0}
+.tablist{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--line);padding-bottom:0}
+.tablist button{font:inherit;font-size:.95rem;border:1px solid var(--line);border-bottom:none;background:var(--sunken);color:var(--ink-2);padding:7px 14px;border-radius:8px 8px 0 0;cursor:pointer;margin-bottom:-1px}
+.tablist button[aria-selected="true"]{background:var(--surface);color:var(--ink);font-weight:600;border-color:var(--line)}
+.tabpanel{background:var(--surface);border:1px solid var(--line);border-top:none;border-radius:0 0 var(--r) var(--r);padding:18px;display:grid;gap:12px;min-width:0}
+
+/* steps */
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:10px;counter-reset:s}
+.steps>li{counter-increment:s;display:grid;grid-template-columns:2.1em minmax(0,1fr);gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.steps>li::before{content:counter(s);font-family:var(--f-mono);font-weight:500;background:var(--ink);color:var(--paper);border-radius:50%;width:2em;height:2em;display:grid;place-items:center;font-size:.85rem}
+.steps .when{display:block;font-size:.83rem;color:var(--ink-3)}
+.tag{display:inline-block;font-size:.75rem;font-weight:600;padding:0 .5em;border-radius:99px;margin-inline-start:.4em;vertical-align:.1em}
+.tag.doc{background:var(--ok-soft);color:var(--ok)}
+.tag.sug{background:var(--warn-soft);color:var(--warn)}
+
+/* code */
+.code{background:var(--code-bg);color:var(--code-fg);border-radius:var(--r);overflow:hidden;min-width:0}
+.code-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 12px;background:rgba(255,255,255,.06);font-family:var(--f-mono);font-size:.8rem;color:var(--code-dim);direction:ltr}
+.code pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--f-mono);font-size:.84rem;line-height:1.6;white-space:pre}
+.code pre code{background:none;padding:0;font-size:inherit;color:inherit}
+.copy{font:inherit;font-family:var(--f-body);font-size:.8rem;background:var(--code-key);color:#1A1500;border:none;border-radius:6px;padding:3px 10px;cursor:pointer;direction:rtl}
+.prompt{background:var(--surface);border:1px dashed var(--accent);border-radius:var(--r);padding:14px 16px;display:grid;gap:10px}
+.prompt .ptext{white-space:pre-wrap;font-size:.98rem}
+.prompt .row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.prompt .copy{background:var(--accent);color:var(--accent-ink)}
+.k{color:var(--code-key)} .s{color:var(--code-str)} .c{color:var(--code-dim)}
+
+/* tables */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.93rem;min-width:560px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;text-align:right}
+th{background:var(--sunken);font-weight:600;font-size:.88rem}
+tr:last-child td{border-bottom:none}
+
+/* tree explorer */
+.explorer{display:grid;grid-template-columns:240px minmax(0,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.tree{background:var(--sunken);padding:12px 6px;direction:ltr;font-family:var(--f-mono);font-size:.86rem;display:grid;align-content:start;gap:2px}
+.tree .dir{padding:4px 10px;color:var(--ink-3)}
+.tree button{font:inherit;text-align:left;border:none;background:none;color:var(--ink-2);padding:5px 10px;border-radius:6px;cursor:pointer;border-left:3px solid transparent}
+.tree button[aria-pressed="true"]{background:var(--surface);color:var(--ink);border-left-color:var(--accent);font-weight:500}
+.tree .d1{padding-left:26px}
+.tree .d2{padding-left:42px}
+.explain{padding:16px;display:grid;gap:12px;min-width:0}
+
+/* line walkthrough */
+.walk{display:grid;gap:6px}
+.wline{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.wline>code{display:block;background:var(--code-bg);color:var(--code-fg);border-radius:0;padding:8px 12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.82rem}
+.wline p{padding:8px 12px;font-size:.92rem;color:var(--ink-2)}
+
+/* forms */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:14px;min-width:0}
+.field{display:grid;gap:5px}
+.field label{font-weight:600;font-size:.93rem}
+.field .help{font-size:.84rem;color:var(--ink-3)}
+input[type="text"],textarea,select{font:inherit;font-size:.95rem;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+textarea{min-height:130px;resize:vertical}
+input.ltrin,textarea.ltrin{direction:ltr;text-align:left;font-family:var(--f-mono);font-size:.88rem}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.checks li{display:grid;grid-template-columns:1.6em minmax(0,1fr);gap:6px;font-size:.93rem}
+.checks li::before{font-weight:700}
+.checks li.pass::before{content:"✓";color:var(--ok)}
+.checks li.fail::before{content:"✗";color:var(--bad)}
+.checks li.warn::before{content:"!";color:var(--warn)}
+.meter{display:grid;gap:4px}
+.meter .track{height:10px;border-radius:99px;background:var(--sunken);overflow:hidden;direction:ltr}
+.meter .track i{display:block;height:100%;background:var(--ok)}
+.meter .track i.over{background:var(--bad)}
+.meter .lbl{display:flex;justify-content:space-between;font-size:.82rem;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.btn{font:inherit;font-weight:600;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px}
+.choice{display:flex;flex-wrap:wrap;gap:8px}
+.choice label{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:99px;padding:5px 12px;cursor:pointer;font-size:.92rem;background:var(--paper)}
+.choice input{accent-color:var(--accent)}
+
+/* findings */
+.findings{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.findings li{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:10px;align-items:baseline;background:var(--paper);border-radius:8px;padding:7px 10px;font-size:.92rem}
+.findings .pos{font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);direction:ltr}
+.code-tag{font-family:var(--f-mono);font-size:.78rem;font-weight:500;padding:0 .45em;border-radius:5px}
+.code-tag.E{background:var(--bad-soft);color:var(--bad)}
+.code-tag.W{background:var(--warn-soft);color:var(--warn)}
+.status{font-weight:600}
+.status.ok{color:var(--ok)} .status.bad{color:var(--bad)}
+
+/* quiz & sorter */
+.q{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:10px}
+.q .opts{display:grid;gap:6px}
+.q .opts button{font:inherit;text-align:right;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:8px;padding:9px 12px;cursor:pointer}
+.q .opts button.right{border-color:var(--ok);background:var(--ok-soft)}
+.q .opts button.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.q .fb{font-size:.93rem;color:var(--ink-2)}
+.score{font-weight:600}
+
+/* disclosure diagram */
+.levels{display:grid;gap:12px}
+.ctx{display:grid;gap:6px;direction:ltr}
+.ctx .slot{display:flex;align-items:center;gap:10px;direction:rtl;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--paper);transition:background .2s,border-color .2s}
+.ctx .slot .sz{margin-inline-start:auto;font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);direction:ltr}
+.ctx .slot.on{background:var(--accent-soft);border-color:var(--accent)}
+.ctx .slot.off{opacity:.55}
+.ctx .slot .dot{width:10px;height:10px;border-radius:50%;background:var(--line);flex:none}
+.ctx .slot.on .dot{background:var(--accent)}
+
+/* zip compare */
+.zips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.zip{border-radius:var(--r);padding:14px;display:grid;gap:8px}
+.zip.good{background:var(--ok-soft)} .zip.bad{background:var(--bad-soft)}
+.zip pre{margin:0;font-family:var(--f-mono);font-size:.84rem;direction:ltr;text-align:left;white-space:pre;overflow-x:auto}
+
+details.acc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+details.acc>summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style-position:inside}
+details.acc>div{padding:0 16px 14px;display:grid;gap:10px}
+details.solution{border:1px dashed var(--ok);border-radius:var(--r);background:var(--surface)}
+details.solution>summary{cursor:pointer;padding:10px 14px;font-weight:600;color:var(--ok)}
+details.solution>div{padding:0 14px 14px;display:grid;gap:10px}
+.exercise{border:2px solid var(--ink);border-radius:var(--r);padding:16px;display:grid;gap:10px;background:var(--surface)}
+.exercise .h{font-family:var(--f-display);font-size:1.1rem}
+
+.nav-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:18px}
+.nav-foot .btn{min-width:150px}
+.checklist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.checklist label{display:grid;grid-template-columns:1.4em minmax(0,1fr);gap:8px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer}
+.checklist input{accent-color:var(--ok);margin-top:.35em}
+
+/* start screen */
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:28px;align-items:center}
+.hero h1{font-size:clamp(2.1rem,4.6vw,3.3rem)}
+.hero h1 span{background:linear-gradient(transparent 62%,var(--marker) 62%);padding:0 .1em}
+.folder{background:var(--surface);border:1px solid var(--line);border-radius:4px var(--r) var(--r) var(--r);position:relative;padding:18px;margin-top:22px;box-shadow:0 8px 24px rgba(19,32,42,.08)}
+.folder::before{content:attr(data-label);position:absolute;top:-24px;right:-1px;font-family:var(--f-mono);font-size:.78rem;background:var(--marker);color:var(--marker-ink);padding:3px 12px;border-radius:8px 8px 0 0;direction:ltr}
+.frows{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.frows li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px;align-items:baseline;font-size:.9rem}
+.frows .fn{background:none;padding:0;color:var(--ink);font-weight:500;justify-self:start}
+.frows .fn.d{color:var(--ink-3);font-weight:400}
+.frows .fn.i{margin-right:1.4em}
+.frows span{color:var(--ink-2)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.meta div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:.9rem}
+.meta b{display:block;font-size:.78rem;color:var(--ink-3);font-weight:600}
+.parts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.part{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:8px;align-content:start}
+.part ol{margin:0;padding-inline-start:1.2em;font-size:.94rem;color:var(--ink-2)}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:18px}
+  .map{position:static;max-height:none}
+  .map details{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:4px 10px}
+  .map details>summary{display:block;cursor:pointer;padding:8px 4px;font-weight:600}
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .explorer{grid-template-columns:minmax(0,1fr)}
+  .wline{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:520px){
+  .prog-label{display:none}
+  .brand{font-size:1rem}
+  .fence .in{padding:16px}
+  .findings li{grid-template-columns:auto minmax(0,1fr)}
+  .findings .pos{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+/* Widgets added for the Rules and Hooks modules */
+.q .opts.grid-opts{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.pill{display:inline-block;font-size:.76rem;font-weight:600;padding:.05em .6em;border-radius:99px;white-space:nowrap;vertical-align:.08em}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.info{background:var(--accent-soft);color:var(--ink)}
+
+/* load-order stack */
+.stack{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:st}
+.stack li{counter-increment:st;display:grid;grid-template-columns:2em minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px}
+.stack li::before{content:counter(st);font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);text-align:center}
+.stack li.lazy{border-style:dashed;background:var(--paper)}
+.stack .what{display:grid;gap:2px;min-width:0}
+.stack .what code{justify-self:start}
+
+/* session simulator */
+.sim{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:16px;align-items:start}
+.sim .acts{display:grid;gap:8px}
+.sim .acts button{font:inherit;font-size:.92rem;text-align:right;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:9px 12px;cursor:pointer;display:grid;gap:2px}
+.sim .acts button small{color:var(--ink-3);font-size:.8rem;direction:ltr;text-align:right;font-family:var(--f-mono)}
+.sim .acts button:hover{border-color:var(--accent)}
+.sim .acts button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.sim .log{font-size:.88rem;color:var(--ink-2);background:var(--paper);border-radius:8px;padding:10px 12px;min-height:3.2em}
+.ctx .slot .src{font-size:.78rem;color:var(--ink-3);margin-inline-start:6px}
+
+/* glob tester */
+.gt-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.gt-res{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.gt-res li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:baseline;background:var(--paper);border-radius:8px;padding:7px 10px;font-size:.9rem}
+.gt-res li code{justify-self:start}
+.gt-res .why{grid-column:2;font-size:.82rem;color:var(--ink-3)}
+
+/* lifecycle */
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.flow button{font:inherit;font-family:var(--f-mono);font-size:.82rem;direction:ltr;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer}
+.flow button.blk{border-color:var(--bad)}
+.flow button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.flow .arr{color:var(--ink-3);font-size:.9rem}
+.flow-group{display:grid;gap:6px}
+.flow-group h4{font-family:var(--f-body);font-weight:600;font-size:.86rem;color:var(--ink-3)}
+.evdetail{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:6px}
+.evfilter{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* hook simulator */
+.io{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.io .pane{background:var(--code-bg);color:var(--code-fg);border-radius:8px;padding:10px 12px;display:grid;gap:4px;min-width:0}
+.io .pane b{font-family:var(--f-mono);font-size:.75rem;color:var(--code-dim);font-weight:500;direction:ltr;text-align:left}
+.io .pane pre{margin:0;font-family:var(--f-mono);font-size:.8rem;white-space:pre-wrap;overflow-wrap:anywhere;direction:ltr;text-align:left;min-height:1.4em}
+.verdict{border-radius:var(--r);padding:12px 14px;display:grid;gap:4px;font-size:.95rem}
+.verdict.ok{background:var(--ok-soft)} .verdict.bad{background:var(--bad-soft)} .verdict.warn{background:var(--warn-soft)}
+
+@media (max-width:900px){
+  .sim,.gt-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:520px){
+  .stack li{grid-template-columns:1.6em minmax(0,1fr)}
+  .stack li .pill{grid-column:2;justify-self:start}
+}
+.grid-gap{display:grid;gap:10px;min-width:0}
+.nw{white-space:nowrap}
+.frows .fn{white-space:nowrap}
+.verdict code{justify-self:start;max-width:100%}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#start">בונים Hooks<b>exit 2</b></a>
+    <div class="prog" aria-live="polite">
+      <div class="prog-bar" aria-hidden="true"><i id="progFill"></i></div>
+      <span class="prog-label" id="progLabel">מסך פתיחה</span>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="החלפת ערכת צבעים">ערכת צבעים</button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="map" aria-label="מפת הלומדה">
+    <details id="mapDetails" open>
+      <summary>מפת הלומדה</summary>
+      <ol><li><a href="#start" class="start-link" data-go="start"><span class="n">00</span>פתיחה</a></li></ol>
+      <h2>חלק א: להבין</h2>
+      <ol>
+        <li><a href="#t1" data-go="t1"><span class="n">01</span>מה זה Hook</a></li>
+        <li><a href="#t2" data-go="t2"><span class="n">02</span>Hook או כלי אחר</a></li>
+        <li><a href="#t3" data-go="t3"><span class="n">03</span>אירועים ומחזור חיים</a></li>
+      </ol>
+      <h2>חלק ב: לבנות</h2>
+      <ol>
+        <li><a href="#t4" data-go="t4"><span class="n">04</span>הדוגמה: שני Hooks</a></li>
+        <li><a href="#t5" data-go="t5"><span class="n">05</span>settings.json ו-Matchers</a></li>
+        <li><a href="#t6" data-go="t6"><span class="n">06</span>הסקריפט: קלט, קוד יציאה, JSON</a></li>
+        <li><a href="#t7" data-go="t7"><span class="n">07</span>לבנות עם Claude</a></li>
+      </ol>
+      <h2>חלק ג: להפעיל, לבדוק, לאבטח</h2>
+      <ol>
+        <li><a href="#t8" data-go="t8"><span class="n">08</span>מיקומים והפעלה</a></li>
+        <li><a href="#t9" data-go="t9"><span class="n">09</span>בדיקה ותקלות</a></li>
+        <li><a href="#t10" data-go="t10"><span class="n">10</span>אבטחה ותוכנית</a></li>
+      </ol>
+    </details>
+  </nav>
+
+  <main id="main" tabindex="-1">
+
+<!-- ============ START ============ -->
+<section class="topic" id="start" data-title="מסך פתיחה">
+  <div class="hero">
+    <div class="prose">
+      <p class="kicker">לומדה אינטראקטיבית | מדריך פיתוח ב-Claude Code | עשרה נושאים</p>
+      <h1>בונים <span>Hooks</span> <span class="nw">ב-Claude Code:</span> מה שחייב לקרות, קורה תמיד</h1>
+      <p class="lead">בלומדה הזו תבנו שני Hooks אמיתיים: אחד שחוסם עריכה של קבצים רגישים לפני שהיא קורית, ואחד שבודק כל קובץ טקסט אחרי עריכה ומחזיר ל-Claude את הממצאים לתיקון. תלמדו לבחור אירוע, לכתוב Matcher, לקרוא קלט ב-stdin ולהחזיר החלטה, ולבדוק שהכול עובד.</p>
+      <p>שני ה-Hooks נבדקו ב-Claude Code: הראשון עצר עריכה של <code>.env</code>, והשני גרם ל-Claude לתקן קובץ עד שלא נשארו בו שגיאות סגנון. ה-Hook השני מריץ את אותו בודק שבנינו בלומדה על <a class="sib" data-sib="skills" href="skills-lomda.html">Skills</a>.</p>
+      <div class="btnrow"><button class="btn" type="button" data-go="t1">בואו נתחיל</button><button class="btn ghost" type="button" data-go="t4">ישר לדוגמה</button></div>
+    </div>
+    <div class="folder" data-label=".claude/" aria-label="מבנה התיקייה של ה-Hooks לדוגמה">
+      <ul class="frows">
+        <li><code class="fn">settings.json</code><span>רישום ה-Hooks לאירועים</span></li>
+        <li><code class="fn d">hooks/</code><span></span></li>
+        <li><code class="fn i">protect_files.py</code><span>לפני עריכה: חוסם קבצים רגישים</span></li>
+        <li><code class="fn i">hebrew_style_gate.py</code><span>אחרי עריכה: בודק ומחזיר משוב</span></li>
+        <li><code class="fn i">check_style.py</code><span>הבודק מה-Skill</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div><b>תאריך מחקר</b>15.10.2026</div>
+    <div><b>Claude Code שנבדק</b><span class="ltr">2.1.300</span></div>
+    <div><b>מערכת שנבדקה</b>Linux. ההוראות ל-macOS ול-Windows מבוססות על התיעוד</div>
+    <div><b>בדיקה בפועל</b>10 קלטים ידניים ושתי ריצות של <code>claude -p</code> עם אירועי Hooks בפלט</div>
+  </div>
+
+  <div class="parts">
+    <div class="part"><h3>חלק א: להבין</h3><ol><li>מה זה Hook</li><li>Hook או כלי אחר</li><li>אירועים ומחזור חיים</li></ol></div>
+    <div class="part"><h3>חלק ב: לבנות</h3><ol start="4"><li>הדוגמה: שני Hooks</li><li><code>settings.json</code> ו-Matchers</li><li>הסקריפט: קלט, קוד יציאה, JSON</li><li>לבנות עם Claude</li></ol></div>
+    <div class="part"><h3>חלק ג: להפעיל, לבדוק, לאבטח</h3><ol start="8"><li>מיקומים והפעלה</li><li>בדיקה ותקלות</li><li>אבטחה ותוכנית</li></ol></div>
+  </div>
+
+  <div class="callout note">
+    <span class="t">למי הלומדה מתאימה</span>
+    <p>למי שעובד עם Claude Code ורוצה שכלל מסוים יתקיים בכל פעם, בלי לסמוך על כך ש-Claude יזכור. צריך להכיר קצת Python או Bash, ברמה של קריאת סקריפט קצר. זו לומדה משלימה ל<a href="../chapters/ch22.html">פרק 22: Hooks</a> במדריך, שמכיל שבעה Hooks נוספים. יש גם לומדה על <a class="sib" data-sib="rules" href="rules-lomda.html">Rules</a>.</p>
+  </div>
+</section>
+
+<!-- ============ T1 ============ -->
+<section class="topic" id="t1" data-title="מה זה Hook" hidden>
+  <div class="fence"><div class="bar">event → matcher → handler</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 01</p>
+    <h2>מה זה Hook?</h2>
+    <p class="lead">Hook הוא פקודה שאתם מגדירים, ש-Claude Code מריץ אוטומטית ברגע קבוע: לפני שכלי רץ, אחרי עריכה, בפתיחת Session, כש-Claude מסיים לענות ועוד. ה-Hook רץ מחוץ למודל, ולכן הוא קורה תמיד.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> ממה בנוי Hook, מה ההבדל בינו לבין הוראה, ואילו חמישה מונחים חוזרים בכל הלומדה.</p>
+  </div><div class="bar">event → matcher → handler</div></div>
+
+  <div class="prose">
+    <p><strong>ההגדרה מהתיעוד.</strong> Hooks הם פקודות Shell שהמשתמש מגדיר, ו-Claude Code מריץ אותן בנקודות מסוימות במחזור החיים שלו. הם נותנים שליטה דטרמיניסטית: פעולות מסוימות תמיד קורות, במקום לסמוך על המודל שיבחר להריץ אותן.</p>
+    <p><strong>הבעיה ש-Hooks פותרים.</strong> הוראה ב-<code>CLAUDE.md</code> או ב-Rule, כמו "הרץ את הבודק אחרי כל עריכה", היא בקשה. ברוב המקרים Claude יציית, אבל לא תמיד. Hook הוא קוד: הוא לא שוכח, לא מתווכח, ולא תלוי בהקשר של השיחה.</p>
+    <p><strong>איך זה נראה.</strong> ב-<code>settings.json</code> רושמים: באירוע הזה (<code>PreToolUse</code>), כשהכלי הוא זה (<code>Edit|Write</code>), הרץ את הפקודה הזו. כשהאירוע קורה, Claude Code שולח לפקודה את פרטי האירוע כ-JSON ב-stdin, והפקודה עונה בקוד יציאה, ולפעמים ב-JSON ב-stdout.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">חמישה מונחים שחוזרים בכל הלומדה · לחצו על כרטיס כדי לקרוא</p>
+    <div class="cards">
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Event</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>הרגע שבו ה-Hook רץ. למשל <code>PreToolUse</code> לפני כל הפעלת כלי, ו-<code>Stop</code> כש-Claude מסיים לענות. בתיעוד הנוכחי יש 33 אירועים (נושא 3).</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Matcher</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>מסנן שמצמצם מתי ה-Hook רץ. באירועי כלים הוא נבדק מול שם הכלי: <code>Edit|Write</code> רץ רק על עריכות. בלי Matcher, ה-Hook רץ בכל מופע של האירוע.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Handler</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>מה שרץ. ברוב המקרים <code>"type": "command"</code>, פקודה או סקריפט. יש גם <code>http</code>, <code>mcp_tool</code>, <code>prompt</code> ו-<code>agent</code> (האחרון ניסיוני).</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Exit code</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>איך הסקריפט עונה. <code>0</code>: אין התנגדות. <code>2</code>: חסימה, עם נימוק ב-stderr. כל קוד אחר: שגיאה שלא חוסמת. <strong>חשוב:</strong> <code>0</code> לא מאשר פעולה; הוא רק לא מתנגד.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">JSON output</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>תשובה מפורטת יותר: יוצאים עם <code>0</code> ומדפיסים JSON. כך אפשר לחסום עם נימוק מסודר, להוסיף הקשר, או לאשר דיאלוג הרשאה. בוחרים דרך אחת לכל Hook: קוד <code>2</code> או JSON.</span></button>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">הוראה מול Hook · אותה דרישה, שתי תוצאות</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>הוראה ב-Rule</th><th>Hook</th></tr></thead>
+      <tbody>
+        <tr><td>"Never edit <code>.env</code>". Claude בדרך כלל יציית. בשיחה ארוכה ועמוסה, הסיכוי לטעות עולה.</td><td><code>PreToolUse</code> על <code>Edit|Write</code> שבודק את הנתיב. העריכה לא קורית, ו-Claude מקבל נימוק.</td></tr>
+        <tr><td>"Run the style checker after every edit". לפעמים יקרה, לפעמים לא.</td><td><code>PostToolUse</code> שמריץ את הבודק אחרי כל עריכה, ומחזיר ל-Claude את הממצאים.</td></tr>
+        <tr><td>אין דרך לדעת אם ההוראה יושמה.</td><td>יש תיעוד: הצלחה שקטה, חסימה עם הודעה, או שגיאה שמופיעה בתמליל.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="callout warn"><span class="t">איפה Hooks עובדים</span><p>ה-Hooks בלומדה הזו הם של Claude Code: הם מוגדרים בקובצי <code>settings.json</code>, בתוך Plugin, או ב-Frontmatter של Skill או של Subagent, ורצים במחשב שבו Claude Code רץ. לשיחה רגילה באפליקציית Claude אין Hooks. ב-Agent SDK יש מנגנון Hooks משלו, שמוגדר בקוד כפונקציות (callbacks); הלומדה לא עוסקת בו.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks</a> · <a href="https://code.claude.com/docs/en/hooks">Hooks reference</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T2 ============ -->
+<section class="topic" id="t2" data-title="Hook או כלי אחר" hidden>
+  <div class="fence"><div class="bar">event → matcher → handler</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 02</p>
+    <h2>מתי Hook, ומתי כלי אחר?</h2>
+    <p class="lead">Hook הוא הכלי הנכון כשמשהו חייב לקרות או להיחסם בכל פעם, ותלוי בתוכן הפעולה. לחסימה גורפת יש הרשאות, ולידע ולנהלים יש Rules ו-Skills.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לבחור בין Hook, הרשאות, Rule ו-Skill, ולבחור את האירוע הנכון ל-Hook.</p>
+  </div><div class="bar">event → matcher → handler</div></div>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>כלי</th><th>אופי</th><th>מתי לבחור בו</th><th>דוגמה</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Rule או <code>CLAUDE.md</code></strong></td><td>הנחיה, תלויה בשיקול הדעת של Claude</td><td>סגנון, מוסכמות, ידע על הפרויקט</td><td>"Validate request bodies with Pydantic"</td></tr>
+      <tr><td><strong>Skill</strong></td><td>נוהל שנטען כשצריך</td><td>תהליך של כמה שלבים שחוזר</td><td>ניסוח Release notes בתבנית</td></tr>
+      <tr><td><strong>הרשאות</strong></td><td>כללי allow, ask ו-deny סטטיים</td><td>חסימה או אישור גורפים של כלי, פקודה או נתיב</td><td><code>"deny": ["Bash(curl *)"]</code></td></tr>
+      <tr><td><strong>Hook</strong></td><td>קוד שרץ באירוע</td><td>אכיפה שתלויה בתוכן, אוטומציה, משוב</td><td>לחסום כתיבה שמכילה מפתח API; להריץ בודק אחרי עריכה</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout note"><span class="t">הרשאות ו-Hook עובדים יחד</span><p>כלל <code>deny</code> יודע לחסום את הכלי <code>Edit</code> על נתיב מסוים. רק Hook יודע להחליט לפי מה שכתוב בתוכן, כי הוא קוד שבודק את הקלט בפועל. ובכיוון ההפוך: Hook שמחזיר <code>allow</code> לא עוקף כלל <code>deny</code>. התיעוד מציע גם שילוב: לאפשר את <code>Bash</code> בהרשאות, ולהוסיף Hook מסוג <code>PreToolUse</code> שדוחה רק פקודות מסוימות.</p></div>
+
+  <div class="block">
+    <p class="block-title">תרגול: מה הכלי, ואיזה אירוע? · בחרו תשובה לכל מצב</p>
+    <div id="sorter" class="block"></div>
+    <p class="score" id="sorterScore" aria-live="polite"></p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">מתי לא לכתוב Hook</p>
+    <div class="prose"><ul>
+      <li><strong>העדפה רכה.</strong> "Prefer named exports" שייך ל-Rule.</li>
+      <li><strong>חסימה גורפת של כלי או פקודה.</strong> כלל <code>deny</code> עושה את זה בלי סקריפט.</li>
+      <li><strong>החלטה שדורשת שיקול דעת אנושי.</strong> השאירו את דיאלוג האישור. Hook מסוג <code>PermissionRequest</code> עם Matcher ריק מאשר הכול, ובפועל מבטל את מערכת ההרשאות.</li>
+      <li><strong>עבודה איטית על כל פעולה.</strong> Hook סינכרוני מעכב כל תור. להרצת כל הבדיקות עדיף <code>Stop</code>, או Hook שרץ ברקע עם <code>async</code>.</li>
+    </ul></div>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks</a> · <a href="https://code.claude.com/docs/en/permissions">Configure permissions: extend permissions with hooks</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T3 ============ -->
+<section class="topic" id="t3" data-title="אירועים ומחזור חיים" hidden>
+  <div class="fence"><div class="bar">event → matcher → handler</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 03</p>
+    <h2>33 אירועים, ומה כל אחד יכול לעשות</h2>
+    <p class="lead">לכל אירוע יש שלוש תכונות שחשוב להכיר: מתי הוא קורה, על מה ה-Matcher שלו נבדק, והאם קוד יציאה <code>2</code> חוסם בו משהו.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לבחור אירוע למשימה, ולדעת מראש מה יקרה כשה-Hook שלכם חוסם.</p>
+  </div><div class="bar">event → matcher → handler</div></div>
+
+  <div class="block">
+    <p class="block-title">המסלול של בקשה אחת · האירועים המרכזיים לפי הסדר</p>
+    <div class="flow" id="flowMain" role="group" aria-label="אירועים מרכזיים"></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">כל האירועים · לחצו על אירוע לפרטים</p>
+    <div class="evfilter"><span class="choice"><label><input type="checkbox" id="evBlockOnly">רק אירועים שבהם קוד 2 חוסם</label></span><span class="small muted" id="evCount"></span></div>
+    <div id="evGroups" class="block"></div>
+    <div class="evdetail" id="evDetail" aria-live="polite"></div>
+  </div>
+
+  <div class="callout note"><span class="t">אירוע שלא תומך ב-Matcher</span><p>ב-<code>UserPromptSubmit</code>, <code>Stop</code>, <code>PostToolBatch</code> ועוד כמה אירועים אין Matcher: הם רצים בכל מופע. Matcher שתוסיפו להם נבלע בשקט.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks: how hooks work</a> · <a href="https://code.claude.com/docs/en/hooks">Hooks reference: exit code 2 behavior per event</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T4 ============ -->
+<section class="topic" id="t4" data-title="הדוגמה: שני Hooks" hidden>
+  <div class="fence"><div class="bar">event → matcher → handler</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 04</p>
+    <h2>הדוגמה שנבנה: שומר לפני, בודק אחרי</h2>
+    <p class="lead">שני Hooks שמדגימים את שתי הדרכים לענות: <code>protect_files.py</code> חוסם עם JSON לפני עריכה, ו-<code>hebrew_style_gate.py</code> מחזיר משוב עם קוד <code>2</code> אחרי עריכה. כל קובץ כאן הוא הקובץ שבדקנו.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> מה כל קובץ עושה, למה הם כתובים ב-Python, ואיך מתקינים אותם בפרויקט.</p>
+  </div><div class="bar">event → matcher → handler</div></div>
+
+  <div class="prose">
+    <p><strong>הבעיה.</strong> יש קבצים ש-Claude לא אמור לערוך בכלל: <code>.env</code> עם סיסמאות, קובצי Lock שמתעדכנים רק דרך מנהל החבילות, מה שבתוך <code>.git/</code>. ויש כללי סגנון שכדאי לבדוק אחרי כל עריכה של מסמך, לא רק כשזוכרים.</p>
+    <p><strong>הפתרון.</strong> Hook לפני עריכה שבודק את הנתיב ומחזיר <code>deny</code> עם נימוק. Hook אחרי עריכה שמריץ את הבודק מה-Skill על קובצי טקסט, ואם יש ממצאים, מחזיר אותם ל-Claude כדי שיתקן. בחרנו ב-Python עם הספרייה הסטנדרטית בלבד: אין צורך ב-<code>jq</code>, והקוד זהה ב-macOS, ב-Linux וב-Windows.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">סייר הקבצים · לחצו על קובץ כדי לראות את התוכן ואת התפקיד שלו</p>
+    <div class="explorer">
+      <div class="tree" role="group" aria-label="קבצי ה-Hooks">
+        <span class="dir">.claude/</span>
+        <button type="button" class="d1" data-file="settings" aria-pressed="true">settings.json</button>
+        <span class="dir d1">hooks/</span>
+        <button type="button" class="d2" data-file="protect" aria-pressed="false">protect_files.py</button>
+        <button type="button" class="d2" data-file="gate" aria-pressed="false">hebrew_style_gate.py</button>
+      </div>
+      <div class="explain" id="fileExplain"></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">התקנה בפרויקט · מתוך שורש הפרויקט</p>
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist">
+        <button role="tab" type="button" aria-selected="true">macOS ו-Linux</button>
+        <button role="tab" type="button" aria-selected="false">Windows (PowerShell)</button>
+      </div>
+      <div class="tabpanel" role="tabpanel">
+        <ol class="steps">
+          <li><div>יוצרים את התיקייה ומעתיקים אליה את שני הסקריפטים מסייר הקבצים, ואת <code>check_style.py</code> מה-Skill:
+            <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>mkdir -p .claude/hooks
+cp ~/.claude/skills/checking-hebrew-style/scripts/check_style.py .claude/hooks/
+chmod +x .claude/hooks/*.py</code></pre></div></div></li>
+          <li><div>ממזגים את התוכן של <code>settings.json</code> לתוך <code>.claude/settings.json</code>. אם כבר יש שם מפתח <code>hooks</code>, מוסיפים את האירועים בתוכו, לא מחליפים אותו.</div></li>
+          <li><div>בודקים ידנית לפני הכול (נושא 9), ואז פותחים Claude Code ומקלידים <code>/hooks</code>.</div></li>
+        </ol>
+      </div>
+      <div class="tabpanel" role="tabpanel" hidden>
+        <div class="code"><div class="code-head"><span>PowerShell</span><button class="copy" type="button">העתק</button></div><pre><code>New-Item -ItemType Directory -Force -Path ".claude\hooks"
+Copy-Item "$HOME\.claude\skills\checking-hebrew-style\scripts\check_style.py" ".claude\hooks\"</code></pre></div>
+        <p class="small">ב-Windows הפקודה של Python היא לעתים <code>py</code> או <code>python</code> ולא <code>python3</code>. במקרה כזה החליפו את הערך של <code>"command"</code> ב-<code>settings.json</code>. ה-Hooks רשומים ב-Exec form (עם <code>args</code>), שעובד ב-Windows כש-<code>command</code> הוא קובץ הרצה אמיתי כמו <code>python.exe</code>.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout ok"><span class="t">מה קרה בבדיקה</span><p><strong>ריצה 1:</strong> ביקשנו להוסיף שורה ל-<code>.env</code>. Claude ניסה קודם <code>echo &gt;&gt; .env</code> ב-Bash, ומערכת ההרשאות עצרה אותו. אחר כך ניסה <code>Edit</code>, ו-<code>protect_files.py</code> החזיר <code>deny</code>. Claude עצר והסביר לנו איזו פקודה להריץ בעצמנו. הקובץ לא השתנה. <strong>ריצה 2:</strong> ביקשנו ליצור מסמך עם מקף ארוך ורווח כפול. ה-<code>Write</code> הצליח, ה-Hook החזיר <code>2</code> עם הממצאים, ו-Claude כתב את הקובץ מחדש בתור הבא. בסוף: אפס ממצאים.</p></div>
+
+  <div class="callout warn"><span class="t">מה ריצה 1 מלמדת</span><p>ה-Hook מכסה רק את הכלים שה-Matcher תופס. Claude יכול לנסות לשנות קובץ גם דרך Bash. בריצה שלנו מערכת ההרשאות עצרה את זה, כי Bash לא היה מאושר. לכן מגינים בשכבות: Hook, כללי <code>deny</code>, ו-Sandbox כשצריך.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks: block edits to protected files</a> · יומן הבדיקה נשמר עם הלומדה · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T5 ============ -->
+<section class="topic" id="t5" data-title="settings.json ו-Matchers" hidden>
+  <div class="fence"><div class="bar">event → matcher → handler</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 05</p>
+    <h2><code>settings.json</code> ו-Matchers</h2>
+    <p class="lead">ההגדרה בנויה בשלוש רמות: אירוע, קבוצה עם Matcher, ומטפלים. Matcher שגוי פירושו Hook שלא רץ, או שרץ על כל דבר.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לקרוא ולכתוב את מבנה ההגדרה, לכתוב Matcher מדויק, ולסנן לפי ארגומנטים עם <code>if</code>.</p>
+  </div><div class="bar">event → matcher → handler</div></div>
+
+  <div class="block">
+    <p class="block-title">ההגדרה של <code>protect_files.py</code> · כל שורה וההסבר שלה</p>
+    <div class="walk" id="walkSettings"></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">בודק Matchers · כתבו Matcher ושם כלי וראו אם ה-Hook ירוץ</p>
+    <div class="panel">
+      <div class="gt-grid">
+        <div class="field"><label for="mtM">matcher</label><input id="mtM" class="ltrin" type="text" spellcheck="false" value="Edit|Write"></div>
+        <div class="field"><label for="mtV">שם הכלי</label><input id="mtV" class="ltrin" type="text" spellcheck="false" value="NotebookEdit"></div>
+      </div>
+      <div class="btnrow" role="group" aria-label="דוגמאות מוכנות">
+        <button class="btn ghost" type="button" data-mt="Edit|Write|NotebookEdit"><span class="ltr">Edit|Write</span></button>
+        <button class="btn ghost" type="button" data-mt="Edit.*|NotebookEdit"><span class="ltr">Edit.*</span></button>
+        <button class="btn ghost" type="button" data-mt="^Edit$|NotebookEdit"><span class="ltr">^Edit$</span></button>
+        <button class="btn ghost" type="button" data-mt="mcp__github__.*|mcp__github__create_issue"><span class="ltr">mcp__github__.*</span></button>
+        <button class="btn ghost" type="button" data-mt="bash|Bash"><span class="ltr">bash</span></button>
+        <button class="btn ghost" type="button" data-mt="|Read">ריק</button>
+      </div>
+      <div class="verdict" id="mtOut" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">חוקי ה-Matcher לפי התיעוד</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>ערך</th><th>איך נבדק</th><th>דוגמה</th></tr></thead>
+      <tbody>
+        <tr><td><code>"*"</code>, <code>""</code> או בלי Matcher</td><td>הכול</td><td>רץ בכל מופע של האירוע</td></tr>
+        <tr><td>רק אותיות, ספרות, <code>_</code>, <code>-</code>, רווחים, <code>,</code> ו-<code>|</code></td><td>שם מדויק, או רשימת שמות</td><td><code>Edit|Write</code> ו-<code>Edit, Write</code> זהים</td></tr>
+        <tr><td>כל תו אחר</td><td>ביטוי רגולרי של JavaScript, לא מעוגן</td><td><code>Edit.*</code> תופס גם <code>NotebookEdit</code>. לשם שלם: <code>^Edit$</code></td></tr>
+      </tbody>
+    </table></div>
+    <p class="small muted">ההתאמה רגישה לאותיות גדולות וקטנות: <code>bash</code> לא יתפוס את הכלי <code>Bash</code>. ב-<code>FileChanged</code> וב-<code>StopFailure</code> הכללים צרים יותר: רק <code>|</code> מפריד, ומקף, רווח או פסיק הופכים את הערך לביטוי רגולרי.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">סינון לפי ארגומנטים: השדה <code>if</code></p>
+    <div class="prose">
+      <p>ה-Matcher בודק רק את שם הכלי. השדה <code>if</code>, על המטפל עצמו, משתמש בתחביר של כללי הרשאות ובודק גם את הארגומנטים, כך שהסקריפט לא מופעל בכלל כשאין התאמה. הוא עובד רק באירועי כלים.</p>
+    </div>
+    <div class="code"><div class="code-head"><span>.claude/settings.json (קטע)</span><button class="copy" type="button">העתק</button></div><pre><code>{
+  "matcher": "Bash",
+  "hooks": [
+    {
+      "type": "command",
+      "if": "Bash(git *)",
+      "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-git-policy.sh"
+    }
+  ]
+}</code></pre></div>
+    <p class="small muted">התיעוד מדגיש שהסינון ב-<code>if</code> על פקודות Bash הוא Best-Effort: כש-Claude Code לא מצליח לנתח את הפקודה, הוא מריץ את ה-Hook בכל זאת. לאכיפה קשיחה משתמשים בהרשאות, או בודקים בתוך הסקריפט.</p>
+  </div>
+
+  <div class="callout note"><span class="t">Exec form או Shell form</span><p>כשיש <code>args</code>, Claude Code מריץ את <code>command</code> ישירות, בלי Shell, וכל איבר ב-<code>args</code> הוא ארגומנט אחד. זה מה שבחרנו: הנתיב <code>${CLAUDE_PROJECT_DIR}</code> מוחלף בפנים, ואין בעיות מירכאות גם כשיש רווחים בנתיב. בלי <code>args</code> הפקודה עוברת ל-Shell (<code>sh -c</code> ב-macOS וב-Linux, Git Bash או PowerShell ב-Windows), ואז אפשר צינורות (<code>|</code>) ו-<code>&amp;&amp;</code>.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/hooks">Hooks reference: matcher patterns, exec form and shell form</a> · <a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks: filter hooks with matchers</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T6 ============ -->
+<section class="topic" id="t6" data-title="הסקריפט: קלט, קוד יציאה, JSON" hidden>
+  <div class="fence"><div class="bar">event → matcher → handler</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 06</p>
+    <h2>הסקריפט: קלט ב-stdin, תשובה בקוד יציאה או ב-JSON</h2>
+    <p class="lead">החוזה בין Claude Code לסקריפט פשוט: JSON נכנס ב-stdin, ותשובה יוצאת בקוד יציאה, ב-stderr או ב-JSON ב-stdout. מה שקורה אחר כך תלוי באירוע.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> אילו שדות מגיעים בקלט, מה כל קוד יציאה עושה בכל אירוע, ואיפה ממקמים כל שדה ב-JSON.</p>
+  </div><div class="bar">event → matcher → handler</div></div>
+
+  <div class="block">
+    <p class="block-title">מה מגיע ב-stdin · קלט אמיתי של <code>PreToolUse</code> על <code>Edit</code> מהבדיקה שלנו (מקוצר)</p>
+    <div class="code"><div class="code-head"><span>stdin</span><button class="copy" type="button">העתק</button></div><pre><code>{
+  "session_id": "…",
+  "transcript_path": "…/.claude/projects/…/….jsonl",
+  "cwd": "/home/dev/taskflow",
+  "permission_mode": "default",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_use_id": "toolu_…",
+  "tool_input": {
+    "file_path": "/home/dev/taskflow/.env",
+    "old_string": "API_URL=http://localhost\n",
+    "new_string": "API_URL=http://localhost\nDEBUG=true\n",
+    "replace_all": false
+  }
+}</code></pre></div>
+    <p class="small muted">ב-<code>Write</code> המפתחות ב-<code>tool_input</code> הם <code>file_path</code> ו-<code>content</code>. ב-<code>PostToolUse</code> מתווסף <code>tool_response</code>. בבדיקה ראינו גם שדות נוספים כמו <code>prompt_id</code> ו-<code>effort</code>; כתבו סקריפטים שמתעלמים משדות שהם לא מכירים.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">מריצים את <code>protect_files.py</code> בדפדפן · ערכו את הנתיב וראו את התשובה</p>
+    <div class="panel">
+      <div class="field"><label for="pfPath"><code>tool_input.file_path</code></label><input id="pfPath" class="ltrin" type="text" spellcheck="false" value="/home/dev/taskflow/.env"></div>
+      <div class="btnrow" role="group" aria-label="נתיבים לדוגמה">
+        <button class="btn ghost" type="button" data-pf="/home/dev/taskflow/.env"><span class="ltr">.env</span></button>
+        <button class="btn ghost" type="button" data-pf="/home/dev/taskflow/.env.example"><span class="ltr">.env.example</span></button>
+        <button class="btn ghost" type="button" data-pf="/home/dev/taskflow/frontend/package-lock.json"><span class="ltr">package-lock.json</span></button>
+        <button class="btn ghost" type="button" data-pf="C:\Users\dev\taskflow\secrets\db.txt">נתיב Windows</button>
+        <button class="btn ghost" type="button" data-pf="/home/dev/taskflow/backend/app/main.py"><span class="ltr">main.py</span></button>
+      </div>
+      <div class="io">
+        <div class="pane"><b>exit code</b><pre id="pfExit"></pre></div>
+        <div class="pane"><b>stdout</b><pre id="pfOut"></pre></div>
+        <div class="pane"><b>stderr</b><pre id="pfErr"></pre></div>
+      </div>
+      <div class="verdict" id="pfVerdict" aria-live="polite"></div>
+      <p class="small muted">זה עיבוד ב-JavaScript של אותו היגיון שב-<code>protect_files.py</code>. התוצאות זהות לבדיקה הידנית שהרצנו על הסקריפט האמיתי.</p>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">מה Claude Code עושה עם התשובה · בחרו אירוע ותשובה</p>
+    <div class="panel">
+      <div class="field"><span class="small"><strong>אירוע</strong></span><div class="choice" id="xoEvent">
+        <label><input type="radio" name="xoEvent" value="PreToolUse" checked><code>PreToolUse</code></label>
+        <label><input type="radio" name="xoEvent" value="PostToolUse"><code>PostToolUse</code></label>
+        <label><input type="radio" name="xoEvent" value="Stop"><code>Stop</code></label>
+        <label><input type="radio" name="xoEvent" value="UserPromptSubmit"><code>UserPromptSubmit</code></label>
+        <label><input type="radio" name="xoEvent" value="SessionStart"><code>SessionStart</code></label>
+      </div></div>
+      <div class="field"><span class="small"><strong>התשובה של הסקריפט</strong></span><div class="choice" id="xoOut">
+        <label><input type="radio" name="xoOut" value="silent" checked>exit 0, בלי פלט</label>
+        <label><input type="radio" name="xoOut" value="text">exit 0, טקסט ב-stdout</label>
+        <label><input type="radio" name="xoOut" value="two">exit 2, נימוק ב-stderr</label>
+        <label><input type="radio" name="xoOut" value="one">exit 1, הודעה ב-stderr</label>
+        <label><input type="radio" name="xoOut" value="json">exit 0, JSON עם החלטה</label>
+      </div></div>
+      <div class="code"><div class="code-head"><span>התשובה</span></div><pre><code id="xoShow"></code></pre></div>
+      <div class="verdict" id="xoVerdict" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div class="callout danger"><span class="t">שתי מלכודות JSON מהתיעוד</span><p><strong>שדה ברמה הלא נכונה:</strong> <code>permissionDecision</code> ו-<code>additionalContext</code> חייבים להיות בתוך <code>hookSpecificOutput</code>. ברמה העליונה הם נבלעים בלי שגיאה. <strong>פלט לפני ה-JSON:</strong> אם פרופיל ה-Shell מדפיס משהו, ה-stdout לא מתחיל ב-<code>{</code>, ו-Claude Code קורא אותו כטקסט רגיל. זו עוד סיבה ל-Exec form: אין Shell שיטען פרופיל.</p></div>
+
+  <div class="exercise">
+    <p class="h">תרגיל 6.1: הוסיפו קבצים מוגנים</p>
+    <p>בפרויקט שלכם יש תיקייה <code>infra/terraform/</code> שרק צוות התשתיות משנה. הוסיפו אותה ל-<code>protect_files.py</code>, ובדקו בשני קלטים: אחד שצריך להיחסם ואחד שלא.</p>
+    <details class="solution"><summary>פתרון מוסבר</summary><div>
+      <div class="code"><div class="code-head"><span>protect_files.py (תוספת ב-reason_for)</span><button class="copy" type="button">העתק</button></div><pre><code>    parts = p.parts
+    for i in range(len(parts) - 1):
+        if parts[i] == "infra" and parts[i + 1] == "terraform":
+            return "infrastructure code changes only through the infra team"</code></pre></div>
+      <p>מוסיפים את הבדיקה בתוך <code>reason_for</code>, לפני <code>return None</code>. היא מחפשת תיקייה בשם <code>infra</code> ומיד אחריה <code>terraform</code>, כדי לא לחסום בטעות <code>docs/terraform-notes.md</code>. בדיקה ידנית:</p>
+      <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>echo '{"tool_name":"Edit","tool_input":{"file_path":"/p/infra/terraform/main.tf"}}' | python3 .claude/hooks/protect_files.py
+echo '{"tool_name":"Edit","tool_input":{"file_path":"/p/docs/terraform-notes.md"}}' | python3 .claude/hooks/protect_files.py; echo "exit=$?"</code></pre></div>
+      <p>הפקודה הראשונה מדפיסה JSON של <code>deny</code>; השנייה לא מדפיסה דבר ויוצאת עם <code>0</code>.</p>
+    </div></details>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks: read input and return output</a> · <a href="https://code.claude.com/docs/en/hooks">Hooks reference: exit code output, JSON output</a> · יומן הבדיקה נשמר עם הלומדה · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T7 ============ -->
+<section class="topic" id="t7" data-title="לבנות עם Claude" hidden>
+  <div class="fence"><div class="bar">event → matcher → handler</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 07</p>
+    <h2>לבנות Hook בעזרת Claude</h2>
+    <p class="lead">התיעוד מציין שאפשר פשוט לתאר ל-Claude את ה-Hook שרוצים, והוא יכתוב אותו. מה שקובע את האיכות הוא הבקשה: אירוע, תנאי, תגובה, ואיך בודקים.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לנסח בקשה שמובילה ל-Hook בטוח ובדוק, ולבדוק את מה ש-Claude כתב.</p>
+  </div><div class="bar">event → matcher → handler</div></div>
+
+  <div class="block">
+    <p class="block-title">בונה הבקשה · בחרו מה ה-Hook צריך לעשות</p>
+    <div class="panel">
+      <div class="field"><span class="small"><strong>מה ה-Hook עושה?</strong></span>
+        <div class="choice" id="hbGoal">
+          <label><input type="radio" name="hbGoal" value="protect" checked>חוסם עריכה של קבצים מסוימים</label>
+          <label><input type="radio" name="hbGoal" value="format">מפרמט קבצים אחרי עריכה</label>
+          <label><input type="radio" name="hbGoal" value="tests">לא מאפשר לסיים כשהבדיקות נכשלות</label>
+          <label><input type="radio" name="hbGoal" value="context">מוסיף הקשר בפתיחת Session</label>
+          <label><input type="radio" name="hbGoal" value="notify">שולח התראה כש-Claude מחכה לי</label>
+        </div></div>
+      <div class="field"><span class="small"><strong>שפה</strong></span>
+        <div class="choice" id="hbLang">
+          <label><input type="radio" name="hbLang" value="py" checked>Python, ספרייה סטנדרטית</label>
+          <label><input type="radio" name="hbLang" value="sh">Bash עם jq</label>
+        </div></div>
+      <div class="field"><span class="small"><strong>תוספות</strong></span>
+        <div class="choice" id="hbExtra">
+          <label><input type="checkbox" value="tests" checked>פקודות בדיקה עם JSON לדוגמה</label>
+          <label><input type="checkbox" value="exec" checked>Exec form עם args</label>
+          <label><input type="checkbox" value="local">רישום ב-settings.local.json (רק אצלי)</label>
+        </div></div>
+      <div class="prompt"><div class="row"><strong>הבקשה</strong><button class="copy" type="button" data-copy-from="hbOut">העתק</button></div><p class="ptext" id="hbOut"></p></div>
+    </div>
+  </div>
+
+  <div class="callout warn"><span class="t">לפני שמפעילים Hook ש-Claude כתב</span><p>קראו את הסקריפט. Hook רץ עם ההרשאות שלכם, אוטומטית, בכל אירוע. בדקו שהוא לא מוחק קבצים, לא שולח מידע החוצה, ולא מחזיר <code>allow</code> בלי סיבה. הריצו אותו ידנית עם JSON לדוגמה (נושא 9) לפני שאתם רושמים אותו.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks: set up your first hook</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T8 ============ -->
+<section class="topic" id="t8" data-title="מיקומים והפעלה" hidden>
+  <div class="fence"><div class="bar">event → matcher → handler</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 08</p>
+    <h2>איפה רושמים Hook, ומי מפעיל אותו</h2>
+    <p class="lead">המקום שבו Hook רשום קובע מי מקבל אותו ומתי הוא פעיל. Hooks מכל המקורות רצים יחד.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לבחור מיקום, לראות מה רשום, ולכבות Hooks כשצריך.</p>
+  </div><div class="bar">event → matcher → handler</div></div>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>מיקום</th><th>חל על</th><th>משותף</th></tr></thead>
+    <tbody>
+      <tr><td><code>~/.claude/settings.json</code></td><td>כל הפרויקטים שלכם</td><td>לא, רק במחשב שלכם</td></tr>
+      <tr><td><code>.claude/settings.json</code></td><td>הפרויקט</td><td>כן, נכנס ל-Repository</td></tr>
+      <tr><td><code>.claude/settings.local.json</code></td><td>הפרויקט, אישי</td><td>לא</td></tr>
+      <tr><td>Managed settings</td><td>כל הארגון</td><td>כן, בשליטת מנהלים</td></tr>
+      <tr><td><code>hooks/hooks.json</code> ב-Plugin</td><td>כשה-Plugin פעיל</td><td>כן, עם ה-Plugin</td></tr>
+      <tr><td>Frontmatter של Skill</td><td>משעה שה-Skill הופעל ועד סוף ה-Session</td><td>כן, עם ה-Skill</td></tr>
+      <tr><td>Frontmatter של Subagent</td><td>כל עוד ה-Subagent רץ</td><td>כן, עם ה-Subagent</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="block">
+    <p class="block-title">שלושה דברים שכדאי לדעת</p>
+    <div class="prose"><ul>
+      <li><strong><code>/hooks</code></strong> פותח דפדפן לקריאה בלבד של כל ה-Hooks, לפי אירוע, עם המקור של כל אחד. בוחרים Hook כדי לראות בדיוק מה הוא מריץ ואיפה הוא מוגדר. <span class="ui">All events</span> בסוף הרשימה מציג גם אירועים בלי Hooks.</li>
+      <li><strong>שינויים נקלטים לבד.</strong> כשעורכים קובץ הגדרות בזמן ש-Claude Code רץ, ה-File watcher בדרך כלל קולט את השינוי. אם לא, פותחים Session מחדש.</li>
+      <li><strong>כל המטפלים רצים במקביל.</strong> כשכמה Hooks תואמים, כולם רצים עד הסוף ואז התוצאות מתמזגות. ב-<code>PreToolUse</code> ההחלטה המחמירה ביותר גוברת, בסדר <code>deny</code>, <code>defer</code>, <code>ask</code>, <code>allow</code>. <code>deny</code> של Hook אחד לא מונע מ-Hook אחר לרוץ.</li>
+    </ul></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">לכבות Hooks</p>
+    <div class="code"><div class="code-head"><span>.claude/settings.local.json</span><button class="copy" type="button">העתק</button></div><pre><code>{
+  "disableAllHooks": true
+}</code></pre></div>
+    <p class="small muted">Claude Code קורא את הערך שנשאר אחרי סדר העדיפויות של ההגדרות, כך שקובץ של פרויקט יכול לדרוס את שלכם. Hooks שמוגדרים ב-Managed settings ממשיכים לרוץ, אלא אם הכיבוי מוגדר שם. ארגון יכול גם להגדיר <code>allowManagedHooksOnly</code>, ואז רק Hooks מנוהלים רצים, ו-<code>/hooks</code> מציג על כך הודעה.</p>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks: configure hook location</a> · <a href="https://code.claude.com/docs/en/hooks">Hooks reference: the /hooks menu</a> · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T9 ============ -->
+<section class="topic" id="t9" data-title="בדיקה ותקלות" hidden>
+  <div class="fence"><div class="bar">event → matcher → handler</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 09</p>
+    <h2>לבדוק Hook, ולתקן כשהוא לא עובד</h2>
+    <p class="lead">Hook נבדק בשלושה שלבים: ידנית עם JSON לדוגמה, בתוך Claude Code עם <code>/hooks</code> והתמליל, ובלוג הדיבוג כשמשהו לא ברור.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לבדוק Hook לפני שהוא נרשם, לראות מה הוא עשה בפועל, ולפתור את התקלות הנפוצות.</p>
+  </div><div class="bar">event → matcher → handler</div></div>
+
+  <div class="block">
+    <p class="block-title">שלב 1: בדיקה ידנית · אלה הפקודות שהרצנו</p>
+    <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>echo '{"tool_name":"Edit","tool_input":{"file_path":"/p/app/.env"}}' | python3 .claude/hooks/protect_files.py; echo "exit=$?"
+echo '{"tool_name":"Edit","tool_input":{"file_path":"/p/src/main.py"}}' | python3 .claude/hooks/protect_files.py; echo "exit=$?"
+echo "{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$PWD/docs/bad.md\"}}" | python3 .claude/hooks/hebrew_style_gate.py; echo "exit=$?"</code></pre></div>
+    <p class="small muted">התוצאות שקיבלנו: JSON של <code>deny</code> ו-<code>exit=0</code>; בלי פלט ו-<code>exit=0</code>; ממצאים ב-stderr ו-<code>exit=2</code> (לקובץ עם שגיאות סגנון).</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">שלב 2: בתוך Claude Code</p>
+    <ol class="steps">
+      <li><div>מקלידים <code>/hooks</code> ובודקים שה-Hook מופיע תחת האירוע הנכון.</div></li>
+      <li><div>מבקשים מ-Claude משהו שמפעיל אותו, ולוחצים <kbd>Ctrl</kbd>+<kbd>O</kbd> לתמליל. הצלחה שקטה לא מציגה כלום; חסימה מציגה את ההודעה; שגיאה לא חוסמת מציגה <code>hook error</code> עם השורה הראשונה של stderr.</div></li>
+      <li><div>בהרצה לא אינטראקטיבית, כמו בבדיקה שלנו, אפשר לראות כל הפעלה של Hook בפלט:
+        <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>claude -p "Add the line DEBUG=true to the end of the .env file." \
+  --allowedTools "Read Edit Write" \
+  --output-format stream-json --verbose --include-hook-events</code></pre></div>
+        <span class="when">בפלט מופיעים אירועי <code>hook_started</code> ו-<code>hook_response</code> עם <code>exit_code</code>, stdout ו-stderr של כל Hook.</span></div></li>
+    </ol>
+  </div>
+
+  <div class="block">
+    <p class="block-title">שלב 3: לוג הדיבוג</p>
+    <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>claude --debug-file /tmp/claude.log
+# in another terminal:
+tail -f /tmp/claude.log</code></pre></div>
+    <p class="small muted">הלוג מכיל אילו Hooks תאמו, קודי יציאה, stdout ו-stderr מלאים. באמצע Session מפעילים אותו עם <code>/debug</code>.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">תקלות נפוצות · לחצו על תקלה</p>
+    <details class="acc"><summary>ה-Hook לא רץ בכלל</summary><div>
+      <p><strong>בדקו:</strong> שהוא מופיע ב-<code>/hooks</code> תחת האירוע הנכון; שה-Matcher תואם את שם הכלי בדיוק, כולל אותיות גדולות; שאתם על האירוע הנכון (<code>PreToolUse</code> לפני, <code>PostToolUse</code> אחרי); שה-JSON בקובץ ההגדרות תקין, בלי פסיק מיותר ובלי הערות.</p>
+    </div></details>
+    <details class="acc"><summary>בתמליל מופיע <code>hook error</code></summary><div>
+      <p><strong>הסיבה:</strong> הסקריפט יצא עם קוד שאינו 0 או 2, או שהפלט שלו נראה כמו JSON אבל לא תקין.</p>
+      <p><strong>מה לעשות:</strong> הריצו אותו ידנית עם JSON לדוגמה. אם מופיע <code>command not found</code>, השתמשו ב-<code>${CLAUDE_PROJECT_DIR}</code> ובנתיב מלא, או ב-Exec form. אם JSON לא תקין, בנו אותו עם <code>json.dumps</code> או <code>jq</code>, לא בשרשור מחרוזות.</p>
+    </div></details>
+    <details class="acc"><summary>ה-JSON תקין, אבל אין לו השפעה</summary><div>
+      <p><strong>שתי סיבות:</strong> שדה ברמה הלא נכונה (למשל <code>permissionDecision</code> מחוץ ל-<code>hookSpecificOutput</code>), או טקסט שפרופיל ה-Shell מדפיס לפני ה-JSON.</p>
+      <p><strong>מה לעשות:</strong> פתחו את לוג הדיבוג וחפשו <code>Hook JSON output had unrecognized keys</code> או <code>Hook output does not start with {</code>.</p>
+    </div></details>
+    <details class="acc"><summary>Hook מסוג <code>Stop</code> לא נותן ל-Claude לסיים</summary><div>
+      <p><strong>הסיבה:</strong> הסקריפט חוסם שוב ושוב. Claude Code עוקף Hook כזה אחרי שמונה חסימות רצופות בלי הפעלת כלי ביניהן.</p>
+      <p><strong>מה לעשות:</strong> בדקו את השדה <code>stop_hook_active</code> בקלט, וצאו עם <code>0</code> כשהוא <code>true</code>.</p>
+    </div></details>
+    <details class="acc"><summary>ה-Hook איטי וכל תור נתקע</summary><div>
+      <p><strong>מה לעשות:</strong> צמצמו את ה-Matcher, הוסיפו <code>if</code>, או העבירו את העבודה לרקע עם <code>"async": true</code>. ברירת המחדל של <code>timeout</code> ל-<code>command</code> היא 10 דקות, וב-<code>UserPromptSubmit</code> היא 30 שניות.</p>
+    </div></details>
+    <details class="acc"><summary>Hook מסוג <code>PermissionRequest</code> לא מתנהג כמו שציפיתי ב-<code>claude -p</code></summary><div>
+      <p><strong>לפי התיעוד:</strong> במצב לא אינטראקטיבי Hooks כאלה עדיין רצים, חוץ ממצב <code>dontAsk</code>, וקריאה שאף Hook לא החליט עליה ושאין מי שיענה עליה נדחית. קוד יציאה <code>2</code> לא נחשב באירוע הזה; דוחים דרך <code>decision</code> ב-JSON.</p>
+    </div></details>
+    <details class="acc"><summary>ב-Windows הסקריפט לא נמצא</summary><div>
+      <p><strong>מה לעשות:</strong> החליפו את <code>python3</code> ב-<code>py</code> או ב-<code>python</code>. ב-Exec form ב-Windows, <code>command</code> חייב להיות קובץ הרצה אמיתי; קובצי <code>.cmd</code> של npm לא ירוצו בלי Shell.</p>
+    </div></details>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks: limitations and troubleshooting</a> · <a href="https://code.claude.com/docs/en/hooks">Hooks reference: debug hooks</a> · יומן הבדיקה נשמר עם הלומדה · נבדק: 15.10.2026</p></div>
+</section>
+
+<!-- ============ T10 ============ -->
+<section class="topic" id="t10" data-title="אבטחה ותוכנית" hidden>
+  <div class="fence"><div class="bar">event → matcher → handler</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 10</p>
+    <h2>אבטחה, ותוכנית ל-Hook הראשון</h2>
+    <p class="lead">Hook רץ עם ההרשאות המלאות של המשתמש שלכם, בלי אישור, בכל אירוע. זה מה שהופך אותו לשימושי, וזה מה שהופך Hook זדוני או רשלני למסוכן.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> מתי Hooks של Repository רצים אצלכם, איך להריץ Claude Code בבטחה ב-Repository לא מוכר, ואיך להתחיל.</p>
+  </div><div class="bar">event → matcher → handler</div></div>
+
+  <div class="callout danger"><span class="t">Hooks של Repository רצים גם בלי אישור תיקייה</span><p>לפי טבלת "What runs before you trust a folder" בתיעוד: Hooks בקובצי ההגדרות של הפרויקט <strong>רצים</strong> גם כשאישרתם רק תיקיית אב, וגם ב-<code>claude -p</code> או ב-Agent SDK בתיקייה שמעולם לא אישרתם. ראינו את זה בעצמנו: שתי הריצות שלנו היו ב-<code>claude -p</code>, בתיקייה חדשה, וה-Hooks רצו.</p></div>
+
+  <div class="block">
+    <p class="block-title">לפני <code>claude -p</code> ב-Repository שלא כתבתם · האפשרויות מהתיעוד</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>דגל</th><th>מה הוא עושה</th></tr></thead>
+      <tbody>
+        <tr><td><code>--setting-sources user</code></td><td>Claude Code לא קורא את קובצי ההגדרות של הפרויקט ואת <code>.mcp.json</code> שלו.</td></tr>
+        <tr><td><code>--bare</code></td><td>לא נטענים Hooks, Skills, פקודות, Subagents, Plugins ושרתי <code>.mcp.json</code> של הפרויקט. בלוק <code>env</code> של הפרויקט עדיין חל.</td></tr>
+        <tr><td><code>--settings '{"disableAllHooks": true}'</code></td><td>מכבה Hooks להרצה הזו. הגדרה בקובץ המשתמש לבד לא מספיקה, כי הגדרות הפרויקט גוברות עליה.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">ארבעה כללים · לחצו על כרטיס</p>
+    <div class="cards">
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Read first</span><span class="hint">לחצו להסבר</span><span class="back" hidden>קראו כל Hook לפני שהוא רץ: ב-Repository ששכפלתם, ב-Plugin שהתקנתם וב-Skill שקיבלתם. התיעוד מדגיש שהאחריות לפקודות שמוגדרות אצלכם היא שלכם.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Deny wins</span><span class="hint">לחצו להסבר</span><span class="back" hidden><code>deny</code> של Hook מסוג <code>PreToolUse</code> חוסם גם במצב <code>bypassPermissions</code> ועם <code>--dangerously-skip-permissions</code>. בכיוון ההפוך, <code>allow</code> של Hook לא עוקף כללי <code>deny</code>, כולל כללים מנוהלים.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">No secrets out</span><span class="hint">לחצו להסבר</span><span class="back" hidden>נימוק של חסימה נכנס לשיחה ולתמליל. לא מדפיסים בו סיסמה או מפתח שנמצאו, רק את סוג הממצא ומספר השורה. <code>protect_files.py</code> מציג רק את שם הקובץ.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Least power</span><span class="hint">לחצו להסבר</span><span class="back" hidden>Hook אבטחה טוב רק בודק ומחליט. <code>protect_files.py</code> לא מריץ פקודות, לא כותב לדיסק ולא מחזיר <code>allow</code> אף פעם. התרחיש הגרוע ביותר בבאג שלו הוא חסימת יתר, לא נזק.</span></button>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">בדקו את עצמכם · שש שאלות</p>
+    <div id="quiz" class="block"></div>
+    <p class="score" id="quizScore" aria-live="polite"></p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">התוכנית שלכם ל-Hook הראשון · סמנו מה כבר עשיתם</p>
+    <ul class="checklist" id="checklist">
+      <li><label><input type="checkbox" id="h1"><span>בחרתי כלל אחד שחייב לקרות או להיחסם בכל פעם, ובדקתי שהוא לא מתאים יותר לכלל <code>deny</code>.</span></label></li>
+      <li><label><input type="checkbox" id="h2"><span>בחרתי אירוע לפי הטבלה בנושא 3, ובדקתי אם קוד <code>2</code> חוסם בו.</span></label></li>
+      <li><label><input type="checkbox" id="h3"><span>כתבתי Matcher צר ככל האפשר, ובדקתי אותו בבודק בנושא 5.</span></label></li>
+      <li><label><input type="checkbox" id="h4"><span>כתבתי סקריפט שקורא JSON מ-stdin, ובחרתי דרך אחת לענות: קוד <code>2</code> או JSON.</span></label></li>
+      <li><label><input type="checkbox" id="h5"><span>הרצתי אותו ידנית עם JSON לדוגמה, גם למקרה שצריך להיחסם וגם למקרה שלא.</span></label></li>
+      <li><label><input type="checkbox" id="h6"><span>רשמתי אותו ב-<code>settings.json</code> וראיתי אותו ב-<code>/hooks</code>.</span></label></li>
+      <li><label><input type="checkbox" id="h7"><span>הפעלתי אותו מתוך Claude Code, וראיתי את התוצאה בתמליל.</span></label></li>
+      <li><label><input type="checkbox" id="h8"><span>הוספתי שכבת הגנה נוספת (כלל <code>deny</code>) לכל מה שאפשר לעקוף בכלי אחר.</span></label></li>
+    </ul>
+    <p class="small muted">הסימונים נשמרים רק בדפדפן הזה.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">כל המקורות · נבדקו ב-15.10.2026</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>מקור</th><th>מה לקחנו ממנו</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://code.claude.com/docs/en/hooks-guide">Automate actions with hooks</a> (Claude Code)</td><td>הגדרה, דוגמאות, טבלת אירועים, Matchers, <code>if</code>, מיקומים, מגבלות, תקלות</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/hooks">Hooks reference</a> (Claude Code)</td><td>קוד 2 לפי אירוע, חוקי Matcher, Exec form, <code>/hooks</code>, <code>InstructionsLoaded</code></td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/permissions">Configure permissions</a> (Claude Code)</td><td>Hooks והרשאות, מה רץ לפני אישור תיקייה</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/changelog">Claude Code changelog</a></td><td>הגרסה שנבדקה: 2.1.300</td></tr>
+        <tr><td><a href="https://github.com/anthropics/claude-code/blob/main/examples/hooks/bash_command_validator_example.py">Bash command validator example</a> (GitHub)</td><td>דוגמה רשמית נוספת ל-<code>PreToolUse</code></td></tr>
+        <tr><td>יומן הבדיקה של הלומדה</td><td>10 קלטים ידניים ושתי ריצות של <code>claude -p</code> עם <code>--include-hook-events</code></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="callout note"><span class="t">מה הלאה</span><p>ב<a href="../chapters/ch22.html">פרק 22</a> במדריך תמצאו שבעה Hooks נוספים: פירמוט, Lint, סריקת סודות, יומן פעולות, בולם פקודות מסוכנות והזרקת הקשר. ב<a href="../chapters/ch26.html">פרק 26</a> תלמדו לארוז Hooks ב-Plugin. להוראות שאינן אכיפה, ראו את הלומדה על <a class="sib" data-sib="rules" href="rules-lomda.html">Rules</a>.</p></div>
+</section>
+
+    <div class="nav-foot" id="navFoot">
+      <button class="btn ghost" type="button" id="prevBtn">הקודם</button>
+      <button class="btn" type="button" id="nextBtn">הבא</button>
+    </div>
+  </main>
+</div>
+
+<script id="fileData" type="application/json">{"settings": "{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Edit|Write|NotebookEdit\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"python3\",\n            \"args\": [\"${CLAUDE_PROJECT_DIR}/.claude/hooks/protect_files.py\"],\n            \"timeout\": 10\n          }\n        ]\n      }\n    ],\n    \"PostToolUse\": [\n      {\n        \"matcher\": \"Edit|Write\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"python3\",\n            \"args\": [\"${CLAUDE_PROJECT_DIR}/.claude/hooks/hebrew_style_gate.py\"],\n            \"timeout\": 30\n          }\n        ]\n      }\n    ]\n  }\n}\n", "protect": "#!/usr/bin/env python3\n\"\"\"PreToolUse hook: deny edits to secrets, lock files and Git internals.\n\nReads the hook input (JSON) from stdin. Prints a JSON \"deny\" decision when the\ntarget path is protected; prints nothing and exits 0 otherwise, so the normal\npermission flow continues. Never approves anything.\n\"\"\"\nimport json\nimport sys\nfrom pathlib import PurePosixPath\n\nLOCK_FILES = {\"package-lock.json\", \"pnpm-lock.yaml\", \"yarn.lock\", \"poetry.lock\", \"uv.lock\", \"Cargo.lock\"}\nSECRET_SUFFIXES = (\".pem\", \".key\", \".p12\")\nALLOWED_ENV = {\".env.example\", \".env.sample\", \".env.template\"}\n\n\ndef reason_for(path: str):\n    p = PurePosixPath(path.replace(\"\\\\\", \"/\"))\n    name = p.name\n    if \".git\" in p.parts:\n        return \"files inside .git/ are managed by Git\"\n    if (name == \".env\" or name.startswith(\".env.\")) and name not in ALLOWED_ENV:\n        return \"environment files can hold credentials\"\n    if name.endswith(SECRET_SUFFIXES) or \"secrets\" in p.parts:\n        return \"key material and the secrets/ folder are off limits\"\n    if name in LOCK_FILES:\n        return \"lock files change only through the package manager\"\n    return None\n\n\ndef main() -> int:\n    try:\n        data = json.load(sys.stdin)\n    except (json.JSONDecodeError, UnicodeDecodeError) as exc:\n        print(f\"protect_files: unreadable hook input: {exc}\", file=sys.stderr)\n        return 1  # non-blocking error, visible in the transcript\n    tool_input = data.get(\"tool_input\") or {}\n    path = tool_input.get(\"file_path\") or tool_input.get(\"notebook_path\") or \"\"\n    why = reason_for(path) if path else None\n    if why:\n        print(json.dumps({\n            \"hookSpecificOutput\": {\n                \"hookEventName\": \"PreToolUse\",\n                \"permissionDecision\": \"deny\",\n                \"permissionDecisionReason\": (\n                    f\"protect_files blocked this edit: {why} ({PurePosixPath(path.replace(chr(92), '/')).name}). \"\n                    \"Do not try another tool to change it. Tell the user which change is needed so they can make it.\"\n                ),\n            }\n        }))\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n", "gate": "#!/usr/bin/env python3\n\"\"\"PostToolUse hook: run the Hebrew style checker on every edited text file.\n\nWhen the checker finds problems, the findings go to stderr and the hook exits 2.\nFor PostToolUse, Claude Code shows that stderr to Claude, which then fixes the\nfile. The edit itself already happened; this hook gives feedback, it does not undo.\n\"\"\"\nimport json\nimport subprocess\nimport sys\nfrom pathlib import Path\n\nTEXT_SUFFIXES = {\".md\", \".markdown\", \".html\", \".htm\", \".txt\"}\nCHECKER = Path(__file__).with_name(\"check_style.py\")\nMAX_LINES = 20\n\n\ndef main() -> int:\n    try:\n        data = json.load(sys.stdin)\n    except (json.JSONDecodeError, UnicodeDecodeError) as exc:\n        print(f\"hebrew_style_gate: unreadable hook input: {exc}\", file=sys.stderr)\n        return 1\n    path = (data.get(\"tool_input\") or {}).get(\"file_path\") or \"\"\n    target = Path(path)\n    if target.suffix.lower() not in TEXT_SUFFIXES or not target.is_file():\n        return 0\n    if not CHECKER.is_file():\n        print(f\"hebrew_style_gate: checker not found at {CHECKER}\", file=sys.stderr)\n        return 1\n    result = subprocess.run([sys.executable, str(CHECKER), str(target)],\n                            capture_output=True, text=True, timeout=25)\n    if result.returncode == 0:\n        return 0\n    if result.returncode == 1:\n        lines = result.stdout.strip().splitlines()\n        shown = \"\\n\".join(lines[:MAX_LINES])\n        more = f\"\\n... and {len(lines) - MAX_LINES} more\" if len(lines) > MAX_LINES else \"\"\n        print(f\"Hebrew style check failed for {target.name}:\\n{shown}{more}\\n\"\n              \"Fix every finding in that file without changing code spans, code blocks or URLs.\",\n              file=sys.stderr)\n        return 2\n    print(f\"hebrew_style_gate: checker error: {result.stderr.strip()[:300]}\", file=sys.stderr)\n    return 1\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n"}</script>
+<script>
+window.LOMDA={
+  store:"hooksLomda.v1",
+  sorter:{
+    tools:["Hook: PreToolUse","Hook: PostToolUse","Hook: Stop","Hook: SessionStart","Rule או CLAUDE.md","הרשאות"],
+    items:[
+      ["לחסום כל כתיבה של קובץ שמכיל מפתח API, לפני שהיא קורית.","Hook: PreToolUse","ההחלטה תלויה בתוכן שעומד להיכתב, וצריך לעצור לפני הפעולה. PreToolUse רואה את tool_input ויכול לחסום."],
+      ["אחרי כל עריכה של קובץ Python, להריץ ruff ולהחזיר ל-Claude את הממצאים.","Hook: PostToolUse","העריכה כבר קרתה, ורוצים משוב מיידי. ב-PostToolUse קוד 2 מציג את ה-stderr ל-Claude, שמתקן."],
+      ["לא לתת ל-Claude לסיים את התור כל עוד בדיקות היחידה נכשלות.","Hook: Stop","Stop רץ כש-Claude מסיים לענות. קוד 2 שם גורם לו להמשיך לעבוד. זכרו לבדוק stop_hook_active."],
+      ["בכל Session חדש, להכניס להקשר את שם ה-Branch ואת חמשת ה-Commits האחרונים.","Hook: SessionStart","ב-SessionStart, טקסט ב-stdout עם קוד 0 נכנס להקשר של Claude."],
+      ["להעדיף named exports על default exports בקוד TypeScript.","Rule או CLAUDE.md","העדפת סגנון שמותר לסטות ממנה. אין צורך בקוד שיאכוף אותה."],
+      ["לחסום לחלוטין כל הרצה של curl בפרויקט.","הרשאות","חסימה גורפת של פקודה, בלי תלות בתוכן: כלל deny כמו Bash(curl *) מספיק."]
+    ]
+  },
+  quiz:[
+    ["Hook מסוג PreToolUse יוצא עם קוד 0 בלי פלט. מה קורה?",["הכלי מאושר ורץ בלי שאלה","אין התנגדות, וזרימת ההרשאות הרגילה ממשיכה","הכלי נחסם"],1,"קוד 0 לא מאשר. הוא רק לא מתנגד, וההרשאות הרגילות עדיין חלות."],
+    ["איזה Matcher תופס גם את NotebookEdit?",["Edit|Write","Edit.*","^Edit$"],1,"Edit.* מכיל תו מיוחד, ולכן הוא ביטוי רגולרי לא מעוגן שתופס כל שם שמכיל Edit."],
+    ["Hook מסוג PostToolUse יוצא עם קוד 2. מה קורה לקובץ שנערך?",["העריכה מבוטלת","העריכה כבר קרתה; ה-stderr מוצג ל-Claude","Claude Code עוצר את ה-Session"],1,"PostToolUse לא יכול לבטל. הוא נותן משוב, ו-Claude בדרך כלל מתקן, כמו בריצה 2 שלנו."],
+    ["איפה צריך להיות permissionDecision ב-JSON?",["ברמה העליונה","בתוך hookSpecificOutput","בתוך tool_input"],1,"ברמה העליונה הוא נבלע בלי שגיאה ובלי השפעה."],
+    ["Hook מחזיר allow, אבל יש כלל deny תואם בהגדרות. מה גובר?",["ה-Hook","כלל ה-deny","מה שנרשם אחרון"],1,"Hooks יכולים להחמיר אבל לא להקל מעבר למה שכללי ההרשאות מאפשרים."],
+    ["משכפלים Repository לא מוכר ומריצים בו claude -p. האם ה-Hooks שב-.claude/settings.json שלו ירוצו?",["לא, צריך קודם לאשר את התיקייה","כן, אלא אם מכבים אותם, למשל עם --bare","רק אם הם ב-Plugin"],1,"לפי התיעוד, Hooks בקובצי ההגדרות של הפרויקט רצים גם ב-claude -p בתיקייה שלא אושרה."]
+  ],
+  init:function(U){
+    var $=U.$, $$=U.$$, esc=U.esc;
+
+    /* ---------- T3 events ---------- */
+    var EV=[
+      ["פר Session",[
+        ["SessionStart","פתיחת Session או חזרה אליו","startup, resume, clear, compact, fork","no","לא חוסם: stderr מוצג לכם. טקסט ב-stdout עם קוד 0 נכנס להקשר של Claude.","הזרקת הקשר: Branch, משימות פתוחות, תזכורת אחרי דחיסה."],
+        ["Setup","הפעלה עם --init-only, או --init ו---maintenance במצב -p","init, maintenance","no","קוד היציאה ו-stderr לא נחשבים.","הכנה חד-פעמית ב-CI."],
+        ["SessionEnd","סיום Session","clear, resume, logout, prompt_input_exit, other","no","לא חוסם: stderr מוצג לכם. לכל ה-Hooks יחד יש תקציב של 1.5 שניות כברירת מחדל.","ניקוי קבצים זמניים, סיכום."]
+      ]],
+      ["פר תור",[
+        ["UserPromptSubmit","שליחת בקשה, לפני ש-Claude מעבד אותה. גם בתורות ש-Claude Code מתחיל לבד, כמו משימה מתוזמנת","אין Matcher","yes","חוסם את הבקשה, והיא לא מגיעה ל-Claude.","הוספת הקשר לכל בקשה, חסימת בקשות מסוימות."],
+        ["UserPromptExpansion","פקודה שהוקלדה מתרחבת לבקשה","שם הפקודה או ה-Skill","yes","חוסם את ההרחבה.","בקרה על הפעלת Skills ופקודות."],
+        ["PostToolBatch","אחרי שכל אצוות הכלים המקבילה הסתיימה, לפני הקריאה הבאה למודל","אין Matcher","yes","עוצר את הלולאה לפני הקריאה הבאה למודל.","בקרת איכות על כמה שינויים יחד."],
+        ["MessageDisplay","בזמן הצגת טקסט של Claude","אין Matcher","no","הטקסט המקורי מוצג.","עיבוד תצוגה."],
+        ["Stop","Claude מסיים לענות. לא בעצירה ידנית שלכם","אין Matcher","yes","Claude לא עוצר וממשיך לעבוד. בדקו stop_hook_active כדי לא ליצור לולאה.","לוודא שהבדיקות עוברות לפני סיום."],
+        ["StopFailure","התור נגמר בשגיאת API","סוג השגיאה, כמו rate_limit","no","הפלט וקוד היציאה לא נחשבים.","רישום והתראה."]
+      ]],
+      ["פר הפעלת כלי",[
+        ["PreToolUse","לפני שכלי רץ","שם הכלי","yes","חוסם את הכלי. רץ לפני בדיקת מצב ההרשאה, בכל מצב, כולל bypassPermissions.","חסימת פעולות, שכתוב קלט, בדיקת תוכן."],
+        ["PermissionRequest","כש-Claude Code עומד לשאול אתכם על הרשאה","שם הכלי","no","קוד 2 לא נחשב כאן. מאשרים או דוחים דרך decision ב-JSON.","אישור אוטומטי צר, למשל ExitPlanMode."],
+        ["PermissionDenied","מצב Auto דחה קריאה לכלי","שם הכלי","no","הדחייה כבר קרתה. אפשר להחזיר retry: true ב-JSON.","לתת למודל לנסות שוב."],
+        ["PostToolUse","אחרי שכלי הצליח","שם הכלי","no","הכלי כבר רץ. stderr מוצג ל-Claude כמשוב.","פירמוט, Lint, בדיקות סגנון, רישום."],
+        ["PostToolUseFailure","אחרי שכלי נכשל","שם הכלי","no","הכלי כבר נכשל. stderr מוצג ל-Claude.","רישום כשלים."]
+      ]],
+      ["Subagents ומשימות",[
+        ["SubagentStart","Subagent נוצר","סוג ה-Agent","no","stderr מוצג לכם בלבד.","רישום, הכנת סביבה."],
+        ["SubagentStop","Subagent מסיים","סוג ה-Agent","yes","מונע מה-Subagent לסיים.","בדיקת התוצר של ה-Subagent."],
+        ["TaskCreated","נוצרת משימה ב-TaskCreate","אין Matcher","yes","מבטל את יצירת המשימה.","סנכרון עם מערכת משימות."],
+        ["TaskCompleted","משימה מסומנת כהושלמה","אין Matcher","yes","מונע את הסימון.","אימות לפני סימון השלמה."],
+        ["TeammateIdle","חבר צוות ב-Agent team עומד להתפנות","אין Matcher","yes","חבר הצוות ממשיך לעבוד.","הקצאת עבודה נוספת."]
+      ]],
+      ["הקשר, תצורה ומודל",[
+        ["InstructionsLoaded","CLAUDE.md או קובץ .claude/rules/*.md נטען להקשר","סיבת הטעינה","no","קוד היציאה לא נחשב. רץ ברקע, לתצפית בלבד.","לבדוק אילו Rules נטענים, ומתי."],
+        ["ConfigChange","קובץ תצורה השתנה במהלך Session","מקור התצורה","yes","חוסם את השינוי, חוץ מ-policy_settings.","Audit של שינויי הגדרות."],
+        ["CwdChanged","תיקיית העבודה השתנתה","אין Matcher","no","stderr מוצג לכם בלבד.","טעינת סביבה מחדש עם direnv."],
+        ["DirectoryAdded","תיקייה נוספה ב-/add-dir","איך נוספה","no","stderr הולך ללוג הדיבוג.","הכנה לתיקייה החדשה."],
+        ["FileChanged","קובץ במעקב השתנה בדיסק","שמות קבצים מילוליים","no","stderr מוצג לכם בלבד.","רענון משתני סביבה."],
+        ["PreCompact","לפני דחיסת הקשר","manual, auto","yes","חוסם את הדחיסה.","גיבוי לפני דחיסה."],
+        ["PostCompact","אחרי שהדחיסה הסתיימה","manual, auto","no","stderr מוצג לכם בלבד.","רישום."],
+        ["PreModelSwitch","לפני החלפת מודל שביקשתם","שם המודל","yes","חוסם את ההחלפה, ו-stderr מוצג לכם.","מדיניות מודלים."],
+        ["PostModelSwitch","אחרי שהמודל של ה-Session השתנה","שם המודל","no","המודל כבר הוחלף.","רישום, הזרקת הקשר."]
+      ]],
+      ["Worktrees, התראות ו-MCP",[
+        ["WorktreeCreate","יצירת Worktree","אין Matcher","yes","כל קוד שאינו 0 מכשיל את היצירה.","החלפת התנהגות ברירת המחדל של Git."],
+        ["WorktreeRemove","הסרת Worktree ש-Hook יצר","אין Matcher","yes","קוד שאינו 0 מכשיל את ההסרה אם התיקייה עדיין קיימת.","ניקוי משאבים."],
+        ["Notification","Claude Code שולח התראה","סוג ההתראה, כמו permission_prompt","no","קוד היציאה ו-stderr לא נחשבים.","התראה בשולחן העבודה."],
+        ["Elicitation","שרת MCP מבקש קלט מכם","שם השרת","yes","דוחה את הבקשה, ולא מופיע דיאלוג.","מענה אוטומטי לטפסים."],
+        ["ElicitationResult","אחרי שעניתם לשרת MCP, לפני שהתשובה נשלחת","שם השרת","yes","חוסם את התשובה, והפעולה הופכת לדחייה.","בדיקת התשובה."]
+      ]]
+    ];
+    var ALL={}; EV.forEach(function(g){ g[1].forEach(function(e){ ALL[e[0]]=e; }); });
+    function detail(name){
+      var e=ALL[name];
+      $$("#evGroups button, #flowMain button").forEach(function(b){ b.setAttribute("aria-pressed",String(b.getAttribute("data-ev")===name)); });
+      $("#evDetail").innerHTML='<h3><code>'+esc(e[0])+'</code> '+(e[3]==="yes"?'<span class="pill bad">קוד 2 חוסם</span>':'<span class="pill info">קוד 2 לא חוסם</span>')+'</h3>'+
+        '<p><strong>מתי:</strong> '+esc(e[1])+'</p><p><strong>Matcher נבדק מול:</strong> '+esc(e[2])+'</p><p><strong>קוד יציאה 2:</strong> '+esc(e[4])+'</p><p><strong>שימוש טיפוסי:</strong> '+esc(e[5])+'</p>';
+    }
+    function btn(name){ var e=ALL[name]; return '<button type="button" data-ev="'+name+'" class="'+(e[3]==="yes"?"blk":"")+'" aria-pressed="false">'+name+'</button>'; }
+    $("#flowMain").innerHTML=["SessionStart","UserPromptSubmit","PreToolUse","PermissionRequest","PostToolUse","Stop","SessionEnd"].map(btn).join('<span class="arr" aria-hidden="true">←</span>');
+    function renderEv(){
+      var only=$("#evBlockOnly").checked, count=0;
+      $("#evGroups").innerHTML=EV.map(function(g){
+        var list=g[1].filter(function(e){return !only||e[3]==="yes"});
+        count+=list.length;
+        return list.length?'<div class="flow-group"><h4>'+esc(g[0])+'</h4><div class="flow">'+list.map(function(e){return btn(e[0])}).join("")+'</div></div>':"";
+      }).join("");
+      $("#evCount").textContent=count+" אירועים מוצגים. מסגרת אדומה: קוד 2 חוסם.";
+      $$("#evGroups button").forEach(function(b){ b.addEventListener("click",function(){ detail(b.getAttribute("data-ev")); }); });
+    }
+    $$("#flowMain button").forEach(function(b){ b.addEventListener("click",function(){ detail(b.getAttribute("data-ev")); }); });
+    $("#evBlockOnly").addEventListener("change",renderEv);
+    renderEv(); detail("PreToolUse");
+
+    /* ---------- T4 explorer ---------- */
+    var FD=JSON.parse(document.getElementById("fileData").textContent);
+    U.explorer({
+      settings:{path:".claude/settings.json",role:"רושם את שני ה-Hooks: <code>protect_files.py</code> לפני <code>Edit</code>, <code>Write</code> ו-<code>NotebookEdit</code>, ו-<code>hebrew_style_gate.py</code> אחרי <code>Edit</code> ו-<code>Write</code>. שניהם ב-Exec form, עם <code>timeout</code> קצר.",level:"נקרא בפתיחת Session, ושינויים נקלטים בזמן ריצה",text:FD.settings},
+      protect:{path:".claude/hooks/protect_files.py",role:"קורא את <code>tool_input.file_path</code>, ואם הנתיב מוגן, מדפיס JSON של <code>deny</code> עם נימוק. אחרת לא מדפיס דבר ויוצא עם 0. אף פעם לא מאשר. קלט לא תקין: קוד 1, שגיאה גלויה שלא חוסמת.",level:"PreToolUse, לפני כל עריכה",text:FD.protect},
+      gate:{path:".claude/hooks/hebrew_style_gate.py",role:"אחרי עריכה של <code>.md</code>, <code>.html</code> או <code>.txt</code>, מריץ את <code>check_style.py</code>. אם יש ממצאים, כותב עד 20 מהם ל-stderr ויוצא עם 2, ו-Claude מקבל אותם לתיקון. שגיאה של הבודק עצמו: קוד 1, בלי לחסום.",level:"PostToolUse, אחרי כל עריכה",text:FD.gate}
+    },"settings");
+
+    /* ---------- T5 walkthrough ---------- */
+    U.walk("#walkSettings",[
+      ["\"hooks\": {","המפתח הראשי. בתוכו מפתח לכל אירוע. אם כבר יש <code>hooks</code> בקובץ, מוסיפים אירועים בתוכו."],
+      ["\"PreToolUse\": [","שם האירוע. הערך הוא מערך של קבוצות."],
+      ["\"matcher\": \"Edit|Write|NotebookEdit\",","רשימת שמות מדויקים: הקבוצה רצה רק על שלושת כלי העריכה."],
+      ["\"type\": \"command\",","סוג המטפל: פקודה."],
+      ["\"command\": \"python3\",","Exec form: קובץ ההרצה בלבד."],
+      ["\"args\": [\"${CLAUDE_PROJECT_DIR}/.claude/hooks/protect_files.py\"],","הארגומנטים, אחד לכל איבר. <code>${CLAUDE_PROJECT_DIR}</code> מוחלף בשורש הפרויקט, כך שה-Hook עובד מכל תיקיית עבודה."],
+      ["\"timeout\": 10","שניות. ברירת המחדל ל-<code>command</code> היא 10 דקות; לבדיקת נתיב מספיקות שניות."]
+    ]);
+
+    /* ---------- T5 matcher tester ---------- */
+    function matcherTest(m,v){
+      if(m===""||m==="*") return {ok:true,kind:"all",msg:"Matcher ריק או * תופס כל מופע של האירוע."};
+      if(/^[A-Za-z0-9_\- ,|]+$/.test(m)){
+        var names=m.split(/[|,]/).map(function(x){return x.trim()}).filter(Boolean);
+        var ok=names.indexOf(v)>=0;
+        var ci=!ok && names.some(function(n){return n.toLowerCase()===v.toLowerCase()});
+        return {ok:ok,kind:"list",msg:"רשימת שמות מדויקים: "+names.join(" , ")+". "+(ok?"השם נמצא ברשימה.":"השם לא ברשימה."+(ci?" ההבדל הוא רק באותיות גדולות וקטנות, וההתאמה רגישה להן.":""))};
+      }
+      try{ var re=new RegExp(m); var ok2=re.test(v);
+        return {ok:ok2,kind:"regex",msg:"ביטוי רגולרי לא מעוגן, כי יש בו תו מיוחד. "+(ok2?"נמצאה התאמה בתוך השם.":"אין התאמה.")+(ok2&&!/^\^.*\$$/.test(m)&&!new RegExp("^(?:"+m+")$").test(v)?" שימו לב: ההתאמה היא לחלק מהשם בלבד. לשם שלם עטפו ב-^ ו-$.":"")};
+      }catch(e){ return {ok:false,kind:"bad",msg:"ביטוי רגולרי לא תקין: "+e.message}; }
+    }
+    function runMT(){
+      var r=matcherTest($("#mtM").value,$("#mtV").value.trim());
+      var o=$("#mtOut"); o.className="verdict "+(r.ok?"ok":"bad");
+      o.innerHTML='<strong>'+(r.ok?"ה-Hook ירוץ":"ה-Hook לא ירוץ")+'</strong><span>'+esc(r.msg)+'</span>';
+    }
+    $$("[data-mt]").forEach(function(b){ b.addEventListener("click",function(){ var p=b.getAttribute("data-mt").split("|"); var val=p.pop(); $("#mtM").value=p.join("|"); $("#mtV").value=val; runMT(); }); });
+    $("#mtM").addEventListener("input",runMT); $("#mtV").addEventListener("input",runMT); runMT();
+
+    /* ---------- T6 protect_files port ---------- */
+    var LOCK=["package-lock.json","pnpm-lock.yaml","yarn.lock","poetry.lock","uv.lock","Cargo.lock"];
+    var ALLOWED_ENV=[".env.example",".env.sample",".env.template"];
+    function reasonFor(path){
+      var parts=path.replace(/\\/g,"/").split("/").filter(function(x){return x!==""});
+      var name=parts[parts.length-1]||"";
+      if(parts.indexOf(".git")>=0) return ["files inside .git/ are managed by Git",name];
+      if((name===".env"||name.indexOf(".env.")===0)&&ALLOWED_ENV.indexOf(name)<0) return ["environment files can hold credentials",name];
+      if(/\.(pem|key|p12)$/.test(name)||parts.indexOf("secrets")>=0) return ["key material and the secrets/ folder are off limits",name];
+      if(LOCK.indexOf(name)>=0) return ["lock files change only through the package manager",name];
+      return null;
+    }
+    function runPF(){
+      var path=$("#pfPath").value, r=path?reasonFor(path):null, v=$("#pfVerdict");
+      $("#pfExit").textContent="0"; $("#pfErr").textContent="";
+      if(r){
+        $("#pfOut").textContent=JSON.stringify({hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:"protect_files blocked this edit: "+r[0]+" ("+r[1]+"). Do not try another tool to change it. Tell the user which change is needed so they can make it."}},null,1);
+        v.className="verdict bad"; v.innerHTML="<strong>הכלי מבוטל</strong><span>Claude Code מבטל את העריכה ומעביר ל-Claude את הנימוק. בבדיקה שלנו התמליל הציג:</span><code>PreToolUse:Edit hook error: protect_files blocked this edit: …</code>";
+      } else {
+        $("#pfOut").textContent="";
+        v.className="verdict ok"; v.innerHTML="<strong>אין התנגדות</strong><span>אין פלט וקוד 0. זה לא אישור: זרימת ההרשאות הרגילה ממשיכה, ואם צריך, תופיע שאלת אישור.</span>";
+      }
+    }
+    $$("[data-pf]").forEach(function(b){ b.addEventListener("click",function(){ $("#pfPath").value=b.getAttribute("data-pf"); runPF(); }); });
+    $("#pfPath").addEventListener("input",runPF); runPF();
+
+    /* ---------- T6 outcome explorer ---------- */
+    var SHOW={
+      silent:"exit 0\n(no output)",
+      text:"exit 0\nstdout: Reminder: run bun test before committing.",
+      two:"exit 2\nstderr: Blocked: this change is not allowed here.",
+      one:"exit 1\nstderr: my-hook: something went wrong",
+      json:{
+        PreToolUse:'exit 0\n{"hookSpecificOutput": {"hookEventName": "PreToolUse",\n  "permissionDecision": "deny",\n  "permissionDecisionReason": "Use rg instead of grep"}}',
+        PostToolUse:'exit 0\n{"decision": "block", "reason": "Lint failed: fix the unused import"}',
+        Stop:'exit 0\n{"decision": "block", "reason": "Tests are failing: fix them before you finish"}',
+        UserPromptSubmit:'exit 0\n{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",\n  "additionalContext": "Current branch: release-42. Deploy freeze until Friday."}}',
+        SessionStart:'exit 0\n{"hookSpecificOutput": {"hookEventName": "SessionStart",\n  "additionalContext": "Open tickets: TF-12, TF-19"}}'
+      }
+    };
+    var NONBLOCK=["warn","שגיאה שלא חוסמת","הפעולה ממשיכה. בתמליל מופיעה הודעת hook error עם השורה הראשונה של stderr, אחרי Failed with non-blocking status code. את ה-stderr המלא רואים בלוג הדיבוג."];
+    var XO={
+      PreToolUse:{silent:["ok","אין התנגדות","זרימת ההרשאות הרגילה ממשיכה. קוד 0 לא מאשר את הכלי."],text:["ok","אין התנגדות","באירוע הזה טקסט ב-stdout לא נכנס להקשר של Claude. הוא מופיע בלוג הדיבוג."],two:["bad","הכלי נחסם","הכלי לא רץ, וה-stderr מוזן ל-Claude כנימוק. החסימה חלה בכל מצב הרשאה, כולל bypassPermissions."],one:NONBLOCK,json:["bad","הכלי מבוטל","permissionDecision: deny מבטל את הכלי ומעביר את permissionDecisionReason ל-Claude. כך עובד protect_files.py."]},
+      PostToolUse:{silent:["ok","כלום לא קורה","הכלי כבר רץ, ואין משוב."],text:["ok","כלום לא קורה","טקסט ב-stdout לא נכנס להקשר באירוע הזה."],two:["warn","משוב ל-Claude","הכלי כבר רץ ואי אפשר לבטל. ה-stderr מוצג ל-Claude, שבדרך כלל מתקן. כך עובד hebrew_style_gate.py."],one:NONBLOCK,json:["warn","משוב ל-Claude","decision: block עם reason מעביר את ה-reason ל-Claude. העריכה עצמה לא מבוטלת."]},
+      Stop:{silent:["ok","Claude מסיים","התור נגמר כרגיל."],text:["ok","Claude מסיים","טקסט ב-stdout לא נכנס להקשר באירוע הזה."],two:["bad","Claude ממשיך לעבוד","החסימה מונעת מ-Claude לעצור, וה-stderr הופך להוראה הבאה. בדקו stop_hook_active; אחרי שמונה חסימות רצופות בלי הפעלת כלי, Claude Code עוקף את ה-Hook."],one:NONBLOCK,json:["bad","Claude ממשיך לעבוד","decision: block עם reason: Claude ממשיך, וה-reason הוא ההוראה."]},
+      UserPromptSubmit:{silent:["ok","הבקשה ממשיכה","הבקשה מגיעה ל-Claude כרגיל."],text:["ok","הקשר נוסף","באירוע הזה טקסט ב-stdout עם קוד 0 נכנס להקשר של Claude."],two:["bad","הבקשה נחסמת","הבקשה לא מגיעה ל-Claude."],one:NONBLOCK,json:["ok","הקשר נוסף","additionalContext בתוך hookSpecificOutput מוזרק להקשר. ברמה העליונה הוא היה נבלע."]},
+      SessionStart:{silent:["ok","ה-Session נפתח","אין תוספת להקשר."],text:["ok","הקשר נוסף","באירוע הזה טקסט ב-stdout עם קוד 0 נכנס להקשר של Claude."],two:["warn","אי אפשר לחסום","SessionStart לא יכול לחסום. ה-stderr מוצג לכם, וה-Session ממשיך."],one:NONBLOCK,json:["ok","הקשר נוסף","additionalContext בתוך hookSpecificOutput נכנס להקשר."]}
+    };
+    function runXO(){
+      var ev=($("input[name=xoEvent]:checked")||{}).value||"PreToolUse", out=($("input[name=xoOut]:checked")||{}).value||"silent";
+      $("#xoShow").textContent=out==="json"?SHOW.json[ev]:SHOW[out];
+      var r=XO[ev][out], v=$("#xoVerdict"); v.className="verdict "+r[0];
+      v.innerHTML="<strong>"+esc(r[1])+"</strong><span>"+esc(r[2])+"</span>";
+    }
+    $$("#xoEvent input, #xoOut input").forEach(function(i){ i.addEventListener("change",runXO); }); runXO();
+
+    /* ---------- T7 prompt builder ---------- */
+    var GOAL={
+      protect:["Hook מסוג PreToolUse עם matcher של Edit|Write|NotebookEdit, שחוסם עריכה של .env (חוץ מ-.env.example), של קובצי Lock ושל כל מה שבתוך .git/","החסימה מחזירה JSON עם permissionDecision: deny ונימוק קצר, בתוך hookSpecificOutput. הסקריפט אף פעם לא מחזיר allow."],
+      format:["Hook מסוג PostToolUse עם matcher של Edit|Write, שמריץ את ה-Formatter של הפרויקט על הקובץ שנערך","אם ה-Formatter לא מותקן, הסקריפט יוצא עם 0 בלי לעשות דבר. הוא לא מוריד חבילות."],
+      tests:["Hook מסוג Stop שמריץ את בדיקות היחידה, ואם הן נכשלות, יוצא עם 2 וכותב ל-stderr את חמש השורות הראשונות של הכשל","הסקריפט בודק את השדה stop_hook_active בקלט, ויוצא עם 0 כשהוא true, כדי לא ליצור לולאה."],
+      context:["Hook מסוג SessionStart עם matcher של startup|resume|compact, שמדפיס ל-stdout את ה-Branch הנוכחי ואת חמשת ה-Commits האחרונים","הפלט קצר, עד 20 שורות, כי הוא נכנס להקשר בכל Session."],
+      notify:["Hook מסוג Notification עם matcher של permission_prompt|idle_prompt, ששולח התראה בשולחן העבודה","התאם את פקודת ההתראה למערכת ההפעלה שלי, ושאל אותי מהי אם אינך יודע."]
+    };
+    function hb(){
+      var g=($("input[name=hbGoal]:checked")||{}).value||"protect", lang=($("input[name=hbLang]:checked")||{}).value||"py";
+      var ex=$$("#hbExtra input:checked").map(function(i){return i.value});
+      var L=["כתוב לי "+GOAL[g][0]+".", GOAL[g][1]];
+      L.push(lang==="py"?"כתוב את הסקריפט ב-Python עם הספרייה הסטנדרטית בלבד, ושמור אותו תחת .claude/hooks/.":"כתוב את הסקריפט ב-Bash עם jq, ושמור אותו תחת .claude/hooks/. השתמש ב-set -u וצטט כל משתנה.");
+      L.push("הסקריפט קורא JSON מ-stdin, מתעלם משדות שהוא לא מכיר, ויוצא עם 1 (שגיאה שלא חוסמת) אם הקלט לא תקין.");
+      L.push((ex.indexOf("local")>=0?"רשום את ה-Hook ב-.claude/settings.local.json":"רשום את ה-Hook ב-.claude/settings.json")+(ex.indexOf("exec")>=0?", ב-Exec form: command הוא קובץ ההרצה, והנתיב לסקריפט ב-args עם ${CLAUDE_PROJECT_DIR}.":", עם נתיב שמתחיל ב-\"$CLAUDE_PROJECT_DIR\".")+" אם כבר יש מפתח hooks, הוסף לתוכו ואל תמחק Hooks קיימים. קבע timeout מתאים.");
+      if(ex.indexOf("tests")>=0) L.push("אחרי הכתיבה, הרץ את הסקריפט ידנית עם JSON לדוגמה דרך stdin: מקרה אחד שבו הוא צריך לפעול ומקרה אחד שבו לא, והראה לי את הפלט ואת קוד היציאה של כל אחד.");
+      L.push("אל תריץ פקודות הרסניות, אל תשלח מידע החוצה, ואל תדפיס סודות. בסוף הסבר בעברית מה כל קובץ עושה.");
+      $("#hbOut").textContent=L.join("\n");
+    }
+    $$("#hbGoal input, #hbLang input, #hbExtra input").forEach(function(i){ i.addEventListener("change",hb); }); hb();
+  }
+};
+</script>
+<script>
+/* Shared engine for the guide's interactive modules: theme, routing, progress,
+   copy buttons, flip cards, tabs, sorter drills, quiz, checklist, walkthroughs, file explorer.
+   Each page defines window.LOMDA before this script runs. */
+(function(){
+  "use strict";
+  var L=window.LOMDA||{};
+  var $=function(s,r){return (r||document).querySelector(s)}, $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+  function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+  var ORDER=$$("section.topic").map(function(s){return s.id});
+  var TOTAL=ORDER.length-1;
+  var STORE=L.store||"lomda.v1";
+  function load(){try{return JSON.parse(localStorage.getItem(STORE))||{}}catch(e){return {}}}
+  function save(s){try{localStorage.setItem(STORE,JSON.stringify(s))}catch(e){}}
+  var state=load(); state.visited=state.visited||{}; state.checks=state.checks||{};
+
+  /* theme */
+  var root=document.documentElement;
+  if(state.theme) root.setAttribute("data-theme",state.theme);
+  $("#themeBtn").addEventListener("click",function(){
+    var cur=root.getAttribute("data-theme");
+    var dark=cur?cur==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var next=dark?"light":"dark"; root.setAttribute("data-theme",next); state.theme=next; save(state);
+  });
+
+  /* router */
+  var current="start";
+  function title(id){ return document.getElementById(id).getAttribute("data-title"); }
+  function show(id,focus){
+    if(ORDER.indexOf(id)<0) id="start";
+    current=id;
+    ORDER.forEach(function(t){ document.getElementById(t).hidden=(t!==id); });
+    $$(".map a").forEach(function(a){
+      var g=a.getAttribute("data-go");
+      if(g===id) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current");
+      a.classList.toggle("done",!!state.visited[g]&&g!=="start");
+    });
+    var i=ORDER.indexOf(id);
+    if(id!=="start") state.visited[id]=true;
+    state.last=id; save(state);
+    var n=Object.keys(state.visited).filter(function(k){return k!=="start"&&ORDER.indexOf(k)>=0}).length;
+    $("#progFill").style.width=(n/TOTAL*100)+"%";
+    $("#progLabel").textContent= id==="start" ? ("מסך פתיחה · "+n+" מתוך "+TOTAL+" נושאים נפתחו") : ("נושא "+i+" מתוך "+TOTAL+" · "+title(id));
+    $("#prevBtn").hidden=(i===0);
+    $("#nextBtn").hidden=(i===ORDER.length-1);
+    $("#nextBtn").textContent= i===0 ? "לנושא הראשון" : "הבא: "+title(ORDER[Math.min(i+1,ORDER.length-1)]);
+    if(focus){ window.scrollTo(0,0); $("#main").focus({preventScroll:true}); }
+    if(focus && window.matchMedia("(max-width:900px)").matches){ $("#mapDetails").open=false; }
+  }
+  function go(id){ if(location.hash!=="#"+id){ try{history.pushState(null,"","#"+id);}catch(e){} } show(id,true); }
+  document.addEventListener("click",function(e){
+    var t=e.target.closest("[data-go]"); if(!t) return;
+    e.preventDefault(); go(t.getAttribute("data-go"));
+  });
+  $("#prevBtn").addEventListener("click",function(){ go(ORDER[Math.max(0,ORDER.indexOf(current)-1)]); });
+  $("#nextBtn").addEventListener("click",function(){ go(ORDER[Math.min(ORDER.length-1,ORDER.indexOf(current)+1)]); });
+  window.addEventListener("hashchange",function(){ show(location.hash.slice(1)||"start",true); });
+  window.addEventListener("popstate",function(){ show(location.hash.slice(1)||"start",true); });
+  if(window.matchMedia("(max-width:900px)").matches){ $("#mapDetails").open=false; }
+
+  /* copy */
+  function copyText(text,btn){
+    var done=function(){ var o=btn.textContent; btn.textContent="הועתק"; setTimeout(function(){btn.textContent=o},1400); };
+    var fallback=function(){ var ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); var ok=false; try{ok=document.execCommand("copy")}catch(e){} document.body.removeChild(ta); if(ok) done(); else btn.textContent="סמנו והעתיקו ידנית"; };
+    try{ navigator.clipboard.writeText(text).then(done,fallback); }catch(e){ fallback(); }
+  }
+  document.addEventListener("click",function(e){
+    var b=e.target.closest(".copy"); if(!b) return;
+    var src=b.getAttribute("data-copy-from"), text;
+    if(src) text=document.getElementById(src).textContent;
+    else { var box=b.closest(".code"); var code=box&&box.querySelector("pre"); text=code?code.textContent:""; }
+    copyText(text,b);
+  });
+
+  /* flip cards */
+  $$(".flip").forEach(function(b){ b.addEventListener("click",function(){ var open=b.getAttribute("aria-expanded")==="true"; b.setAttribute("aria-expanded",String(!open)); b.querySelector(".back").hidden=open; }); });
+
+  /* tabs */
+  $$("[data-tabs]").forEach(function(box){
+    var tabs=$$(":scope > .tablist > [role=tab]",box), panels=$$(":scope > [role=tabpanel]",box);
+    tabs.forEach(function(t,i){ t.addEventListener("click",function(){ tabs.forEach(function(x,j){ x.setAttribute("aria-selected",String(i===j)); panels[j].hidden=(i!==j); }); }); });
+  });
+
+  /* sorter: choose the right tool for each scenario */
+  if(L.sorter && $("#sorter")){
+    var sorter=$("#sorter"), sScore={};
+    L.sorter.items.forEach(function(s,i){
+      var q=document.createElement("div"); q.className="q";
+      q.innerHTML='<p><strong>מצב '+(i+1)+'.</strong> '+esc(s[0])+'</p><div class="opts grid-opts"></div><p class="fb" aria-live="polite"></p>';
+      var opts=q.querySelector(".opts");
+      L.sorter.tools.forEach(function(t){ var b=document.createElement("button"); b.type="button"; b.textContent=t; b.addEventListener("click",function(){
+        $$("button",opts).forEach(function(x){x.classList.remove("right","wrong")});
+        var ok=t===s[1]; b.classList.add(ok?"right":"wrong");
+        if(!ok) $$("button",opts).forEach(function(x){ if(x.textContent===s[1]) x.classList.add("right"); });
+        q.querySelector(".fb").textContent=(ok?"נכון. ":"התשובה: "+s[1]+". ")+s[2];
+        if(!(i in sScore)) sScore[i]=ok;
+        var c=Object.keys(sScore).length, r=Object.keys(sScore).filter(function(k){return sScore[k]}).length;
+        $("#sorterScore").textContent="עניתם על "+c+" מתוך "+L.sorter.items.length+", "+r+" נכונות בניסיון הראשון.";
+      }); opts.appendChild(b); });
+      sorter.appendChild(q);
+    });
+  }
+
+  /* quiz */
+  if(L.quiz && $("#quiz")){
+    var quiz=$("#quiz"), qs={};
+    L.quiz.forEach(function(q,i){
+      var d=document.createElement("div"); d.className="q";
+      d.innerHTML='<p><strong>'+(i+1)+'. '+esc(q[0])+'</strong></p><div class="opts"></div><p class="fb" aria-live="polite"></p>';
+      var o=d.querySelector(".opts");
+      q[1].forEach(function(a,j){ var b=document.createElement("button"); b.type="button"; b.textContent=a; b.addEventListener("click",function(){
+        $$("button",o).forEach(function(x){x.classList.remove("right","wrong")});
+        var ok=j===q[2]; b.classList.add(ok?"right":"wrong"); o.children[q[2]].classList.add("right");
+        d.querySelector(".fb").textContent=(ok?"נכון. ":"לא בדיוק. ")+q[3];
+        if(!(i in qs)) qs[i]=ok;
+        var c=Object.keys(qs).length, r=Object.keys(qs).filter(function(k){return qs[k]}).length;
+        $("#quizScore").textContent=r+" נכונות מתוך "+c+" שעניתם"+(c===L.quiz.length?(r===L.quiz.length?". כל הכבוד, סיימתם את הלומדה.":". אפשר לחזור לנושאים הרלוונטיים ולנסות שוב."):".");
+      }); o.appendChild(b); });
+      quiz.appendChild(d);
+    });
+  }
+
+  /* checklist */
+  $$("#checklist input").forEach(function(c){
+    c.checked=!!state.checks[c.id];
+    c.addEventListener("change",function(){ state.checks[c.id]=c.checked; save(state); });
+  });
+
+  /* helpers for page scripts */
+  window.LOMDA_UTIL={
+    $:$, $$:$$, esc:esc,
+    walk:function(el,rows){ $(el).innerHTML=rows.map(function(r){ return '<div class="wline"><code>'+esc(r[0])+'</code><p>'+r[1]+'</p></div>'; }).join(""); },
+    explorer:function(files,first){
+      function showFile(k){
+        var f=files[k];
+        $$(".tree button").forEach(function(b){ b.setAttribute("aria-pressed",String(b.getAttribute("data-file")===k)); });
+        $("#fileExplain").innerHTML='<p><strong>תפקיד:</strong> '+f.role+'</p><p class="small muted">נטען: '+f.level+'</p><div class="code"><div class="code-head"><span>'+esc(f.path)+'</span><button class="copy" type="button">העתק</button></div><pre><code>'+esc(f.text)+'</code></pre></div>';
+      }
+      $$(".tree button").forEach(function(b){ b.addEventListener("click",function(){ showFile(b.getAttribute("data-file")); }); });
+      showFile(first);
+    }
+  };
+  if(typeof L.init==="function") L.init(window.LOMDA_UTIL);
+
+  show(location.hash.slice(1)||"start",false);
+  window.scrollTo(0,0);
+})();
+</script>
+</body>
+</html>

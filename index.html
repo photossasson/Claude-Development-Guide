@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מדריך פיתוח ב-Claude Code</title>
+<link rel="stylesheet" href="assets/css/guide.css">
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="references/sources.html">מקורות</a>
+      <a href="references/feature-status.html">סטטוס Features</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <h1>מדריך פיתוח ב-Claude Code</h1>
+  <p class="lead">מדריך מקצועי, מקיף ומדורג לפיתוח תוכנה באמצעות <bdi>Claude Code</bdi>: מהתקנה ראשונה ועד <bdi>Multi-Agent Development</bdi> ו-<bdi>Claude Agent SDK</bdi>.</p>
+
+  <div class="metabox">
+    <dl>
+      <dt>תאריך מחקר:</dt><dd>28.07.2026</dd>
+      <dt>עדכון אחרון:</dt><dd>16.10.2026 (לומדות על Mods ועל MCP, וקישורים מפרקים 23 ו-26; סבב התחזוקה של 15.10.2026: פרקים 4, 15, 21, 22 ו-41 ושלוש לומדות)</dd>
+      <dt>גרסת המדריך:</dt><dd>1.2 (16.10.2026: שתי לומדות חדשות; גרסה 1.1 ב-15.10.2026; גרסה 1.0 שוחררה ב-29.07.2026)</dd>
+      <dt>גרסת Claude Code שנבדקה:</dt><dd><span class="ltr"><code>2.1.220</code></span> לכלל הפרקים; <span class="ltr"><code>2.1.300</code></span> לפרק 21, ללומדות Skills, Rules ו-Hooks ולעדכונים הנקודתיים בפרקים 4, 15, 22 ו-41; <span class="ltr"><code>2.1.301</code></span> ללומדות Mods ו-MCP</dd>
+      <dt>מערכות הפעלה:</dt><dd>Windows (PowerShell / WSL2), macOS, Linux</dd>
+      <dt>Features בסטטוס מיוחד:</dt><dd>Claude Code on the Web (Research Preview), Fast Mode (Research Preview), Channels (Research Preview), Agent view וסוכני רקע (Research Preview), Agent Teams (Experimental), GitLab CI/CD (Beta), Desktop for Linux (Beta), Managed Agents API (Beta), Extended Thinking (Deprecated בדגמי 4.6 ומעלה), <span class="ltr"><code>.claude/commands/</code></span> (Legacy). הרשימה המלאה: <a href="references/feature-status.html">סטטוס Features</a></dd>
+    </dl>
+  </div>
+
+
+  <section class="partblock">
+    <h2>חלק א: היכרות והתחלה</h2>
+    <ul class="chaplist" id="part-a">
+      <li><a href="chapters/ch01.html"><span class="num">פרק 1</span>מהו Claude Code</a></li>
+      <li><a href="chapters/ch02.html"><span class="num">פרק 2</span>הכנת סביבת העבודה</a></li>
+      <li><a href="chapters/ch03.html"><span class="num">פרק 3</span>ה-Session הראשון</a></li>
+      <li><a href="chapters/ch04.html"><span class="num">פרק 4</span>פקודות בסיסיות, Slash Commands ופקודות /</a></li>
+      <li><a href="chapters/ch05.html"><span class="num">פרק 5</span>כיצד לדבר עם Claude Code</a></li>
+    </ul>
+  </section>
+
+  <section class="partblock">
+    <h2>חלק ב: עבודה יומיומית עם Codebase</h2>
+    <ul class="chaplist" id="part-b">
+      <li><a href="chapters/ch06.html"><span class="num">פרק 6</span>קריאת Repository והבנת Architecture</a></li>
+      <li><a href="chapters/ch07.html"><span class="num">פרק 7</span>Plan לפני Implementation</a></li>
+      <li><a href="chapters/ch08.html"><span class="num">פרק 8</span>Claude Models ובחירת Model</a></li>
+      <li><a href="chapters/ch09.html"><span class="num">פרק 9</span>ביצוע שינוי קוד מבוקר</a></li>
+      <li><a href="chapters/ch10.html"><span class="num">פרק 10</span>Debugging</a></li>
+      <li><a href="chapters/ch11.html"><span class="num">פרק 11</span>Testing</a></li>
+      <li><a href="chapters/ch12.html"><span class="num">פרק 12</span>Refactoring</a></li>
+      <li><a href="chapters/ch13.html"><span class="num">פרק 13</span>Git ו-Pull Requests</a></li>
+    </ul>
+  </section>
+
+  <section class="partblock">
+    <h2>חלק ג: ניהול Context והנחיות Project</h2>
+    <ul class="chaplist" id="part-c">
+      <li><a href="chapters/ch14.html"><span class="num">פרק 14</span>Context Window ו-Session Management</a></li>
+      <li><a href="chapters/ch15.html"><span class="num">פרק 15</span>CLAUDE.md</a></li>
+      <li><a href="chapters/ch16.html"><span class="num">פרק 16</span>Memory ו-Project Knowledge</a></li>
+      <li><a href="chapters/ch17.html"><span class="num">פרק 17</span>Settings ו-Configuration</a></li>
+    </ul>
+  </section>
+
+  <section class="partblock">
+    <h2>חלק ד: Safety, Permissions ובקרה</h2>
+    <ul class="chaplist" id="part-d">
+      <li><a href="chapters/ch18.html"><span class="num">פרק 18</span>Permission Modes</a></li>
+      <li><a href="chapters/ch19.html"><span class="num">פרק 19</span>Checkpoints, Rewind ו-Recovery</a></li>
+      <li><a href="chapters/ch20.html"><span class="num">פרק 20</span>Security</a></li>
+    </ul>
+  </section>
+
+  <section class="partblock">
+    <h2>חלק ה: הרחבת Claude Code</h2>
+    <ul class="chaplist" id="part-e">
+      <li><a href="chapters/ch21.html"><span class="num">פרק 21</span>Skills</a></li>
+      <li><a href="chapters/ch22.html"><span class="num">פרק 22</span>Hooks</a></li>
+      <li><a href="chapters/ch23.html"><span class="num">פרק 23</span>MCP מעשי מקצה לקצה</a></li>
+      <li><a href="chapters/ch24.html"><span class="num">פרק 24</span>Connectors ו-Connected Services</a></li>
+      <li><a href="chapters/ch25.html"><span class="num">פרק 25</span>Subagents</a></li>
+      <li><a href="chapters/ch26.html"><span class="num">פרק 26</span>Plugins</a></li>
+    </ul>
+  </section>
+
+  <section class="partblock">
+    <h2>חלק ו: עבודה מקצועית וצוותית</h2>
+    <ul class="chaplist" id="part-f">
+      <li><a href="chapters/ch27.html"><span class="num">פרק 27</span>Claude Code בתוך VS Code ו-JetBrains</a></li>
+      <li><a href="chapters/ch28.html"><span class="num">פרק 28</span>GitHub Actions ו-Code Review</a></li>
+      <li><a href="chapters/ch29.html"><span class="num">פרק 29</span>Team Workflows</a></li>
+      <li><a href="chapters/ch30.html"><span class="num">פרק 30</span>Cost, Tokens ו-Performance</a></li>
+    </ul>
+  </section>
+
+  <section class="partblock">
+    <h2>חלק ז: Claude Agent SDK ואוטומציה</h2>
+    <ul class="chaplist" id="part-g">
+      <li><a href="chapters/ch31.html"><span class="num">פרק 31</span>מבוא ל-Claude Agent SDK</a></li>
+      <li><a href="chapters/ch32.html"><span class="num">פרק 32</span>בניית Agent מותאם</a></li>
+      <li><a href="chapters/ch33.html"><span class="num">פרק 33</span>Automation מקצועית</a></li>
+    </ul>
+  </section>
+
+  <section class="partblock">
+    <h2>חלק ח: תרחישים מתקדמים</h2>
+    <ul class="chaplist" id="part-h">
+      <li><a href="chapters/ch34.html"><span class="num">פרק 34</span>פיתוח Feature מורכב מקצה לקצה</a></li>
+      <li><a href="chapters/ch35.html"><span class="num">פרק 35</span>Migration ו-Large Refactoring</a></li>
+      <li><a href="chapters/ch36.html"><span class="num">פרק 36</span>עבודה עם Legacy Code</a></li>
+      <li><a href="chapters/ch37.html"><span class="num">פרק 37</span>Architecture ו-Design Review</a></li>
+      <li><a href="chapters/ch38.html"><span class="num">פרק 38</span>Multi-Agent Development</a></li>
+    </ul>
+  </section>
+
+  <section class="partblock">
+    <h2>חלק ט: פתרון תקלות וחומרי עזר</h2>
+    <ul class="chaplist" id="part-i">
+      <li><a href="chapters/ch39.html"><span class="num">פרק 39</span>Troubleshooting מקיף</a></li>
+      <li><a href="chapters/ch40.html"><span class="num">פרק 40</span>Prompt Library</a></li>
+      <li><a href="chapters/ch41.html"><span class="num">פרק 41</span>Command and Configuration Cheat Sheet</a></li>
+      <li><a href="chapters/ch42.html"><span class="num">פרק 42</span>Glossary</a></li>
+      <li><a href="chapters/ch43.html"><span class="num">פרק 43</span>Final Capstone</a></li>
+    </ul>
+  </section>
+
+  <section class="partblock">
+    <h2>לומדות אינטראקטיביות</h2>
+    <p>חומרי לימוד משלימים, בקצב אישי, עם תרגול בדפדפן. כל לומדה מקשרת לפרק העיון שלה.</p>
+    <ul class="chaplist" id="interactive">
+      <li><a href="interactive/skills-lomda.html"><span class="num">לומדה</span>בונים Skill ב-Claude: 10 נושאים, מתרגול ועד התקנה (משלימה לפרק 21; עודכנה 15.10.2026)</a></li>
+      <li><a href="interactive/rules-lomda.html"><span class="num">לומדה</span>כותבים Rules ל-Claude Code: תבניות paths שנבדקו בפועל, טעינה ותקלות (משלימה לפרק 15; 15.10.2026)</a></li>
+      <li><a href="interactive/hooks-lomda.html"><span class="num">לומדה</span>Hooks ב-Claude Code: אירועים, Matchers, קודי יציאה ושני Hooks שנבדקו (משלימה לפרק 22; 15.10.2026)</a></li>
+      <li><a href="interactive/mods-lomda.html"><span class="num">לומדה</span>בונים Mods ב-Claude Code: Hooks של JavaScript, ציור בממשק, בדיקות ואבטחה, עם Mod שנבדק (משלימה לפרק 26; 16.10.2026)</a></li>
+      <li><a href="interactive/mcp-lomda.html"><span class="num">לומדה</span>MCP ב-Claude Code: Scopes, הרשאות ושרת Python שנבדק מקצה לקצה (משלימה לפרקים 23 ו-24; 16.10.2026)</a></li>
+    </ul>
+  </section>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.2 | עודכן: 16.10.2026 | תאריך מחקר: 28.07.2026 | המקור הרשמי: התיעוד של Anthropic</footer>
+</body>
+</html>

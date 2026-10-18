@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>בונים Mods ב-Claude Code</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="לומדה אינטראקטיבית בעברית: איך בונים Mod ל-Claude Code, Plugin עם פונקציות JavaScript שרצות על אירועים, עם דוגמה שנבדקה בפועל.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Secular+One&display=swap">
+<style>
+:root{--paper:#F4F2F9; --surface:#FFFFFF; --sunken:#E9E4F4; --ink:#1A1530; --ink-2:#433B5E; --ink-3:#655D80; --line:#D5CDE6; --accent:#5B3CC4; --accent-ink:#FFFFFF; --accent-soft:#E7E0FA; --marker:#C3B2FF; --marker-ink:#1A0F45; --ok:#147548; --ok-soft:#DBF1E6; --warn:#8F5300; --warn-soft:#FAEACB; --bad:#AE242A; --bad-soft:#F7DEDF; --code-bg:#15112A; --code-fg:#E4DFF5; --code-dim:#9A92B8; --code-key:#C3B2FF; --code-str:#F2D58A; --f-display:"Secular One","IBM Plex Sans Hebrew",Arial,sans-serif; --f-body:"IBM Plex Sans Hebrew","Segoe UI",Arial,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; --r:10px;}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--paper:#100D1C; --surface:#18142A; --sunken:#211B38; --ink:#ECE8F7; --ink-2:#C2BAD9; --ink-3:#9A91B5; --line:#352D52; --accent:#A994FF; --accent-ink:#160C3D; --accent-soft:#2D2358; --marker:#A994FF; --marker-ink:#160C3D; --ok:#5ED09C; --ok-soft:#113428; --warn:#F1B65E; --warn-soft:#382810; --bad:#FF8C91; --bad-soft:#3B191C; --code-bg:#0C0918; --code-fg:#E4DFF5; --code-dim:#8F87AE; --code-key:#A994FF; --code-str:#F2D58A; color-scheme:dark;}}
+:root[data-theme="dark"]{--paper:#100D1C; --surface:#18142A; --sunken:#211B38; --ink:#ECE8F7; --ink-2:#C2BAD9; --ink-3:#9A91B5; --line:#352D52; --accent:#A994FF; --accent-ink:#160C3D; --accent-soft:#2D2358; --marker:#A994FF; --marker-ink:#160C3D; --ok:#5ED09C; --ok-soft:#113428; --warn:#F1B65E; --warn-soft:#382810; --bad:#FF8C91; --bad-soft:#3B191C; --code-bg:#0C0918; --code-fg:#E4DFF5; --code-dim:#8F87AE; --code-key:#A994FF; --code-str:#F2D58A; color-scheme:dark;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{direction:rtl}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16.5px;line-height:1.7;direction:rtl;text-align:right}
+a{color:var(--accent);text-underline-offset:3px}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+h1,h2,h3,h4{font-family:var(--f-display);font-weight:400;line-height:1.25;text-wrap:balance;margin:0}
+h2{font-size:clamp(1.55rem,2.6vw,2.05rem)}
+h3{font-size:1.25rem;margin-top:.4rem}
+h4{font-size:1.05rem}
+p{margin:0}
+code,kbd,pre,samp,.ltr{direction:ltr;unicode-bidi:isolate;text-align:left}
+code{font-family:var(--f-mono);font-size:.88em;background:var(--sunken);padding:.08em .38em;border-radius:5px;overflow-wrap:anywhere}
+kbd{font-family:var(--f-mono);font-size:.85em;border:1px solid var(--line);border-bottom-width:2px;padding:0 .35em;border-radius:5px;background:var(--surface)}
+.ui{unicode-bidi:isolate;direction:ltr;font-weight:600;background:var(--accent-soft);color:var(--ink);padding:0 .35em;border-radius:5px;white-space:nowrap}
+.muted{color:var(--ink-3)}
+.small{font-size:.9rem}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.top-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:16px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{font-family:var(--f-display);font-size:1.1rem;color:var(--ink);text-decoration:none;white-space:nowrap}
+.brand b{unicode-bidi:isolate;direction:ltr;display:inline-block;background:var(--marker);color:var(--marker-ink);font-weight:400;padding:0 .3em;border-radius:4px;margin-inline-start:.25em}
+.prog{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
+.prog-bar{flex:1;height:8px;background:var(--sunken);border-radius:99px;overflow:hidden}
+.prog-bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .3s}
+.prog-label{font-size:.85rem;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.theme-btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:4px 10px;font:inherit;font-size:.85rem;cursor:pointer}
+
+/* shell */
+.shell{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:270px minmax(0,1fr);gap:32px;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.map{position:sticky;top:calc(env(safe-area-inset-top,0px) + 72px);align-self:start;max-height:calc(100vh - 96px);overflow:auto}
+.map details>summary{display:none}
+.map h2{font-size:1rem;color:var(--ink-3);font-family:var(--f-body);font-weight:600;letter-spacing:.02em;margin:18px 0 6px}
+.map ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.map a{display:flex;gap:10px;align-items:baseline;padding:7px 10px;border-radius:8px;color:var(--ink-2);text-decoration:none;font-size:.95rem;line-height:1.4}
+.map a .n{font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);min-width:1.6em;font-variant-numeric:tabular-nums}
+.map a:hover{background:var(--sunken)}
+.map a[aria-current="page"]{background:var(--accent-soft);color:var(--ink);font-weight:600}
+.map a.done .n::after{content:" ✓";color:var(--ok)}
+.map .start-link{font-weight:600}
+
+/* topics */
+main{min-width:0}
+.topic{display:grid;gap:26px;scroll-margin-top:90px}
+.fence{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:0;overflow:hidden}
+.fence .bar{height:22px;background:var(--marker);color:var(--marker-ink);font-family:var(--f-mono);font-size:.8rem;display:flex;align-items:center;padding-inline:14px;direction:ltr;justify-content:flex-end;letter-spacing:.2em}
+.fence .in{padding:20px 22px;display:grid;gap:10px}
+.kicker{font-size:.85rem;letter-spacing:.02em;color:var(--ink-3);direction:rtl}
+.kicker b{color:var(--ink-2);font-weight:500}
+.lead{font-size:1.08rem;color:var(--ink-2);max-width:70ch}
+.goal{font-size:.95rem;color:var(--ink-2);border-top:1px dashed var(--line);padding-top:10px}
+.goal strong{color:var(--ink)}
+.prose{display:grid;gap:14px;max-width:72ch}
+.prose ul,.prose ol{margin:0;padding-inline-start:1.3em;display:grid;gap:6px}
+.block{display:grid;gap:14px}
+.block-title{font-size:.88rem;font-weight:600;color:var(--ink-3);letter-spacing:.02em}
+
+.callout{border-radius:var(--r);padding:14px 16px;display:grid;gap:6px;border:1px solid var(--line);background:var(--surface);max-width:78ch}
+.callout .t{font-weight:700}
+.callout.note{border-inline-start:5px solid var(--accent)}
+.callout.warn{border-inline-start:5px solid var(--warn);background:var(--warn-soft);border-color:transparent}
+.callout.danger{border-inline-start:5px solid var(--bad);background:var(--bad-soft);border-color:transparent}
+.callout.ok{border-inline-start:5px solid var(--ok);background:var(--ok-soft);border-color:transparent}
+.callout.src{font-size:.92rem;background:var(--sunken);border-color:transparent}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.flip{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:16px;text-align:right;font:inherit;color:inherit;cursor:pointer;display:grid;gap:8px;align-content:start;min-height:100%}
+.flip:hover{border-color:var(--accent)}
+.flip .term{font-family:var(--f-display);font-size:1.25rem;direction:ltr;text-align:right}
+.flip .hint{font-size:.85rem;color:var(--ink-3)}
+.flip .back{font-size:.95rem;color:var(--ink-2)}
+.flip[aria-expanded="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.flip[aria-expanded="true"] .hint{display:none}
+
+/* tabs */
+.tabs{display:grid;gap:0}
+.tablist{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--line);padding-bottom:0}
+.tablist button{font:inherit;font-size:.95rem;border:1px solid var(--line);border-bottom:none;background:var(--sunken);color:var(--ink-2);padding:7px 14px;border-radius:8px 8px 0 0;cursor:pointer;margin-bottom:-1px}
+.tablist button[aria-selected="true"]{background:var(--surface);color:var(--ink);font-weight:600;border-color:var(--line)}
+.tabpanel{background:var(--surface);border:1px solid var(--line);border-top:none;border-radius:0 0 var(--r) var(--r);padding:18px;display:grid;gap:12px;min-width:0}
+
+/* steps */
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:10px;counter-reset:s}
+.steps>li{counter-increment:s;display:grid;grid-template-columns:2.1em minmax(0,1fr);gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.steps>li::before{content:counter(s);font-family:var(--f-mono);font-weight:500;background:var(--ink);color:var(--paper);border-radius:50%;width:2em;height:2em;display:grid;place-items:center;font-size:.85rem}
+.steps .when{display:block;font-size:.83rem;color:var(--ink-3)}
+.tag{display:inline-block;font-size:.75rem;font-weight:600;padding:0 .5em;border-radius:99px;margin-inline-start:.4em;vertical-align:.1em}
+.tag.doc{background:var(--ok-soft);color:var(--ok)}
+.tag.sug{background:var(--warn-soft);color:var(--warn)}
+
+/* code */
+.code{background:var(--code-bg);color:var(--code-fg);border-radius:var(--r);overflow:hidden;min-width:0}
+.code-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 12px;background:rgba(255,255,255,.06);font-family:var(--f-mono);font-size:.8rem;color:var(--code-dim);direction:ltr}
+.code pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--f-mono);font-size:.84rem;line-height:1.6;white-space:pre}
+.code pre code{background:none;padding:0;font-size:inherit;color:inherit}
+.copy{font:inherit;font-family:var(--f-body);font-size:.8rem;background:var(--code-key);color:#1A1500;border:none;border-radius:6px;padding:3px 10px;cursor:pointer;direction:rtl}
+.prompt{background:var(--surface);border:1px dashed var(--accent);border-radius:var(--r);padding:14px 16px;display:grid;gap:10px}
+.prompt .ptext{white-space:pre-wrap;font-size:.98rem}
+.prompt .row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.prompt .copy{background:var(--accent);color:var(--accent-ink)}
+.k{color:var(--code-key)} .s{color:var(--code-str)} .c{color:var(--code-dim)}
+
+/* tables */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.93rem;min-width:560px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;text-align:right}
+th{background:var(--sunken);font-weight:600;font-size:.88rem}
+tr:last-child td{border-bottom:none}
+
+/* tree explorer */
+.explorer{display:grid;grid-template-columns:240px minmax(0,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.tree{background:var(--sunken);padding:12px 6px;direction:ltr;font-family:var(--f-mono);font-size:.86rem;display:grid;align-content:start;gap:2px}
+.tree .dir{padding:4px 10px;color:var(--ink-3)}
+.tree button{font:inherit;text-align:left;border:none;background:none;color:var(--ink-2);padding:5px 10px;border-radius:6px;cursor:pointer;border-left:3px solid transparent}
+.tree button[aria-pressed="true"]{background:var(--surface);color:var(--ink);border-left-color:var(--accent);font-weight:500}
+.tree .d1{padding-left:26px}
+.tree .d2{padding-left:42px}
+.explain{padding:16px;display:grid;gap:12px;min-width:0}
+
+/* line walkthrough */
+.walk{display:grid;gap:6px}
+.wline{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.wline>code{display:block;background:var(--code-bg);color:var(--code-fg);border-radius:0;padding:8px 12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.82rem}
+.wline p{padding:8px 12px;font-size:.92rem;color:var(--ink-2)}
+
+/* forms */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:14px;min-width:0}
+.field{display:grid;gap:5px}
+.field label{font-weight:600;font-size:.93rem}
+.field .help{font-size:.84rem;color:var(--ink-3)}
+input[type="text"],textarea,select{font:inherit;font-size:.95rem;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+textarea{min-height:130px;resize:vertical}
+input.ltrin,textarea.ltrin{direction:ltr;text-align:left;font-family:var(--f-mono);font-size:.88rem}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.checks li{display:grid;grid-template-columns:1.6em minmax(0,1fr);gap:6px;font-size:.93rem}
+.checks li::before{font-weight:700}
+.checks li.pass::before{content:"✓";color:var(--ok)}
+.checks li.fail::before{content:"✗";color:var(--bad)}
+.checks li.warn::before{content:"!";color:var(--warn)}
+.meter{display:grid;gap:4px}
+.meter .track{height:10px;border-radius:99px;background:var(--sunken);overflow:hidden;direction:ltr}
+.meter .track i{display:block;height:100%;background:var(--ok)}
+.meter .track i.over{background:var(--bad)}
+.meter .lbl{display:flex;justify-content:space-between;font-size:.82rem;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.btn{font:inherit;font-weight:600;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px}
+.choice{display:flex;flex-wrap:wrap;gap:8px}
+.choice label{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:99px;padding:5px 12px;cursor:pointer;font-size:.92rem;background:var(--paper)}
+.choice input{accent-color:var(--accent)}
+
+/* findings */
+.findings{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.findings li{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:10px;align-items:baseline;background:var(--paper);border-radius:8px;padding:7px 10px;font-size:.92rem}
+.findings .pos{font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);direction:ltr}
+.code-tag{font-family:var(--f-mono);font-size:.78rem;font-weight:500;padding:0 .45em;border-radius:5px}
+.code-tag.E{background:var(--bad-soft);color:var(--bad)}
+.code-tag.W{background:var(--warn-soft);color:var(--warn)}
+.status{font-weight:600}
+.status.ok{color:var(--ok)} .status.bad{color:var(--bad)}
+
+/* quiz & sorter */
+.q{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:10px}
+.q .opts{display:grid;gap:6px}
+.q .opts button{font:inherit;text-align:right;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:8px;padding:9px 12px;cursor:pointer}
+.q .opts button.right{border-color:var(--ok);background:var(--ok-soft)}
+.q .opts button.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.q .fb{font-size:.93rem;color:var(--ink-2)}
+.score{font-weight:600}
+
+/* disclosure diagram */
+.levels{display:grid;gap:12px}
+.ctx{display:grid;gap:6px;direction:ltr}
+.ctx .slot{display:flex;align-items:center;gap:10px;direction:rtl;border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--paper);transition:background .2s,border-color .2s}
+.ctx .slot .sz{margin-inline-start:auto;font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);direction:ltr}
+.ctx .slot.on{background:var(--accent-soft);border-color:var(--accent)}
+.ctx .slot.off{opacity:.55}
+.ctx .slot .dot{width:10px;height:10px;border-radius:50%;background:var(--line);flex:none}
+.ctx .slot.on .dot{background:var(--accent)}
+
+/* zip compare */
+.zips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.zip{border-radius:var(--r);padding:14px;display:grid;gap:8px}
+.zip.good{background:var(--ok-soft)} .zip.bad{background:var(--bad-soft)}
+.zip pre{margin:0;font-family:var(--f-mono);font-size:.84rem;direction:ltr;text-align:left;white-space:pre;overflow-x:auto}
+
+details.acc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+details.acc>summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style-position:inside}
+details.acc>div{padding:0 16px 14px;display:grid;gap:10px}
+details.solution{border:1px dashed var(--ok);border-radius:var(--r);background:var(--surface)}
+details.solution>summary{cursor:pointer;padding:10px 14px;font-weight:600;color:var(--ok)}
+details.solution>div{padding:0 14px 14px;display:grid;gap:10px}
+.exercise{border:2px solid var(--ink);border-radius:var(--r);padding:16px;display:grid;gap:10px;background:var(--surface)}
+.exercise .h{font-family:var(--f-display);font-size:1.1rem}
+
+.nav-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:18px}
+.nav-foot .btn{min-width:150px}
+.checklist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.checklist label{display:grid;grid-template-columns:1.4em minmax(0,1fr);gap:8px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer}
+.checklist input{accent-color:var(--ok);margin-top:.35em}
+
+/* start screen */
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:28px;align-items:center}
+.hero h1{font-size:clamp(2.1rem,4.6vw,3.3rem)}
+.hero h1 span{background:linear-gradient(transparent 62%,var(--marker) 62%);padding:0 .1em}
+.folder{background:var(--surface);border:1px solid var(--line);border-radius:4px var(--r) var(--r) var(--r);position:relative;padding:18px;margin-top:22px;box-shadow:0 8px 24px rgba(19,32,42,.08)}
+.folder::before{content:attr(data-label);position:absolute;top:-24px;right:-1px;font-family:var(--f-mono);font-size:.78rem;background:var(--marker);color:var(--marker-ink);padding:3px 12px;border-radius:8px 8px 0 0;direction:ltr}
+.frows{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.frows li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:12px;align-items:baseline;font-size:.9rem}
+.frows .fn{background:none;padding:0;color:var(--ink);font-weight:500;justify-self:start}
+.frows .fn.d{color:var(--ink-3);font-weight:400}
+.frows .fn.i{margin-right:1.4em}
+.frows span{color:var(--ink-2)}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.meta div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:.9rem}
+.meta b{display:block;font-size:.78rem;color:var(--ink-3);font-weight:600}
+.parts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.part{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:8px;align-content:start}
+.part ol{margin:0;padding-inline-start:1.2em;font-size:.94rem;color:var(--ink-2)}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:18px}
+  .map{position:static;max-height:none}
+  .map details{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:4px 10px}
+  .map details>summary{display:block;cursor:pointer;padding:8px 4px;font-weight:600}
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .explorer{grid-template-columns:minmax(0,1fr)}
+  .wline{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:520px){
+  .prog-label{display:none}
+  .brand{font-size:1rem}
+  .fence .in{padding:16px}
+  .findings li{grid-template-columns:auto minmax(0,1fr)}
+  .findings .pos{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+/* Widgets added for the Rules and Hooks modules */
+.q .opts.grid-opts{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.pill{display:inline-block;font-size:.76rem;font-weight:600;padding:.05em .6em;border-radius:99px;white-space:nowrap;vertical-align:.08em}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.info{background:var(--accent-soft);color:var(--ink)}
+
+/* load-order stack */
+.stack{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:st}
+.stack li{counter-increment:st;display:grid;grid-template-columns:2em minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px}
+.stack li::before{content:counter(st);font-family:var(--f-mono);font-size:.8rem;color:var(--ink-3);text-align:center}
+.stack li.lazy{border-style:dashed;background:var(--paper)}
+.stack .what{display:grid;gap:2px;min-width:0}
+.stack .what code{justify-self:start}
+
+/* session simulator */
+.sim{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:16px;align-items:start}
+.sim .acts{display:grid;gap:8px}
+.sim .acts button{font:inherit;font-size:.92rem;text-align:right;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:9px 12px;cursor:pointer;display:grid;gap:2px}
+.sim .acts button small{color:var(--ink-3);font-size:.8rem;direction:ltr;text-align:right;font-family:var(--f-mono)}
+.sim .acts button:hover{border-color:var(--accent)}
+.sim .acts button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.sim .log{font-size:.88rem;color:var(--ink-2);background:var(--paper);border-radius:8px;padding:10px 12px;min-height:3.2em}
+.ctx .slot .src{font-size:.78rem;color:var(--ink-3);margin-inline-start:6px}
+
+/* glob tester */
+.gt-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.gt-res{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.gt-res li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:baseline;background:var(--paper);border-radius:8px;padding:7px 10px;font-size:.9rem}
+.gt-res li code{justify-self:start}
+.gt-res .why{grid-column:2;font-size:.82rem;color:var(--ink-3)}
+
+/* lifecycle */
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.flow button{font:inherit;font-family:var(--f-mono);font-size:.82rem;direction:ltr;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer}
+.flow button.blk{border-color:var(--bad)}
+.flow button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.flow .arr{color:var(--ink-3);font-size:.9rem}
+.flow-group{display:grid;gap:6px}
+.flow-group h4{font-family:var(--f-body);font-weight:600;font-size:.86rem;color:var(--ink-3)}
+.evdetail{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:6px}
+.evfilter{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* hook simulator */
+.io{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.io .pane{background:var(--code-bg);color:var(--code-fg);border-radius:8px;padding:10px 12px;display:grid;gap:4px;min-width:0}
+.io .pane b{font-family:var(--f-mono);font-size:.75rem;color:var(--code-dim);font-weight:500;direction:ltr;text-align:left}
+.io .pane pre{margin:0;font-family:var(--f-mono);font-size:.8rem;white-space:pre-wrap;overflow-wrap:anywhere;direction:ltr;text-align:left;min-height:1.4em}
+.verdict{border-radius:var(--r);padding:12px 14px;display:grid;gap:4px;font-size:.95rem}
+.verdict.ok{background:var(--ok-soft)} .verdict.bad{background:var(--bad-soft)} .verdict.warn{background:var(--warn-soft)}
+
+@media (max-width:900px){
+  .sim,.gt-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:520px){
+  .stack li{grid-template-columns:1.6em minmax(0,1fr)}
+  .stack li .pill{grid-column:2;justify-self:start}
+}
+.grid-gap{display:grid;gap:10px;min-width:0}
+.nw{white-space:nowrap}
+.frows .fn{white-space:nowrap}
+.verdict code{justify-self:start;max-width:100%}
+.io .pane{align-content:start}
+.verdict span code{font-size:.85em}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#start">בונים Mods<b>next(e)</b></a>
+    <div class="prog" aria-live="polite">
+      <div class="prog-bar" aria-hidden="true"><i id="progFill"></i></div>
+      <span class="prog-label" id="progLabel">מסך פתיחה</span>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="החלפת ערכת צבעים">ערכת צבעים</button>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="map" aria-label="מפת הלומדה">
+    <details id="mapDetails" open>
+      <summary>מפת הלומדה</summary>
+      <ol><li><a href="#start" class="start-link" data-go="start"><span class="n">00</span>פתיחה</a></li></ol>
+      <h2>חלק א: להבין</h2>
+      <ol>
+        <li><a href="#t1" data-go="t1"><span class="n">01</span>מה זה Mod</a></li>
+        <li><a href="#t2" data-go="t2"><span class="n">02</span>Mod או כלי אחר</a></li>
+        <li><a href="#t3" data-go="t3"><span class="n">03</span>אירועים ו-Matchers</a></li>
+      </ol>
+      <h2>חלק ב: לבנות</h2>
+      <ol>
+        <li><a href="#t4" data-go="t4"><span class="n">04</span>הדוגמה: risk-guard</a></li>
+        <li><a href="#t5" data-go="t5"><span class="n">05</span>Hook מבפנים: next ו-catch</a></li>
+        <li><a href="#t6" data-go="t6"><span class="n">06</span>ה-API: $, ציור ו-State</a></li>
+        <li><a href="#t7" data-go="t7"><span class="n">07</span>לבנות עם Claude</a></li>
+      </ol>
+      <h2>חלק ג: להפעיל, לבדוק, לאבטח</h2>
+      <ol>
+        <li><a href="#t8" data-go="t8"><span class="n">08</span>טעינה, התקנה ואיפה זה רץ</a></li>
+        <li><a href="#t9" data-go="t9"><span class="n">09</span>בדיקה ותקלות</a></li>
+        <li><a href="#t10" data-go="t10"><span class="n">10</span>אבטחה וניהול</a></li>
+      </ol>
+    </details>
+  </nav>
+
+  <main id="main" tabindex="-1">
+
+<!-- ============ START ============ -->
+<section class="topic" id="start" data-title="מסך פתיחה">
+  <div class="hero">
+    <div class="prose">
+      <p class="kicker">לומדה אינטראקטיבית | מדריך פיתוח ב-Claude Code | עשרה נושאים</p>
+      <h1>בונים <span>Mods</span> <span class="nw">ב-Claude Code:</span> קוד שרץ בתוך הכלי עצמו</h1>
+      <p class="lead">Mod הוא Plugin שמכיל פונקציות JavaScript או TypeScript, ו-Claude Code קורא להן כשאירוע קורה: קריאה לכלי, שליחת פרומפט, ציור של חלק בממשק. בלומדה הזו תבנו Mod אמיתי בשם <code>risk-guard</code>, שעוצר פקודות Bash שקשה לבטל, שואל אתכם אם להמשיך, סופר מה נעצר ומציג את זה מעל שורת הפרומפט.</p>
+      <p>ה-Mod נבדק ב-Claude Code: <code>claude plugin validate</code> עבר, ארבע בדיקות אוטומטיות עברו, ובהרצה אמיתית הוא עצר את Claude כשניסה להריץ <code>rm -rf build .</code>, פקודה שהייתה מוחקת את כל התיקייה בגלל נקודה אחת מיותרת.</p>
+      <div class="btnrow"><button class="btn" type="button" data-go="t1">בואו נתחיל</button><button class="btn ghost" type="button" data-go="t4">ישר לדוגמה</button></div>
+    </div>
+    <div class="folder" data-label="risk-guard/" aria-label="מבנה התיקייה של ה-Mod לדוגמה">
+      <ul class="frows">
+        <li><code class="fn d">.claude-plugin/</code><span></span></li>
+        <li><code class="fn i">plugin.json</code><span>שם, גרסה ואפשרות mode</span></li>
+        <li><code class="fn d">hooks/</code><span></span></li>
+        <li><code class="fn i">hooks.json</code><span>מצביע על הקוד</span></li>
+        <li><code class="fn i">register.tsx</code><span>ה-Hooks עצמם</span></li>
+        <li><code class="fn i">risk.ts</code><span>דפוסי הפקודות המסוכנות</span></li>
+        <li><code class="fn d">types/</code><span>החוזה של ה-State</span></li>
+        <li><code class="fn d">tests/</code><span>ארבע בדיקות</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div><b>תאריך מחקר</b>16.10.2026</div>
+    <div><b>Claude Code שנבדק</b><span class="ltr">2.1.301</span></div>
+    <div><b>מערכת שנבדקה</b>Linux. ההוראות ל-macOS ול-Windows מבוססות על התיעוד</div>
+    <div><b>בדיקה בפועל</b><code>validate</code>, <code>tsc</code>, ארבע בדיקות, בדיקת מוטציה ושתי ריצות של <code>claude -p</code></div>
+  </div>
+
+  <div class="parts">
+    <div class="part"><h3>חלק א: להבין</h3><ol><li>מה זה Mod</li><li>Mod או כלי אחר</li><li>אירועים ו-Matchers</li></ol></div>
+    <div class="part"><h3>חלק ב: לבנות</h3><ol start="4"><li>הדוגמה: <code>risk-guard</code></li><li>Hook מבפנים: <code>next</code> ו-<code>.catch</code></li><li>ה-API: <code>$</code>, ציור ו-State</li><li>לבנות עם Claude</li></ol></div>
+    <div class="part"><h3>חלק ג: להפעיל, לבדוק, לאבטח</h3><ol start="8"><li>טעינה, התקנה ואיפה זה רץ</li><li>בדיקה ותקלות</li><li>אבטחה וניהול</li></ol></div>
+  </div>
+
+  <div class="callout note">
+    <span class="t">למי הלומדה מתאימה</span>
+    <p>למי שכבר עובד עם Claude Code ורוצה לשנות את ההתנהגות או את הממשק שלו: לחסום, לשכתב, להוסיף פקודה או פאנל. צריך לקרוא JavaScript או TypeScript ברמה בסיסית. Mods הם תכונה חדשה (גרסה 2.1.287 ומעלה), ולכן הם עדיין לא מופיעים בפרקי המדריך שנכתבו לפניהם. הלומדה משלימה את <a href="../chapters/ch26.html">פרק 26: Plugins</a> ואת הלומדה על <a class="sib" data-sib="hooks" href="hooks-lomda.html">Hooks</a>, שמסבירה את ה-Hooks שבקובצי ההגדרות.</p>
+  </div>
+
+  <div class="callout warn">
+    <span class="t">שימו לב: זו לא אותה מילה</span>
+    <p>בתיעוד של Claude Code שני דברים נקראים Hook. <strong>Settings hook</strong> הוא פקודת Shell, בקשת HTTP או פרומפט שמוגדרים ב-<code>settings.json</code>. <strong>Hook של Mod</strong> הוא פונקציה שרצה בתוך Claude Code. בלומדה הזו "Hook" הוא תמיד הסוג השני, ו"Settings hook" הוא הסוג הראשון.</p>
+  </div>
+</section>
+
+<!-- ============ T1 ============ -->
+<section class="topic" id="t1" data-title="מה זה Mod" hidden>
+  <div class="fence"><div class="bar">on(event, matcher, ($, e, next))</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 01</p>
+    <h2>מה זה Mod?</h2>
+    <p class="lead">Mod הוא Plugin שהקוד שלו רושם פונקציות לאירועים. כשהאירוע קורה, Claude Code קורא לפונקציה לפני שהוא פועל, והפונקציה מחליטה מה קורה: להמשיך כרגיל, לשנות את האירוע, או לענות במקום Claude Code.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> מאילו שלושה קבצים בנוי Mod, מה שלושת הארגומנטים של כל Hook, ומה שלוש הדרכים לטפל באירוע.</p>
+  </div><div class="bar">on(event, matcher, ($, e, next))</div></div>
+
+  <div class="prose">
+    <p><strong>ההגדרה מהתיעוד.</strong> Mod הוא Plugin שמשנה איך Claude Code נראה ומתנהג. הוא בנוי מ-Event handlers ב-JavaScript או ב-TypeScript: Claude Code קורא ל-Handler כשקורה אירוע, כמו קריאה לכלי, פרומפט שנשלח או חלק בממשק שמצויר, וה-Handler יכול לצפות באירוע, לשנות אותו או לקחת אותו לידיו.</p>
+    <p><strong>מה זה מוסיף.</strong> Settings hooks, Skills, Status lines ושרתי MCP פועלים מבחוץ: מריצים סקריפט, או נותנים ל-Claude טקסט וכלים. Mod רץ בתוך Claude Code, ולכן הוא יכול לצייר פאנל או פס מעל הפרומפט, לצייר מחדש חלקים מהממשק של Claude Code, להחזיק קריאה לכלי בזמן שהוא שואל אתכם שאלה, להוסיף פקודת <code>/</code> שרצה מיד בלי תור של Claude, ולשתף נתונים בין Hooks.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">Mod מינימלי מהתיעוד · שלושה קבצים</p>
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist">
+        <button role="tab" type="button" aria-selected="true">המבנה</button>
+        <button role="tab" type="button" aria-selected="false">register.js</button>
+      </div>
+      <div class="tabpanel" role="tabpanel">
+        <div class="code"><div class="code-head"><span>first-mod/</span><button class="copy" type="button">העתק</button></div><pre><code>first-mod/
+├── .claude-plugin/
+│   └── plugin.json      # the plugin manifest
+└── hooks/
+    ├── hooks.json       # { "modules": ["./register.js"] }
+    └── register.js      # the hooks module</code></pre></div>
+        <p class="small muted">המפתח <code>modules</code> ב-<code>hooks/hooks.json</code> הוא מה שהופך Plugin ל-Mod. הוא מכיל נתיב אחד, יחסי לקובץ. אין צורך ב-Node.js, ב-Bundler או בשלב Build: Claude Code טוען קובצי <code>.js</code> ו-<code>.ts</code> ישירות.</p>
+      </div>
+      <div class="tabpanel" role="tabpanel" hidden>
+        <div class="code"><div class="code-head"><span>hooks/register.js</span><button class="copy" type="button">העתק</button></div><pre><code>let calls = 0
+
+export function register(on) {
+  on('tool.call', async ($, e, next) =&gt; {
+    calls += 1
+    $.ui.invalidate('ui.render')
+    return next(e)
+  })
+
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) =&gt; {
+    return next({ ...e, props: { ...e.props, suffix: ' · tool calls: ' + calls + '…' } })
+  })
+}</code></pre></div>
+        <p class="small muted">ה-Hook הראשון סופר כל קריאה לכלי ומבקש ציור מחדש. השני מוסיף את המספר אחרי המילה של ה-Spinner, למשל <code>Thinking · tool calls: 3…</code>.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">שישה מונחים שחוזרים בכל הלומדה · לחצו על כרטיס כדי לקרוא</p>
+    <div class="cards">
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Hooks module</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>הקובץ שמייצא את הפונקציה <code>register(on, options)</code>. Claude Code קורא לה פעם אחת כשה-Mod נטען, ובכל טעינה מחדש.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">on</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>הפונקציה שרושמת Hook: <code>on(event, matcher?, hook)</code>. שם האירוע הוא מחרוזת קבועה בקוד, ה-Matcher הוא אובייקט שמסנן, וה-Hook הוא הפונקציה שרצה.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">$</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>ה-API של Claude Code. כל מה שמחוץ לקוד של ה-Mod עובר דרכו, כתוב כשם עצם ואז פעולה: <code>$.ui.toast</code>, <code>$.fs.read</code>, <code>$.command.register</code>. ל-Mod אין DOM ואין Node.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">e</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>הקלט של האירוע, כנתונים פשוטים וקפואים. בקריאה ל-Bash, למשל, <code>e.tool</code> הוא <code>"Bash"</code> ו-<code>e.command</code> הוא הפקודה.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">next</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>מעביר את האירוע הלאה: ל-Mods שמתחת ואז להתנהגות של Claude Code עצמו, ומחזיר את התוצאה. בלי <code>next</code>, ה-Hook עונה בעצמו.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">.catch</span><span class="hint">מה זה? לחצו להסבר</span><span class="back" hidden>Handler שרץ כשה-Hook נכשל: זרק שגיאה, החזיר צורה לא נכונה או חרג מזמן. בלי <code>.catch</code>, Hook שנכשל פשוט מדולג. ב-Hook ששומר על משהו, ה-<code>.catch</code> הוא מה שגורם לכשל לחסום.</span></button>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">שלוש דרכים לטפל באירוע · לחצו על דרך כדי לראות קוד</p>
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist">
+        <button role="tab" type="button" aria-selected="true">לצפות</button>
+        <button role="tab" type="button" aria-selected="false">לשכתב</button>
+        <button role="tab" type="button" aria-selected="false">לענות</button>
+      </div>
+      <div class="tabpanel" role="tabpanel">
+        <div class="code"><div class="code-head"><span>Observe</span><button class="copy" type="button">העתק</button></div><pre><code>on('tool.call', async ($, e, next) =&gt; {
+  $.ui.log('tool: ' + e.tool, { to: 'debug' })
+  return next(e)            // unchanged</code></pre></div>
+        <p class="small muted">רושמים, סופרים, מציגים, ומחזירים <code>next(e)</code>. האירוע ממשיך כמו שהיה.</p>
+      </div>
+      <div class="tabpanel" role="tabpanel" hidden>
+        <div class="code"><div class="code-head"><span>Rewrite</span><button class="copy" type="button">העתק</button></div><pre><code>on('tool.call', { tool: 'Bash' }, async ($, e, next) =&gt;
+  next({ ...e, command: e.command.trim() })   // the rest sees the new command
+)</code></pre></div>
+        <p class="small muted">קוראים ל-<code>next</code> עם עותק משונה של <code>e</code>. כל מה שמתחת רואה את הגרסה החדשה, בגבולות מה שהאירוע מתיר לשנות.</p>
+      </div>
+      <div class="tabpanel" role="tabpanel" hidden>
+        <div class="code"><div class="code-head"><span>Answer</span><button class="copy" type="button">העתק</button></div><pre><code>on('tool.call', { tool: 'Edit' }, async ($, e, next) =&gt;
+  /\.env$/.test(e.file_path)
+    ? { deny: 'This file is protected.' }   // the tool never runs
+    : next(e)
+)</code></pre></div>
+        <p class="small muted">מחזירים תוצאה בלי לקרוא ל-<code>next</code>. כאן זו חסימה, וב-<code>command.run</code> זה הטקסט של הפקודה.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout warn"><span class="t">איפה Mods קיימים, ואיפה לא</span><p>Mods הם של Claude Code בלבד: ה-CLI, כולל טרמינל בתוך עורך ו-JetBrains, ולשונית Code באפליקציית Claude Desktop. לשיחה רגילה באפליקציית Claude או ב-claude.ai אין Mods, וגם לא ל-Claude API. ב-Agent SDK ה-Hooks של Mod רצים, אבל מה שהוא מצייר לא מוצג (נושא 8). ל-Agent SDK יש גם מנגנון Hooks משלו, כ-Callbacks בקוד, שהלומדה לא עוסקת בו.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/plugins/mods/overview">Mods overview</a> · <a href="https://code.claude.com/docs/en/plugins/mods/create">Create a mod</a> · נבדק: 16.10.2026</p></div>
+</section>
+
+<!-- ============ T2 ============ -->
+<section class="topic" id="t2" data-title="Mod או כלי אחר" hidden>
+  <div class="fence"><div class="bar">on(event, matcher, ($, e, next))</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 02</p>
+    <h2>מתי Mod, ומתי כלי אחר?</h2>
+    <p class="lead">Mod הוא הכלי החזק ביותר בקבוצה, ולכן גם זה שדורש הכי הרבה זהירות. אם Settings hook, Skill או שרת MCP כבר עושים את מה שצריך, הם עדיפים.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לבחור בין Mod, Settings hook, Skill ושרת MCP, לפי הטבלה הרשמית ולפי מקרים אמיתיים.</p>
+  </div><div class="bar">on(event, matcher, ($, e, next))</div></div>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th></th><th>Mod</th><th>Settings hook</th><th>Skill</th><th>שרת MCP</th></tr></thead>
+    <tbody>
+      <tr><td><strong>מה זה</strong></td><td>פונקציות ב-Plugin, שרצות בתהליך של Claude Code</td><td>פקודת Shell, בקשת HTTP או פרומפט באירוע</td><td>קובץ <code>SKILL.md</code> עם הוראות ש-Claude קורא</td><td>תהליך או שירות חיצוני שנותן ל-Claude כלים</td></tr>
+      <tr><td><strong>מה הוא יכול לשנות</strong></td><td>קריאות לכלים, פרומפטים, פקודות, תורות ומה שהממשק מצייר</td><td>אם קריאה או פרומפט ממשיכים, הארגומנטים והתוצאה של כלי, והקשר נוסף</td><td>מה ש-Claude יודע ועושה</td><td>אילו כלים יש ל-Claude</td></tr>
+      <tr><td><strong>מצייר בממשק</strong></td><td>כן</td><td>לא</td><td>לא</td><td>לא</td></tr>
+      <tr><td><strong>כותבים ב</strong></td><td>JavaScript או TypeScript</td><td>סקריפט ורשומה ב-<code>settings.json</code></td><td>Markdown</td><td>כל שפה</td></tr>
+      <tr><td><strong>בוחרים בו כש</strong></td><td>צריך פאנל, פס מעל הפרומפט, פקודה משלכם, או לשכתב אירוע</td><td>רוצים לחסום, לאשר או לתעד אירוע עם סקריפט שכבר יש לכם</td><td>מדביקים שוב ושוב את אותן הוראות</td><td>Claude צריך להגיע למערכת חיצונית</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small muted">הטבלה מבוססת על "Compare mods, settings hooks, skills, and MCP servers" בתיעוד. Plugin יכול להכיל את כולם, כך ש-Mod יכול לצאת באותו Plugin עם Skill ושרת MCP.</p>
+
+  <div class="block">
+    <p class="block-title">תרגול: מה הכלי הנכון? · בחרו תשובה לכל מצב</p>
+    <div id="sorter" class="block"></div>
+    <p class="score" id="sorterScore" aria-live="polite"></p>
+  </div>
+
+  <div class="callout note"><span class="t">risk-guard מול Settings hook</span><p>את החסימה עצמה אפשר לכתוב גם כ-Settings hook מסוג <code>PreToolUse</code>, כמו <code>protect_files.py</code> בלומדה על Hooks. מה ש-Mod מוסיף כאן: הוא <strong>מחזיק</strong> את הקריאה ושואל אתכם בדיאלוג של Claude Code עצמו, שומר ספירה ב-State, מציג אותה בפס מעל הפרומפט, ומוסיף את <code>/guard-status</code>. אם כל מה שצריך הוא "לחסום תמיד", Settings hook פשוט יותר, ונקרא בקלות ב-<code>/hooks</code>.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/plugins/mods/overview">Mods overview: compare mods, settings hooks, skills, and MCP servers</a> · נבדק: 16.10.2026</p></div>
+</section>
+
+<!-- ============ T3 ============ -->
+<section class="topic" id="t3" data-title="אירועים ו-Matchers" hidden>
+  <div class="fence"><div class="bar">on(event, matcher, ($, e, next))</div><div class="in">
+    <p class="kicker"><b>חלק א</b> | נושא 03</p>
+    <h2>אירועים, ומה Hook יכול לענות בכל אחד</h2>
+    <p class="lead">לכל אירוע יש קלט, ויש תוצאה שה-Hook מחזיר. בחלק מהאירועים התוצאה יכולה לסרב: לחסום כלי, להפיל פרומפט, לא לטעון Mod אחר. אלה ה-Hooks ש-<code>claude plugin validate</code> מסמן כ-<code>gating hook</code>.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לבחור אירוע למשימה, לדעת מה מותר להחזיר בו, ולכתוב Matcher.</p>
+  </div><div class="bar">on(event, matcher, ($, e, next))</div></div>
+
+  <div class="block">
+    <p class="block-title">האירועים המרכזיים · לחצו על אירוע לפרטים</p>
+    <div class="evfilter"><span class="choice"><label><input type="checkbox" id="evGateOnly">רק אירועים שבהם Hook יכול לסרב</label></span><span class="small muted" id="evCount"></span></div>
+    <div id="evGroups" class="block"></div>
+    <div class="evdetail" id="evDetail" aria-live="polite"></div>
+    <p class="small muted">זו בחירה של האירועים השימושיים ביותר, לא רשימה מלאה. הרשימה המלאה של הגרסה שלכם נמצאת בקובץ ההגדרות שהמנוע כותב ליד ה-Mod (נושא 9), ב-<a href="https://code.claude.com/docs/en/plugins/mods/reference">Mods reference</a>.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">Matchers · מסננים לפני שה-Hook רץ</p>
+    <div class="prose">
+      <p>ה-Matcher הוא אובייקט, הארגומנט השני של <code>on</code>. כל שדה בו נבדק מול השדה באותו שם בקלט של האירוע. ערך יכול להיות ערך בודד, מערך (אחד מהם) או ביטוי רגולרי. Hook בלי Matcher רץ בכל מופע של האירוע.</p>
+    </div>
+    <div class="code"><div class="code-head"><span>דוגמאות</span><button class="copy" type="button">העתק</button></div><pre><code>on('tool.call', { tool: 'Bash' }, hook)                    // one tool
+on('tool.call', { tool: ['Edit', 'Write'] }, hook)         // either tool
+on('tool.call', { tool: /^mcp__github__/ }, hook)          // a regex
+on('command.run', { command: 'guard-status' }, hook)       // one command
+on('ui.render', { component: 'Pane', requestId: 'stats' }, hook)
+on('ui.render', { props: { origin: { kind: 'task-notification' } } }, hook)</code></pre></div>
+  </div>
+
+  <div class="callout note"><span class="t">טיפוסים לפי כלי</span><p>ב-TypeScript, Matcher כמו <code>{ tool: 'Bash' }</code> מצמצם את <code>e</code>: העורך יודע ש-<code>e.command</code> קיים. הטבלה של הכלים המובנים נכתבת ליד ה-Mod, בקובץ <code>.claude-plugin/types/claude-code-tools/index.d.ts</code>.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/plugins/mods/events">React to events</a> · <a href="https://code.claude.com/docs/en/plugins/mods/reference">Mods reference: events</a> · קובץ ההגדרות של 2.1.301 · נבדק: 16.10.2026</p></div>
+</section>
+
+<!-- ============ T4 ============ -->
+<section class="topic" id="t4" data-title="הדוגמה: risk-guard" hidden>
+  <div class="fence"><div class="bar">on(event, matcher, ($, e, next))</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 04</p>
+    <h2>הדוגמה שנבנה: <code>risk-guard</code></h2>
+    <p class="lead">Mod אחד שמדגים את שלוש הדרכים: Hook שעונה (חוסם) על קריאה לכלי, Hook שעונה על פקודה, ו-Hook שמצייר. כל קובץ כאן הוא הקובץ שבדקנו.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> מה כל קובץ עושה, איך ה-State עובר בין ה-Hooks, ואיך מריצים את ה-Mod.</p>
+  </div><div class="bar">on(event, matcher, ($, e, next))</div></div>
+
+  <div class="prose">
+    <p><strong>הבעיה.</strong> יש פקודות Bash שאי אפשר לבטל: <code>rm -rf</code>, <code>git push --force</code>, <code>git reset --hard</code>, <code>git clean -f</code>. כלל <code>ask</code> בהרשאות שואל על כל פקודה שתואמת לתבנית, אבל קשה לכתוב תבנית שתופסת את כל הצורות של <code>rm</code> עם דגלים.</p>
+    <p><strong>הפתרון.</strong> Hook על <code>tool.call</code> של Bash שבודק את הפקודה בביטוי רגולרי. פקודה מסוכנת מחכה: ה-Mod שואל "Allow once" או "Block". כשאין את מי לשאול, כמו ב-<code>claude -p</code>, הוא חוסם. אפשרות <code>mode</code> ב-<code>plugin.json</code> מאפשרת לבחור <code>deny</code>, חסימה בלי לשאול.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">סייר הקבצים · לחצו על קובץ כדי לראות את התוכן ואת התפקיד שלו</p>
+    <div class="explorer">
+      <div class="tree" role="group" aria-label="קבצי ה-Mod">
+        <span class="dir">risk-guard/</span>
+        <span class="dir d1">.claude-plugin/</span>
+        <button type="button" class="d2" data-file="manifest" aria-pressed="true">plugin.json</button>
+        <span class="dir d1">hooks/</span>
+        <button type="button" class="d2" data-file="hooksjson" aria-pressed="false">hooks.json</button>
+        <button type="button" class="d2" data-file="register" aria-pressed="false">register.tsx</button>
+        <button type="button" class="d2" data-file="risk" aria-pressed="false">risk.ts</button>
+        <span class="dir d1">types/</span>
+        <button type="button" class="d2" data-file="types" aria-pressed="false">index.d.ts</button>
+        <span class="dir d1">tests/</span>
+        <button type="button" class="d2" data-file="test" aria-pressed="false">risk-guard.test.ts</button>
+      </div>
+      <div class="explain" id="fileExplain"></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">הרצה ראשונה · מתוך התיקייה שמעל <code>risk-guard/</code></p>
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist">
+        <button role="tab" type="button" aria-selected="true">macOS ו-Linux</button>
+        <button role="tab" type="button" aria-selected="false">Windows (PowerShell)</button>
+      </div>
+      <div class="tabpanel" role="tabpanel">
+        <ol class="steps">
+          <li><div>יוצרים את התיקיות ומעתיקים אליהן את הקבצים מסייר הקבצים:
+            <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>mkdir -p risk-guard/.claude-plugin risk-guard/hooks risk-guard/types risk-guard/tests
+claude --version   # 2.1.287 or later</code></pre></div></div></li>
+          <li><div>בודקים מה Claude Code קורא מה-Mod, ומריצים את הבדיקות:
+            <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>claude plugin validate ./risk-guard
+claude plugin test ./risk-guard</code></pre></div></div></li>
+          <li><div>טוענים אותו ל-Session אחד, בלי להתקין:
+            <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>claude --plugin-dir ./risk-guard</code></pre></div>
+            <span class="when">בתוך ה-Session: <code>/plugin</code> מציג <code>1 mod active · risk-guard</code>, ו-<code>/guard-status</code> מחזיר את הספירה.</span></div></li>
+        </ol>
+      </div>
+      <div class="tabpanel" role="tabpanel" hidden>
+        <div class="code"><div class="code-head"><span>PowerShell</span><button class="copy" type="button">העתק</button></div><pre><code>New-Item -ItemType Directory -Force risk-guard\.claude-plugin, risk-guard\hooks, risk-guard\types, risk-guard\tests
+claude plugin validate .\risk-guard
+claude plugin test .\risk-guard
+claude --plugin-dir .\risk-guard</code></pre></div>
+        <p class="small">ה-Mod עצמו לא תלוי במערכת ההפעלה: הוא רץ בסביבה של Claude Code, לא ב-Node. ההבדל הוא בכלים: ב-Windows Claude יכול להריץ פקודות גם בכלי <code>PowerShell</code>, ולכן התיעוד של Hooks ממליץ לתפוס <code>Bash|PowerShell</code>. ל-Windows הוסיפו Matcher כמו <code>{ tool: ['Bash', 'PowerShell'] }</code> ודפוס ל-<code>Remove-Item -Recurse -Force</code>. את הגרסה הזו לא בדקנו בפועל.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout ok"><span class="t">מה קרה בבדיקה</span><p>הרצנו <code>claude -p</code> עם <code>--allowedTools "Bash"</code>, כלומר מערכת ההרשאות התירה כל פקודת Bash, וביקשנו להריץ <code>rm -rf build</code>. Claude שלח <code>rm -rf build .</code>, עם נקודה מיותרת שהייתה מוחקת את כל תיקיית העבודה. ה-Mod חסם, Claude קיבל את הנימוק <code>risk-guard held a "rm -rf" command...</code>, והתיקייה נשארה. ב-<code>-p</code> אין את מי לשאול, ולכן <code>$.ui.ask</code> נדחה והשומר בחר בחסימה.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/plugins/mods/events">React to events: guard or change a tool call</a> · <a href="https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods/blast-radius">blast-radius</a>, Mod לדוגמה של Anthropic באותו נושא · יומן הבדיקה נשמר עם הלומדה · נבדק: 16.10.2026</p></div>
+</section>
+
+<!-- ============ T5 ============ -->
+<section class="topic" id="t5" data-title="Hook מבפנים: next ו-catch" hidden>
+  <div class="fence"><div class="bar">on(event, matcher, ($, e, next))</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 05</p>
+    <h2>Hook מבפנים: <code>next</code>, תוצאה ו-<code>.catch</code></h2>
+    <p class="lead">Hook ששומר על משהו צריך שלוש תכונות: הוא מחליט לפני שהוא קורא ל-<code>next</code>, הוא מחזיר תוצאה בצורה שהאירוע מקבל, ויש לו <code>.catch</code> שחוסם כשמשהו נשבר.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לקרוא את השומר שורה אחר שורה, לחזות מה הוא יעשה בכל מצב, ולהבין למה הוא נכשל לכיוון חסימה.</p>
+  </div><div class="bar">on(event, matcher, ($, e, next))</div></div>
+
+  <div class="block">
+    <p class="block-title">השומר ב-<code>register.tsx</code> · כל שורה וההסבר שלה</p>
+    <div class="walk" id="walkGuard"></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">סימולטור: מה יקרה לפקודה? · זהו תרגום לדפדפן של <code>risk.ts</code> ושל השומר</p>
+    <div class="panel">
+      <div class="field"><label for="rgCmd">הפקודה ש-Claude שולח ל-Bash</label><input id="rgCmd" class="ltrin" type="text" spellcheck="false" value="rm -rf build ."></div>
+      <div class="btnrow" role="group" aria-label="פקודות לדוגמה">
+        <button class="btn ghost" type="button" data-rg="ls -la build"><span class="ltr">ls -la</span></button>
+        <button class="btn ghost" type="button" data-rg="rm -rf build ."><span class="ltr">rm -rf</span></button>
+        <button class="btn ghost" type="button" data-rg="rm -fr node_modules"><span class="ltr">rm -fr</span></button>
+        <button class="btn ghost" type="button" data-rg="rm -r build"><span class="ltr">rm -r</span></button>
+        <button class="btn ghost" type="button" data-rg="git push --force origin main"><span class="ltr">push --force</span></button>
+        <button class="btn ghost" type="button" data-rg="git reset --hard HEAD~1"><span class="ltr">reset --hard</span></button>
+        <button class="btn ghost" type="button" data-rg="git clean -fd"><span class="ltr">clean -fd</span></button>
+      </div>
+      <div class="gt-grid">
+        <div class="field"><span class="small"><strong>mode ב-plugin.json</strong></span>
+          <div class="choice" id="rgMode">
+            <label><input type="radio" name="rgMode" value="ask" checked>ask</label>
+            <label><input type="radio" name="rgMode" value="deny">deny</label>
+          </div></div>
+        <div class="field"><span class="small"><strong>מה קורה כשה-Mod שואל</strong></span>
+          <div class="choice" id="rgAns">
+            <label><input type="radio" name="rgAns" value="allow">בוחרים Allow once</label>
+            <label><input type="radio" name="rgAns" value="block" checked>בוחרים Block</label>
+            <label><input type="radio" name="rgAns" value="none">אין את מי לשאול, כמו ב-<span class="ltr">claude -p</span>, או שסוגרים את הדיאלוג</label>
+            <label><input type="radio" name="rgAns" value="crash">השומר זורק שגיאה לפני ההחלטה</label>
+          </div></div>
+      </div>
+      <ol class="stack" id="rgTrace" aria-live="polite"></ol>
+      <div class="verdict" id="rgOut" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">למה להחליט לפני <code>next</code></p>
+    <div class="prose">
+      <p>ה-<code>.catch</code> מקבל את <code>next.called</code>: האם ה-Hook כבר קרא ל-<code>next</code> לפני שנכשל. אם לא, ה-Handler מחזיר <code>{ deny }</code>, והכלי לא רץ. אם כן, <code>next(e)</code> בתוך ה-Handler מחזיר את מה שהקריאה הקודמת כבר החזירה, ושום דבר לא רץ פעמיים. לכן שומר טוב בודק ומחליט <strong>לפני</strong> <code>next</code>.</p>
+      <p>ל-Hook יש עשר שניות של זמן משלו לכל הפעלה. הזמן נעצר בזמן ש-<code>next</code> או קריאה ל-<code>$</code> רצים, ולכן ההמתנה לתשובה שלכם ב-<code>$.ui.ask</code> לא נספרת. ל-<code>.catch</code> יש שנייה אחת.</p>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">הצורה של התוצאה ב-<code>tool.call</code></p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>מה מחזירים</th><th>מה קורה</th></tr></thead>
+      <tbody>
+        <tr><td><code>next(e)</code></td><td>הכלי רץ כרגיל. אפשר לחכות לתוצאה (<code>await next(e)</code>) ולפעול לפיה, למשל לבדוק <code>isError</code>.</td></tr>
+        <tr><td><code>next({ ...e, command })</code></td><td>הכלי רץ עם קלט משוכתב. Settings hooks מנוהלים רצים שוב על הקלט החדש.</td></tr>
+        <tr><td><code>{ deny: 'why' }</code></td><td>הכלי לא רץ. Claude מקבל את הטקסט כתוצאה שגויה, ובתמליל מופיע <code>tool_use_error</code>.</td></tr>
+        <tr><td><code>{ result }</code></td><td>ה-Hook עונה במקום הכלי. כך עונים לכלי ש-Mod רשם בעצמו עם <code>$.tool.register</code>.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">תרגיל: להוסיף דפוס</p>
+    <div class="exercise">
+      <p>הוסיפו ל-<code>risk.ts</code> דפוס שעוצר <code>DROP TABLE</code> בכל פקודה, למשל <code>psql -c "DROP TABLE users"</code>, בלי תלות באותיות גדולות וקטנות.</p>
+    </div>
+    <details class="acc solution"><summary>פתרון</summary><div>
+      <div class="code"><div class="code-head"><span>hooks/risk.ts (תוספת)</span><button class="copy" type="button">העתק</button></div><pre><code>  { label: 'DROP TABLE', re: /\bdrop\s+table\b/i },</code></pre></div>
+      <p>מוסיפים את השורה למערך <code>RISKY</code>, ואז מוסיפים בדיקה ל-<code>tests/risk-guard.test.ts</code> שמריצה <code>psql -c "DROP TABLE users"</code> ומצפה ל-<code>deny</code>. מריצים <code>claude plugin test</code>.</p>
+    </div></details>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/plugins/mods/events">React to events: how a hook handles an event, handle a hook that fails</a> · <a href="https://code.claude.com/docs/en/plugins/mods/reference">Mods reference: limits</a> · נבדק: 16.10.2026</p></div>
+</section>
+
+<!-- ============ T6 ============ -->
+<section class="topic" id="t6" data-title="ה-API: $, ציור ו-State" hidden>
+  <div class="fence"><div class="bar">on(event, matcher, ($, e, next))</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 06</p>
+    <h2>ה-API: <code>$</code>, ציור בממשק ו-State</h2>
+    <p class="lead">כל מה ש-Mod עושה מחוץ לקוד שלו עובר דרך <code>$</code>: לצייר, להוסיף פקודה, לקרוא לקובץ, להריץ תהליך, לקרוא למודל. בגלל זה Claude Code יכול להציג רשימה של כל מה ש-Mod עושה עוד לפני שהוא רץ.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> אילו קבוצות יש ב-API, איך מציירים פס מעל הפרומפט, ואיפה שומרים ערכים שצריכים לשרוד טעינה מחדש.</p>
+  </div><div class="bar">on(event, matcher, ($, e, next))</div></div>
+
+  <div class="block">
+    <p class="block-title">הקבוצות ב-<code>$</code> · לחצו על לשונית</p>
+    <div class="tabs" data-tabs>
+      <div class="tablist" role="tablist">
+        <button role="tab" type="button" aria-selected="true">ממשק</button>
+        <button role="tab" type="button" aria-selected="false">פקודות וכלים</button>
+        <button role="tab" type="button" aria-selected="false">מודל ונתונים</button>
+        <button role="tab" type="button" aria-selected="false">גישה למערכת</button>
+      </div>
+      <div class="tabpanel" role="tabpanel">
+        <div class="tablewrap"><table><tbody>
+          <tr><td><code>$.ui.toast(text)</code></td><td>הודעה קצרה בפינה, עם שם ה-Mod</td></tr>
+          <tr><td><code>$.ui.status(text)</code></td><td>רשומה ב-Status line; <code>undefined</code> מנקה אותה</td></tr>
+          <tr><td><code>$.ui.log(text, { to })</code></td><td>שורה עמומה בתמליל, או רק ללוג הדיבוג עם <code>{ to: 'debug' }</code></td></tr>
+          <tr><td><code>$.ui.ask(question, options)</code></td><td>שואל בדיאלוג של Claude Code ומחזיר את התווית שנבחרה. נדחה כשסוגרים אותו וב-<code>-p</code></td></tr>
+          <tr><td><code>$.ui.open({ id, title })</code></td><td>פותח פאנל, שמצויר ב-Hook של <code>ui.render</code> על <code>Pane</code></td></tr>
+          <tr><td><code>$.ui.resolve(e)</code></td><td>מחזיר את טבלת הרכיבים של המשטח: <code>Box</code>, <code>Text</code>, <code>Button</code>, <code>Input</code> ועוד</td></tr>
+          <tr><td><code>$.ui.invalidate(...)</code></td><td>מבקש ציור מחדש, כשה-State לא נמצא ב-<code>$.state</code></td></tr>
+        </tbody></table></div>
+      </div>
+      <div class="tabpanel" role="tabpanel" hidden>
+        <div class="tablewrap"><table><tbody>
+          <tr><td><code>$.command.register({ name, description })</code></td><td>מוסיף פקודת <code>/</code>. רושמים ב-<code>session.start</code>, ועונים ב-<code>command.run</code> עם <code>{ text }</code></td></tr>
+          <tr><td><code>$.tool.register({ name, description, inputSchema })</code></td><td>מוסיף כלי שהמודל יכול לקרוא לו. הוא מופיע כ-<code>mcp__&lt;plugin&gt;__&lt;name&gt;</code> ועונים לו ב-<code>tool.call</code></td></tr>
+          <tr><td><code>$.tool.call(...)</code></td><td>קורא לכלי, דרך כל ה-Hooks שמתחת</td></tr>
+          <tr><td><code>$.prompt.submit(...)</code></td><td>שולח פרומפט שמתחיל תור משלו כשה-Session פנוי</td></tr>
+          <tr><td><code>$.mcp.call(...)</code></td><td>קורא לכלי של שרת MCP מחובר, לפי כללי ההרשאות של ה-Session</td></tr>
+        </tbody></table></div>
+      </div>
+      <div class="tabpanel" role="tabpanel" hidden>
+        <div class="tablewrap"><table><tbody>
+          <tr><td><code>$.model.complete({ model, prompt })</code></td><td>השלמת טקסט אחת בלי היסטוריה, על החשבון שלכם. תמיד מחזירה תוצאה עם <code>isAnswered</code></td></tr>
+          <tr><td><code>$.model.fork({ prompt })</code></td><td>שאלה על התמליל של ה-Session, עם אותו מודל, שנהנית מה-Prompt cache</td></tr>
+          <tr><td><code>$.state</code> עם <code>atom</code>, <code>read</code>, <code>update</code></td><td>ערכים של ה-Session, ששורדים טעינה מחדש של ה-Mod וגורמים לציור מחדש של מי שקרא אותם</td></tr>
+          <tr><td><code>$.store</code></td><td>ערכי JSON ששורדים בין Sessions</td></tr>
+          <tr><td><code>$.clock</code></td><td><code>now</code>, <code>after</code>, <code>every</code>: טיימרים שרצים עד שמבטלים אותם או עד טעינה מחדש</td></tr>
+        </tbody></table></div>
+      </div>
+      <div class="tabpanel" role="tabpanel" hidden>
+        <div class="tablewrap"><table><tbody>
+          <tr><td><code>$.fs</code></td><td>קריאה, כתיבה, רשימה ו-<code>stat</code> של קבצים, בכל מקום שהמשתמש שלכם יכול</td></tr>
+          <tr><td><code>$.process.run({ argv })</code></td><td>מריץ פקודה במחשב, לפי מערך ארגומנטים</td></tr>
+          <tr><td><code>$.http.fetch(...)</code></td><td>בקשת רשת. כפוף למדיניות הרשת של הארגון</td></tr>
+          <tr><td><code>$.env</code>, <code>$.settings</code></td><td>משתני סביבה והגדרות, שעשויים להכיל מפתחות</td></tr>
+          <tr><td><code>$.session</code></td><td>פרטי ה-Session, ההודעות שלו, וגרסת המנוע</td></tr>
+        </tbody></table></div>
+        <p class="small muted">כל אלה פועלים עם ההרשאות שלכם ומחוץ ל-Sandbox. כללי <code>deny</code> של הרשאות חלים על הכלים של Claude, לא על <code>$.fs</code> ו-<code>$.process</code> של Mod (נושא 10).</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">ציור: הפס מעל הפרומפט של <code>risk-guard</code></p>
+    <div class="code"><div class="code-head"><span>hooks/register.tsx (קטע)</span><button class="copy" type="button">העתק</button></div><pre><code>on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) =&gt; {
+  const c = await read($, counts)
+  if (c.held === 0 || e.props.hasSurvey) {
+    return next(e)                       // nothing to show
+  }
+  const { Box, Text } = $.ui.resolve(e)  // the surface's own elements
+  return (
+    &lt;Box&gt;
+      &lt;Text color="yellow"&gt;risk-guard&lt;/Text&gt;
+      &lt;Text dimColor&gt; held {c.held} risky commands; last: {c.last}&lt;/Text&gt;
+    &lt;/Box&gt;
+  )
+})</code></pre></div>
+    <div class="prose"><ul>
+      <li><strong>הרכיבים לא גלובליים.</strong> מקבלים אותם מ-<code>$.ui.resolve(e)</code>, כי לכל משטח טבלה משלו: <code>e.surface</code> הוא <code>terminal</code>, <code>desktop</code>, <code>vscode</code> או <code>mobile</code>.</li>
+      <li><strong>JSX בלי React.</strong> הקובץ הוא <code>.tsx</code>, ו-JSX מתורגם לפונקציה הגלובלית <code>h</code>.</li>
+      <li><strong>עץ שלא עובר אימות לא מצויר.</strong> רכיב שהמשטח לא מכיר או Prop שלא קיים, ו-Claude Code מצייר את שלו במקום, עם שורה בלוג הדיבוג.</li>
+    </ul></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">State: למה לא משתנה רגיל</p>
+    <div class="prose">
+      <p>טעינה מחדש של Mod מריצה את <code>register</code> שוב, ומשתנים של המודול מתאפסים. ערכים ב-<code>$.state</code> שייכים ל-Session ונשארים. בנוסף, קריאה ל-<code>read</code> בזמן ציור רושמת את הרכיב, ו-<code>update</code> מצייר מחדש בדיוק את מי שקרא. כל ערך מוצהר בחוזה, ו-<code>claude plugin validate</code> בודק שכל מפתח בקוד מופיע בו:</p>
+    </div>
+    <div class="code"><div class="code-head"><span>types/index.d.ts</span><button class="copy" type="button">העתק</button></div><pre><code>export type GuardCounts = { held: number; allowed: number; last: string | null }
+
+declare module 'claude-code' {
+  interface PluginState {
+    'risk-guard': { counts: GuardCounts }
+  }
+}</code></pre></div>
+    <p class="small muted">ב-Hook של ציור לא כותבים ל-State. כותבים מ-Handler של כפתור או מאירוע אחר, כמו השומר שקורא ל-<code>update</code>.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">מגבלות שכדאי להכיר</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>מה</th><th>מגבלה</th></tr></thead>
+      <tbody>
+        <tr><td>זמן משלו של Hook בכל הפעלה</td><td>10 שניות. <code>next</code> וקריאות ל-<code>$</code> לא נספרות, חוץ מ-<code>$.clock.sleep</code></td></tr>
+        <tr><td>זמן של <code>.catch</code></td><td>שנייה אחת</td></tr>
+        <tr><td><code>session.end</code></td><td>גבול קצר לכל ה-Hooks יחד, 1.5 שניות כברירת מחדל</td></tr>
+        <tr><td>פאנל שנפתח בלי שביקשתם</td><td>מוצג בטרמינל רק מ-144 עמודות</td></tr>
+        <tr><td>טקסט ב-<code>toast</code>, <code>status</code> ו-<code>log</code></td><td>2,000 התווים הראשונים בטרמינל</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/plugins/mods/api">Use the mods API</a> · <a href="https://code.claude.com/docs/en/plugins/mods/interface">Draw in the interface: keep state</a> · <a href="https://github.com/anthropics/claude-code/blob/main/mods/types/claude-code.d.ts">claude-code.d.ts</a> · נבדק: 16.10.2026</p></div>
+</section>
+
+<!-- ============ T7 ============ -->
+<section class="topic" id="t7" data-title="לבנות עם Claude" hidden>
+  <div class="fence"><div class="bar">on(event, matcher, ($, e, next))</div><div class="in">
+    <p class="kicker"><b>חלק ב</b> | נושא 07</p>
+    <h2>לבנות Mod בעזרת Claude</h2>
+    <p class="lead">Claude Code מגיע עם Skill מובנה בשם <code>plugin-authoring</code>, שאומר ל-Claude איפה לכתוב Mod, אילו אירועים ושיטות יש בגרסה שלכם, ואיך ה-Mod נטען. מתארים מה רוצים, ו-Claude כותב.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> מה קורה כש-Claude כותב Mod, איזו שאלה תופיע, ואיך לנסח בקשה שמובילה ל-Mod בטוח ובדוק.</p>
+  </div><div class="bar">on(event, matcher, ($, e, next))</div></div>
+
+  <div class="block">
+    <p class="block-title">מה קורה, שלב אחר שלב</p>
+    <ol class="steps">
+      <li><div><strong>מתארים.</strong> למשל: <code>make a mod that shows the current git branch above the prompt</code>. Claude טוען את ה-Skill לבד, או שמריצים <code>/plugin-authoring</code>.</div></li>
+      <li><div><strong>Claude כותב</strong> לתיקייה של ה-Session: <code>~/.claude/dev-mods/&lt;session-id&gt;/&lt;mod-name&gt;/</code>. במצבי ההרשאה <code>default</code> ו-<code>acceptEdits</code> תאשרו כל קובץ, כי <code>~/.claude</code> הוא נתיב מוגן.</div></li>
+      <li><div><strong>שאלה אחת.</strong> בשמירה של הקובץ הראשון מופיע <span class="ui">Enable hot reloading for this session?</span>. <span class="ui">Enable for this session</span>: ה-Mods נטענים בסוף התור, ונטענים מחדש בסוף כל תור שמשנה אותם. <span class="ui">Not now</span>: הקבצים נשארים, והם ייטענו בפעם הבאה שה-Session ייפתח.</div></li>
+      <li><div><strong>בודקים.</strong> <code>/plugin</code>, לשונית <span class="ui">Installed</span>, מציג את ה-Mod. אם הוא לא עושה מה שרציתם, אומרים ל-Claude מה לשנות, וזה נטען בסוף התור.</div></li>
+      <li><div><strong>שומרים.</strong> Mod ש-Claude כתב נטען רק ב-Session שיצר אותו, והתיקייה נמחקת אחרי <code>cleanupPeriodDays</code>. כדי לשמור, מעתיקים אותו החוצה ומריצים עם <code>claude --plugin-dir</code>.</div></li>
+    </ol>
+  </div>
+
+  <div class="callout warn"><span class="t">איפה Mod ש-Claude כותב לא ייטען</span><p>כשאין את מי לשאול: <code>claude -p</code> ומצב <code>dontAsk</code>. כשהתיקייה לא אושרה בדיאלוג האמון. כש-Mods כבויים: <code>--safe-mode</code>, <code>--bare</code>, <code>disableAllHooks</code>, או הגדרות מנוהלות של הארגון. לשינוי Mod קיים: מפעילים <code>claude --plugin-dir ./my-mod</code>, ומבקשים מ-Claude לערוך. הוא יריץ <code>claude plugin validate</code> ויתקן את מה שיימצא.</p></div>
+
+  <div class="block">
+    <p class="block-title">בונה הבקשה · בחרו מה ה-Mod צריך לעשות</p>
+    <div class="panel">
+      <div class="field"><span class="small"><strong>מה ה-Mod עושה?</strong></span>
+        <div class="choice" id="mbGoal">
+          <label><input type="radio" name="mbGoal" value="guard" checked>עוצר קריאה מסוכנת לכלי ושואל אותי</label>
+          <label><input type="radio" name="mbGoal" value="band">מציג מידע בפס מעל הפרומפט</label>
+          <label><input type="radio" name="mbGoal" value="pane">פותח פאנל עם נתונים חיים</label>
+          <label><input type="radio" name="mbGoal" value="command">מוסיף פקודת / שרצה מיד</label>
+          <label><input type="radio" name="mbGoal" value="prompt">מוסיף הקשר לכל פרומפט</label>
+        </div></div>
+      <div class="field"><span class="small"><strong>תוספות</strong></span>
+        <div class="choice" id="mbExtra">
+          <label><input type="checkbox" value="ts" checked>TypeScript עם חוזה ל-State</label>
+          <label><input type="checkbox" value="tests" checked>בדיקות ל-claude plugin test</label>
+          <label><input type="checkbox" value="nonet" checked>בלי רשת ובלי תהליכים</label>
+          <label><input type="checkbox" value="fallback">התנהגות ב-claude -p, שם אין ציור</label>
+        </div></div>
+      <div class="prompt"><div class="row"><strong>הבקשה</strong><button class="copy" type="button" data-copy-from="mbOut">העתק</button></div><p class="ptext" id="mbOut"></p></div>
+    </div>
+  </div>
+
+  <div class="callout warn"><span class="t">לפני שמאשרים Hot reloading</span><p>קראו את הקוד, או לפחות את הפלט של <code>claude plugin validate</code>. השורות <code>hooks:</code> ו-<code>calls:</code> אומרות על אילו אירועים ה-Mod יושב ומה הוא קורא. Mod שביקשתם ממנו פס מעל הפרומפט לא צריך <code>$.http.fetch</code> או <code>$.process.run</code>.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/plugins/mods/create">Create a mod: ask Claude for a mod, change a mod with Claude</a> · נבדק: 16.10.2026</p></div>
+</section>
+
+<!-- ============ T8 ============ -->
+<section class="topic" id="t8" data-title="טעינה, התקנה ואיפה זה רץ" hidden>
+  <div class="fence"><div class="bar">on(event, matcher, ($, e, next))</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 08</p>
+    <h2>טעינה, התקנה, ואיפה Mods רצים</h2>
+    <p class="lead">Mod הוא Plugin, ולכן מתקינים ומעדכנים אותו כמו כל Plugin. מה שחדש: הוא נטען מחדש בזמן ריצה, וחלק מהמשטחים מריצים את ה-Hooks שלו בלי להציג את מה שהוא מצייר.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> לטעון Mod בפיתוח, להתקין ולשתף, לראות מה נטען, ולכבות.</p>
+  </div><div class="bar">on(event, matcher, ($, e, next))</div></div>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>איך</th><th>מתי</th><th>טעינה מחדש</th></tr></thead>
+    <tbody>
+      <tr><td><code>claude --plugin-dir ./risk-guard</code></td><td>פיתוח: Session אחד, בלי התקנה</td><td>אוטומטית בכל שמירה. בכל טעינה <code>register</code> רץ שוב ו-<code>session.start</code> נורה שוב</td></tr>
+      <tr><td><code>CLAUDE_CODE_PLUGIN_DIRS</code></td><td>כמו <code>--plugin-dir</code>, במקום שאי אפשר להעביר דגל, כמו Session שאפליקציית Desktop פותחת</td><td>כמו <code>--plugin-dir</code></td></tr>
+      <tr><td><code>/plugin install name@marketplace</code></td><td>שימוש קבוע, מ-Marketplace</td><td><code>/reload-plugins</code>. התקנה מעותק במטמון מתעדכנת רק בגרסה חדשה</td></tr>
+      <tr><td><code>~/.claude/dev-mods/&lt;session&gt;/</code></td><td>Mod ש-Claude כתב ב-Session</td><td>בסוף כל תור שמשנה אותו, אחרי אישור Hot reloading</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="block">
+    <p class="block-title">איפה Mods רצים · לפי התיעוד</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>איפה מריצים את Claude Code</th><th>ה-Hooks רצים</th><th>מה שה-Mod מצייר מוצג</th></tr></thead>
+      <tbody>
+        <tr><td><code>claude</code> בטרמינל, כולל טרמינל בעורך ו-JetBrains</td><td><span class="pill ok">כן</span></td><td><span class="pill ok">כן</span></td></tr>
+        <tr><td>לשונית Code באפליקציית Desktop</td><td><span class="pill ok">כן</span></td><td><span class="pill ok">כן</span>, חוץ מרכיבים של טרמינל בלבד</td></tr>
+        <tr><td>Session של WSL באפליקציית Desktop</td><td><span class="pill bad">לא</span>, אין שם Plugins</td><td><span class="pill bad">לא</span></td></tr>
+        <tr><td>הצ'אט של התוסף ל-VS Code</td><td><span class="pill ok">כן</span></td><td><span class="pill bad">לא</span></td></tr>
+        <tr><td><code>claude -p</code> ו-Agent SDK</td><td><span class="pill ok">כן</span></td><td><span class="pill bad">לא</span></td></tr>
+        <tr><td>Remote Control מ-claude.ai או מהאפליקציה בנייד</td><td><span class="pill ok">כן</span>, במחשב שלכם</td><td>בטרמינל במחשב שלכם</td></tr>
+        <tr><td>Session בענן</td><td><span class="pill ok">כן</span>, ל-Plugin שמגיע ל-Session</td><td><span class="pill bad">לא</span></td></tr>
+      </tbody>
+    </table></div>
+    <p class="small muted">לכן <code>risk-guard</code> חוסם גם ב-<code>claude -p</code>, אבל הפס מעל הפרומפט מופיע רק בטרמינל ובאפליקציית Desktop. Mod שמצייר יכול לבדוק <code>e.surface</code>, ולהציג שורה בתמליל או טקסט של פקודה כשאין ציור.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">Mods שמובנים ב-Claude Code</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>שם ב-<code>/plugin</code></th><th>מה הוא עושה</th></tr></thead>
+      <tbody>
+        <tr><td><code>cc-plugin-diff</code></td><td>לוקח את <code>/diff</code> ומצייר את הפאנל שלו</td></tr>
+        <tr><td><code>cc-plugin-agents-md</code></td><td>טוען את <code>AGENTS.md</code> כהוראות פרויקט</td></tr>
+        <tr><td><code>cc-plugin-plugin-authoring</code></td><td>נותן ל-Claude את ה-Skill <code>plugin-authoring</code></td></tr>
+        <tr><td><code>cc-plugin-sec-default</code></td><td>שומר על מה שהארגון מנהל מפני Mods שמשתמש התקין (נושא 10)</td></tr>
+        <tr><td><code>cc-plugin-telemetry</code></td><td>שולח את רשומות האנליטיקה של Claude Code</td></tr>
+        <tr><td><code>cc-plugin-you-should-know</code></td><td>Agent צדדי שמציג הערות מעל הפרומפט. כבוי כברירת מחדל</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small muted">השורה <code>N mods active</code> ב-<code>/plugin</code> לא סופרת את המובנים. הם מופיעים בלשונית <span class="ui">Installed</span> תחת <span class="ui">Built-in</span>. הקוד של חלקם פתוח בתיקייה <a href="https://github.com/anthropics/claude-code/tree/main/mods"><code>mods</code></a> במאגר של Claude Code.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">לכבות</p>
+    <div class="tablewrap"><table>
+      <tbody>
+        <tr><td><strong>Mod אחד</strong></td><td>להשבית או להסיר את ה-Plugin שלו בלשונית <span class="ui">Installed</span> ב-<code>/plugin</code></td></tr>
+        <tr><td><strong>כל ה-Mods שהותקנו, ל-Session אחד</strong></td><td><code>claude --safe-mode</code>, שמכבה גם התאמות אישיות אחרות</td></tr>
+        <tr><td><strong>כל ה-Mods שהתקנתם, בכל Session</strong></td><td><code>"disableAllHooks": true</code> ב-<code>~/.claude/settings.json</code>. גם Settings hooks ו-Status line מותאם נעצרים</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small muted">ההגדרות האלה לא עוצרות Mods מובנים. ל-Mods שהותקנו דרכן, שאר ה-Plugin נשאר פעיל: Skills, פקודות, Agents ושרתי MCP.</p>
+  </div>
+
+  <div class="callout note"><span class="t">לשתף</span><p>לכמה אנשים: לשלוח את התיקייה או ZIP. לצוות: Marketplace משלכם, עם <code>.claude-plugin/marketplace.json</code>, והתקנה ב-<code>/plugin install risk-guard --marketplace owner/repo</code>. לפני כן בדקו את ה-<code>name</code>: <code>claude plugin validate</code> נכשל על שם שנראה כמו של Anthropic, למשל שמתחיל ב-<code>claude-</code>. כתבו ב-README באיזו גרסה של Claude Code בדקתם, כי האירועים והשיטות עדיין משתנים.</p></div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/plugins/mods/overview">Mods overview: where mods run, built-in mods, turn mods on or off</a> · <a href="https://code.claude.com/docs/en/plugins/mods/create">Create a mod: share your mod</a> · נבדק: 16.10.2026</p></div>
+</section>
+
+<!-- ============ T9 ============ -->
+<section class="topic" id="t9" data-title="בדיקה ותקלות" hidden>
+  <div class="fence"><div class="bar">on(event, matcher, ($, e, next))</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 09</p>
+    <h2>לבדוק Mod, ולתקן כשהוא לא עובד</h2>
+    <p class="lead">יש ארבע שכבות בדיקה, מהזולה ליקרה: ניתוח סטטי, בדיקת טיפוסים, בדיקות אוטומטיות בלי Session, והרצה אמיתית.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> להריץ כל אחת מהשכבות, לקרוא את הפלט שלה, ולפתור את התקלות הנפוצות.</p>
+  </div><div class="bar">on(event, matcher, ($, e, next))</div></div>
+
+  <div class="block">
+    <p class="block-title">שכבה 1: <code>claude plugin validate</code> · הפלט האמיתי של <code>risk-guard</code></p>
+    <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>$ claude plugin validate ./risk-guard
+  &gt; types ./types/index.d.ts declares state: risk-guard.counts
+  &gt; ./register.tsx hooks: tool.call{tool=Bash}, session.start, command.run{command=guard-status}, ui.render{component=AbovePrompt}
+  &gt; ./register.tsx answers its own command: command.run{command=guard-status}
+  &gt; ./register.tsx gating hook with .catch: tool.call{tool=Bash}
+  &gt; ./register.tsx calls: $.command.register, $.state.get, $.state.set, $.ui.ask, $.ui.resolve
+  &gt; ./register.tsx state writes: risk-guard.counts
+  &gt; ./register.tsx state reads: risk-guard.counts
+
+√ Validation passed</code></pre></div>
+    <p class="small muted">הפקודה קוראת את הקוד כמו שהמנוע יקרא אותו, בלי להריץ. אירוע שחסר בשורת <code>hooks:</code> לא ייקרא גם בפועל. <code>gating hook without .catch</code> הוא עובדה, לא אזהרה: תחליטו אם ה-Hook הזה צריך להיכשל לכיוון חסימה.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">שכבה 2: בדיקת טיפוסים</p>
+    <div class="prose"><p>בכל טעינה מ-<code>--plugin-dir</code>, המנוע כותב ליד ה-Mod את <code>.claude-plugin/types/</code> עם ההגדרות של הגרסה שלכם ו-<code>tsconfig.json</code>, ואז <code>tsc -p ./risk-guard</code> עובד בלי הגדרות נוספות. התיעוד אומר במפורש: כשהדף והקבצים האלה לא מסכימים, הקבצים קובעים. בבדיקה שלנו <code>tsc</code> מצא שבקלט של <code>$.command.run</code> בבדיקה חסרו השדות <code>origin</code> ו-<code>presentation</code>, למרות שהבדיקה עצמה עברה.</p></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">שכבה 3: <code>claude plugin test</code> · בלי Session, בלי חשבון, בלי רשת</p>
+    <div class="code"><div class="code-head"><span>tests/risk-guard.test.ts (קטע)</span><button class="copy" type="button">העתק</button></div><pre><code>test('a risky command is refused when nobody can answer', async ($, on) =&gt; {
+  on('tool.call', { tool: 'Bash' }, () =&gt; ranBash)                          // stands for the tool
+  on('tool.call', { tool: 'AskUserQuestion' }, () =&gt; ({ deny: 'no one to ask' }))
+  const r = await $.tool.call({ tool: 'Bash', command: 'rm -rf build' })
+  expect(r.deny).toContain('rm -rf')
+  const s = await $.command.run(status)
+  expect(s.text).toContain('held 1')
+})</code></pre></div>
+    <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>$ claude plugin test ./risk-guard
+tests/risk-guard.test.ts:
+(pass) risk-guard &gt; a safe command runs untouched
+(pass) risk-guard &gt; a risky command is refused when nobody can answer
+(pass) risk-guard &gt; a risky command runs after "Allow once"
+(pass) risk-guard &gt; mode "deny" refuses without asking
+
+ 4 pass
+ 0 fail</code></pre></div>
+    <p class="small muted">ה-<code>on</code> של הבדיקה יושב מתחת ל-Mod ומשחק את תפקיד המנוע: הוא עונה במקום הכלי ובמקום הדיאלוג. <code>$.ui.ask</code> הוא קריאה ל-<code>AskUserQuestion</code>, ולכן הבדיקה עונה לו כמו לכל כלי. כדי לוודא שהבדיקות בודקות משהו, שברנו בכוונה את <code>riskOf</code>: שלוש מתוך ארבע נכשלו.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">שכבה 4: הרצה אמיתית</p>
+    <div class="code"><div class="code-head"><span>Terminal</span><button class="copy" type="button">העתק</button></div><pre><code>claude -p "/guard-status" --plugin-dir ./risk-guard
+# risk-guard: risk-guard (ask): held 0, allowed 0
+
+claude --debug --plugin-dir ./risk-guard   # every skipped hook and refused result</code></pre></div>
+    <p class="small muted">Claude Code שם את שם ה-Plugin לפני הטקסט של הפקודה, ולכן מופיע <code>risk-guard:</code> פעמיים. ב-Session שטוען תיקייה עם Hot reload, Hook שנכשל מוצג בשורה עמומה בתמליל. בכל Session אחר, השורה נמצאת רק בלוג הדיבוג.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">תקלות נפוצות · לחצו על תקלה</p>
+    <details class="acc"><summary>הפקודה של ה-Mod לא מופיעה, ו-<code>/plugin</code> לא מציג אותו</summary><div>
+      <p><strong>בדקו:</strong> <code>claude --version</code> הוא 2.1.287 ומעלה; <code>hooks/hooks.json</code> מכיל <code>modules</code> עם נתיב נכון; התיקייה אושרה בדיאלוג האמון; לא הפעלתם <code>--safe-mode</code>, <code>--bare</code> או <code>disableAllHooks</code>; והארגון לא הגדיר <code>allowManagedModsOnly</code>. ב-<code>claude -p</code> המודול שלא נטען מופיע ב-stderr עם הסיבה. בדיקה מהירה בלי Session: <code>claude plugin test</code> מתיקייה שאין בה Mod. <code>no hooks module to load</code> אומר ש-Mods יכולים להיטען; <code>hooks modules are turned off here</code> אומר שהגדרה חוסמת אותם. ב-<code>claude --debug</code> מחפשים שורה שמתחילה ב-<code>hooks module</code> ובשם ה-Mod, עם <code>loaded</code> או <code>not loaded:</code> והסיבה.</p>
+    </div></details>
+    <details class="acc"><summary><code>validate</code> נכשל: <code>$.ui is used as a value</code></summary><div>
+      <p><strong>הסיבה:</strong> הניתוח הסטטי צריך לראות כל קריאה במלואה: <code>$</code>, שם העצם, הפעולה. אסור <code>const ui = $.ui</code>, אסור לפרק את <code>$</code>, ואסור לגשת עם שם מחושב. מותר להעביר את <code>$</code> לפונקציה שמוגדרת ברמה העליונה של אותו קובץ, ול-<code>read</code> ו-<code>update</code> מ-<code>claude-code</code>.</p>
+    </div></details>
+    <details class="acc"><summary><code>the event name passed to on() is not a string literal</code></summary><div>
+      <p><strong>הסיבה:</strong> שם האירוע הגיע ממשתנה או מלולאה. כותבים כל <code>on</code> עם מחרוזת קבועה, כמו <code>'tool.call'</code>. שם שגוי, כמו <code>'tool.calls'</code>, מדווח כ-<code>is not an event</code>.</p>
+    </div></details>
+    <details class="acc"><summary>המודול לא נטען בגלל <code>import</code></summary><div>
+      <p><strong>הכללים:</strong> רק קבצים מתוך תיקיית ה-Plugin, בנתיב יחסי, ו-<code>claude-code</code> לטיפוסים ולכמה פונקציות עזר. רק הצהרות <code>import</code> בראש הקובץ: <code>import()</code> דינמי ו-<code>require</code> לא עובדים. אין npm, אין Node ואין DOM.</p>
+    </div></details>
+    <details class="acc"><summary>הפס או הפאנל לא מופיעים</summary><div>
+      <p><strong>בדקו:</strong> שאתם בטרמינל או באפליקציית Desktop, לא ב-VS Code או ב-<code>-p</code>; שהעץ עובר אימות (חפשו בלוג הדיבוג <code>a hook returned a tree that does not validate</code>); ושפאנל שנפתח בלי בקשה יכול להופיע רק מ-144 עמודות.</p>
+    </div></details>
+    <details class="acc"><summary>הספירה מתאפסת אחרי כל שמירה</summary><div>
+      <p><strong>הסיבה:</strong> הערך נשמר במשתנה של המודול, וטעינה מחדש מריצה את <code>register</code> מההתחלה. העבירו אותו ל-<code>$.state</code>, ולערכים שצריכים לשרוד בין Sessions ל-<code>$.store</code>.</p>
+    </div></details>
+    <details class="acc"><summary>השומר "עבר" למרות שגיאה בקוד שלו</summary><div>
+      <p><strong>הסיבה:</strong> Hook שנכשל בלי <code>.catch</code> מדולג, וה-Hooks שמתחת ממשיכים. הוסיפו <code>.catch(($, e, next) =&gt; next.called ? next(e) : { deny: '...' })</code>.</p>
+    </div></details>
+  </div>
+
+  <div class="callout src"><span class="t">מקורות לנושא</span><p><a href="https://code.claude.com/docs/en/plugins/mods/test">Test a mod</a> · <a href="https://code.claude.com/docs/en/plugins/mods/troubleshoot">Troubleshoot a mod</a> · <a href="https://code.claude.com/docs/en/plugins/mods/create">Create a mod: check what Claude Code reads from your mod</a> · יומן הבדיקה נשמר עם הלומדה · נבדק: 16.10.2026</p></div>
+</section>
+
+<!-- ============ T10 ============ -->
+<section class="topic" id="t10" data-title="אבטחה וניהול" hidden>
+  <div class="fence"><div class="bar">on(event, matcher, ($, e, next))</div><div class="in">
+    <p class="kicker"><b>חלק ג</b> | נושא 10</p>
+    <h2>אבטחה, ניהול בארגון, ותוכנית ל-Mod הראשון</h2>
+    <p class="lead">Mod רץ עם ההרשאות שלכם, בתוך Claude Code, ובלי Sandbox. הוא רואה כל פרומפט וכל קריאה לכלי, יכול לשנות אותם, ויכול לאשר קריאה לפני שתישאלו.</p>
+    <p class="goal"><strong>בסוף הנושא תדעו:</strong> למה Mod יכול לגשת, מה עדיין גובר עליו, איך ארגון שולט ב-Mods, ואיך להתחיל.</p>
+  </div><div class="bar">on(event, matcher, ($, e, next))</div></div>
+
+  <div class="callout danger"><span class="t">למה Mod יכול לגשת</span><p>לפי התיעוד: לפעול במחשב בשמכם (קבצים, תהליכים, רשת); לקרוא סודות במשתני סביבה ובהגדרות; לראות כל פרומפט וכל קריאה לכלי; לשכתב אותם, לשלוח פרומפט כאילו הקלדתם, ולשלוח הודעה ל-Session אחר; לאשר קריאה לכלי לפני שתישאלו; ולהוציא שימוש על החשבון שלכם. Mods לא רצים ב-Sandbox: גם כשה-Sandbox פעיל, הוא מבודד את פקודות ה-Bash של Claude, ותהליך ש-Mod מפעיל רץ מחוצה לו.</p></div>
+
+  <div class="block">
+    <p class="block-title">הסדר שבו קריאה לכלי עוברת · מהראשון לאחרון</p>
+    <ol class="stack">
+      <li><span class="what"><strong>Settings hooks מסוג <code>PreToolUse</code> בהגדרות מנוהלות</strong><span class="small muted">רצים לפני כל Mod, והחסימה שלהם סופית. אם Mod משכתב את הקריאה, הם רצים שוב על הגרסה החדשה</span></span><span class="pill bad">סופי</span></li>
+      <li><span class="what"><strong>Mods של הארגון והשומר <code>sec-default</code></strong><span class="small muted">בסדר שנקבע ב-<code>prependPlugins</code>. בלי ההגדרה, השומר נטען לפני ה-Mods של המשתמש כשהתנאים שלו מתקיימים</span></span><span class="pill info">ארגון</span></li>
+      <li><span class="what"><strong>ה-Mods של המשתמש (<code>tool.call</code>)</strong><span class="small muted">כאן רץ <code>risk-guard</code>. Mod שעונה בעצמו מונע מכל מה שמתחת לרוץ</span></span><span class="pill warn">משתמש</span></li>
+      <li><span class="what"><strong>Mods ב-<code>appendPlugins</code></strong><span class="small muted">רואים רק את מה שה-Mods של המשתמש העבירו</span></span><span class="pill info">ארגון</span></li>
+      <li><span class="what"><strong>Settings hooks מסוג <code>PreToolUse</code> מקבצים אחרים ומ-Plugins</strong><span class="small muted">רצים אחרי ה-Mod האחרון</span></span><span class="pill info">הגדרות</span></li>
+      <li class="lazy"><span class="what"><strong>החלטת ההרשאה (<code>tool.check</code>), ואז הכלי</strong><span class="small muted">Mod יכול לאשר או לדחות כאן לפני שדיאלוג הרשאה מופיע</span></span><span class="pill info">הרשאה</span></li>
+    </ol>
+  </div>
+
+  <div class="block">
+    <p class="block-title">מה גובר על Mod, ומה לא</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>מצב</th><th>מה קורה</th></tr></thead>
+      <tbody>
+        <tr><td>כלל <code>ask</code>, או Settings hook לא מנוהל שחסם</td><td>Mod שמאשר קריאות <strong>יכול</strong> לאשר את הקריאה. במצב <code>auto</code>, קריאה ש-Mod אישר רצה בלי בדיקת Classifier</td></tr>
+        <tr><td>כלל <code>deny</code>, כשהשומר <code>sec-default</code> נטען</td><td>הכלל גובר. השומר נטען כשיש במחשב הגדרות מנוהלות, או כשאתם מחוברים בתוכנית Team או Enterprise</td></tr>
+        <tr><td>כלל <code>deny</code>, בלי השומר (למשל מפתח API בלי הגדרות מנוהלות)</td><td>התיעוד מפנה לטבלה ב-<a href="https://code.claude.com/docs/en/permissions">Configure permissions</a> שמפרטת מתי Mod יכול לאשר גם קריאה שכלל <code>deny</code> דוחה. אל תסמכו על <code>deny</code> כמחסום מפני Mod שהתקנתם</td></tr>
+        <tr><td><code>$.fs</code> ו-<code>$.process</code> של ה-Mod עצמו</td><td>כללי ההרשאות לא חלים עליהם. עם <code>Read(.env)</code> ב-<code>deny</code>, Mod עדיין יכול לקרוא את הקובץ</td></tr>
+        <tr><td>דיאלוג ההרשאה</td><td>Mod לא יכול לשנות את מה שהדיאלוג מציג</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">ניהול בארגון · בהגדרות מנוהלות בלבד</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>מה רוצים</th><th>הגדרה</th></tr></thead>
+      <tbody>
+        <tr><td>אף Mod של משתמש, Settings hooks ממשיכים</td><td><code>allowManagedModsOnly</code> על השומר המובנה</td></tr>
+        <tr><td>רק Mods של הארגון</td><td><code>allowManagedModsOnly</code>, והתקנה של ה-Mods מתיקייה מקומית כ-Marketplace</td></tr>
+        <tr><td>כל Mod ממקורות שאישרתם</td><td>הגבלת Marketplaces, ו-<code>disableSideloadFlags</code>, שחוסם <code>--plugin-dir</code> ו-Mods ש-Claude כותב</td></tr>
+        <tr><td>Mod של הארגון שבודק את האחרים</td><td>להתקין אותו ולרשום אותו עם <code>sec-default@builtin</code> ב-<code>prependPlugins</code></td></tr>
+        <tr><td>שום Mod ושום Hook, כולל המנוהלים</td><td><code>"disableAllHooks": true</code></td></tr>
+      </tbody>
+    </table></div>
+    <div class="code"><div class="code-head"><span>managed-settings.json</span><button class="copy" type="button">העתק</button></div><pre><code>{
+  "pluginConfigs": {
+    "cc-plugin-sec-default@builtin": {
+      "options": {
+        "allowManagedModsOnly": true
+      }
+    }
+  }
+}</code></pre></div>
+    <p class="small muted">האפשרות נקראת רק מהגדרות מנוהלות ורק תחת המזהה <code>cc-plugin-sec-default@builtin</code>. אפשרות נוספת, <code>allowModsToOverrideDenyRules</code>, מתירה ל-Mod של משתמש לאשר קריאה שכלל <code>deny</code> דוחה. השומר נכשל לכיוון סגור: אם הוא לא מצליח לקרוא את ההגדרות המנוהלות, הוא דוחה כל Mod של משתמש.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">ארבעה כללים · לחצו על כרטיס</p>
+    <div class="cards">
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Validate first</span><span class="hint">לחצו להסבר</span><span class="back" hidden>לפני התקנה: <code>claude plugin validate ./some-mod</code>. בשורת <code>calls:</code> חפשו <code>$.fs.write</code>, <code>$.process.run</code>, <code>$.http.fetch</code>, <code>$.env.get</code>, <code>$.model.complete</code> ו-<code>$.prompt.submit</code>, ושאלו אם ה-Mod באמת צריך אותם.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Fail closed</span><span class="hint">לחצו להסבר</span><span class="back" hidden>כל Hook ששומר על משהו כותבים עם <code>.catch</code> שמחזיר את הסירוב של האירוע, ומחליטים לפני <code>next</code>. בלי זה, באג בשומר הוא שער פתוח.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Least power</span><span class="hint">לחצו להסבר</span><span class="back" hidden><code>risk-guard</code> לא קורא קבצים, לא מריץ תהליכים, לא פונה לרשת ולא מאשר אף פעם קריאה שלא ביקשתם במפורש. התרחיש הגרוע בבאג שלו הוא חסימת יתר.</span></button>
+      <button class="flip" type="button" aria-expanded="false"><span class="term">Layers</span><span class="hint">לחצו להסבר</span><span class="back" hidden>Mod הוא שכבה אחת. עדיין כדאי כלל <code>deny</code> לדברים שאסור לעשות אף פעם, Sandbox לפקודות Bash, ו-<code>--safe-mode</code> כשמשהו מתנהג מוזר.</span></button>
+    </div>
+  </div>
+
+  <div class="block">
+    <p class="block-title">בדקו את עצמכם · שש שאלות</p>
+    <div id="quiz" class="block"></div>
+    <p class="score" id="quizScore" aria-live="polite"></p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">התוכנית שלכם ל-Mod הראשון · סמנו מה כבר עשיתם</p>
+    <ul class="checklist" id="checklist">
+      <li><label><input type="checkbox" id="m1"><span>בדקתי שהדבר שאני רוצה לא נעשה כבר טוב יותר ב-Settings hook, ב-Skill או בשרת MCP.</span></label></li>
+      <li><label><input type="checkbox" id="m2"><span>בדקתי ש-<code>claude --version</code> הוא 2.1.287 ומעלה.</span></label></li>
+      <li><label><input type="checkbox" id="m3"><span>יצרתי את שלושת הקבצים: <code>plugin.json</code>, <code>hooks/hooks.json</code> והמודול.</span></label></li>
+      <li><label><input type="checkbox" id="m4"><span>בחרתי אירוע ו-Matcher צר, וכל Hook ששומר על משהו כולל <code>.catch</code>.</span></label></li>
+      <li><label><input type="checkbox" id="m5"><span>הרצתי <code>claude plugin validate</code> וקראתי את שורות <code>hooks:</code> ו-<code>calls:</code>.</span></label></li>
+      <li><label><input type="checkbox" id="m6"><span>כתבתי לפחות בדיקה אחת והרצתי <code>claude plugin test</code>.</span></label></li>
+      <li><label><input type="checkbox" id="m7"><span>טענתי עם <code>claude --plugin-dir</code>, וראיתי את ה-Mod ב-<code>/plugin</code>.</span></label></li>
+      <li><label><input type="checkbox" id="m8"><span>כתבתי ב-README באיזו גרסה בדקתי, ומה ה-Mod קורא ב-<code>$</code>.</span></label></li>
+    </ul>
+    <p class="small muted">הסימונים נשמרים רק בדפדפן הזה.</p>
+  </div>
+
+  <div class="block">
+    <p class="block-title">כל המקורות · נבדקו ב-16.10.2026</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>מקור</th><th>מה לקחנו ממנו</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://code.claude.com/docs/en/plugins/mods/overview">Mods overview</a> (Claude Code)</td><td>הגדרה, השוואה, איפה Mods רצים, Mods מובנים, כיבוי, מה Mod יכול לגשת אליו</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/plugins/mods/create">Create a mod</a> (Claude Code)</td><td>שלושת הקבצים, Mod ש-Claude כותב, Hot reload, כללי הניתוח הסטטי, שיתוף</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/plugins/mods/admin">Manage mods for your organization</a> (Claude Code)</td><td>השומר <code>sec-default</code>, ההגדרות המנוהלות, הסדר, Mod מדיניות</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/plugins/mods/events">React to events</a>, <a href="https://code.claude.com/docs/en/plugins/mods/api">Use the mods API</a>, <a href="https://code.claude.com/docs/en/plugins/mods/reference">Mods reference</a></td><td>אירועים, Matchers, <code>.catch</code>, שיטות ומגבלות</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/plugins/mods/test">Test a mod</a>, <a href="https://code.claude.com/docs/en/plugins/mods/troubleshoot">Troubleshoot a mod</a></td><td><code>claude plugin test</code>, לוג הדיבוג, הודעות סירוב</td></tr>
+        <tr><td><a href="https://github.com/anthropics/claude-code/blob/main/mods/types/claude-code.d.ts">claude-code.d.ts</a> וה-Skill <code>plugin-authoring</code> של 2.1.301</td><td>טיפוסי האירועים, <code>$.ui.ask</code>, <code>ToolCallResult</code>, ערכת הבדיקות, מגבלות הזמן</td></tr>
+        <tr><td><a href="https://github.com/anthropics/claude-code-playground/tree/main/claude-code/mods">claude-code-playground/mods</a> (GitHub)</td><td>Mods לדוגמה: <code>token-weather</code>, <code>blast-radius</code>, <code>replay-theater</code></td></tr>
+        <tr><td>יומן הבדיקה של הלומדה</td><td><code>validate</code>, <code>tsc</code>, ארבע בדיקות, בדיקת מוטציה, שתי ריצות של <code>claude -p</code></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="callout note"><span class="t">מה הלאה</span><p>ב<a href="../chapters/ch26.html">פרק 26</a> במדריך תלמדו לארוז Plugin ולהפיץ אותו ב-Marketplace, ו-Mod הוא Plugin לכל דבר. ל-Hooks שבקובצי ההגדרות, ראו את הלומדה על <a class="sib" data-sib="hooks" href="hooks-lomda.html">Hooks</a>. לחיבור Claude למערכות חיצוניות, ראו את הלומדה על <a class="sib" data-sib="mcp" href="mcp-lomda.html">MCP</a>.</p></div>
+</section>
+
+    <div class="nav-foot" id="navFoot">
+      <button class="btn ghost" type="button" id="prevBtn">הקודם</button>
+      <button class="btn" type="button" id="nextBtn">הבא</button>
+    </div>
+  </main>
+</div>
+
+<script id="fileData" type="application/json">{"manifest": "{\n  \"name\": \"risk-guard\",\n  \"version\": \"0.1.0\",\n  \"description\": \"Holds risky Bash commands for a confirmation and counts what it held.\",\n  \"author\": {\n    \"name\": \"Claude Code Guide (example)\"\n  },\n  \"types\": \"./types/index.d.ts\",\n  \"userConfig\": {\n    \"mode\": {\n      \"type\": \"string\",\n      \"title\": \"Mode\",\n      \"description\": \"ask: confirm each risky command. deny: always refuse.\",\n      \"default\": \"ask\",\n      \"options\": [\n        \"ask\",\n        \"deny\"\n      ]\n    }\n  }\n}\n", "hooksjson": "{ \"modules\": [\"./register.tsx\"] }\n", "register": "import { atom, read, update } from 'claude-code'\nimport type { Register } from 'claude-code'\n\nimport type { GuardCounts } from '../types'\nimport { riskOf } from './risk'\n\nconst counts = atom({ plugin: 'risk-guard', key: 'counts' } as const, { held: 0, allowed: 0, last: null } as GuardCounts)\nconst ALLOW = 'Allow once'\nconst BLOCK = 'Block'\n\nexport const register: Register = (on, options) => {\n  const mode = options.mode === 'deny' ? 'deny' : 'ask'\n\n  // 1. The guard: a risky Bash command waits for a person, or is refused.\n  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {\n    const risk = riskOf(e.command)\n    if (risk === undefined) {\n      return next(e)\n    }\n    let answer = BLOCK\n    if (mode === 'ask') {\n      try {\n        answer = await $.ui.ask(`risk-guard: allow \"${e.command.slice(0, 80)}\" (${risk})?`, [ALLOW, BLOCK])\n      } catch {\n        answer = BLOCK // dismissed, or nobody to ask (claude -p)\n      }\n    }\n    if (answer === ALLOW) {\n      await update($, counts, c => ({ ...c, allowed: c.allowed + 1 }))\n      return next(e)\n    }\n    await update($, counts, c => ({ ...c, held: c.held + 1, last: risk }))\n    return { deny: `risk-guard held a \"${risk}\" command. Ask the person to run it themselves, or find a safer way.` }\n  }).catch(($, e, next) =>\n    // Fail closed: if the guard itself broke before deciding, refuse.\n    next.called ? next(e) : { deny: 'risk-guard failed, so the command was refused.' },\n  )\n\n  // 2. A slash command, registered when the session starts.\n  on('session.start', async ($, e, next) => {\n    await $.command.register({ name: 'guard-status', description: 'Show what risk-guard held in this session' })\n    return next(e)\n  })\n\n  on('command.run', { command: 'guard-status' }, async $ => {\n    const c = await read($, counts)\n    return {\n      text: `risk-guard (${mode}): held ${c.held}, allowed ${c.allowed}` + (c.last ? `, last: ${c.last}` : ''),\n    }\n  })\n\n  // 3. A band above the prompt, drawn only once something was held.\n  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {\n    const c = await read($, counts)\n    if (c.held === 0 || e.props.hasSurvey) {\n      return next(e)\n    }\n    const { Box, Text } = $.ui.resolve(e)\n    return (\n      <Box>\n        <Text color=\"yellow\">risk-guard<\/Text>\n        <Text dimColor> held {c.held} risky command{c.held === 1 ? '' : 's'}; last: {c.last}<\/Text>\n      <\/Box>\n    )\n  })\n}\n", "risk": "// Patterns of Bash commands that are hard to undo.\nexport const RISKY: readonly { label: string; re: RegExp }[] = [\n  { label: 'rm -rf', re: /\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|--recursive\\s+--force|--force\\s+--recursive)\\b/ },\n  { label: 'git push --force', re: /\\bgit\\s+push\\b.*(\\s--force\\b|\\s-f\\b|\\s--force-with-lease\\b)/ },\n  { label: 'git reset --hard', re: /\\bgit\\s+reset\\s+--hard\\b/ },\n  { label: 'git clean -f', re: /\\bgit\\s+clean\\s+-[a-zA-Z]*f/ },\n]\n\nexport function riskOf(command: string): string | undefined {\n  return RISKY.find(r => r.re.test(command))?.label\n}\n", "types": "export type GuardCounts = { held: number; allowed: number; last: string | null }\n\ndeclare module 'claude-code' {\n  interface PluginState {\n    'risk-guard': { counts: GuardCounts }\n  }\n}\n", "test": "import { describe, expect, test } from 'claude-code/testing'\n\n// The test's own hooks sit beneath the mod and stand for the engine.\nconst ranBash = { result: { stdout: 'ok', stderr: '', interrupted: false } }\nconst status = {\n  command: 'guard-status',\n  args: '',\n  origin: { kind: 'composer' },\n  presentation: { isFullscreen: false, columns: 100 },\n} as const\n\ndescribe('risk-guard', () => {\n  test('a safe command runs untouched', async ($, on) => {\n    on('tool.call', { tool: 'Bash' }, () => ranBash)\n    const r = await $.tool.call({ tool: 'Bash', command: 'ls -la' })\n    expect(r.deny).toBeUndefined()\n  })\n\n  test('a risky command is refused when nobody can answer', async ($, on) => {\n    on('tool.call', { tool: 'Bash' }, () => ranBash)\n    on('tool.call', { tool: 'AskUserQuestion' }, () => ({ deny: 'no one to ask' }))\n    const r = await $.tool.call({ tool: 'Bash', command: 'rm -rf build' })\n    expect(r.deny).toContain('rm -rf')\n    const s = await $.command.run(status)\n    expect(s.text).toContain('held 1')\n  })\n\n  test('a risky command runs after \"Allow once\"', async ($, on) => {\n    on('tool.call', { tool: 'Bash' }, () => ranBash)\n    on('tool.call', { tool: 'AskUserQuestion' }, (_$, e) => ({\n      result: { questions: e.questions, answers: { [e.questions[0]!.question]: 'Allow once' } },\n    }))\n    const r = await $.tool.call({ tool: 'Bash', command: 'git reset --hard HEAD~1' })\n    expect(r.deny).toBeUndefined()\n    const s = await $.command.run(status)\n    expect(s.text).toContain('allowed 1')\n  })\n\n  test('mode \"deny\" refuses without asking', { options: { mode: 'deny' } }, async ($, on) => {\n    on('tool.call', { tool: 'Bash' }, () => ranBash)\n    on('tool.call', { tool: 'AskUserQuestion' }, () => {\n      throw new Error('the guard must not ask in deny mode')\n    })\n    const r = await $.tool.call({ tool: 'Bash', command: 'git push --force origin main' })\n    expect(r.deny).toContain('git push --force')\n  })\n})\n"}</script>
+<script>
+window.LOMDA={
+  store:"modsLomda.v1",
+  sorter:{
+    tools:["Mod","Settings hook","Skill","שרת MCP","הרשאות"],
+    items:[
+      ["פאנל ליד התמליל שמציג אחרי כל בקשה כמה מחלון ה-Context כבר מלא.","Mod","רק Mod יכול לצייר בממשק של Claude Code: פאנל, פס מעל הפרומפט, כפתורים."],
+      ["לחסום תמיד כל הרצה של curl בפרויקט.","הרשאות","חסימה גורפת של פקודה, בלי תלות בהקשר: כלל deny כמו Bash(curl *) מספיק, בלי קוד."],
+      ["להריץ את ה-Formatter הקיים של הצוות אחרי כל עריכה של קובץ.","Settings hook","יש כבר סקריפט, וצריך רק להריץ אותו באירוע. PostToolUse ב-settings.json עושה את זה בלי JavaScript."],
+      ["לאפשר ל-Claude לקרוא ולעדכן טיקטים במערכת המשימות של הארגון.","שרת MCP","Claude צריך להגיע למערכת חיצונית ולקבל כלים חדשים. זה התפקיד של MCP."],
+      ["נוהל קבוע לניסוח Release notes מתוך רשימת Commits.","Skill","הוראות ש-Claude צריך לקרוא כשהמשימה מגיעה. אין כאן אירוע לאכוף ואין מערכת חיצונית."],
+      ["פקודת /tally שמחזירה מיד כמה קריאות לכלים היו, גם בזמן ש-Claude עובד, בלי תור של Claude.","Mod","פקודה ש-Mod רושם רצה כפונקציה שלכם ומחזירה טקסט מיד, בלי לקרוא למודל."],
+      ["להחזיק פקודת rm -rf, להציג דיאלוג עם Allow once ו-Block, ולספור כמה פעמים זה קרה.","Mod","Settings hook יכול לחסום, אבל רק Mod מחזיק את הקריאה, שואל בדיאלוג של Claude Code ושומר State שמוצג בממשק."]
+    ]
+  },
+  quiz:[
+    ["Hook מחזיר תוצאה בלי לקרוא ל-next. מה קורה?",["האירוע ממשיך כרגיל, והתוצאה נזרקת","ה-Hook עונה בעצמו, וההתנהגות הרגילה של Claude Code לא רצה","Claude Code מדווח על שגיאה"],1,"זו הדרך השלישית, לענות. כך risk-guard חוסם, וכך command.run מחזיר את הטקסט של הפקודה."],
+    ["Hook על tool.call זורק שגיאה לפני שהחליט, ואין לו .catch. מה קורה לכלי?",["הכלי נחסם","ה-Hook מדולג, והכלי רץ","ה-Session נעצר"],1,"Hook שנכשל מדולג, והשרשרת ממשיכה בלעדיו. לכן שומר צריך .catch שמחזיר { deny }."],
+    ["באיזה מקום ה-Hooks של Mod רצים, אבל מה שהוא מצייר לא מוצג?",["claude בטרמינל","לשונית Code באפליקציית Desktop","claude -p"],2,"ב-claude -p, ב-Agent SDK, בתוסף ל-VS Code ובענן ה-Hooks רצים ואין ציור. ב-WSL של Desktop אין Plugins בכלל."],
+    ["ספירה צריכה לשרוד שמירה של הקובץ בזמן claude --plugin-dir. איפה שומרים אותה?",["במשתנה בראש המודול","ב-$.state","ב-localStorage"],1,"שמירה טוענת את המודול מחדש ומאפסת משתנים. $.state שייך ל-Session ונשאר, ו-$.store נשאר גם בין Sessions. ל-Mod אין DOM ולכן אין localStorage."],
+    ["כלל ask בהרשאות היה שואל על קריאה, ו-Mod של משתמש מאשר אותה ב-tool.check. מה קורה?",["הכלל גובר, והשאלה מופיעה","ה-Mod יכול לאשר, והקריאה רצה בלי שאלה","Claude Code דוחה את הקריאה"],1,"לפי התיעוד, Mod יכול לאשר קריאה שכלל ask היה שואל עליה. כלל deny גובר כשהשומר sec-default נטען."],
+    ["רוצים לדעת מה Mod עושה לפני שמתקינים אותו. מה מריצים?",["claude --plugin-dir ./some-mod","claude plugin validate ./some-mod","/hooks"],1,"validate קורא את הקוד בלי להריץ, ומדפיס hooks: עם האירועים ו-calls: עם השיטות ב-$. /hooks מציג Settings hooks."]
+  ],
+  init:function(U){
+    var $=U.$, $$=U.$$, esc=U.esc;
+
+    /* ---------- T3 events ---------- */
+    var EV=[
+      ["כלים",[
+        ["tool.call","Claude עומד להפעיל כלי","tool, וכל הקלט של הכלי (command, file_path...)","yes","{ deny }, { result }, או next(e) עם קלט משוכתב","לחסום, לשכתב, לענות במקום הכלי, או למדוד. כאן רץ risk-guard."],
+        ["tool.check","Claude Code מחליט אם קריאה מותרת, אחרי tool.call ו-PreToolUse ולפני שדיאלוג מופיע","tool, input","yes","{ decision: 'allow' | 'ask' | 'deny' }. next(e) רק קורא את ההחלטה ולא מריץ דבר","אישור או דחייה לפני דיאלוג הרשאה. בגלל זה Mod יכול לעקוף ask."],
+        ["tool.describe","Claude Code בונה את התיאור שהמודל רואה לכלי","tool","no","{ description, isDeferred? }","לחדד תיאור של כלי, או להעביר כלי אל מאחורי ToolSearch."]
+      ]],
+      ["פרומפטים ותורות",[
+        ["prompt.submit","פרומפט נשלח, לפני שהוא נכנס ל-Session","text, origin, command (בפקודת /)","yes","next({ ...e, text }), context נוסף, או { drop }","להסתיר סוד לפני שנשמר, להוסיף הקשר, להפיל פרומפט."],
+        ["prompt.compose","בניית ה-System prompt","sections","no","רשימת הסעיפים, עם סעיף שנוסף, הוחלף או הוסר","להוסיף סעיף משלכם ל-System prompt."],
+        ["turn.start","תור של Claude מתחיל","פרטי התור","no","next(e)","לאפס מונים, להתחיל מדידה."],
+        ["turn.step","כל בקשה למודל בתוך התור, כזרם","הבקשה","no","Async generator: yield* next(e), או שכתוב של החלקים","למדוד שימוש בטוקנים, לנתב בקשה למודל אחר."],
+        ["turn.complete","התור הסתיים","usage, הטקסט","no","{ text }","להציג סיכום, Toast על תור ארוך."]
+      ]],
+      ["Session ופקודות",[
+        ["session.start","ה-Session מוכן, לפני הפרומפט הראשון. גם בכל טעינה מחדש של ה-Mod","פרטי ה-Session","no","next(e)","לרשום פקודות וכלים, להפעיל טיימרים."],
+        ["session.end","סיום Session, כולל /clear","reason","no","next(e). לכל ה-Hooks יחד יש גבול זמן קצר","לשמור ל-$.store לפני יציאה."],
+        ["session.append","Claude Code מוסיף שורה לשיחה","door, origin, message","no","next({ ...e, message }) עם תוכן משוכתב","להסתיר מידע בשורות לפני שהן נשמרות."],
+        ["command.run","פקודת / רצה","command, args","yes","{ text, context? }, או next({ ...e, args })","לענות לפקודה שה-Mod רשם, כמו /guard-status."]
+      ]],
+      ["ממשק",[
+        ["ui.render","Claude Code מצייר רכיב: Pane, AbovePrompt, Spinner, שורת כלי, UserMessage ועוד","component, surface, requestId, props, viewport","no","עץ של רכיבים, next({ ...e, props }), או next(e)","לצייר פאנל או פס, לשנות את ה-Spinner."],
+        ["ui.press","לחיצה על Button שה-Mod צייר","key, surface","no","next(e)","לפעול על לחיצה, כש-onPress לא מספיק."],
+        ["ui.input","הקלדה או Enter בשדה Input","key, text, kind","no","next(e)","לטפל בטקסט שהוקלד."]
+      ]],
+      ["Mods אחרים והגדרות",[
+        ["plugin.register","Mod אחר עומד להיטען","name, tier, uses.calls, root","yes","{ refuse: 'why' }","Mod מדיניות של ארגון שדוחה Mods שקוראים ל-$.process.run."],
+        ["config.set","שינוי הגדרה, כולל אפשרות userConfig של Plugin","המפתח והערך","yes","{ deny }","לחסום שינוי הגדרה מסוימת."],
+        ["classic.<Event>","אירוע של Settings hooks, כמו classic.Stop או classic.SessionEnd","מה ש-Settings hook מקבל ב-stdin","no","התוצאה של אותו אירוע","להגיב לאירוע שיש רק ל-Settings hooks."]
+      ]]
+    ];
+    var ALL={}; EV.forEach(function(g){ g[1].forEach(function(e){ ALL[e[0]]=e; }); });
+    function detail(name){
+      var e=ALL[name];
+      $$("#evGroups button").forEach(function(b){ b.setAttribute("aria-pressed",String(b.getAttribute("data-ev")===name)); });
+      $("#evDetail").innerHTML='<h3><code>'+esc(e[0])+'</code> '+(e[3]==="yes"?'<span class="pill bad">Hook יכול לסרב</span>':'<span class="pill info">לא מסרב</span>')+'</h3>'+
+        '<p><strong>מתי:</strong> '+esc(e[1])+'</p><p><strong>שדות בקלט, ל-Matcher:</strong> <span class="ltr">'+esc(e[2])+'</span></p><p><strong>מה מחזירים:</strong> '+esc(e[4])+'</p><p><strong>שימוש טיפוסי:</strong> '+esc(e[5])+'</p>';
+    }
+    function btn(name){ var e=ALL[name]; return '<button type="button" data-ev="'+esc(name)+'" class="'+(e[3]==="yes"?"blk":"")+'" aria-pressed="false">'+esc(name)+'</button>'; }
+    function renderEv(){
+      var only=$("#evGateOnly").checked, count=0;
+      $("#evGroups").innerHTML=EV.map(function(g){
+        var list=g[1].filter(function(e){return !only||e[3]==="yes"});
+        count+=list.length;
+        return list.length?'<div class="flow-group"><h4>'+esc(g[0])+'</h4><div class="flow">'+list.map(function(e){return btn(e[0])}).join("")+'</div></div>':"";
+      }).join("");
+      $("#evCount").textContent=count+" אירועים מוצגים. מסגרת אדומה: Hook יכול לסרב.";
+      $$("#evGroups button").forEach(function(b){ b.addEventListener("click",function(){ detail(b.getAttribute("data-ev")); }); });
+    }
+    $("#evGateOnly").addEventListener("change",function(){ renderEv(); detail("tool.call"); });
+    renderEv(); detail("tool.call");
+
+    /* ---------- T4 explorer ---------- */
+    var FD=JSON.parse(document.getElementById("fileData").textContent);
+    U.explorer({
+      manifest:{path:"risk-guard/.claude-plugin/plugin.json",role:"המניפסט של ה-Plugin: שם, גרסה, תיאור ומחבר. <code>types</code> מצביע על החוזה של ה-State. <code>userConfig</code> מגדיר אפשרות <code>mode</code> עם שני ערכים, שמגיעה לקוד כ-<code>options.mode</code> ומופיעה בתפריט ההגדרות.",level:"נקרא בטעינה של ה-Plugin",text:FD.manifest},
+      hooksjson:{path:"risk-guard/hooks/hooks.json",role:"מה שהופך את ה-Plugin ל-Mod: <code>modules</code> עם נתיב אחד, יחסי לקובץ, למודול ה-Hooks.",level:"נקרא בטעינה של ה-Plugin",text:FD.hooksjson},
+      register:{path:"risk-guard/hooks/register.tsx",role:"המודול. ארבעה Hooks: השומר על <code>tool.call</code> של Bash עם <code>.catch</code> שחוסם; <code>session.start</code> שרושם את <code>/guard-status</code>; <code>command.run</code> שעונה לפקודה; ו-<code>ui.render</code> שמצייר פס מעל הפרומפט. הספירה נשמרת ב-<code>$.state</code> דרך <code>atom</code>, <code>read</code> ו-<code>update</code>.",level:"register רץ בכל טעינה וטעינה מחדש",text:FD.register},
+      risk:{path:"risk-guard/hooks/risk.ts",role:"ארבעה דפוסים, וכל אחד עם תווית. <code>riskOf</code> מחזירה את התווית של הדפוס הראשון שתואם, או <code>undefined</code>. נפרד מהמודול כדי שיהיה קל להוסיף דפוסים ולבדוק אותם.",level:"מיובא ב-import יחסי מ-register.tsx",text:FD.risk},
+      types:{path:"risk-guard/types/index.d.ts",role:"החוזה של ה-State: מצהיר שתחת <code>risk-guard</code> יש ערך <code>counts</code> בצורה <code>GuardCounts</code>. <code>claude plugin validate</code> בודק שכל מפתח שהקוד קורא או כותב מוצהר כאן.",level:"נבדק ב-validate וב-tsc, לא רץ",text:FD.types},
+      test:{path:"risk-guard/tests/risk-guard.test.ts",role:"ארבע בדיקות ל-<code>claude plugin test</code>. ה-<code>on</code> של הבדיקה יושב מתחת ל-Mod ועונה במקום Bash ובמקום הדיאלוג <code>AskUserQuestion</code>, כך שאפשר לבדוק את כל המסלולים בלי Session.",level:"רץ ב-claude plugin test, בלי Session ובלי רשת",text:FD.test}
+    },"manifest");
+
+    /* ---------- T5 walkthrough ---------- */
+    U.walk("#walkGuard",[
+      ["on('tool.call', { tool: 'Bash' }, async ($, e, next) => {","Hook על <code>tool.call</code>, עם Matcher שמגביל אותו לכלי Bash. בזכות ה-Matcher, ב-TypeScript <code>e.command</code> מוכר."],
+      ["const risk = riskOf(e.command)","בודק את הפקודה מול הדפוסים. בלי קריאה ל-<code>$</code>, בלי רשת ובלי קבצים."],
+      ["if (risk === undefined) { return next(e) }","פקודה רגילה: לצפות ולהמשיך. הכלי רץ, וההרשאות הרגילות חלות."],
+      ["answer = await $.ui.ask(`risk-guard: allow ...`, [ALLOW, BLOCK])","מחזיק את הקריאה ושואל בדיאלוג של Claude Code. הזמן שאתם חושבים לא נספר בעשר השניות של ה-Hook."],
+      ["} catch { answer = BLOCK }","<code>$.ui.ask</code> נדחה כשסוגרים את הדיאלוג, וב-<code>claude -p</code> שאין בו את מי לשאול. ברירת המחדל היא חסימה."],
+      ["await update($, counts, c => ({ ...c, allowed: c.allowed + 1 })); return next(e)","אישרתם: מעדכן את ה-State וממשיך. <code>update</code> קורא, מחשב וכותב, ומצייר מחדש את מי שקרא את הערך."],
+      ["return { deny: `risk-guard held a \"${risk}\" command. ...` }","לענות: הכלי לא רץ, ו-Claude מקבל את הטקסט כתוצאה שגויה. הנימוק אומר לו מה לעשות במקום."],
+      [").catch(($, e, next) => next.called ? next(e) : { deny: 'risk-guard failed...' })","אם ה-Hook נכשל לפני שקרא ל-<code>next</code>, הכלי נחסם. אם כבר קרא, <code>next(e)</code> מחזיר את מה שכבר הוחלט, בלי להריץ שוב."]
+    ]);
+
+    /* ---------- T5 simulator ---------- */
+    var RISKY=[
+      ["rm -rf",/\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|--recursive\s+--force|--force\s+--recursive)\b/],
+      ["git push --force",/\bgit\s+push\b.*(\s--force\b|\s-f\b|\s--force-with-lease\b)/],
+      ["git reset --hard",/\bgit\s+reset\s+--hard\b/],
+      ["git clean -f",/\bgit\s+clean\s+-[a-zA-Z]*f/]
+    ];
+    function riskOf(c){ for(var i=0;i<RISKY.length;i++){ if(RISKY[i][1].test(c)) return RISKY[i][0]; } return undefined; }
+    function step(txt,pill,cls){ return '<li><span class="what"><span>'+txt+'</span></span><span class="pill '+cls+'">'+esc(pill)+'</span></li>'; }
+    function runRG(){
+      var cmd=$("#rgCmd").value, mode=($("input[name=rgMode]:checked")||{}).value||"ask", ans=($("input[name=rgAns]:checked")||{}).value||"block";
+      var T=[], out=$("#rgOut"), v, msg, cls;
+      T.push(step('<code>tool.call</code> עם <code>tool: "Bash"</code>: ה-Matcher תואם, וה-Hook רץ',"Matcher","info"));
+      if(ans==="crash"){
+        T.push(step('ה-Hook זורק שגיאה לפני שקרא ל-<code>next</code>',"נכשל","bad"));
+        T.push(step('<code>.catch</code>: <code>next.called</code> הוא <code>false</code>, ולכן מוחזר <code>{ deny }</code>',".catch","bad"));
+        cls="bad"; v="הכלי נחסם"; msg='Claude מקבל: risk-guard failed, so the command was refused. בלי .catch, ה-Hook היה מדולג והפקודה הייתה רצה.';
+      } else {
+        var r=riskOf(cmd);
+        if(r===undefined){
+          T.push(step('<code>riskOf</code> לא מצאה דפוס',"בטוח","ok"));
+          T.push(step('<code>return next(e)</code>: הפקודה ממשיכה לבדיקת ההרשאות הרגילה',"next","ok"));
+          cls="ok"; v="הפקודה ממשיכה"; msg="ה-Mod לא מתנגד. אם אין כלל allow מתאים, Claude Code עדיין ישאל אתכם כרגיל."+(/\brm\s+-r\b/.test(cmd)?" שימו לב: rm -r בלי -f לא נתפס בדפוסים שלנו. אם זה חשוב לכם, הוסיפו דפוס.":"");
+        } else {
+          T.push(step('<code>riskOf</code> מצאה: <code>'+esc(r)+'</code>',"מסוכן","bad"));
+          if(mode==="deny"){
+            T.push(step('<code>mode</code> הוא <code>deny</code>: לא שואלים',"deny","bad"));
+            cls="bad"; v="הכלי נחסם"; msg='Claude מקבל: risk-guard held a "'+r+'" command. Ask the person to run it themselves, or find a safer way.';
+          } else {
+            T.push(step('<code>$.ui.ask</code>: הדיאלוג מופיע עם Allow once ו-Block',"ask","warn"));
+            if(ans==="allow"){
+              T.push(step('בחרתם Allow once: <code>update</code> מוסיף 1 ל-<code>allowed</code>',"State","warn"));
+              T.push(step('<code>return next(e)</code>',"next","warn"));
+              cls="warn"; v="הפקודה ממשיכה, באישור שלכם"; msg="ה-Mod לא מאשר את הכלי בעצמו: הוא רק מפסיק להתנגד. כללי ההרשאות עדיין חלים אחריו.";
+            } else {
+              T.push(step(ans==="none"?'<code>$.ui.ask</code> נדחה: אין את מי לשאול, או שהדיאלוג נסגר. ה-<code>catch</code> הפנימי בוחר Block':'בחרתם Block',"Block","bad"));
+              T.push(step('<code>update</code> מוסיף 1 ל-<code>held</code>, והפס מעל הפרומפט מופיע',"State","bad"));
+              cls="bad"; v="הכלי נחסם"; msg='Claude מקבל: risk-guard held a "'+r+'" command. Ask the person to run it themselves, or find a safer way.';
+            }
+          }
+        }
+      }
+      $("#rgTrace").innerHTML=T.join("");
+      out.className="verdict "+cls; out.innerHTML="<strong>"+esc(v)+"</strong><span>"+esc(msg)+"</span>";
+    }
+    $$("[data-rg]").forEach(function(b){ b.addEventListener("click",function(){ $("#rgCmd").value=b.getAttribute("data-rg"); runRG(); }); });
+    $("#rgCmd").addEventListener("input",runRG);
+    $$("#rgMode input, #rgAns input").forEach(function(i){ i.addEventListener("change",runRG); });
+    runRG();
+
+    /* ---------- T7 prompt builder ---------- */
+    var GOAL={
+      guard:["Mod שמחזיק קריאה לכלי Bash כשהפקודה מתאימה לאחד הדפוסים: rm -rf, git push --force, git reset --hard","הוא שואל אותי עם $.ui.ask (Allow once או Block), וחוסם עם { deny } כשהשאלה נדחית. ה-Hook מחליט לפני next, ויש לו .catch שמחזיר { deny } אם הוא נכשל לפני ההחלטה."],
+      band:["Mod שמציג בפס מעל הפרומפט (ui.render על AbovePrompt) את ה-Branch הנוכחי ואת מספר הקבצים ששונו","הנתונים נשמרים ב-$.state ומתעדכנים בסוף כל תור (turn.complete). כשאין מה להציג, ה-Hook מחזיר next(e)."],
+      pane:["Mod שפותח פאנל (ui.render על Pane) עם רשימה חיה של הקריאות לכלים ב-Session, ופקודה /tool-calls שפותחת אותו","הרשימה נשמרת ב-$.state ומוגבלת ל-200 פריטים. הפאנל נפתח רק כשמבקשים אותו."],
+      command:["Mod שמוסיף פקודה /tally שמחזירה מיד כמה קריאות לכלים היו בתור האחרון","הפקודה נרשמת ב-session.start עם $.command.register, ועונה ב-command.run עם { text }, בלי לקרוא למודל."],
+      prompt:["Mod שמוסיף לכל פרומפט הקשר קצר: שם ה-Branch ותאריך היום","ב-prompt.submit, עם next({ ...e, context }). הוא לא משנה את הטקסט שהקלדתי."]
+    };
+    function mb(){
+      var g=($("input[name=mbGoal]:checked")||{}).value||"guard";
+      var ex=$$("#mbExtra input:checked").map(function(i){return i.value});
+      var L=["כתוב לי "+GOAL[g][0]+".", GOAL[g][1]];
+      L.push(ex.indexOf("ts")>=0?"כתוב את מודול ה-Hooks ב-TypeScript (register.tsx), עם Register מ-claude-code. כל ערך ב-$.state מוצהר ב-types/index.d.ts, ו-plugin.json מצביע עליו ב-types.":"כתוב את מודול ה-Hooks ב-JavaScript (register.js).");
+      if(ex.indexOf("tests")>=0) L.push("כתוב לפחות שתי בדיקות ב-tests/*.test.ts עם claude-code/testing: מקרה שבו ה-Mod פועל ומקרה שבו לא. הרץ claude plugin test והראה לי את הפלט.");
+      if(ex.indexOf("nonet")>=0) L.push("ה-Mod לא קורא ל-$.http.fetch, ל-$.process.run או ל-$.fs.write. אם משהו מחייב אותם, עצור ושאל אותי.");
+      if(ex.indexOf("fallback")>=0) L.push("ב-claude -p ובתוסף ל-VS Code אין ציור. בדוק את e.surface, ובמקום שאין בו ציור הצג שורה עם $.ui.log או טקסט של פקודה.");
+      L.push("בסוף הרץ claude plugin validate, תקן כל שגיאה, והראה לי את שורות hooks: ו-calls:. הסבר בעברית מה כל קובץ עושה.");
+      $("#mbOut").textContent=L.join("\n");
+    }
+    $$("#mbGoal input, #mbExtra input").forEach(function(i){ i.addEventListener("change",mb); }); mb();
+  }
+};
+</script>
+<script>
+/* Shared engine for the guide's interactive modules: theme, routing, progress,
+   copy buttons, flip cards, tabs, sorter drills, quiz, checklist, walkthroughs, file explorer.
+   Each page defines window.LOMDA before this script runs. */
+(function(){
+  "use strict";
+  var L=window.LOMDA||{};
+  var $=function(s,r){return (r||document).querySelector(s)}, $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+  function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+  var ORDER=$$("section.topic").map(function(s){return s.id});
+  var TOTAL=ORDER.length-1;
+  var STORE=L.store||"lomda.v1";
+  function load(){try{return JSON.parse(localStorage.getItem(STORE))||{}}catch(e){return {}}}
+  function save(s){try{localStorage.setItem(STORE,JSON.stringify(s))}catch(e){}}
+  var state=load(); state.visited=state.visited||{}; state.checks=state.checks||{};
+
+  /* theme */
+  var root=document.documentElement;
+  if(state.theme) root.setAttribute("data-theme",state.theme);
+  $("#themeBtn").addEventListener("click",function(){
+    var cur=root.getAttribute("data-theme");
+    var dark=cur?cur==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var next=dark?"light":"dark"; root.setAttribute("data-theme",next); state.theme=next; save(state);
+  });
+
+  /* router */
+  var current="start";
+  function title(id){ return document.getElementById(id).getAttribute("data-title"); }
+  function show(id,focus){
+    if(ORDER.indexOf(id)<0) id="start";
+    current=id;
+    ORDER.forEach(function(t){ document.getElementById(t).hidden=(t!==id); });
+    $$(".map a").forEach(function(a){
+      var g=a.getAttribute("data-go");
+      if(g===id) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current");
+      a.classList.toggle("done",!!state.visited[g]&&g!=="start");
+    });
+    var i=ORDER.indexOf(id);
+    if(id!=="start") state.visited[id]=true;
+    state.last=id; save(state);
+    var n=Object.keys(state.visited).filter(function(k){return k!=="start"&&ORDER.indexOf(k)>=0}).length;
+    $("#progFill").style.width=(n/TOTAL*100)+"%";
+    $("#progLabel").textContent= id==="start" ? ("מסך פתיחה · "+n+" מתוך "+TOTAL+" נושאים נפתחו") : ("נושא "+i+" מתוך "+TOTAL+" · "+title(id));
+    $("#prevBtn").hidden=(i===0);
+    $("#nextBtn").hidden=(i===ORDER.length-1);
+    $("#nextBtn").textContent= i===0 ? "לנושא הראשון" : "הבא: "+title(ORDER[Math.min(i+1,ORDER.length-1)]);
+    if(focus){ window.scrollTo(0,0); $("#main").focus({preventScroll:true}); }
+    if(focus && window.matchMedia("(max-width:900px)").matches){ $("#mapDetails").open=false; }
+  }
+  function go(id){ if(location.hash!=="#"+id){ try{history.pushState(null,"","#"+id);}catch(e){} } show(id,true); }
+  document.addEventListener("click",function(e){
+    var t=e.target.closest("[data-go]"); if(!t) return;
+    e.preventDefault(); go(t.getAttribute("data-go"));
+  });
+  $("#prevBtn").addEventListener("click",function(){ go(ORDER[Math.max(0,ORDER.indexOf(current)-1)]); });
+  $("#nextBtn").addEventListener("click",function(){ go(ORDER[Math.min(ORDER.length-1,ORDER.indexOf(current)+1)]); });
+  window.addEventListener("hashchange",function(){ show(location.hash.slice(1)||"start",true); });
+  window.addEventListener("popstate",function(){ show(location.hash.slice(1)||"start",true); });
+  if(window.matchMedia("(max-width:900px)").matches){ $("#mapDetails").open=false; }
+
+  /* copy */
+  function copyText(text,btn){
+    var done=function(){ var o=btn.textContent; btn.textContent="הועתק"; setTimeout(function(){btn.textContent=o},1400); };
+    var fallback=function(){ var ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); var ok=false; try{ok=document.execCommand("copy")}catch(e){} document.body.removeChild(ta); if(ok) done(); else btn.textContent="סמנו והעתיקו ידנית"; };
+    try{ navigator.clipboard.writeText(text).then(done,fallback); }catch(e){ fallback(); }
+  }
+  document.addEventListener("click",function(e){
+    var b=e.target.closest(".copy"); if(!b) return;
+    var src=b.getAttribute("data-copy-from"), text;
+    if(src) text=document.getElementById(src).textContent;
+    else { var box=b.closest(".code"); var code=box&&box.querySelector("pre"); text=code?code.textContent:""; }
+    copyText(text,b);
+  });
+
+  /* flip cards */
+  $$(".flip").forEach(function(b){ b.addEventListener("click",function(){ var open=b.getAttribute("aria-expanded")==="true"; b.setAttribute("aria-expanded",String(!open)); b.querySelector(".back").hidden=open; }); });
+
+  /* tabs */
+  $$("[data-tabs]").forEach(function(box){
+    var tabs=$$(":scope > .tablist > [role=tab]",box), panels=$$(":scope > [role=tabpanel]",box);
+    tabs.forEach(function(t,i){ t.addEventListener("click",function(){ tabs.forEach(function(x,j){ x.setAttribute("aria-selected",String(i===j)); panels[j].hidden=(i!==j); }); }); });
+  });
+
+  /* sorter: choose the right tool for each scenario */
+  if(L.sorter && $("#sorter")){
+    var sorter=$("#sorter"), sScore={};
+    L.sorter.items.forEach(function(s,i){
+      var q=document.createElement("div"); q.className="q";
+      q.innerHTML='<p><strong>מצב '+(i+1)+'.</strong> '+esc(s[0])+'</p><div class="opts grid-opts"></div><p class="fb" aria-live="polite"></p>';
+      var opts=q.querySelector(".opts");
+      L.sorter.tools.forEach(function(t){ var b=document.createElement("button"); b.type="button"; b.textContent=t; b.addEventListener("click",function(){
+        $$("button",opts).forEach(function(x){x.classList.remove("right","wrong")});
+        var ok=t===s[1]; b.classList.add(ok?"right":"wrong");
+        if(!ok) $$("button",opts).forEach(function(x){ if(x.textContent===s[1]) x.classList.add("right"); });
+        q.querySelector(".fb").textContent=(ok?"נכון. ":"התשובה: "+s[1]+". ")+s[2];
+        if(!(i in sScore)) sScore[i]=ok;
+        var c=Object.keys(sScore).length, r=Object.keys(sScore).filter(function(k){return sScore[k]}).length;
+        $("#sorterScore").textContent="עניתם על "+c+" מתוך "+L.sorter.items.length+", "+r+" נכונות בניסיון הראשון.";
+      }); opts.appendChild(b); });
+      sorter.appendChild(q);
+    });
+  }
+
+  /* quiz */
+  if(L.quiz && $("#quiz")){
+    var quiz=$("#quiz"), qs={};
+    L.quiz.forEach(function(q,i){
+      var d=document.createElement("div"); d.className="q";
+      d.innerHTML='<p><strong>'+(i+1)+'. '+esc(q[0])+'</strong></p><div class="opts"></div><p class="fb" aria-live="polite"></p>';
+      var o=d.querySelector(".opts");
+      q[1].forEach(function(a,j){ var b=document.createElement("button"); b.type="button"; b.textContent=a; b.addEventListener("click",function(){
+        $$("button",o).forEach(function(x){x.classList.remove("right","wrong")});
+        var ok=j===q[2]; b.classList.add(ok?"right":"wrong"); o.children[q[2]].classList.add("right");
+        d.querySelector(".fb").textContent=(ok?"נכון. ":"לא בדיוק. ")+q[3];
+        if(!(i in qs)) qs[i]=ok;
+        var c=Object.keys(qs).length, r=Object.keys(qs).filter(function(k){return qs[k]}).length;
+        $("#quizScore").textContent=r+" נכונות מתוך "+c+" שעניתם"+(c===L.quiz.length?(r===L.quiz.length?". כל הכבוד, סיימתם את הלומדה.":". אפשר לחזור לנושאים הרלוונטיים ולנסות שוב."):".");
+      }); o.appendChild(b); });
+      quiz.appendChild(d);
+    });
+  }
+
+  /* checklist */
+  $$("#checklist input").forEach(function(c){
+    c.checked=!!state.checks[c.id];
+    c.addEventListener("change",function(){ state.checks[c.id]=c.checked; save(state); });
+  });
+
+  /* helpers for page scripts */
+  window.LOMDA_UTIL={
+    $:$, $$:$$, esc:esc,
+    walk:function(el,rows){ $(el).innerHTML=rows.map(function(r){ return '<div class="wline"><code>'+esc(r[0])+'</code><p>'+r[1]+'</p></div>'; }).join(""); },
+    explorer:function(files,first){
+      function showFile(k){
+        var f=files[k];
+        $$(".tree button").forEach(function(b){ b.setAttribute("aria-pressed",String(b.getAttribute("data-file")===k)); });
+        $("#fileExplain").innerHTML='<p><strong>תפקיד:</strong> '+f.role+'</p><p class="small muted">נטען: '+f.level+'</p><div class="code"><div class="code-head"><span>'+esc(f.path)+'</span><button class="copy" type="button">העתק</button></div><pre><code>'+esc(f.text)+'</code></pre></div>';
+      }
+      $$(".tree button").forEach(function(b){ b.addEventListener("click",function(){ showFile(b.getAttribute("data-file")); }); });
+      showFile(first);
+    }
+  };
+  if(typeof L.init==="function") L.init(window.LOMDA_UTIL);
+
+  show(location.hash.slice(1)||"start",false);
+  window.scrollTo(0,0);
+})();
+</script>
+</body>
+</html>

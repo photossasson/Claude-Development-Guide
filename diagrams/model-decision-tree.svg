@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 620" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4552d"/>
+    </marker>
+  </defs>
+  <style>
+    .box { fill:#ffffff; stroke:#c9c2b8; stroke-width:1.5; }
+    .accent { fill:#f3e3da; stroke:#b4552d; }
+    .t { font-size:17px; fill:#1a1a1a; text-anchor:middle; direction:rtl; }
+    .s { font-size:13px; fill:#6b6b6b; text-anchor:middle; direction:rtl; }
+    .en { font-size:13px; fill:#6b6b6b; text-anchor:middle; }
+    .lbl { font-size:13px; fill:#b4552d; font-weight:bold; text-anchor:middle; direction:rtl; }
+    .edge { stroke:#b4552d; stroke-width:2; fill:none; marker-end:url(#arr); }
+  </style>
+  <text x="430" y="34" class="t" font-size="21" font-weight="bold">עץ החלטה: בחירת Model ו-Effort ב-Claude Code</text>
+
+  <!-- D1: root -->
+  <rect x="290" y="56" width="280" height="68" rx="12" class="box"/>
+  <text x="430" y="84" class="t">האם המשימה קצרה ופשוטה?</text>
+  <text x="430" y="106" class="s">שינוי קטן, שאלה ממוקדת, Lookup</text>
+
+  <!-- L1: Haiku -->
+  <rect x="625" y="170" width="210" height="100" rx="12" class="box accent"/>
+  <text x="730" y="198" class="t" font-weight="bold">Haiku 4.5</text>
+  <text x="730" y="220" class="en">/model haiku</text>
+  <text x="730" y="240" class="s">מהיר וזול; ללא Effort</text>
+  <text x="730" y="258" class="s">או Sonnet 5 ב-Effort low</text>
+
+  <!-- D2 -->
+  <rect x="150" y="170" width="300" height="68" rx="12" class="box"/>
+  <text x="300" y="198" class="t">האם מורכבת או רב-שלבית?</text>
+  <text x="300" y="220" class="s">Debugging עמוק, ארכיטקטורה, Migration</text>
+
+  <!-- L2: Sonnet -->
+  <rect x="480" y="300" width="240" height="100" rx="12" class="box accent"/>
+  <text x="600" y="328" class="t" font-weight="bold">Sonnet 5</text>
+  <text x="600" y="350" class="en">/model sonnet</text>
+  <text x="600" y="370" class="s">Effort high: ברירת המחדל</text>
+  <text x="600" y="388" class="s">לעבודה היומיומית</text>
+
+  <!-- D3 -->
+  <rect x="60" y="300" width="300" height="68" rx="12" class="box"/>
+  <text x="210" y="328" class="t">האם גדולה מישיבה אחת?</text>
+  <text x="210" y="350" class="s">חקירה עצמאית ממושכת, Long-Horizon</text>
+
+  <!-- L3: Fable -->
+  <rect x="30" y="430" width="230" height="100" rx="12" class="box accent"/>
+  <text x="145" y="458" class="t" font-weight="bold">Fable 5</text>
+  <text x="145" y="480" class="en">/model fable</text>
+  <text x="145" y="500" class="s">Effort high: משימות ארוכות</text>
+  <text x="145" y="518" class="s">ואוטונומיות במיוחד</text>
+
+  <!-- D4 -->
+  <rect x="330" y="430" width="250" height="68" rx="12" class="box"/>
+  <text x="455" y="458" class="t">רגישות גבוהה לעלות?</text>
+  <text x="455" y="480" class="s">תקציב Tokens מוגבל</text>
+
+  <!-- L4: opusplan -->
+  <rect x="590" y="520" width="240" height="92" rx="12" class="box accent"/>
+  <text x="710" y="546" class="t" font-weight="bold">opusplan</text>
+  <text x="710" y="568" class="en">/model opusplan</text>
+  <text x="710" y="588" class="s">Opus לתכנון,</text>
+  <text x="710" y="605" class="s">Sonnet לביצוע</text>
+
+  <!-- L5: Opus 5 -->
+  <rect x="290" y="520" width="240" height="92" rx="12" class="box accent"/>
+  <text x="410" y="546" class="t" font-weight="bold">Opus 5</text>
+  <text x="410" y="568" class="en">/model opus</text>
+  <text x="410" y="588" class="s">Effort high או xhigh</text>
+  <text x="410" y="605" class="s">להסקה העמוקה ביותר</text>
+
+  <!-- edges -->
+  <path class="edge" d="M 570 96 C 645 102 692 124 722 166"/>
+  <text x="662" y="112" class="lbl">כן</text>
+
+  <path class="edge" d="M 362 124 C 344 140 328 150 314 166"/>
+  <text x="356" y="152" class="lbl">לא</text>
+
+  <path class="edge" d="M 402 238 C 460 258 520 274 566 296"/>
+  <text x="492" y="262" class="lbl">לא</text>
+
+  <path class="edge" d="M 262 238 C 250 258 238 276 228 296"/>
+  <text x="228" y="272" class="lbl">כן</text>
+
+  <path class="edge" d="M 172 368 C 164 388 158 406 152 426"/>
+  <text x="145" y="402" class="lbl">כן</text>
+
+  <path class="edge" d="M 302 368 C 350 388 396 404 432 426"/>
+  <text x="372" y="392" class="lbl">לא</text>
+
+  <path class="edge" d="M 560 486 C 604 496 636 504 668 516"/>
+  <text x="618" y="494" class="lbl">כן</text>
+
+  <path class="edge" d="M 448 498 C 442 504 436 510 430 516"/>
+  <text x="468" y="512" class="lbl">לא</text>
+</svg>

@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 34: פיתוח Feature מורכב מקצה לקצה</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ח | פרק 34</p>
+  <h1>פיתוח Feature מורכב מקצה לקצה</h1>
+  <p class="lead">זהו פרק תרחיש: הליכה מלאה, שלב אחרי שלב, דרך פיתוח <bdi>Feature</bdi> אמיתי ורב-שכבתי ב-<bdi>TaskFlow</bdi>, מהדרישה הראשונה ועד <bdi>Pull Request</bdi> שסוקר אנושי יכול לאשר. ה-<bdi>Feature</bdi>: תגובות על משימות עם אזכורים (<bdi>@mentions</bdi>). נעבור 13 תחנות: ניתוח דרישות, חקירת ארכיטקטורה, מודל נתונים, <bdi>API</bdi>, <bdi>Frontend</bdi>, <bdi>Validation</bdi>, הרשאות, בדיקות, <bdi>Migration</bdi>, תיעוד, סקירת אבטחה, סקירת ביצועים ו-<bdi>PR</bdi>. בכל תחנה: ה-<bdi>Prompt</bdi> המדויק, קטע פלט להמחשה, נקודת החלטה של המפתח, פקודת אימות ותוצאה צפויה, ובחירת <bdi>Permission Mode</bdi>, <bdi>Model</bdi> ו-<bdi>Effort</bdi> עם נימוק.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <div class="callout note"><span class="title">איך לקרוא את הפרק</span><p>קטעי הפלט בפרק מסומנים "המחשה": הם מייצגים תשובה סבירה של <bdi>Claude Code</bdi> ולא תמליל של הרצה מסוימת. הפלט אצלכם ישתנה לפי הגרסה, המודל, ה-<bdi>CLAUDE.md</bdi> והמצב המדויק של ה-<bdi>Repository</bdi>. מה שלא ישתנה הוא מבנה השלבים, נקודות הבקרה ופקודות האימות. הפרק מניח שאתם שולטים ב<a href="ch09.html">פרק 9</a> (התהליך המבוקר בן 15 השלבים) ומכירים את <bdi>TaskFlow</bdi> מ<a href="ch06.html">פרק 6</a>.</p></div>
+
+  <h2 id="what-is-complex">מה הופך Feature ל"מורכב", ולמה זה משנה</h2>
+  <p>ב<a href="ch09.html">פרק 9</a> הוספנו שדה אחד (<code>priority</code>) לטבלה קיימת. זה שינוי רב-שכבתי אבל צר: כל שכבה משתנה במקום אחד. <bdi>Feature</bdi> מורכב שונה בשלושה מובנים, וכל אחד מהם מוסיף נקודת בקרה לתהליך:</p>
+  <ul>
+    <li><strong>ישות חדשה, לא שדה חדש:</strong> טבלה חדשה עם <bdi>Foreign Key</bdi>, מודלים חדשים, קבוצת <bdi>Endpoints</bdi> חדשה. ההחלטות התכנוניות (איך מאחסנים אזכורים? מה קורה לתגובות כשמוחקים משימה?) לא נגזרות מדפוס קיים; צריך לקבל אותן במפורש.</li>
+    <li><strong>שטח תקיפה חדש:</strong> קלט טקסט חופשי ממשתמשים, ניתוח מחרוזות (אזכורים), והרשאות (מי רשאי למחוק תגובה). כאן נכנסות סקירת אבטחה ייעודית ובדיקות שליליות.</li>
+    <li><strong>פרופיל ביצועים חדש:</strong> רשימת משימות שמציגה מספר תגובות היא המתכון הקלאסי ל-<bdi>N+1</bdi>. סקירת ביצועים היא שלב, לא מחשבה שאחרי.</li>
+  </ul>
+  <p><strong>מתי להשתמש בתהליך המלא של הפרק:</strong> כשה-<bdi>Feature</bdi> מוסיף ישות או יחסים בין ישויות, כשהוא מקבל קלט משתמש חדש, או כשהוא נוגע במעל חמישה קבצים בשתי שכבות ומעלה. <strong>מתי לא:</strong> שינוי בשכבה אחת, או הרחבה של ישות קיימת בשדה או שניים. שם התהליך של פרק 9 מספיק, ולעיתים אף פחות ממנו.</p>
+
+  <h2 id="how-it-works">איך זה עובד מושגית: שערים, ראיות ולולאות</h2>
+  <p>שלושה עקרונות מארגנים את כל הפרק, וכדאי להחזיק אותם בראש לפני שצוללים לתחנות:</p>
+  <ul>
+    <li><strong>שער (Gate):</strong> נקודה שבה האדם מחליט, לא המודל. בפרק יש חמישה שערים מרכזיים: אישור ה-<bdi>Spec</bdi>, אישור הסכמה, החלטת ההרשאות, הרצת ה-<bdi>Migration</bdi> על נתונים אמיתיים, ופתיחת ה-<bdi>PR</bdi>. בשערים האלה עובדים במצב ברירת המחדל או ב-<bdi>Plan Mode</bdi>, אף פעם לא במצב שמאשר הכול.</li>
+    <li><strong>ראיה (Evidence):</strong> כל שלב מסתיים בפלט שאפשר להצביע עליו: שורת סיכום של <code>pytest</code>, פלט <code>EXPLAIN QUERY PLAN</code>, תשובת <code>curl</code>. התיעוד הרשמי מנסח זאת כך: בקשו מ-Claude להראות ראיות במקום להצהיר על הצלחה, כי סקירת ראיות מהירה מהרצה חוזרת של האימות.</li>
+    <li><strong>לולאה (Loop):</strong> כשל בבדיקות, ממצא בסקירה או סטייה מה-<bdi>Plan</bdi> מחזירים אותנו לשלב הקוד, לא לתחילת התהליך. הלולאות קצרות בדיוק כי הפרוסות קטנות. אחרי שני סבבי תיקון כושלים על אותה בעיה, לפי ההמלצה הרשמית, עוצרים, <code>/clear</code>, ומנסחים <bdi>Prompt</bdi> חדש שמשלב את מה שנלמד.</li>
+  </ul>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>עותק עבודה של <bdi>TaskFlow</bdi> עם <bdi>Git</bdi> מאותחל ו-<code>gh</code> מחובר (<a href="ch13.html">פרק 13</a>), <bdi>Python 3.12</bdi>, <bdi>Node.js</bdi>, <code>pytest</code>, וכלי <code>sqlite3</code> בשורת הפקודה. מבחינת ידע: פרקים <a href="ch07.html">7</a> (<bdi>Plan Mode</bdi>), <a href="ch09.html">9</a> (התהליך המבוקר), <a href="ch11.html">11</a> (<bdi>Testing</bdi>), <a href="ch18.html">18</a> (<bdi>Permission Modes</bdi>) ו-<a href="ch25.html">25</a> (<bdi>Subagents</bdi>).</p></div>
+
+  <h2 id="feature">ה-Feature: תגובות על משימות עם אזכורים</h2>
+  <p>הדרישה כפי שהגיעה מ"מנהל המוצר" של <bdi>TaskFlow</bdi>: "משתמשים רוצים לדון במשימות. כל משימה תוכל לקבל תגובות טקסט, ובתוך תגובה אפשר לאזכר משתמש עם <code>@שם</code>, כדי שבעתיד נוכל לשלוח לו התראה". זו דרישה טיפוסית: ברורה למראה, מלאה בשאלות פתוחות. עוד לפני שנפתח את <bdi>Claude Code</bdi>, נסמן מה בטוח בתחום ומה בטוח מחוץ לתחום:</p>
+  <ul>
+    <li><strong>בתחום:</strong> טבלת <code>comments</code> עם <bdi>FK</bdi> למשימה; <bdi>Endpoints</bdi> ליצירה, רשימה, קריאה, עדכון ומחיקה של תגובות תחת <code>/tasks/{id}/comments</code>; חילוץ אזכורים מגוף התגובה ושמירתם בצורה שאפשר לשאול עליה; רשימת תגובות וטופס תגובה ב-<bdi>Frontend</bdi>; <bdi>Migration</bdi> לבסיסי נתונים קיימים; בדיקות; תיעוד.</li>
+    <li><strong>מחוץ לתחום:</strong> התראות בפועל, עריכה עשירה (<bdi>Markdown</bdi>), קבצים מצורפים, ומערכת משתמשים מלאה. ל-<bdi>TaskFlow</bdi> אין היום אימות משתמשים, וזו נקודת ההחלטה הראשונה שלנו (ראו <a href="#stage7">שלב 7</a>).</li>
+  </ul>
+  <p>מבנה הקבצים לפני, עם סימון של מה שצפוי להשתנות או להיווצר:</p>
+  <div class="codeblock">
+    <div class="codehead">taskflow/ (before)</div>
+    <pre><code>taskflow/
+├── CLAUDE.md                        # ישתנה (קונבנציות חדשות)
+├── README.md                        # ישתנה (תיעוד ה-API)
+├── backend/
+│   ├── app/
+│   │   ├── main.py                  # ישתנה (רישום Router חדש)
+│   │   ├── database.py              # ישתנה (טבלאות + Migration + FK)
+│   │   ├── models.py                # ישתנה (מודלי Comment)
+│   │   ├── mentions.py              # חדש (חילוץ אזכורים, פונקציה טהורה)
+│   │   └── routers/
+│   │       ├── tasks.py             # ישתנה (comment_count ברשימה)
+│   │       └── comments.py          # חדש
+│   └── tests/
+│       ├── test_tasks.py
+│       ├── test_mentions.py         # חדש (Unit)
+│       └── test_comments.py         # חדש (Integration)
+└── frontend/src/
+    ├── App.tsx                      # ישתנה (שילוב רכיב התגובות)
+    ├── api.ts                       # ישתנה (קריאות חדשות)
+    ├── types.ts                     # ישתנה (טיפוסי Comment)
+    └── Comments.tsx                 # חדש (רשימה + טופס)</code></pre>
+  </div>
+
+  <h2 id="map">מפת המסע: 13 שלבים, שערי בקרה ולולאות משוב</h2>
+  <figure>
+    <img src="../diagrams/e2e-lifecycle.svg" alt="תרשים זרימה של 13 שלבי פיתוח Feature מקצה לקצה, עם שערי בקרה אנושיים ולולאות משוב מבדיקות ומסקירות חזרה לקוד">
+    <figcaption>מחזור החיים המלא של ה-<bdi>Feature</bdi>: שלושה שלבי הבנה ותכנון ב-<bdi>Plan Mode</bdi>, ארבעה שלבי בנייה, שלושה שלבי הוכחה, שני שלבי סקירה ו-<bdi>PR</bdi>. הריבועים הכהים הם שערים שבהם המפתח מחליט; החצים המקווקווים הם לולאות משוב שמחזירות אותנו לקוד.</figcaption>
+  </figure>
+  <p>הטבלה הבאה היא "לוח הבקרה" של הפרק. היא קובעת מראש, לכל שלב, את מצב ההרשאות, את המודל ואת רמת ה-<bdi>Effort</bdi>. ההיגיון: תכנון וסקירה הם השלבים שבהם טעות עולה הכי הרבה, ולכן מקבלים את המודל החזק ביותר ואת ההשקעה הגבוהה ביותר; מימוש מכני של תוכנית מאושרת יכול לרוץ על מודל מהיר יותר. הבחירה בין המודלים מוסברת ב<a href="ch08.html">פרק 8</a>, ומצבי ההרשאות ב<a href="ch18.html">פרק 18</a>. החלפת מודל באמצע <bdi>Session</bdi> נעשית עם <code>/model</code>, ורמת המאמץ עם <code>/effort</code>.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>#</th><th>שלב</th><th>Permission Mode</th><th>Model / Effort</th><th>נימוק</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>ניתוח דרישות</td><td>Plan Mode</td><td>Opus 5 / high</td><td>שאלות טובות כאן חוסכות סבבים בהמשך; אפס סיכון לקבצים</td></tr>
+        <tr><td>2</td><td>חקירת ארכיטקטורה</td><td>Plan Mode + Subagent</td><td>ברירת מחדל / high</td><td>קריאה מרובה של קבצים; <bdi>Subagent</bdi> שומר על ה-<bdi>Context</bdi> הראשי נקי</td></tr>
+        <tr><td>3</td><td>מודל נתונים</td><td>Plan Mode, ואז default</td><td>Opus 5 / high</td><td>החלטת סכמה היא ההחלטה הכי יקרה לשינוי בדיעבד</td></tr>
+        <tr><td>4 עד 5</td><td>API ו-Frontend</td><td>default (או acceptEdits)</td><td>Sonnet 5 / medium</td><td>מימוש של תוכנית מאושרת; הסקירה עוברת ל-<code>/diff</code> לפני כל <bdi>Commit</bdi></td></tr>
+        <tr><td>6 עד 7</td><td>Validation והרשאות</td><td>default</td><td>Sonnet 5 / high</td><td>קוד קטן אבל רגיש; רוצים לראות כל עריכה</td></tr>
+        <tr><td>8</td><td>בדיקות</td><td>acceptEdits</td><td>Sonnet 5 / medium</td><td>הרבה קבצי בדיקה, סיכון נמוך; פקודות הרצה עדיין מאושרות ידנית</td></tr>
+        <tr><td>9</td><td>Migration</td><td>default</td><td>Opus 5 / high</td><td>נוגע בנתונים קיימים; כל פקודה נקראת לפני אישור</td></tr>
+        <tr><td>10</td><td>תיעוד</td><td>acceptEdits</td><td>Sonnet 5 / low</td><td>טקסט, לא לוגיקה</td></tr>
+        <tr><td>11 עד 12</td><td>סקירת אבטחה וביצועים</td><td>Subagent לקריאה בלבד</td><td>Opus 5 / xhigh</td><td>סוקר טרי, בלי גישת כתיבה, עם עומק חשיבה מרבי סביר</td></tr>
+        <tr><td>13</td><td>PR</td><td>default</td><td>Sonnet 5 / medium</td><td>פקודות <bdi>Git</bdi> ו-<code>gh</code> נוגעות בשרת מרוחק</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout tip"><span class="title">Session אחד או כמה?</span><p>ה-<bdi>Feature</bdi> הזה גדול מכדי להיכנס בנוחות ל-<bdi>Session</bdi> אחד. ההמלצה שלנו, בהתאם להנחיה הרשמית ב-<bdi>Best Practices</bdi>: <bdi>Session</bdi> אחד לשלבים 1 עד 3 שמסתיים בקובץ <code>SPEC.md</code> מאושר; <bdi>Session</bdi> חדש ונקי למימוש (שלבים 4 עד 10) שקורא את ה-<bdi>Spec</bdi>; ו-<bdi>Session</bdi> שלישי לסקירות ול-<bdi>PR</bdi>. הפרדה כזאת גם מונעת את מצב "המפתח סוקר את עצמו": הסוקר בשלבים 11 עד 13 לא זוכר את ההנמקות שהובילו לקוד. על ניהול <bdi>Context</bdi> ומעבר בין <bdi>Sessions</bdi> ראו <a href="ch14.html">פרק 14</a>.</p></div>
+
+  <h2 id="stage1">שלב 1: ניתוח דרישות (Plan Mode)</h2>
+  <p>פותחים את ה-<bdi>Session</bdi> ישירות ב-<bdi>Plan Mode</bdi> ומבקשים ראיון במקום לנסח לבד את כל הפרטים. זו הטכניקה שהתיעוד הרשמי ממליץ עליה ל-<bdi>Features</bdi> גדולים: Claude מראיין אתכם דרך הכלי <bdi>AskUserQuestion</bdi> וכותב <bdi>Spec</bdi>.</p>
+  <div class="terminal"><span class="p">$</span> cd taskflow &amp;&amp; claude --permission-mode plan</div>
+  <div class="codeblock">
+    <div class="codehead">Prompt 1 (Plan Mode)</div>
+    <pre><code>I want to add task comments with @mentions to TaskFlow.
+In scope: comments table with FK to tasks, CRUD under
+/tasks/{id}/comments, mention extraction from the comment body,
+comment list + form in the frontend, migration for existing DBs,
+tests, docs. Out of scope: notifications, rich text, attachments,
+a full user system.
+Interview me in detail using the AskUserQuestion tool. Don't ask
+obvious questions; dig into data model, deletion semantics,
+mention syntax edge cases, authorization, and performance.
+Keep interviewing until we've covered everything, then write a
+complete spec to SPEC.md with a numbered acceptance-criteria list.</code></pre>
+  </div>
+  <p><strong>המחשה של השאלות שתקבלו</strong> (הניסוח ישתנה, הנושאים כמעט תמיד יופיעו):</p>
+  <div class="codeblock">
+    <div class="codehead">המחשה: שאלות ראיון</div>
+    <pre><code>1. When a task is deleted, should its comments be deleted too
+   (ON DELETE CASCADE) or should deletion be blocked?
+2. Mention syntax: is "@alice" the whole grammar? What about
+   "@alice's", "email@example.com", "@" at end of text, unicode names?
+3. Store mentions as a separate table (queryable) or as JSON on the
+   comment row (simpler)?
+4. TaskFlow has no authentication. Who is the comment author, and who
+   may edit/delete a comment?
+5. Should GET /tasks include a comment count? That affects the
+   list query.
+6. Max comment length? Empty comments allowed?</code></pre>
+  </div>
+  <p><strong>נקודת החלטה של המפתח:</strong> אלו ההחלטות שקיבלנו, וכדאי שתחליטו במודע ולא ברירת מחדל שקטה של המודל: (1) <bdi>CASCADE</bdi>: מחיקת משימה מוחקת את התגובות; (2) דקדוק אזכור: <code>@</code> בתחילת מילה, אחריו אותיות לטיניות, ספרות, קו תחתון ומקף, באורך 2 עד 32; כתובת דוא"ל אינה אזכור; (3) טבלה נפרדת <code>comment_mentions</code>, כי הדרישה העתידית ("שליחת התראה") היא שאילתה לפי משתמש מאוזכר; (4) זהות דרך כותרת <code>X-User</code>, כתחליף זמני ומוצהר לאימות אמיתי, ראו שלב 7; (5) כן, <code>comment_count</code> ברשימת המשימות; (6) 1 עד 2000 תווים אחרי <bdi>trim</bdi>.</p>
+  <p><strong>אימות:</strong> קובץ <code>SPEC.md</code> נוצר (ב-<bdi>Plan Mode</bdi> Claude יבקש אישור חריג לכתיבת הקובץ הזה, או יציג את התוכן ותכתבו אותו בעצמכם), ובו סעיף <bdi>Acceptance Criteria</bdi> ממוספר של 10 עד 15 שורות שכל אחת מהן ניתנת לבדיקה. אם יש שם משפט כמו "התגובות יעבדו כמצופה", החזירו לניסוח מדיד.</p>
+
+  <h2 id="stage2">שלב 2: חקירת ארכיטקטורה (Subagent)</h2>
+  <p>עדיין ב-<bdi>Plan Mode</bdi>. במקום שהשיחה הראשית תקרא עשרה קבצים, מאצילים את החקירה ל-<bdi>Subagent</bdi> ומקבלים רק את הממצאים (התיעוד הרשמי: "Delegate the exploration so only the findings come back"). על <bdi>Subagents</bdi> לעומק ראו <a href="ch25.html">פרק 25</a>.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 2 (Plan Mode)</div>
+    <pre><code>Use a subagent to investigate, read-only, how TaskFlow is
+structured for adding a new resource: how routers are registered
+in main.py, how database.py opens connections and initializes
+schema (including whether SQLite foreign keys are enabled), how
+tests set up their database, and how the frontend calls the API.
+Report: (a) the conventions a new "comments" resource must follow,
+(b) anything that would block a foreign key or a nested route,
+(c) files that must change. No proposals yet.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">המחשה: תמצית הממצאים</div>
+    <pre><code>Conventions: one router per resource in app/routers/, prefix set on
+APIRouter, registered with app.include_router in main.py. SQL is
+parameterized, no ORM. Rows mapped by a private _row_to_* helper.
+Blocker: SQLite does not enforce foreign keys unless
+"PRAGMA foreign_keys = ON" runs per connection; get_conn() does not
+set it, so ON DELETE CASCADE would silently not cascade.
+Tests: TASKFLOW_DB env var points at a temp file; init_db() runs in
+the client fixture, so new tables must be created there too.
+Frontend: api.ts wraps fetch under /api; types.ts mirrors models.</code></pre>
+  </div>
+  <p><strong>נקודת החלטה:</strong> הממצא על <code>PRAGMA foreign_keys</code> הוא בדיוק הסוג של דבר שמפתח מגלה בדרך כלל בשלב 9 או, גרוע מזה, ב-<bdi>Production</bdi>. הוא הופך להחלטה מפורשת: <code>get_conn()</code> ידליק את ה-<bdi>PRAGMA</bdi> על כל חיבור. <strong>אימות:</strong> בדקו את הטענה בעצמכם, זו הפעולה החשובה ביותר בשלב. <code>grep -n "foreign_keys" backend/app/database.py</code> אמור להחזיר כלום (הטענה נכונה), ו-<code>sqlite3 :memory: "PRAGMA foreign_keys"</code> מדפיס <code>0</code>. אל תאמצו ממצא של <bdi>Subagent</bdi> על עיוור, גם כשהוא נשמע משכנע.</p>
+
+  <h2 id="stage3">שלב 3: מודל הנתונים</h2>
+  <p>עדיין ב-<bdi>Plan Mode</bdi>: מבקשים הצעת סכמה עם חלופות, לא סכמה יחידה.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 3 (Plan Mode)</div>
+    <pre><code>Propose the SQLite schema for comments and mentions per SPEC.md.
+Show the CREATE TABLE statements, the indexes you would add and
+why, and one alternative you rejected with the reason. Consider:
+FK with ON DELETE CASCADE, created_at/updated_at, author column,
+and how comment_count for the task list will be computed.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">המחשה: הסכמה שאושרה</div>
+    <pre><code>CREATE TABLE IF NOT EXISTS comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL
+        REFERENCES tasks(id) ON DELETE CASCADE,
+    author TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_comments_task_id ON comments(task_id);
+
+CREATE TABLE IF NOT EXISTS comment_mentions (
+    comment_id INTEGER NOT NULL
+        REFERENCES comments(id) ON DELETE CASCADE,
+    username TEXT NOT NULL,
+    PRIMARY KEY (comment_id, username)
+);
+CREATE INDEX IF NOT EXISTS idx_mentions_username
+    ON comment_mentions(username);
+
+-- Rejected: mentions as JSON text column on comments. Simpler, but
+-- "all comments mentioning @alice" becomes a full scan with LIKE.</code></pre>
+  </div>
+  <p><strong>נקודת החלטה:</strong> האינדקס על <code>task_id</code> הוא לא קישוט: כל טעינת תגובות של משימה וכל חישוב <code>comment_count</code> עוברים דרכו. אישרנו את הסכמה, ואז יצאנו מ-<bdi>Plan Mode</bdi> (<code>Shift+Tab</code>) וביקשנו את הפרוסה הראשונה של הקוד:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 4 (default mode)</div>
+    <pre><code>create branch feature/task-comments. Then implement only the data
+layer: in database.py enable PRAGMA foreign_keys=ON in get_conn(),
+add the two tables and indexes to init_db(). Add Pydantic models
+CommentCreate, CommentUpdate, Comment to models.py (body 1..2000
+chars after strip). Do not touch routers, frontend or tests yet.
+Run pytest -q to confirm nothing existing broke.</code></pre>
+  </div>
+  <div class="verify"><p><strong>אימות:</strong> <code>pytest -q</code> ירוק (הבדיקות הקיימות לא יודעות על תגובות, ואסור להן להישבר), ואז ישירות מול הקובץ:</p>
+  <div class="terminal"><span class="p">$</span> cd backend &amp;&amp; python -c "from app.database import init_db; init_db()" &amp;&amp; sqlite3 taskflow.db ".schema comments"
+<span class="out">CREATE TABLE comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    ...</span></div>
+  <p><bdi>Commit</bdi> ראשון כאן: <code>Add comments and mentions schema with FK enforcement</code>. ה-<bdi>Diff</bdi> קטן ונקרא בדקה.</p></div>
+
+  <h2 id="stage4">שלב 4: ה-API</h2>
+  <p>עכשיו הפרוסה הגדולה ביותר, ולכן מפצלים אותה לשתיים: קודם קריאה ויצירה, אחר כך עדכון ומחיקה. ה-<bdi>Endpoints</bdi> שנבנה:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Method + Path</th><th>מטרה</th><th>קודי תשובה</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>GET /tasks/{id}/comments</code></td><td>רשימת תגובות לפי סדר יצירה, כולל אזכורים</td><td>200, 404 (משימה לא קיימת)</td></tr>
+        <tr><td class="ltr"><code>POST /tasks/{id}/comments</code></td><td>יצירת תגובה; חילוץ ושמירת אזכורים</td><td>201, 404, 422</td></tr>
+        <tr><td class="ltr"><code>GET /tasks/{id}/comments/{cid}</code></td><td>תגובה בודדת</td><td>200, 404</td></tr>
+        <tr><td class="ltr"><code>PATCH /tasks/{id}/comments/{cid}</code></td><td>עדכון גוף; חישוב אזכורים מחדש</td><td>200, 403, 404, 422</td></tr>
+        <tr><td class="ltr"><code>DELETE /tasks/{id}/comments/{cid}</code></td><td>מחיקה</td><td>204, 403, 404</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">Prompt 5</div>
+    <pre><code>Implement app/mentions.py: a pure function extract_mentions(text)
+-> list[str] per the grammar in SPEC.md (unique, in order of first
+appearance, lowercase). Then app/routers/comments.py with GET list
+and POST create only, following the style of routers/tasks.py
+(parameterized SQL, _row_to_comment helper). POST must 404 when the
+task does not exist and must store mentions in comment_mentions in
+the same transaction. Register the router in main.py.
+Then write tests/test_mentions.py (unit) and the first integration
+tests in tests/test_comments.py, and run pytest -q.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">backend/app/mentions.py (המחשה)</div>
+    <pre><code>import re
+
+_MENTION = re.compile(r"(?&lt;![\w@.])@([A-Za-z0-9_-]{2,32})\b")
+
+
+def extract_mentions(text: str) -&gt; list[str]:
+    seen: list[str] = []
+    for m in _MENTION.finditer(text):
+        name = m.group(1).lower()
+        if name not in seen:
+            seen.append(name)
+    return seen</code></pre>
+  </div>
+  <p><strong>נקודת החלטה:</strong> ההנחיה "in the same transaction" חשובה: <code>get_conn()</code> של <bdi>TaskFlow</bdi> עושה <code>commit</code> אחד ביציאה מה-<bdi>Context Manager</bdi>, ולכן הכנסת התגובה והאזכורים באותו בלוק <code>with</code> היא אטומית. אם Claude פותח שני חיבורים, זה באג של עקביות שיופיע רק תחת כשל. חפשו זאת ב-<code>/diff</code>. <strong>אימות:</strong> <code>pytest -q</code> ירוק, ואז בדיקה ידנית מול שרת חי:</p>
+  <div class="terminal"><span class="p">$</span> curl -s -X POST localhost:8000/tasks/1/comments -H "Content-Type: application/json" -H "X-User: dana" -d '{"body":"@Alice please review, cc @bob"}'
+<span class="out">{"id":1,"task_id":1,"author":"dana","body":"@Alice please review, cc @bob","mentions":["alice","bob"],"created_at":"...","updated_at":"..."}</span></div>
+  <p>הפרוסה השנייה של ה-<bdi>API</bdi> (<code>GET</code> בודד, <code>PATCH</code>, <code>DELETE</code>) מגיעה ב-<bdi>Prompt</bdi> נפרד באותו מבנה, אחרי <bdi>Commit</bdi> של הראשונה. את לוגיקת ה-403 נשאיר לשלב 7 במכוון, כדי שהיא תקבל סקירה משלה.</p>
+
+  <h2 id="stage5">שלב 5: Frontend</h2>
+  <div class="codeblock">
+    <div class="codehead">Prompt 6</div>
+    <pre><code>Frontend slice: add Comment and CommentCreate to types.ts, add
+listComments/createComment/deleteComment to api.ts (send the
+X-User header from a constant CURRENT_USER for now, with a TODO
+referencing SPEC.md section 7). Create Comments.tsx: a list of
+comments for a task (author, body with @mentions rendered as
+&lt;strong&gt;, relative time) and a form with a textarea and submit
+button, disabled when empty. Wire it into App.tsx behind a
+"comments" toggle per task. Run npm run typecheck and fix errors.
+Do not add any dependency.</code></pre>
+  </div>
+  <p><strong>נקודת החלטה:</strong> "Do not add any dependency" היא הגבלה מכוונת: ספריית זמן יחסי או ספריית <bdi>Markdown</bdi> הן בדיוק ה"שיפור" שמודל אוהב להציע, והן מרחיבות את שטח הסקירה ואת שרשרת האספקה. <strong>אימות:</strong> <code>npm run typecheck</code> נקי, ובדיקה ויזואלית בדפדפן: תגובה עם <code>@alice</code> מודגשת, טופס ריק מנוטרל. אם יש לכם את שילוב הדפדפן של <bdi>Claude Code</bdi> (<a href="ch27.html">פרק 27</a>), בקשו צילום מסך והשוואה; אחרת, עין אנושית.</p>
+  <div class="callout warn"><span class="title">XSS: הדגשת אזכורים בלי HTML גולמי</span><p>הדרך הקלה להדגיש אזכורים היא לבנות מחרוזת <bdi>HTML</bdi> ולהזריק אותה עם <code>dangerouslySetInnerHTML</code>. זו חולשת <bdi>XSS</bdi> קלאסית: גוף התגובה הוא קלט משתמש. הדרישה הנכונה: פיצול הטקסט למקטעים ורינדור כאלמנטים של <bdi>React</bdi>. אם ראיתם <code>dangerouslySetInnerHTML</code> ב-<code>/diff</code>, דחו וסקרו מחדש. נחזור לזה בשלב 11.</p></div>
+
+  <h2 id="stage6">שלב 6: Validation</h2>
+  <p>חלק מה-<bdi>Validation</bdi> כבר קיים דרך <bdi>Pydantic</bdi> (אורך הגוף). עכשיו סוגרים את המקרים השליליים באופן שיטתי:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 7</div>
+    <pre><code>Review the comments API against SPEC.md acceptance criteria 3 to 6
+(validation). For each rule, tell me whether it is enforced, where,
+and which test proves it. Then add the missing tests only:
+empty/whitespace body -> 422, 2001 chars -> 422, unknown fields
+ignored, non-integer task id -> 422, mention grammar edge cases
+(email address, @ at end, unicode) covered in test_mentions.py.
+Do not change production code unless a test reveals a real gap.</code></pre>
+  </div>
+  <p><strong>נקודת החלטה:</strong> "Do not change production code unless a test reveals a real gap" הופך את השלב לביקורת ולא לכתיבה מחדש. בהמחשה שלנו התגלה פער אחד אמיתי: <code>body</code> של רווחים בלבד עבר, כי ה-<code>min_length</code> נבדק לפני ה-<bdi>strip</bdi>. התיקון: <bdi>Validator</bdi> שמסיר רווחים לפני בדיקת האורך. <strong>אימות:</strong> <code>pytest -q</code> עם מונה בדיקות שגדל, ובדיקה אחת מכוונת שנכשלת לפני התיקון ועוברת אחריו (בקשו מ-Claude להראות את שני הפלטים; ראיה, לא הצהרה).</p>
+
+  <h2 id="stage7">שלב 7: הרשאות (Authorization)</h2>
+  <p>כאן נקודת ההחלטה החשובה של הפרק. ל-<bdi>TaskFlow</bdi> אין מערכת משתמשים, והדרישה מדברת רק על "מי רשאי למחוק". שלוש אפשרויות עמדו על הפרק: (א) להתעלם מהרשאות עד שיהיה אימות אמיתי; (ב) לבנות אימות מלא, שמחוץ לתחום; (ג) להגדיר <strong>נקודת הרחבה</strong> אחת ומוצהרת: תלות של <bdi>FastAPI</bdi> בשם <code>current_user()</code> שקוראת היום את הכותרת <code>X-User</code>, ומחר תוחלף באימות אמיתי בלי לגעת ב-<bdi>Router</bdi>. בחרנו (ג), ותיעדנו במפורש שזה אינו אימות.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 8</div>
+    <pre><code>Add app/auth.py with a FastAPI dependency current_user() that reads
+the X-User header (1..64 chars, same grammar as mentions) and
+raises 401 if missing. Document in a module docstring that this is
+a placeholder for real authentication and must not be deployed as
+is. Use it in comments.py: author is always current_user on create;
+PATCH and DELETE return 403 unless the requester is the author.
+Add tests: other user cannot edit/delete (403), author can, missing
+header is 401. Run pytest -q.</code></pre>
+  </div>
+  <div class="callout danger"><span class="title">אבטחה: כותרת אינה זהות</span><p>כותרת <code>X-User</code> היא קלט של הלקוח. כל אחד יכול לשלוח כל ערך. הפתרון כאן לגיטימי אך ורק כנקודת הרחבה בסביבת פיתוח, ורק כי הפרויקט כולו אינו מוגן. אם ה-<bdi>Feature</bdi> שלכם נועד ל-<bdi>Production</bdi>, ההחלטה הנכונה היא לעצור כאן, לפתוח משימה נפרדת לאימות, ולחסום את <bdi>Merge</bdi> עד שהיא נסגרת. את ההחלטה הזאת מקבל אדם, לא המודל.</p></div>
+  <p><strong>אימות:</strong> שלוש הבדיקות החדשות ירוקות, ובנוסף אימות שלילי ידני: <code>curl -X DELETE ... -H "X-User: mallory"</code> על תגובה של <code>dana</code> מחזיר 403 עם גוף שאינו חושף מי המחבר.</p>
+
+  <h2 id="stage8">שלב 8: בדיקות (Unit ו-Integration)</h2>
+  <p>בדיקות נכתבו לאורך הדרך; השלב הזה מוודא שהחבילה, כמכלול, מוכיחה את ה-<bdi>Spec</bdi>. מעבירים ל-<bdi>acceptEdits</bdi> (<code>Shift+Tab</code>), כי הולכות להיות הרבה עריכות בקבצי בדיקה וסיכון נמוך, ומריצים ביקורת כיסוי מול הקריטריונים:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 9 (acceptEdits)</div>
+    <pre><code>Build a traceability table: each acceptance criterion in SPEC.md
+-> the test function(s) that prove it, or "UNCOVERED". Add tests
+for uncovered rows. Include: cascade delete (deleting a task removes
+its comments and mentions; verify with a direct SELECT), mentions
+recomputed on PATCH, comment_count in GET /tasks. Also add one
+failure-path test per endpoint. Then run pytest -q and paste the
+summary line.</code></pre>
+  </div>
+  <div class="terminal"><span class="p">$</span> pytest -q
+<span class="out">.............................................
+45 passed in 1.12s</span></div>
+  <p><strong>נקודת החלטה:</strong> טבלת העקיבות היא תוצר שנשמר (הוסיפו אותה ל-<code>SPEC.md</code> או לתיאור ה-<bdi>PR</bdi>). היא גם המקום שבו רואים "בדיקות ירוקות" שאינן מוכיחות כלום: בדיקה שקוראת ל-<bdi>Endpoint</bdi> ובודקת רק <code>status_code == 200</code>. בקשו להקשיח <bdi>Asserts</bdi> כאלה. על שיטת הבדיקות המלאה ראו <a href="ch11.html">פרק 11</a>.</p>
+
+  <h2 id="stage9">שלב 9: Migration</h2>
+  <p>ב-<bdi>SQLite</bdi> אין כלי <bdi>Migration</bdi> מובנה, ו-<code>ALTER TABLE</code> מוגבל (אי אפשר להוסיף <bdi>Foreign Key</bdi> לטבלה קיימת בקלות, למשל). אצלנו המצב נוח: אנחנו מוסיפים טבלאות חדשות, לא משנים קיימות, ולכן <code>CREATE TABLE IF NOT EXISTS</code> ב-<code>init_db()</code> הוא <bdi>Migration</bdi> מספקת. מה שכן דורש מחשבה: בסיסי נתונים קיימים עם משימות, הפעלת ה-<bdi>PRAGMA</bdi>, וגיבוי.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 10 (default mode, Opus 5)</div>
+    <pre><code>Write a migration checklist for existing TaskFlow databases:
+what init_db() will create on first start after upgrade, what it
+will not change, and any risk (e.g. rows in tasks that a future FK
+would orphan). Add a small script scripts/verify_schema.py that
+prints the tables, indexes and PRAGMA foreign_keys of a given DB
+file, exit code 1 if anything expected is missing. Do not modify
+any database file yourself.</code></pre>
+  </div>
+  <p><strong>נקודת החלטה:</strong> "Do not modify any database file yourself" היא הגבלה שכדאי להשאיר בכל <bdi>Prompt</bdi> שנוגע בנתונים: המודל כותב את הכלי, האדם מריץ אותו על הנתונים האמיתיים אחרי גיבוי. <strong>אימות</strong> על עותק של בסיס נתונים ותיק:</p>
+  <div class="terminal"><span class="p">$</span> cp taskflow.db taskflow.backup.db
+<span class="p">$</span> python scripts/verify_schema.py taskflow.db
+<span class="out">tables: tasks, comments, comment_mentions
+indexes: idx_comments_task_id, idx_mentions_username
+foreign_keys: 1
+OK</span></div>
+  <p>אם המבנה שלכם היה דורש שינוי טבלה קיימת (למשל הוספת <bdi>FK</bdi> ל-<code>tasks</code>), הייתם עוברים לאסטרטגיית <bdi>Expand, Migrate, Contract</bdi> שנלמד ב<a href="ch35.html">פרק 35</a>. תוכנית <bdi>Rollback</bdi> כאן פשוטה: החזרת קובץ הגיבוי והחזרת ה-<bdi>Commit</bdi>; רשמו אותה בתיאור ה-<bdi>PR</bdi>.</p>
+
+  <h2 id="stage10">שלב 10: תיעוד</h2>
+  <div class="codeblock">
+    <div class="codehead">Prompt 11 (acceptEdits, Sonnet 5, effort low)</div>
+    <pre><code>Update docs minimally: README.md gets a "Comments API" section
+(endpoints table, X-User header note marked as placeholder auth,
+mention grammar). CLAUDE.md Conventions gets two lines: mention
+grammar and "comments are deleted with their task (CASCADE)". Keep
+SPEC.md as the design record; add a "Decisions" list at the end
+with the 6 decisions we made in the interview.</code></pre>
+  </div>
+  <p><strong>למה גם CLAUDE.md:</strong> כל <bdi>Session</bdi> עתידי יקרא אותו (<a href="ch15.html">פרק 15</a>). שורת "CASCADE" שם מונעת ממודל עתידי "לתקן" את המחיקה. <strong>אימות:</strong> <bdi>Diff</bdi> של קבצי טקסט בלבד; ודאו ששום קובץ קוד לא נגרר פנימה.</p>
+
+  <h2 id="stage11">שלב 11: סקירת אבטחה (Subagent + /security-review)</h2>
+  <p>עוברים ל-<bdi>Session</bdi> חדש (או לפחות <code>/clear</code>) כדי שהסוקר לא יהיה זה שכתב. שתי שכבות: <bdi>Subagent</bdi> ייעודי לקריאה בלבד, ואחריו הפקודה המובנית <code>/security-review</code> שבודקת את ה-<bdi>Diff</bdi> לחולשות. ה-<bdi>Subagent</bdi> מוגדר פעם אחת בפרויקט (הדוגמה מבוססת על התיעוד הרשמי, עם התאמה ל-<bdi>TaskFlow</bdi>):</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/agents/security-reviewer.md</div>
+    <pre><code>---
+name: security-reviewer
+description: Reviews code changes for security vulnerabilities. Use before opening a PR.
+tools: Read, Grep, Glob, Bash
+model: opus
+---
+You are a senior security engineer reviewing a Python/FastAPI + React
+change. Review only the diff of the current branch against main.
+Check for: SQL injection (any non-parameterized SQL), XSS in the
+frontend (dangerouslySetInnerHTML, unescaped user text), missing
+authorization checks, information disclosure in error messages,
+input length/format validation gaps, and secrets in code.
+Report findings with file:line, severity (Critical/High/Medium/Low),
+a concrete exploit scenario, and a suggested fix. Report only real
+issues; do not report style.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">Prompt 12</div>
+    <pre><code>Use the security-reviewer subagent to review this branch against
+main. Then I will run /security-review as a second opinion.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">המחשה: ממצאים</div>
+    <pre><code>HIGH  routers/comments.py:71  PATCH builds "UPDATE comments SET ..."
+      from payload keys; keys come from a Pydantic model so today it
+      is safe, but a future field named with SQL would break it.
+      Fix: whitelist column names explicitly.
+MED   Comments.tsx:38  mention highlighting is safe (React elements),
+      but relative-time text uses innerHTML for a nbsp. Replace with
+      {' '}.
+LOW   auth.py: 401 body echoes the header value; remove echo.
+INFO  X-User placeholder documented; must be replaced before prod.</code></pre>
+  </div>
+  <p><strong>נקודת החלטה:</strong> מאמצים ממצאים של נכונות ואבטחה, ודוחים בנימוק קצר מה שאינו כזה. התיעוד הרשמי מזהיר במפורש: סוקר שהתבקש למצוא פערים ימצא פערים; רדיפה אחרי כולם מובילה להנדסת יתר. אחרי התיקונים מריצים <code>/security-review</code>, ומצפים לרשימה ריקה או להערות שכבר טופלו. <strong>אימות:</strong> כל תיקון אבטחה מלווה בבדיקה שלילית (למשל בדיקה ש-<code>PATCH</code> עם שדה לא מוכר לא משנה כלום). ראו <a href="ch20.html">פרק 20</a> על אבטחה בעבודה עם <bdi>Claude Code</bdi>.</p>
+
+  <h2 id="stage12">שלב 12: סקירת ביצועים</h2>
+  <div class="codeblock">
+    <div class="codehead">Prompt 13 (Opus 5, effort xhigh)</div>
+    <pre><code>Performance review of the comments feature, read-only first:
+(1) find any N+1 pattern (a query per task or per comment),
+especially comment_count in GET /tasks and mentions in GET
+comments; (2) run EXPLAIN QUERY PLAN for the three main queries
+against a DB seeded with 1,000 tasks and 20,000 comments (write a
+seed script under scripts/, do not run it against taskflow.db);
+(3) confirm the indexes are used. Then propose the smallest change
+that fixes each real problem.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">המחשה: ממצאים</div>
+    <pre><code>N+1 found: list_comments runs one SELECT per comment to fetch
+mentions (200 comments -> 201 queries). Fix: single query with
+"WHERE comment_id IN (...)" then group in Python; or LEFT JOIN +
+group_concat. Chose IN + grouping (keeps _row_to_comment simple).
+comment_count: implemented as correlated subquery in list_tasks;
+EXPLAIN shows "SEARCH comments USING COVERING INDEX
+idx_comments_task_id". OK.
+Seeded 1,000/20,000: GET /tasks 12ms -> 12ms; GET comments for the
+busiest task 140ms -> 9ms after fix.</code></pre>
+  </div>
+  <p><strong>אימות:</strong> המספרים בהמחשה הם רק סדר גודל, אבל השיטה קבועה: מדידה לפני, מדידה אחרי, ו-<code>EXPLAIN QUERY PLAN</code> שמראה שימוש באינדקס. אל תקבלו "שיפרתי ביצועים" בלי מספרים. שינויי ביצועים נכנסים ב-<bdi>Commit</bdi> נפרד, כדי שאפשר יהיה להחזיר אותם בנפרד.</p>
+
+  <h2 id="stage13">שלב 13: /code-review, Commits ו-Pull Request</h2>
+  <p>לפני ה-<bdi>PR</bdi>, סקירת נכונות טרייה עם ה-<bdi>Skill</bdi> המובנה. הוא רץ ב-<bdi>Subagent</bdi> עם <bdi>Context</bdi> נקי; רמת המאמץ נבחרת בפקודה, ואפשר לבקש שיישם תיקונים עם <code>--fix</code>:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 14</div>
+    <pre><code>/code-review high</code></pre>
+  </div>
+  <p>אחרי הטיפול בממצאים, מסדרים את ה-<bdi>Commits</bdi>. הגרנולריות שאנחנו ממליצים עליה: <bdi>Commit</bdi> לכל שכבה או החלטה שאפשר להחזיר לבדה. כך נראתה ההיסטוריה של ה-<bdi>Branch</bdi> בסוף:</p>
+  <div class="terminal"><span class="p">$</span> git log --oneline main..HEAD
+<span class="out">a91c2e0 Fix N+1 in comment listing; add seed and schema scripts
+7d40b8f Harden PATCH column whitelist and 401 body (security review)
+5c3e77a Document comments API and mention grammar
+e2f0a1d Add comments UI: list, form, mention highlighting
+b7c9d34 Add author dependency and 403 rules for comment edit/delete
+9a8e6f2 Add PATCH/DELETE for comments with mention recompute
+41d5c0b Add comments API (list, create) and mention extraction
+0f2b8aa Add comments and mentions schema with FK enforcement</span></div>
+  <div class="codeblock">
+    <div class="codehead">Prompt 15</div>
+    <pre><code>push the branch and open a PR using the template below. Fill every
+section from SPEC.md, the traceability table and the review
+findings. Do not invent test results: paste the last pytest and
+typecheck summary lines.
+
+## What
+## Why (link SPEC.md)
+## Decisions (6 from the interview)
+## Acceptance criteria (checklist, each with proving test)
+## How verified (pytest/typecheck/manual/EXPLAIN)
+## Security review summary (findings + resolutions)
+## Migration and rollback
+## Known limitations (X-User placeholder!)
+## Risks for the reviewer to focus on</code></pre>
+  </div>
+  <p><strong>תוצאה צפויה:</strong> קישור ל-<bdi>PR</bdi>. ה-<bdi>Session</bdi> שיצר אותו דרך <code>gh pr create</code> מקושר אליו, ואפשר לחזור אליו עם <code>claude --from-pr &lt;number&gt;</code>. ה-<bdi>PR</bdi> הזה גדול מזה של פרק 9 (סדר גודל של 15 קבצים), אבל שמונה <bdi>Commits</bdi> ממוקדים ותיאור מובנה הופכים אותו לסקיר בפרוסות. אם הסוקר האנושי מבקש שינויים, חוזרים ללולאה: תיקון, <code>/diff</code>, בדיקות, <bdi>Commit</bdi> נוסף.</p>
+
+  <h2 id="mistakes">טעויות נפוצות</h2>
+  <ul>
+    <li><strong>לדלג על הראיון:</strong> להתחיל מ"תבנה תגובות" ולגלות את שאלת ה-<bdi>CASCADE</bdi> כשמישהו מוחק משימה ב-<bdi>Production</bdi>.</li>
+    <li><strong>לאמץ ממצא של Subagent בלי בדיקה:</strong> הממצא על <code>PRAGMA foreign_keys</code> היה נכון; הבא אולי לא יהיה. אמתו טענות עובדתיות בפקודה אחת.</li>
+    <li><strong>לערבב שכבות בפרוסה אחת:</strong> "תבנה את ה-API והפרונט" מייצר <bdi>Diff</bdi> שאי אפשר לסקור.</li>
+    <li><strong>לתת למודל להחליט על הרשאות:</strong> ההחלטה על <code>X-User</code> היא של האדם, כולל התיעוד שזה זמני.</li>
+    <li><strong>להריץ Migration על נתונים אמיתיים מתוך ה-Session:</strong> המודל כותב כלי, האדם מריץ אחרי גיבוי.</li>
+    <li><strong>לקבל "שיפרתי ביצועים" בלי מספרים ובלי EXPLAIN.</strong></li>
+    <li><strong>Commit אחד גדול בסוף:</strong> מאבד את היכולת להחזיר רק את שינוי הביצועים או רק את שינוי האבטחה.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>אבחון וטיפול</th></tr></thead>
+      <tbody>
+        <tr><td>סטייה מה-Plan: המימוש כולל דברים שלא סוכמו (למשל התראות)</td><td>עצרו עם <code>Esc</code>. הצביעו על הסעיף ב-<code>SPEC.md</code> ובקשו להחזיר את החלק העודף. אם זה חוזר, ה-<bdi>Spec</bdi> כנראה לא מספיק חד; חדדו אותו במקום להילחם בכל תור. <code>/rewind</code> מחזיר קוד ושיחה לנקודה שלפני הסטייה (<a href="ch19.html">פרק 19</a>)</td></tr>
+        <tr><td>בדיקות שנכשלות מאוחר: הכול היה ירוק עד שלב 12, ועכשיו נשברות בדיקות ישנות</td><td>כמעט תמיד שינוי ביצועים או אבטחה ששינה חוזה בשקט (למשל סדר תגובות אחרי המעבר ל-<code>IN</code>). ה-<bdi>Commit</bdi> הנפרד מאפשר <code>git stash</code> או <code>git revert</code> נקודתי לזיהוי האשם. תקנו את הקוד, לא את הבדיקה, אלא אם הבדיקה הניחה סדר שלא הובטח מעולם</td></tr>
+        <tr><td>Context מתמלא באמצע המימוש; Claude מתחיל "לשכוח" את ה-Spec</td><td>אל תמשיכו לדחוף. <code>/compact Focus on SPEC.md decisions, the files changed so far and the next slice</code>, או טוב מזה: סיימו פרוסה ב-<bdi>Commit</bdi>, פתחו <bdi>Session</bdi> חדש שקורא את <code>SPEC.md</code> ואת <code>git log</code>. תהליך <bdi>Handoff</bdi> מסודר בין <bdi>Sessions</bdi> מתואר ב<a href="ch14.html">פרק 14</a></td></tr>
+        <tr><td>Claude מציע להוסיף ORM או ספריית Migration "כדי לפשט"</td><td>זה שינוי ארכיטקטוני מחוץ לתחום. סרבו, רשמו כרעיון ל-<a href="ch35.html">פרק 35</a>, והמשיכו</td></tr>
+        <tr><td>Cascade לא עובד בבדיקה למרות ON DELETE CASCADE</td><td>ה-<bdi>PRAGMA</bdi> לא הופעל על החיבור הזה. ודאו ש-<code>get_conn()</code> מריץ <code>PRAGMA foreign_keys = ON</code> אחרי כל <code>connect</code>, לא פעם אחת ב-<code>init_db</code></td></tr>
+        <tr><td>הסוקר האוטומטי מציף עשרות הערות סגנון</td><td>חדדו את ה-<bdi>Prompt</bdi>: "Report gaps that affect correctness or the stated requirements only". דחו את השאר בנימוק</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="security">Security</h2>
+  <ul>
+    <li><strong>קלט:</strong> כל <bdi>SQL</bdi> עם פרמטרים; שמות עמודות ב-<code>UPDATE</code> מרשימה קבועה; אורך ודקדוק נאכפים בשרת, לא רק ב-<bdi>Frontend</bdi>.</li>
+    <li><strong>פלט:</strong> אזכורים מודגשים דרך אלמנטים, לא <bdi>HTML</bdi> גולמי; הודעות שגיאה לא מהדהדות קלט.</li>
+    <li><strong>הרשאות:</strong> נקודת הרחבה אחת (<code>current_user</code>), בדיקות 401 ו-403, ותיעוד גלוי שהמנגנון הנוכחי הוא <bdi>Placeholder</bdi>. אין <bdi>Merge</bdi> ל-<bdi>Production</bdi> לפני החלפתו.</li>
+    <li><strong>תהליך:</strong> סוקר האבטחה הוא <bdi>Subagent</bdi> ללא כלי כתיבה, ואחריו <code>/security-review</code>. ראו <a href="ch20.html">פרק 20</a> ו-<a href="ch25.html">פרק 25</a>.</li>
+  </ul>
+
+  <h2 id="cost">עלות ו-Context</h2>
+  <p>ה-<bdi>Feature</bdi> הזה, במימוש מלא, צורך סדר גודל של כמה מאות אלפי <bdi>Tokens</bdi> לאורך שלושה <bdi>Sessions</bdi>; המספר המדויק תלוי במודל וב-<bdi>Effort</bdi>. שלושת החיסכונות המשמעותיים: (1) הראיון וה-<bdi>Spec</bdi> מקטינים סבבי תיקון, שהם הבזבזן הגדול; (2) האצלת החקירה והסקירות ל-<bdi>Subagents</bdi> שומרת את ה-<bdi>Context</bdi> הראשי קטן; (3) הורדת <bdi>Effort</bdi> ל-<code>medium</code> או <code>low</code> בשלבים מכניים (מימוש לפי תוכנית, תיעוד) והעלאתו רק בתכנון ובסקירה. עקבו עם <code>/context</code> ו-<code>/cost</code>; ראו <a href="ch30.html">פרק 30</a>.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>ראיון לפני תכנון, <bdi>Spec</bdi> לפני קוד, <bdi>Session</bdi> טרי למימוש.</li>
+    <li>כל החלטה תכנונית (<bdi>CASCADE</bdi>, מבנה אזכורים, הרשאות) נרשמת ב-<code>SPEC.md</code> ובתיאור ה-<bdi>PR</bdi>.</li>
+    <li>פרוסה = שכבה אחת = <bdi>Commit</bdi> אחד = פקודת אימות אחת שרצה בפועל.</li>
+    <li>ממצאי <bdi>Subagent</bdi> עוברים אימות עצמאי בפקודה אחת לפני שהם הופכים להחלטה.</li>
+    <li>סקירת אבטחה וביצועים ב-<bdi>Context</bdi> נקי, בקריאה בלבד, עם ראיות (בדיקה שלילית, <code>EXPLAIN</code>, מדידה).</li>
+    <li>נתונים אמיתיים: גיבוי, כלי אימות, הרצה ידנית. לעולם לא מתוך ה-<bdi>Session</bdi>.</li>
+    <li><code>/code-review</code> לפני כל <bdi>PR</bdi>, ותיאור <bdi>PR</bdi> לפי תבנית קבועה.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>ה-Prompt הכוללני:</strong> "add comments with mentions, tests and a PR" במצב שמאשר הכול. עובד לפעמים; כשלא, אין דרך לדעת איזה חלק שבור.</li>
+    <li><strong>הסוקר המאוהב:</strong> לבקש מאותו <bdi>Session</bdi> שכתב את הקוד גם לאשר שהוא בטוח.</li>
+    <li><strong>ההרשאה המשתמעת:</strong> להשאיר את <code>X-User</code> בלי תיעוד, בלי משימת המשך ובלי חסימת <bdi>Merge</bdi>.</li>
+    <li><strong>ביצועים בהרגשה:</strong> "נראה מהיר" במקום מדידה ו-<code>EXPLAIN</code>.</li>
+    <li><strong>הבדיקה שמאשרת 200:</strong> בדיקה שלא בודקת תוכן ולא בודקת כשל.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 34.1: תאריכי יעד ותזכורות</div>
+    <div class="body">
+      <p>הריצו את 13 השלבים על דרישה חדשה ב-<bdi>TaskFlow</bdi>: לכל משימה יהיה <code>due_date</code> אופציונלי (תאריך <bdi>ISO</bdi>), ו-<bdi>Endpoint</bdi> חדש <code>GET /tasks/due?within=3d</code> שמחזיר משימות פתוחות שמועדן בתוך חלון זמן. בנוסף, "תזכורות": טבלת <code>reminders</code> (משימה, זמן, האם נשלחה) עם יצירה, רשימה ומחיקה, ופקודת <bdi>CLI</bdi> קטנה שמדפיסה תזכורות שהגיע זמנן (שליחה בפועל מחוץ לתחום). נהלו ראיון, כתבו <code>SPEC.md</code>, והקפידו על: <bdi>Migration</bdi> לעמודה חדשה בטבלה קיימת (כמו בפרק 9), <bdi>FK</bdi> עם <bdi>CASCADE</bdi>, אינדקס על זמן התזכורת, בדיקת אזורי זמן, סקירת אבטחה וביצועים, ו-<bdi>PR</bdi> לפי התבנית.</p>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>שאלות הראיון שחייבות לעלות:</strong> אזור זמן (המלצה: לאחסן <bdi>UTC</bdi> ב-<bdi>ISO 8601</bdi> ולתעד זאת), האם <code>due_date</code> בעבר מותר ביצירה (כן, עם אזהרה ב-UI, לא 422), מה קורה לתזכורות כשמשימה מסומנת <code>done</code> (נמחקות או מסומנות כלא רלוונטיות; בחרו ותעדו), ופרשנות <code>within</code> (<code>3d</code>, <code>12h</code>; מקסימום 90 יום; ערך לא חוקי מחזיר 422).</p>
+      <p><strong>מודל נתונים:</strong> <code>ALTER TABLE tasks ADD COLUMN due_date TEXT</code> ב-<bdi>Migration</bdi> מבוססת <code>PRAGMA table_info</code>, כפי שעשינו לעמודת <code>priority</code>; טבלת <code>reminders(id, task_id FK CASCADE, remind_at TEXT NOT NULL, sent INTEGER NOT NULL DEFAULT 0)</code> עם אינדקס <code>(sent, remind_at)</code>, כי השאילתה של ה-<bdi>CLI</bdi> היא "לא נשלחו ומועדן עבר". <code>EXPLAIN QUERY PLAN</code> חייב להראות שימוש בו.</p>
+      <p><strong>API:</strong> שימו לב לקונפליקט נתיבים: <code>GET /tasks/due</code> חייב להיות מוגדר לפני <code>GET /tasks/{task_id}</code>, אחרת <bdi>FastAPI</bdi> ינסה להמיר "due" למספר ויחזיר 422. זו בדיוק תגלית שראיון או חקירה טובים מציפים; אם פספסתם, הבדיקה תתפוס.</p>
+      <p><strong>אבטחה:</strong> פרמטר <code>within</code> הוא קלט; פרסור עם ביטוי רגולרי מוגבל, לא <code>eval</code> ולא שרשור לשאילתה. ה-<bdi>CLI</bdi> לא מקבל נתיב בסיס נתונים מהמשתמש בלי אימות. <strong>ביצועים:</strong> רשימת המשימות עם "יש תזכורת ממתינה" היא שוב מועמדת ל-<bdi>N+1</bdi>; פתרו ב-<code>EXISTS</code> או ב-<code>IN</code>.</p>
+      <p><strong>סיום:</strong> טבלת עקיבות, <code>/security-review</code>, <code>/code-review high</code>, שישה עד שמונה <bdi>Commits</bdi>, ו-<bdi>PR</bdi> שבו סעיף "Known limitations" מציין שאין שליחה בפועל ואין אימות משתמשים.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>פיתוח <bdi>Feature</bdi> מורכב עם <bdi>Claude Code</bdi> אינו <bdi>Prompt</bdi> אחד גדול אלא רצף של שערים: ראיון ו-<bdi>Spec</bdi> ב-<bdi>Plan Mode</bdi>, חקירה מואצלת עם אימות עצמאי של הממצאים, החלטת סכמה מפורשת, מימוש בפרוסות של שכבה אחת עם <bdi>Commit</bdi> ואימות בכל פרוסה, <bdi>Validation</bdi> והרשאות כשלבים נפרדים שבהם האדם מחליט, בדיקות שמוכיחות את ה-<bdi>Spec</bdi> דרך טבלת עקיבות, <bdi>Migration</bdi> שהאדם מריץ אחרי גיבוי, תיעוד באותו <bdi>Branch</bdi>, סקירת אבטחה וביצועים ב-<bdi>Context</bdi> נקי עם ראיות, ולבסוף <code>/code-review</code> ו-<bdi>PR</bdi> מובנה. בפרק הבא ניקח את אותם עקרונות למקום שבו הסיכון גבוה יותר: <bdi>Migration</bdi> ו-<bdi>Refactoring</bdi> בקנה מידה גדול.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (verification, plan mode, interview with AskUserQuestion, subagents for review, adversarial review, security-reviewer example)</a> |
+      <a href="https://code.claude.com/docs/en/common-workflows">Common workflows (delegate research to subagents, plan before editing, PR creation, --from-pr)</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands reference (/code-review, /security-review, /diff, /rewind, /compact, /context, /plan)</a> |
+      <a href="https://code.claude.com/docs/en/sub-agents">Subagents (frontmatter, tools, model, invocation)</a> |
+      <a href="https://code.claude.com/docs/en/permission-modes">Permission modes (plan, acceptEdits, auto)</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch33.html"><span class="lbl">הפרק הקודם</span>Automation מקצועית</a>
+    <a href="ch35.html"><span class="lbl">הפרק הבא</span>Migration ו-Large Refactoring</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

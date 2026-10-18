@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 36: עבודה עם Legacy Code</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ח | פרק 36</p>
+  <h1>עבודה עם Legacy Code</h1>
+  <p class="lead">קוד <bdi>Legacy</bdi> הוא לא קוד ישן; הוא קוד שאי אפשר לשנות בביטחון. אין לו בדיקות, אין מי שזוכר למה הוא כתוב כך, והוא עובד, בערך, ב-<bdi>Production</bdi>. <bdi>Claude Code</bdi> הוא כלי חזק במיוחד בסביבה כזאת, כי הוא קורא מהר, מסביר בסבלנות ולא נבהל מ-400 שורות בפונקציה אחת. אבל הוא גם מסוכן במיוחד בה: הוא ינחש בביטחון, והניחוש שלו יישמע כמו ידיעה. הפרק מלמד שיטת עבודה: יום ראשון לקריאה בלבד, מפת ארכיטקטורה ומרשם סיכונים, בדיקות אפיון מהתנהגות נצפית ולא מהנחות, איתור בדיקות חסרות ו-<bdi>Coupling</bdi> נסתר, טיפול ב-<bdi>Dependencies</bdi> מיושנים, מודרניזציה מדורגת עם תנאי עצירה, הוכחת שימור התנהגות, מחיקה בטוחה, שחזור תיעוד, ותרחיש מלא על מודול ייצוא דוחות דמיוני מגרסה ותיקה של <bdi>TaskFlow</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-is-legacy">מה הופך קוד ל-Legacy</h2>
+  <p>ההגדרה שנעבוד איתה, בעקבות הספרות המקובלת בתחום: <strong>קוד <bdi>Legacy</bdi> הוא קוד ללא בדיקות שמאפשרות לשנות אותו בביטחון.</strong> גיל אינו הקריטריון; יש קוד בן שבועיים שהוא <bdi>Legacy</bdi> וקוד בן עשור שאינו. סימני ההיכר בשטח:</p>
+  <ul>
+    <li><strong>אין רשת ביטחון:</strong> אין בדיקות, או שיש בדיקות שאיש לא מריץ כי חצי מהן אדומות.</li>
+    <li><strong>אין זיכרון ארגוני:</strong> מי שכתב עזב; ההערות מתארות גרסה קודמת של הקוד; ה-<bdi>Commit Messages</bdi> אומרות "fix".</li>
+    <li><strong>Coupling נסתר:</strong> מודולים תלויים זה בזה דרך משתנים גלובליים, סדר <bdi>Imports</bdi>, קבצים על הדיסק או טבלה משותפת בבסיס הנתונים.</li>
+    <li><strong>פחד:</strong> הסימן החשוב ביותר. אם הצוות אומר "אל תיגע בזה", זה <bdi>Legacy</bdi>.</li>
+  </ul>
+  <p><strong>מה Claude Code נותן כאן:</strong> קריאה מהירה של כמויות גדולות של קוד, הסבר של מה הקוד עושה בפועל (להבדיל ממה שההערות טוענות), הצעות לנקודות תפר (<bdi>Seams</bdi>), וכתיבה מהירה של בדיקות אפיון. <strong>מה הוא לא נותן:</strong> ידיעה. כל טענה שלו על קוד שאין לו בדיקות היא השערה עד שאימתתם אותה בהרצה. הפרק כולו הוא, במובן מסוים, שיטה להפוך השערות של המודל לעובדות שנבדקו.</p>
+  <p><strong>מתי להשתמש בשיטות של הפרק:</strong> כשנכנסים ל-<bdi>Codebase</bdi> לא מוכר, כשמקבלים בעלות על מודול שאיש לא מתחזק, ולפני כל <bdi>Migration</bdi> (<a href="ch35.html">פרק 35</a>) על קוד בלי בדיקות. <strong>מתי לא:</strong> קוד עם חבילת בדיקות אמינה, גם אם הוא מכוער; שם עוברים ישר ל<a href="ch12.html">פרק 12</a>.</p>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p><a href="ch06.html">פרק 6</a> (קריאת <bdi>Repository</bdi>), <a href="ch07.html">פרק 7</a> (<bdi>Plan Mode</bdi>), <a href="ch11.html">פרק 11</a> (<bdi>Testing</bdi>), <a href="ch12.html">פרק 12</a> (<bdi>Refactoring</bdi>) ו-<a href="ch35.html">פרק 35</a> (<bdi>Strangler</bdi>, חוזה תאימות, תנאי עצירה). כלים: <code>pytest</code>, וכלי כיסוי כמו <code>coverage</code> אם תרצו לאמת טענות על בדיקות חסרות.</p></div>
+
+  <h2 id="how-it-works">איך זה עובד מושגית: מהשערה לעובדה</h2>
+  <p>כל השיטה בפרק מתכנסת ללולאה אחת שחוזרת עשרות פעמים בשבוע של עבודה על <bdi>Legacy</bdi>: Claude טוען טענה על הקוד; אתם ממירים אותה לפקודה או להרצה שמאשרת או מפריכה אותה; התוצאה נרשמת בקובץ (מרשם סיכונים, <bdi>Golden</bdi>, תיעוד) ולא רק בשיחה. הטבלה הבאה היא "מילון תרגום" מטענה לאימות, ותראו אותה בפעולה לאורך הפרק:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>טענה של Claude</th><th>אימות מהיר</th><th>מה נרשם</th></tr></thead>
+      <tbody>
+        <tr><td>"לפונקציה X אין בדיקות"</td><td class="ltr"><code>grep -rn "X" tests/</code>, ואז דוח כיסוי</td><td>שורה במרשם הסיכונים</td></tr>
+        <tr><td>"המודול משתמש במצב גלובלי"</td><td class="ltr"><code>grep -n "^[A-Za-z_]* = " module.py</code></td><td>מועמד ל-<bdi>Seam</bdi></td></tr>
+        <tr><td>"הפונקציה Y אינה בשימוש"</td><td class="ltr"><code>grep -rn "Y" .</code> כולל מחרוזות; <code>git log -S "Y"</code></td><td>ראיות למחיקה מדורגת</td></tr>
+        <tr><td>"הפלט מעוצב כך וכך"</td><td>הרצה אמיתית ולכידת הפלט</td><td>קובץ <bdi>Golden</bdi></td></tr>
+        <tr><td>"לספרייה Z יש פגיעות ידועה"</td><td>כלי ביקורת עדכני של האקוסיסטם</td><td>סעיף <bdi>SECURITY</bdi> בטריאז'</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>הלולאה הזאת נשמעת איטית, והיא מהירה: כל אימות הוא שניות, ובלעדיו כל שינוי הוא הימור. מודל שמקבל את הדרישה "cite file:line and rate confidence" בתחילת ה-<bdi>Session</bdi> גם נוטה להיות זהיר יותר בעצמו.</p>
+
+  <h2 id="day-one">היום הראשון: קריאה בלבד</h2>
+  <p>ביום הראשון לא משנים כלום. פותחים את ה-<bdi>Session</bdi> ב-<bdi>Plan Mode</bdi> (<code>claude --permission-mode plan</code>), כדי שגם בטעות לא תיווצר עריכה, ועובדים לפי הסולם של <a href="ch06.html">פרק 6</a>: רחב, ואז צר, ואז עמוק. ההבדל מקריאת <bdi>Repository</bdi> רגיל: בכל שאלה מבקשים גם את <strong>רמת הביטחון והראיה</strong>.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 1 (Plan Mode)</div>
+    <pre><code>I'm taking ownership of this codebase and nobody who wrote it is
+available. Give me an overview: entry points, main modules, data
+stores, external services, and how a request flows end to end.
+For every claim, cite the file:line you base it on and rate your
+confidence (high/medium/low). Where you are inferring from names
+or comments rather than from code, say so explicitly.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">Prompt 2 (Plan Mode)</div>
+    <pre><code>Use a subagent to build an import/dependency map of backend/app:
+which module imports which, any circular imports, any module-level
+side effects (code that runs on import: connections, file reads,
+global state). Report as a list; do not propose changes.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">Prompt 3 (Plan Mode)</div>
+    <pre><code>Which parts of this code would you be most afraid to change, and
+why? Consider: no tests, global state, string-built SQL, date and
+timezone handling, hidden I/O, duplicated logic. Rank the top 10 by
+risk and give the evidence for each.</code></pre>
+  </div>
+  <p><strong>המחשה של תשובה טובה ל-Prompt 3</strong> (הניסוח ישתנה; המבנה, עם ראיה וביטחון, הוא מה שדורשים):</p>
+  <div class="codeblock">
+    <div class="codehead">המחשה: ראש רשימת הסיכונים</div>
+    <pre><code>1. app/reports/exporter.py (HIGH confidence): 380 lines, no tests
+   found (grep for "exporter" in tests/ returned nothing). Builds SQL
+   by string concatenation at lines 88-104. Uses a module-level
+   _cache dict (line 21) written on import.
+2. app/reports/exporter.py:140-172 (MEDIUM): date formatting uses
+   local time (datetime.now()) while the rest of the app stores UTC
+   strings; inferred from database.py defaults, not verified at runtime.
+3. app/main.py:31 (HIGH): exporter imported for side effect
+   (registers a route); removing the import silently removes /export.</code></pre>
+  </div>
+  <p><strong>איך מאמתים טענות של Claude:</strong> כל שורה עם "HIGH" מקבלת פקודת אימות של שנייה: <code>grep -rn exporter backend/tests</code>, <code>sed -n 88,104p backend/app/reports/exporter.py</code>. כל שורה עם "MEDIUM" או "LOW" נרשמת כשאלה פתוחה, לא כעובדה. ההרגל הזה, אימות מדגמי של טענות, הוא ההבדל בין שימוש טוב ורע במודל על קוד לא מוכר.</p>
+
+  <p>לאורך השבוע משתנים גם מצב ההרשאות והמודל, לפי הסיכון בכל יום. הטבלה הבאה היא ההמלצה שלנו; ההיגיון זהה לזה של <a href="ch34.html">פרק 34</a>: המודל החזק וה-<bdi>Effort</bdi> הגבוה במקומות שבהם טעות בהבנה יקרה, מודל מהיר יותר בכתיבה מכנית של הרנס ובדיקות. פרטים על המודלים ב<a href="ch08.html">פרק 8</a> ועל מצבי ההרשאות ב<a href="ch18.html">פרק 18</a>.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>שלב</th><th>Permission Mode</th><th>Model / Effort</th><th>נימוק</th></tr></thead>
+      <tbody>
+        <tr><td>יום ראשון: קריאה, מפה, סיכונים</td><td>Plan Mode</td><td>Opus 5 / high</td><td>הבנה עמוקה של קוד זר; אפס עריכות</td></tr>
+        <tr><td>Golden Master והרנס</td><td>default</td><td>Sonnet 5 / medium</td><td>כתיבת קוד בדיקות לפי מתכון ברור; כל עריכה נראית</td></tr>
+        <tr><td>טריאז' Dependencies</td><td>Plan Mode</td><td>Sonnet 5 / high</td><td>ניתוח בלי שינוי; הכלי החיצוני נותן את העובדות</td></tr>
+        <tr><td>Seam, תיקון אבטחה, Boy Scout</td><td>default</td><td>Opus 5 / high</td><td>שינויים קטנים בקוד מסוכן; סקירה של כל שורה</td></tr>
+        <tr><td>ראיות למחיקה, תיעוד</td><td>Plan Mode, ואז acceptEdits לטקסט</td><td>Sonnet 5 / medium</td><td>איסוף ראיות לקריאה בלבד; תיעוד הוא טקסט</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="architecture-map">מפת ארכיטקטורה ומרשם סיכונים</h2>
+  <p>תוצר היום הראשון הוא שני מסמכים קצרים בתיקיית <code>docs/</code>, שנכתבים על ידי Claude ונערכים על ידיכם. הראשון הוא מפת ארכיטקטורה: רשימת מודולים, אחריות, תלויות, ונקודות כניסה (בפרויקט גדול, כדאי גם תרשים; ראו <a href="ch37.html">פרק 37</a>). השני הוא מרשם סיכונים, שנראה כך:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>#</th><th>רכיב</th><th>סיכון</th><th>ראיה</th><th>ביטחון</th><th>השפעה</th><th>פעולה ראשונה</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td class="ltr"><code>reports/exporter.py</code></td><td>אין בדיקות; <bdi>SQL</bdi> משורשר; מצב גלובלי</td><td>grep בבדיקות; שורות 88 עד 104</td><td>גבוה</td><td>גבוהה (נתונים יוצאים ללקוחות)</td><td>בדיקות אפיון</td></tr>
+        <tr><td>2</td><td class="ltr"><code>reports/exporter.py</code></td><td>זמן מקומי מול <bdi>UTC</bdi></td><td>הסקה מ-<code>database.py</code></td><td>בינוני</td><td>בינונית</td><td>אימות בהרצה</td></tr>
+        <tr><td>3</td><td class="ltr"><code>main.py:31</code></td><td><bdi>Import</bdi> לתופעת לוואי</td><td>קריאת הקוד</td><td>גבוה</td><td>גבוהה (נתיב נעלם)</td><td>להפוך למפורש</td></tr>
+        <tr><td>4</td><td class="ltr"><code>requirements.txt</code></td><td>ספריית <bdi>Templating</bdi> ישנה ללא עדכוני אבטחה</td><td>ראו סעיף <bdi>Dependencies</bdi></td><td>גבוה</td><td>גבוהה</td><td>טריאז' אבטחה</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">Prompt 4 (Plan Mode)</div>
+    <pre><code>Write docs/architecture-map.md and docs/risk-register.md from what
+we found today. In the risk register use the columns: component,
+risk, evidence, confidence, impact, first action. Every row with
+confidence below high must have a "how to verify" note. Also
+generate a starter CLAUDE.md with /init and keep it short: commands
+to run tests and the app, the conventions you actually observed,
+and a "Known risky areas" section pointing at the register.</code></pre>
+  </div>
+  <p><code>/init</code> מייצר <bdi>CLAUDE.md</bdi> התחלתי לפי מבנה הפרויקט; בקוד <bdi>Legacy</bdi> זה חשוב במיוחד כי כל <bdi>Session</bdi> עתידי, שלכם או של עמיתים, מתחיל ממנו (<a href="ch15.html">פרק 15</a>). כתבו בו את מה שלמדתם באמת, לא את מה שהייתם רוצים שיהיה נכון.</p>
+
+  <h2 id="characterization">בדיקות אפיון (Golden Master): מהתנהגות, לא מהנחות</h2>
+  <p>בדיקת אפיון מתעדת מה הקוד עושה היום, נכון או לא. היא לא שואלת "מה הוא צריך לעשות". ההבדל קריטי בעבודה עם מודל: אם תבקשו "write tests for exporter.py", Claude יקרא את הקוד, יסיק מה הוא אמור לעשות, ויכתוב בדיקות להסקה. הן יעברו (או שהוא "יתקן" את הקוד כדי שיעברו), ולא ילמדו אתכם כלום. הדרך הנכונה: להריץ את הקוד על קלטים מייצגים, ללכוד את הפלט כפי שהוא, ולהפוך אותו ל-<bdi>Golden Master</bdi>.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 5 (default mode)</div>
+    <pre><code>Create characterization tests for app/reports/exporter.py using a
+golden-master approach. Do NOT infer expected values from reading
+the code. Instead: (1) write a small harness that seeds a temp DB
+with a fixed set of tasks (fixed ids, titles with unicode and
+commas, all statuses, fixed created_at values); (2) run each public
+export function (csv, html) and SAVE the actual output to
+tests/golden/&lt;name&gt;.txt; (3) write tests that re-run and compare
+byte-for-byte to the saved files. Freeze time and any randomness.
+If output differs between runs, report why instead of hiding it.
+Do not change exporter.py.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">backend/tests/test_exporter_golden.py (המחשה)</div>
+    <pre><code>from pathlib import Path
+
+from app.reports import exporter
+
+GOLDEN = Path(__file__).parent / "golden"
+
+
+def test_csv_export_matches_golden(seeded_db, frozen_time):
+    actual = exporter.export_csv()
+    expected = (GOLDEN / "tasks.csv").read_text(encoding="utf-8")
+    assert actual == expected
+
+
+def test_html_export_matches_golden(seeded_db, frozen_time):
+    actual = exporter.export_html()
+    expected = (GOLDEN / "tasks.html").read_text(encoding="utf-8")
+    assert actual == expected</code></pre>
+  </div>
+  <p>ההרנס עצמו הוא הקוד המעניין: הוא זורע בסיס נתונים זמני עם נתונים קבועים ומקפיא את הזמן, כדי ששתי הרצות ייתנו פלט זהה. כך הוא נראה בקווים כלליים:</p>
+  <div class="codeblock">
+    <div class="codehead">backend/tests/conftest.py (המחשה, קטע)</div>
+    <pre><code>@pytest.fixture()
+def seeded_db(tmp_path, monkeypatch):
+    db = tmp_path / "golden.db"
+    monkeypatch.setenv("TASKFLOW_DB", str(db))
+    init_db()
+    with get_conn() as conn:
+        for row in FIXED_TASKS:          # ids, titles, statuses, created_at
+            conn.execute(
+                "INSERT INTO tasks (id, title, description, status, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                row,
+            )
+    return db
+
+
+@pytest.fixture()
+def frozen_time(monkeypatch):
+    # exporter stamps "generated at"; pin it so the golden file is stable
+    monkeypatch.setattr(exporter, "_now", lambda: FIXED_NOW)</code></pre>
+  </div>
+  <p>שימו לב לשורה האחרונה: כדי להקפיא זמן היה צריך שלקוד תהיה נקודת אחיזה (<code>_now</code>). אם אין כזאת, פתיחת <bdi>Seam</bdi> זעיר לזמן היא השינוי היחיד המותר בקוד בשלב האפיון, והוא נעשה ב-<bdi>Commit</bdi> נפרד עם הסבר.</p>
+  <p><strong>שלושה אימותים חובה:</strong> (1) הבדיקות ירוקות על הקוד הנוכחי, פעמיים ברצף (יציבות); (2) <strong>בדיקת מוטציה ידנית:</strong> שנו תו אחד בקוד הייצוא (למשל את המפריד ב-<bdi>CSV</bdi>), הריצו, וודאו שהבדיקה אדומה, ואז החזירו; בדיקה שלא נכשלת כשמשנים את הקוד לא מגינה על כלום; (3) קראו את קבצי ה-<bdi>Golden</bdi> בעצמכם: אם ראיתם שם תאריך בזמן מקומי או תו מוזר, זה לא באג בבדיקה, זו התנהגות שתועדה, ועכשיו יש לכם שאלה למרשם הסיכונים.</p>
+  <div class="terminal"><span class="p">$</span> pytest -q tests/test_exporter_golden.py
+<span class="out">..
+2 passed in 0.19s</span>
+<span class="p">$</span> sed -i 's/delimiter=","/delimiter=";"/' app/reports/exporter.py &amp;&amp; pytest -q tests/test_exporter_golden.py; git checkout app/reports/exporter.py
+<span class="out">F.
+FAILED tests/test_exporter_golden.py::test_csv_export_matches_golden
+1 failed, 1 passed in 0.21s</span></div>
+  <div class="callout tip"><span class="title">כמה קלטים?</span><p>מעט קלטים שנבחרו היטב עדיפים על הרבה אקראיים: משימה עם פסיק וגרשיים בכותרת, כותרת ב-<bdi>Unicode</bdi>, תיאור ריק, כל ערך <bdi>Status</bdi>, ורשומה אחת ותיקה מאוד. בקשו מ-Claude להציע את "הקלטים המשונים ביותר שהקוד עלול לפגוש", ואז אשרו את הרשימה. את הבדיקות המבוססות-הנחות (מה הקוד צריך לעשות) תכתבו אחר כך, כשתבינו ותחליטו.</p></div>
+
+  <p>עוד נקודה שכדאי להבין: <bdi>Golden Master</bdi> הוא רשת ביטחון זמנית, לא חבילת הבדיקות הסופית. הוא נוקשה במכוון (כל שינוי בפלט מפיל אותו), ולכן הוא מצוין לתקופת ה-<bdi>Refactoring</bdi> ומעצבן אחריה. כשמסיימים לייצב את המודול, מחליפים אותו בהדרגה בבדיקות ממוקדות שמבטאות כוונה ("ייצוא <bdi>CSV</bdi> מצטט כותרת עם פסיק"), ואז אפשר למחוק את קבצי ה-<bdi>Golden</bdi> או להשאיר אחד כבדיקת עשן. גם ההחלפה הזאת נעשית ב-<bdi>Commits</bdi> קטנים, וגם בה שואלים את Claude להציע ואתם מאשרים.</p>
+
+  <h2 id="gaps-coupling">איתור בדיקות חסרות ו-Coupling נסתר</h2>
+  <p>עכשיו, עם רשת ביטחון ראשונית, מרחיבים אותה בכיוון הנכון: איפה אין כיסוי, ואיפה מודולים קשורים בדרכים שלא רואים.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 6</div>
+    <pre><code>Find functions in backend/app that are not exercised by any test.
+Method: run the test suite under coverage (install coverage into
+the venv if missing), then list uncovered functions grouped by
+module, with line counts. Separately, list "hidden coupling":
+global mutable state, module-level side effects, functions that
+read environment variables or files directly, and any two modules
+that both write the same table. Give evidence for each item.</code></pre>
+  </div>
+  <p><strong>איך מאמתים:</strong> טענת "לא מכוסה" מאומתת בדוח הכיסוי עצמו (<code>coverage report -m</code> מציג את השורות החסרות); אל תסתפקו בסיכום של Claude, בקשו את שורות הדוח הרלוונטיות. טענת "Coupling נסתר" מאומתת ב-<code>grep</code>: <code>grep -rn "os.environ" backend/app</code>, <code>grep -rn "^_[a-z_]* = " backend/app</code> למשתני מודול. הרעיון קבוע: הטענה של המודל היא <bdi>Hypothesis</bdi>, והפקודה היא ה-<bdi>Test</bdi>. על <bdi>Testing</bdi> שיטתי ראו <a href="ch11.html">פרק 11</a>.</p>
+
+  <h2 id="deps">Dependencies מיושנים: טריאז' עם אבטחה קודם</h2>
+  <p>ב-<bdi>Codebase</bdi> ותיק תמצאו <bdi>Dependencies</bdi> נעולים לגרסאות בנות שנים. הפיתוי הוא "לשדרג הכול"; זה מתכון לשבירה. הסדר הנכון:</p>
+  <ol>
+    <li><strong>מלאי:</strong> רשימת התלויות הישירות והעקיפות, גרסה נוכחית, גרסה עדכנית, האם עדיין מתוחזקת.</li>
+    <li><strong>אבטחה קודם:</strong> הריצו את כלי הביקורת של האקוסיסטם (למשל <code>pip-audit</code> ל-<bdi>Python</bdi> או <code>npm audit</code> ל-<bdi>Node.js</bdi>) והפרידו פגיעויות ידועות מהכול. אלה מטופלות ראשונות, אחת אחת, כל אחת ב-<bdi>Commit</bdi> עם הרצת בדיקות האפיון.</li>
+    <li><strong>סוף חיים:</strong> ספרייה שאינה מתוחזקת היא סיכון גם בלי <bdi>CVE</bdi>. מתכננים החלפה (<a href="ch35.html">פרק 35</a>, תרחיש 1 או 2), לא שדרוג.</li>
+    <li><strong>כל השאר:</strong> נשאר נעול עד שיש סיבה. יציבות היא ערך.</li>
+  </ol>
+  <div class="codeblock">
+    <div class="codehead">Prompt 7 (Plan Mode)</div>
+    <pre><code>Triage backend/requirements.txt: for each dependency, current pin,
+latest version, whether the project is still maintained, and any
+known vulnerabilities (run the ecosystem audit tool and paste its
+output; do not rely on memory for CVEs). Sort into: SECURITY (fix
+now), EOL (plan replacement), STALE-BUT-FINE (leave). Do not change
+any pin yet.</code></pre>
+  </div>
+  <p>"do not rely on memory for CVEs" חשוב: ידע של המודל על פגיעויות מוגבל בזמן, וכלי הביקורת עדכני. ה-<bdi>Sandbox</bdi> וההרשאות ל-<bdi>Network</bdi> קובעים אם הכלי יוכל להוריד את מאגר הפגיעויות; ראו <a href="ch20.html">פרק 20</a>.</p>
+
+  <h2 id="modernize">מודרניזציה מדורגת: Seams, Strangler ו-Boy Scout</h2>
+  <p>עכשיו, ורק עכשיו, משנים. שלוש טכניקות, מהקטנה לגדולה:</p>
+  <ul>
+    <li><strong>Seam (נקודת תפר):</strong> מקום שבו אפשר לשנות התנהגות בלי לערוך את הקוד עצמו: פרמטר שמוזרק במקום גלובלי, פונקציה שמועברת במקום נקראת ישירות. פתיחת <bdi>Seam</bdi> היא לרוב השינוי הראשון, כי היא מאפשרת לבדוק את הקוד בבידוד. דוגמה: <code>export_csv(conn=None)</code> במקום פתיחת חיבור פנימית.</li>
+    <li><strong>Strangler:</strong> בניית מימוש חדש לצד הישן והעברת תעבורה בהדרגה (פרטים ב<a href="ch35.html">פרק 35</a>). מתאים למודול שלם שמחליטים לכתוב מחדש, אחרי שיש <bdi>Golden Master</bdi>.</li>
+    <li><strong>Boy Scout:</strong> "להשאיר את המחנה נקי יותר משמצאתם": כל פעם שנוגעים בקובץ לצורך משימה, משפרים דבר קטן אחד (שם, הערה שקרית, כפילות מקומית) ב-<bdi>Commit</bdi> נפרד. לא יותר מדבר אחד. זה מונע את ה"בזמן שאני כאן" שמנפח <bdi>PRs</bdi>.</li>
+  </ul>
+  <div class="codeblock">
+    <div class="codehead">Prompt 8</div>
+    <pre><code>Open a seam in exporter.py: make export_csv and export_html accept
+an optional connection parameter (default: current behavior of
+opening one internally). No other change. Run the golden tests;
+they must stay green. Then, in a separate commit, use the seam so
+tests inject the seeded connection instead of setting TASKFLOW_DB.</code></pre>
+  </div>
+  <p>דוגמה ל-<bdi>Boy Scout</bdi> ממושמע, כשמגיעים לקובץ בשביל משימה אחרת:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (Boy Scout)</div>
+    <pre><code>While we are in exporter.py for the SQL fix: pick exactly ONE small
+improvement (a misleading comment, a dead local variable, a name
+that lies) and make it in a separate commit after the fix. Tell me
+what you chose and why, and list two more you noticed but did not
+touch, so I can add them to docs/refactor-notes.md.</code></pre>
+  </div>
+  <p><strong>תנאי עצירה למודרניזציה:</strong> בדיקת <bdi>Golden</bdi> נשברת ואתם לא יכולים להסביר למה תוך סבב תיקון אחד; ה-<bdi>Diff</bdi> של "פתיחת <bdi>Seam</bdi>" נוגע ביותר מקובץ אחד או שניים; המודל מציע "לנקות קצת גם את X"; או שגיליתם קורא נוסף לקוד שלא ידעתם עליו. בכל אחד מאלה: עוצרים, מעדכנים את מרשם הסיכונים, ומחליטים במודע.</p>
+
+  <h2 id="prove">הוכחת שימור התנהגות</h2>
+  <p>אחרי כל שינוי, ההוכחה מורכבת משלוש שכבות. ה-<bdi>Golden Master</bdi> ירוק היא הראשונה. השנייה היא <strong>הרצה זו לצד זו</strong> (<bdi>Side by Side</bdi>): כשמחליפים מימוש, מריצים את הישן והחדש על אותם קלטים אמיתיים (עותק של נתוני <bdi>Production</bdi>, אחרי הסרת מידע רגיש) ומשווים פלט; זה תופס את מה שהקלטים הקבועים של הבדיקות לא כיסו. השלישית היא <bdi>Feature Flag</bdi>: המימוש החדש נכנס כבוי, מודלק לחלק מהקריאות, ואפשר לכבות בלי <bdi>Deploy</bdi>.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 9</div>
+    <pre><code>Write scripts/compare_exporters.py: given a DB path, run the legacy
+export_csv and the new CsvExporter on the same data, and print a
+unified diff of the outputs plus a one-line verdict IDENTICAL or
+DIFFERENT. Read-only on the DB. I will run it myself on a sanitized
+copy of production data.</code></pre>
+  </div>
+  <p>ה-<bdi>Feature Flag</bdi> במקרה שלנו הוא משתנה סביבה פשוט (<code>TASKFLOW_EXPORTER=legacy|new</code>) שנקרא בנקודה אחת, ובדיקות שרצות עם שני הערכים; בפרויקט גדול זה יהיה מנגנון <bdi>Flags</bdi> קיים. מה שחשוב הוא לא המנגנון אלא ההרגל: המימוש החדש נכנס כשהוא כבוי, ומי שמדליק אותו הוא אדם, בסביבה אחת, ורק אחרי שההשוואה זו לצד זו הודפסה <bdi>IDENTICAL</bdi>.</p>
+  <p><strong>אימות:</strong> הסקריפט מודפס <code>IDENTICAL</code> על עותק אמיתי, לא רק על נתוני הבדיקה. אם יש הבדל, זו תגלית ולא כישלון: לרוב זה מקרה קצה (למשל תיאור עם שורה חדשה) שלא היה ב-<bdi>Golden Master</bdi>, ועכשיו מוסיפים אותו.</p>
+
+  <h2 id="delete">מחיקה בטוחה</h2>
+  <p>מחיקת קוד היא השינוי המספק ביותר והמסוכן ביותר ב-<bdi>Legacy</bdi>. הכלל: <strong>המודל לא קובע שקוד מת; ראיות קובעות.</strong> ארבעה סוגי ראיה, וכדאי לאסוף לפחות שניים לפני מחיקה:</p>
+  <ul>
+    <li><strong>סטטית:</strong> אין קריאות (<code>grep</code> על שם הפונקציה, כולל מחרוזות, כי קריאות דינמיות ו-<bdi>Reflection</bdi> מסתתרות במחרוזות), אין <bdi>Import</bdi>, אין אזכור בתצורה, ב-<bdi>Templates</bdi> וב-<bdi>CI</bdi>.</li>
+    <li><strong>דינמית:</strong> כיסוי בהרצה אמיתית או <bdi>Log</bdi> ייעודי ("if you see this, someone uses X") שרץ ב-<bdi>Production</bdi> תקופה מספקת בלי להופיע.</li>
+    <li><strong>היסטורית:</strong> <code>git log -S "function_name"</code> מראה מתי נוסף, מתי נגעו בו לאחרונה, ולפעמים למה.</li>
+    <li><strong>אנושית:</strong> שאלה בערוץ הצוות. גם כשאיש לא זוכר, לפעמים מישהו זוכר שמישהו השתמש.</li>
+  </ul>
+  <div class="codeblock">
+    <div class="codehead">Prompt 10</div>
+    <pre><code>Gather evidence on whether export_xml in exporter.py is dead code:
+(1) grep for all references including strings, templates, configs
+and CI files; (2) git log -S for when it was added and last touched;
+(3) check whether any route or CLI exposes it. Present the evidence
+and a confidence level. Do not delete anything. If confidence is
+high, propose a staged removal: deprecation log line first, removal
+in a later PR.</code></pre>
+  </div>
+  <p><strong>הסרה מדורגת:</strong> שלב א, שורת <bdi>Log</bdi> ברמת <bdi>Warning</bdi> בכניסה לפונקציה, <bdi>Deploy</bdi>, המתנה (שבועיים, מחזור חיוב, כל מה שמכסה את דפוסי השימוש); שלב ב, מחיקה ב-<bdi>PR</bdi> נפרד עם הראיות בתיאור; שלב ג, מחיקת הבדיקות שאיפיינו את הקוד המת. <bdi>Feature Flag</bdi> ל"כיבוי" לפני מחיקה היא חלופה כשיש חשש ממשי.</p>
+
+  <h2 id="docs-recovery">שחזור תיעוד</h2>
+  <p>הקוד לא ישתפר בלי תיעוד, והתיעוד ב-<bdi>Legacy</bdi> בדרך כלל שקרי או חסר. Claude יכול לשחזר תיעוד מהקוד ומהיסטוריית <bdi>Git</bdi>, בתנאי אחד: כל משפט מסומן כ"נצפה" (מהקוד או מהרצה) או "מוסק". שני הסוגים שימושיים; ערבוב ביניהם מסוכן.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 11</div>
+    <pre><code>Write docs/reports-exporter.md: purpose, public functions and their
+inputs/outputs (from the golden files, not from guessing), known
+quirks (local time formatting, module-level cache), configuration,
+and history (from git log: when created, major changes, authors).
+Mark each statement [observed] or [inferred]. Add "Open questions"
+for anything inferred that matters. Keep it under 120 lines.</code></pre>
+  </div>
+  <p>ואל תשכחו את התיעוד שהמודל קורא: עדכנו את <code>CLAUDE.md</code> עם הקונבנציות שגיליתם ועם הכללים החדשים ("exporter functions accept a connection; do not open one internally"). תיעוד שנכתב לצד הבדיקות ומהן נשאר נכון; תיעוד שנכתב מהזיכרון מזדקן ביום.</p>
+
+  <h2 id="scenario">תרחיש מלא: מודול ייצוא הדוחות של TaskFlow</h2>
+  <p>נניח (התרחיש היפותטי) שבגרסה ותיקה של <bdi>TaskFlow</bdi> מישהו הוסיף <code>app/reports/exporter.py</code>: 380 שורות שמייצאות את המשימות ל-<bdi>CSV</bdi> ול-<bdi>HTML</bdi> (ויש שם גם <code>export_xml</code> שאיש לא זוכר), עם <bdi>SQL</bdi> משורשר, מטמון גלובלי ברמת המודול, עיצוב תאריכים בזמן מקומי, וספריית <bdi>Templating</bdi> ישנה. הנתיב <code>/export</code> נרשם דרך תופעת לוואי של <bdi>Import</bdi> ב-<code>main.py</code>. אין בדיקות. הלקוחות מורידים את ה-<bdi>CSV</bdi> כל שבוע. כך נראה השבוע:</p>
+  <ol>
+    <li><strong>יום 1, קריאה בלבד:</strong> <bdi>Prompts</bdi> 1 עד 4 ב-<bdi>Plan Mode</bdi>. תוצרים: מפת ארכיטקטורה, מרשם סיכונים (הטבלה למעלה), <code>CLAUDE.md</code> התחלתי. אימות מדגמי של שלוש טענות "HIGH". החלטה: לא נוגעים ב-<bdi>SQL</bdi> המשורשר עד שיש בדיקות, גם שהוא מפחיד.</li>
+    <li><strong>יום 2, Golden Master:</strong> <bdi>Prompt</bdi> 5. שני קבצי <bdi>Golden</bdi>, בדיקת מוטציה ידנית. תגלית: ה-<bdi>HTML</bdi> כולל את זמן הייצור, ולכן הבדיקה לא יציבה עד שמקפיאים זמן; ותגלית שנייה, התאריכים ב-<bdi>CSV</bdi> באמת בזמן מקומי (הסיכון "בינוני" הפך ל"נצפה"). ההחלטה: לתעד, לא לתקן; לקוחות אולי מסתמכים על זה.</li>
+    <li><strong>יום 3, אבטחה:</strong> <bdi>Prompt</bdi> 7. ה-<bdi>SQL</bdi> המשורשר מקבל פרמטרים במקום שרשור, ב-<bdi>Commit</bdi> משלו, עם ה-<bdi>Golden</bdi> ירוק לפני ואחרי (בדיקה שלילית חדשה: כותרת עם גרש לא שוברת את השאילתה). ספריית ה-<bdi>Templating</bdi> מסומנת <bdi>EOL</bdi> ומקבלת משימת החלפה; לא משודרגת "בינתיים".</li>
+    <li><strong>יום 4, Seam ו-Import מפורש:</strong> <bdi>Prompt</bdi> 8, ואז הפיכת רישום הנתיב למפורש ב-<code>main.py</code> (<code>app.include_router(reports.router)</code>) במקום תופעת לוואי. שני <bdi>Commits</bdi>. <bdi>Golden</bdi> ירוק.</li>
+    <li><strong>יום 5, מחיקה ותיעוד:</strong> <bdi>Prompt</bdi> 10 על <code>export_xml</code>: אין קריאות, אין נתיב, נוסף לפני שלוש שנים ולא נגעו בו מאז. הסרה מדורגת: שורת <bdi>Log</bdi> עכשיו, מחיקה בעוד שבועיים. <bdi>Prompt</bdi> 11 לתיעוד. <code>/code-review</code> על ה-<bdi>Branch</bdi>, <bdi>PR</bdi> עם מרשם הסיכונים המעודכן.</li>
+  </ol>
+  <p>מבנה הקבצים בסוף השבוע:</p>
+  <div class="codeblock">
+    <div class="codehead">taskflow/ (after the legacy week)</div>
+    <pre><code>taskflow/
+├── CLAUDE.md                          # חדש: פקודות, קונבנציות שנצפו, אזורים מסוכנים
+├── docs/
+│   ├── architecture-map.md            # חדש
+│   ├── risk-register.md               # חדש, מתעדכן בכל תגלית
+│   ├── reports-exporter.md            # חדש, [observed] / [inferred]
+│   └── refactor-notes.md              # חדש: מה ראינו ולא נגענו
+├── scripts/compare_exporters.py       # חדש: Side by Side
+└── backend/
+    ├── app/
+    │   ├── main.py                    # include_router מפורש
+    │   └── reports/exporter.py        # SQL עם פרמטרים, Seam לחיבור, Log ב-export_xml
+    └── tests/
+        ├── conftest.py                # seeded_db, frozen_time
+        ├── golden/tasks.csv           # חדש
+        ├── golden/tasks.html          # חדש
+        └── test_exporter_golden.py    # חדש</code></pre>
+  </div>
+  <p>מה <strong>לא</strong> קרה השבוע: לא שכתבנו את המודול, לא שדרגנו את כל ה-<bdi>Dependencies</bdi>, לא "תיקנו" את זמן התאריכים. המודול עדיין מכוער, אבל הוא כבר לא <bdi>Legacy</bdi> לפי ההגדרה שלנו: יש לו בדיקות שמאפשרות לשנות אותו בביטחון. השכתוב, אם יוחלט עליו, הוא עכשיו תרחיש 2 מ<a href="ch35.html">פרק 35</a>, על קרקע יציבה.</p>
+
+  <h2 id="mistakes">טעויות נפוצות</h2>
+  <ul>
+    <li><strong>לבקש "write tests" בלי לציין Golden Master:</strong> מקבלים בדיקות להשערות של המודל, שעוברות ולא מגינות.</li>
+    <li><strong>לתקן "באגים ברורים" בזמן האפיון:</strong> זמן מקומי בתאריכים נראה כמו באג; אולי לקוח בונה עליו. קודם מתעדים, אחר כך מחליטים.</li>
+    <li><strong>לקבל טענת "קוד מת" מהמודל:</strong> קריאה דינמית דרך מחרוזת לא נראית ב-<code>grep</code> על שם פונקציה בלי המרכאות.</li>
+    <li><strong>לשדרג הכול ביום הראשון:</strong> אבטחה קודם, השאר לפי הצורך.</li>
+    <li><strong>לדלג על בדיקת המוטציה:</strong> בדיקת <bdi>Golden</bdi> שאינה נכשלת כשמשנים את הקוד היא תחושת ביטחון כוזבת.</li>
+    <li><strong>לערבב Refactoring, תיקון אבטחה ומחיקה ב-Commit אחד:</strong> אי אפשר להחזיר אחד בלי השני.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>אבחון וטיפול</th></tr></thead>
+      <tbody>
+        <tr><td>בדיקת ה-Golden לא יציבה: עוברת ונכשלת לסירוגין</td><td>יש בפלט זמן, סדר לא מובטח, מזהים אקראיים או נתיבים מוחלטים. הקפיאו זמן ואקראיות בהרנס, הוסיפו <code>ORDER BY</code> בהרנס (לא בקוד), ונרמלו נתיבים. אל "תרככו" את ההשוואה</td></tr>
+        <tr><td>Claude ממשיך להציע לשכתב את המודול</td><td>הזכירו את הכלל בהתחלת ה-<bdi>Prompt</bdi>: "characterize first, no rewrites". אם זה חוזר, הוסיפו שורה ל-<code>CLAUDE.md</code>. אחרי שני תיקונים, <code>/clear</code></td></tr>
+        <tr><td>הרצת הקוד הישן בסביבת בדיקה נכשלת (חסר משתנה סביבה, קובץ, שירות)</td><td>זו תגלית של <bdi>Coupling</bdi> נסתר. רשמו במרשם הסיכונים; פתחו <bdi>Seam</bdi> (פרמטר) במקום לחקות את הסביבה כולה</td></tr>
+        <tr><td>כלי הכיסוי או הביקורת לא מצליח לרוץ</td><td>ודאו שהותקן ב-<bdi>venv</bdi> הנכון, ושה-<bdi>Sandbox</bdi> וההרשאות מאפשרים גישת רשת למאגר הפגיעויות (<a href="ch20.html">פרק 20</a>). אם אין רשת, הריצו את הביקורת מחוץ ל-<bdi>Session</bdi> והדביקו את הפלט</td></tr>
+        <tr><td>הרצת Side by Side מראה הבדל שאינו מוסבר</td><td>עצרו את ההחלפה. בקשו מ-Claude לצמצם לקלט המינימלי שמייצר את ההבדל, הוסיפו אותו ל-<bdi>Golden</bdi>, והחליטו במודע מי צודק</td></tr>
+        <tr><td>ה-Context מתמלא מקריאת קבצים ענקיים</td><td>האצילו את הקריאה ל-<bdi>Subagent</bdi> ובקשו רק ממצאים; שמרו תוצרים לקבצים ב-<code>docs/</code> כדי ש-<bdi>Session</bdi> חדש יתחיל מהם (<a href="ch14.html">פרק 14</a>)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="security">Security</h2>
+  <ul>
+    <li><strong>קוד Legacy הוא לרוב המקום עם הפגיעויות:</strong> <bdi>SQL</bdi> משורשר, <bdi>Templating</bdi> ללא <bdi>Escaping</bdi>, סודות בקוד. הסקירה הראשונה היא סקירת אבטחה, גם לפני ה-<bdi>Refactoring</bdi>; <code>/security-review</code> ו-<bdi>Subagent</bdi> ייעודי (<a href="ch34.html">פרק 34</a>) עובדים גם על קוד קיים כשמבקשים סקירה של נתיב ולא של <bdi>Diff</bdi>.</li>
+    <li><strong>נתוני Production בבדיקות:</strong> הרצת <bdi>Side by Side</bdi> נעשית על עותק מנוקה ממידע אישי; המודל לא מקבל גישה לנתונים אמיתיים.</li>
+    <li><strong>Dependencies:</strong> ביקורת פגיעויות עם כלי עדכני, לא מזיכרון המודל.</li>
+    <li><strong>מחיקה:</strong> אף פעם לא על סמך טענת המודל בלבד; ראיות סטטיות ודינמיות.</li>
+  </ul>
+
+  <h2 id="cost">עלות ו-Context</h2>
+  <p>קוד <bdi>Legacy</bdi> "אוכל" <bdi>Context</bdi>: קבצים ארוכים, הרבה קריאה, מעט כתיבה. שלושה הרגלים: האצלת קריאה ל-<bdi>Subagents</bdi> (מפת תלויות, מלאי, כיסוי); שמירת כל תוצר לקובץ (מפה, מרשם, <bdi>Golden</bdi>, תיעוד) כך שה-<bdi>Session</bdi> הבא מתחיל מקבצים ולא משיחה; ומודל חזק ו-<bdi>Effort</bdi> גבוה דווקא ביום הראשון ובניתוח הסיכונים, מודל מהיר יותר לכתיבת ההרנס והבדיקות. ראו <a href="ch30.html">פרק 30</a>.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>יום ראשון לקריאה בלבד, ב-<bdi>Plan Mode</bdi>, עם דרישה לראיה ולרמת ביטחון על כל טענה.</li>
+    <li>מרשם סיכונים ומפת ארכיטקטורה כקבצים ב-<code>docs/</code>, לא כשיחה.</li>
+    <li><bdi>Golden Master</bdi> מהתנהגות נצפית; בדיקת מוטציה ידנית לפני שסומכים עליו.</li>
+    <li>אימות מדגמי של כל טענת "אין בדיקות", "קוד מת", "לא בשימוש" בפקודה אחת.</li>
+    <li>אבטחה קודם ב-<bdi>Dependencies</bdi>; השאר נשאר נעול עד שיש סיבה.</li>
+    <li>שינוי אחד ל-<bdi>Commit</bdi>: <bdi>Seam</bdi>, תיקון אבטחה, מחיקה, ניקיון, כל אחד לבד.</li>
+    <li>תיעוד מסומן "נצפה" או "מוסק", ו-<code>CLAUDE.md</code> שמשקף את מה שגיליתם.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>השכתוב הגדול:</strong> "הקוד הזה נורא, תכתוב אותו מחדש". בלי <bdi>Golden Master</bdi> אין דרך לדעת מה אבד.</li>
+    <li><strong>בדיקות מהנחות:</strong> בדיקות שנכתבו ממה שהמודל חושב שהקוד צריך לעשות.</li>
+    <li><strong>ניקיון בזמן אפיון:</strong> "תיקנתי גם כמה דברים קטנים בדרך" בזמן שכותבים את רשת הביטחון.</li>
+    <li><strong>מחיקה על סמך grep אחד:</strong> בלי ראיה דינמית או היסטורית.</li>
+    <li><strong>תיעוד מהזיכרון:</strong> מסמך יפה שמתאר את מה שהמודל שיער, בלי סימון.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 36.1: השתלטות על מודול Legacy</div>
+    <div class="body">
+      <p>צרו ב-<bdi>TaskFlow</bdi> מודול "ותיק" בעצמכם (או בקשו מ-Claude ליצור אותו כתרגיל, במכוון עם ריחות): <code>app/reports/exporter.py</code> עם <code>export_csv</code>, <code>export_html</code> ו-<code>export_xml</code>, <bdi>SQL</bdi> משורשר, מטמון גלובלי, תאריכים בזמן מקומי, ורישום נתיב דרך <bdi>Import</bdi>. פתחו <bdi>Session</bdi> חדש ונקי, ובצעו את השבוע המתואר בתרחיש: יום קריאה, מרשם סיכונים, <bdi>Golden Master</bdi> עם בדיקת מוטציה, תיקון אבטחה ב-<bdi>Commit</bdi> נפרד, <bdi>Seam</bdi>, ראיות למחיקת <code>export_xml</code>, תיעוד מסומן. הגישו <bdi>PR</bdi> אחד עם לפחות שישה <bdi>Commits</bdi> ותיאור שמפנה למרשם הסיכונים.</p>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>מה מבדיל פתרון טוב:</strong> (1) ביום הראשון אין אף <bdi>Commit</bdi> של קוד; יש שלושה קבצי <code>docs/</code> ו-<code>CLAUDE.md</code>. (2) קבצי ה-<bdi>Golden</bdi> נוצרו מהרצה, וההוכחה היא שהם מכילים את הזמן המקומי "השגוי", כי כך הקוד מתנהג. (3) בדיקת המוטציה תועדה (פלט אדום, ואז החזרה). (4) תיקון ה-<bdi>SQL</bdi> המשורשר הוא <bdi>Commit</bdi> לבד, עם בדיקה שלילית של גרש בכותרת, וה-<bdi>Golden</bdi> ירוק לפניו ואחריו. (5) ה-<bdi>Seam</bdi> נפתח בלי לשנות התנהגות ברירת מחדל. (6) המחיקה של <code>export_xml</code> לא בוצעה בפועל ב-<bdi>PR</bdi> הזה; יש בו רק שורת <bdi>Log</bdi> ורשימת ראיות. (7) התיעוד מסמן <bdi>[observed]</bdi> ו-<bdi>[inferred]</bdi>, ויש בו "שאלות פתוחות".</p>
+      <p><strong>מלכודות טיפוסיות:</strong> Claude "מתקן" את התאריכים ל-<bdi>UTC</bdi> תוך כדי האפיון (דחו; רשמו במרשם); בדיקת <bdi>HTML</bdi> לא יציבה בגלל חותמת זמן (הקפאת זמן בהרנס); ו-<code>grep</code> על <code>export_xml</code> שמפספס קריאה במחרוזת ב-<bdi>Template</bdi> ישן (בדקו גם קבצים שאינם <bdi>Python</bdi>). אם ה-<bdi>PR</bdi> שלכם קטן ומשעמם, עשיתם את זה נכון.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>עבודה עם <bdi>Legacy</bdi> היא קודם כול עבודה על אי-ודאות: הופכים השערות לעובדות בדוקות, ורק אז משנים. <bdi>Claude Code</bdi> מאיץ כל שלב, מהקריאה הראשונה ועד שחזור התיעוד, בתנאי שדורשים ממנו ראיות ורמת ביטחון, מאמתים מדגמית, ובונים <bdi>Golden Master</bdi> מהתנהגות ולא מהנחות. השינויים באים בקטן: <bdi>Seam</bdi>, תיקון אבטחה, <bdi>Import</bdi> מפורש, מחיקה מדורגת עם ראיות, כל אחד ב-<bdi>Commit</bdi> משלו ועם תנאי עצירה ברורים. בסוף השבוע הקוד עדיין מכוער, אבל כבר אפשר לשנות אותו בביטחון, וזה כל ההבדל. בפרק הבא נעלה רמה: מהקוד לארכיטקטורה, עם <bdi>Architecture</bdi> ו-<bdi>Design Review</bdi> בעזרת <bdi>Claude Code</bdi>.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/common-workflows">Common workflows (understand new codebases, find deprecated API usage, refactor in small testable increments, delegate research to subagents)</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (ask codebase questions, /init for CLAUDE.md, subagents for investigation, verification and evidence, /clear after repeated corrections)</a> |
+      <a href="https://code.claude.com/docs/en/sub-agents">Subagents (Explore agent, read-only tools)</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands reference (/init, /security-review, /code-review, /clear)</a> |
+      <a href="https://code.claude.com/docs/en/memory">CLAUDE.md and memory</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch35.html"><span class="lbl">הפרק הקודם</span>Migration ו-Large Refactoring</a>
+    <a href="ch37.html"><span class="lbl">הפרק הבא</span>Architecture ו-Design Review</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

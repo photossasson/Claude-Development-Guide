@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 17: Settings ו-Configuration</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ג | פרק 17</p>
+  <h1>Settings ו-Configuration</h1>
+  <p class="lead">כמעט כל התנהגות של <bdi>Claude Code</bdi> ניתנת לכוונון דרך קובצי <bdi>JSON</bdi> פשוטים: אילו פקודות מותר להריץ בלי לשאול, אילו קבצים אסור לקרוא לעולם, איזה מודל ורמת <bdi>Effort</bdi> יופעלו, אילו <bdi>Hooks</bdi> ירוצו ואיך ייראה ה-<bdi>Status Line</bdi>. בפרק הזה נבין את היררכיית קובצי ההגדרות ואת סדר העדיפויות המדויק, נסקור את משתני הסביבה החשובים, נצלול לתחביר חוקי ה-<bdi>Permissions</bdi> ולהגדרות המודל, ובמרכז הפרק: שני קובצי <code>settings.json</code> שלמים ומוסברים שורה אחר שורה, אחד אישי ואחד צוותי לפרויקט <bdi>TaskFlow</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-and-why">מה זה Settings ואיזו בעיה זה פותר</h2>
+  <p>עד עכשיו שלטנו ב-Claude בעיקר דרך שיחה: אישרנו בקשות הרשאה אחת-אחת, החלפנו מודל עם <code>/model</code>, וכתבנו הנחיות ב-<bdi>CLAUDE.md</bdi>. זה עובד, אבל לא מדרגי: אתם לא רוצים לאשר את <code>npm run lint</code> בפעם המאה, ולא רוצים שכל מפתח חדש בצוות יגלה לבד שאסור לגעת ב-<code>.env</code>. קובצי ה-<bdi>Settings</bdi> הם שכבת התצורה הקבועה: הם נטענים אוטומטית, נאכפים על ידי <bdi>Claude Code</bdi> עצמו (בניגוד ל-<bdi>CLAUDE.md</bdi>, שהוא הנחיה בלבד, כפי שראינו ב<a href="ch16.html">פרק 16</a>), וניתנים לשיתוף דרך <bdi>Git</bdi> או לפריסה ארגונית כפויה.</p>
+  <p><strong>מתי להשתמש:</strong> לכל כלל שאמור לחול תמיד, בלי תלות בשיחה: הרשאות, מודל ברירת מחדל, משתני סביבה, <bdi>Hooks</bdi>. <strong>מתי לא:</strong> הנחיות התנהגות ותוכן ("כתוב בדיקות בסגנון X") שייכות לשכבות הידע מ<a href="ch16.html">פרק 16</a>, לא לכאן.</p>
+
+  <h2 id="hierarchy">היררכיית קובצי ההגדרות וסדר העדיפויות</h2>
+  <p><bdi>Claude Code</bdi> קורא הגדרות מכמה מקורות ומכריע ביניהם לפי סדר עדיפויות מתועד, מהגבוה לנמוך:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>עדיפות</th><th>מקור</th><th>מיקום</th><th>מי מושפע</th><th>משותף?</th></tr></thead>
+      <tbody>
+        <tr><td>1 (הגבוהה ביותר)</td><td><bdi>Managed Settings</bdi> (ארגוני)</td><td class="ltr">managed-settings.json / MDM / server-managed</td><td>כל המשתמשים במכונה או בארגון</td><td>כן, נפרס על ידי IT; לא ניתן לעקיפה</td></tr>
+        <tr><td>2</td><td>ארגומנטים בשורת הפקודה</td><td class="ltr">claude --model, --settings, --allowedTools ...</td><td>ה-<bdi>Session</bdi> הנוכחי בלבד</td><td>לא</td></tr>
+        <tr><td>3</td><td>הגדרות מקומיות לפרויקט</td><td class="ltr">.claude/settings.local.json</td><td>אתם, בפרויקט הזה</td><td>לא (מיועד להישאר מחוץ ל-<bdi>Git</bdi>)</td></tr>
+        <tr><td>4</td><td>הגדרות פרויקט</td><td class="ltr">.claude/settings.json</td><td>כל מי שעובד על ה-<bdi>Repository</bdi></td><td>כן, דרך <bdi>Git</bdi></td></tr>
+        <tr><td>5 (הנמוכה ביותר)</td><td>הגדרות משתמש</td><td class="ltr">~/.claude/settings.json</td><td>אתם, בכל הפרויקטים</td><td>לא</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>מיקומי קובץ ה-<bdi>Managed Settings</bdi> לפי מערכת הפעלה:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מערכת הפעלה</th><th>מיקום</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>macOS</bdi></td><td class="ltr">/Library/Application Support/ClaudeCode/managed-settings.json</td></tr>
+        <tr><td><bdi>Linux</bdi> ו-<bdi>WSL</bdi></td><td class="ltr">/etc/claude-code/managed-settings.json</td></tr>
+        <tr><td><bdi>Windows</bdi></td><td class="ltr">C:\Program Files\ClaudeCode\managed-settings.json</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>בנוסף לקובץ, ארגונים יכולים לפרוס מדיניות דרך <bdi>MDM</bdi> (רישום מערכת ב-<bdi>Windows</bdi>, <bdi>plist</bdi> ב-<bdi>macOS</bdi>) או דרך <bdi>Server-Managed Settings</bdi>: הגדרות שמנהל בתפקיד <bdi>Owner</bdi> מגדיר בקונסולת הניהול של <bdi>claude.ai</bdi> (<bdi>Admin Settings</bdi> &gt; <bdi>Claude Code</bdi>), זמין בתוכניות <bdi>Team</bdi> ו-<bdi>Enterprise</bdi>. ההגדרות נמשכות אוטומטית כשהמשתמש מתחבר עם חשבון הארגון, יושבות באותה מדרגת עדיפות עליונה כמו קובצי <bdi>Managed Settings</bdi>, והמקורות לא מתמזגים ביניהם: אם השרת מספק הגדרות כלשהן, קובצי ה-<bdi>Managed</bdi> המקומיים מנוטרלים. העמקה בנושא בפרק 29.</p>
+  <h3 id="merge-rules">איך ערכים מוכרעים בפועל</h3>
+  <ul>
+    <li><strong>ערכים סקלריים</strong> (כמו <code>model</code> או <code>effortLevel</code>): המקור בעדיפות הגבוהה ביותר מנצח ודורס את האחרים.</li>
+    <li><strong>חוקי Permissions</strong> מתמזגים מכל הרמות ולא דורסים זה את זה. חוק <code>deny</code> בכל רמה שהיא חוסם, גם אם רמה אחרת מרשה: <code>deny</code> ברמת המשתמש גובר על <code>allow</code> ברמת הפרויקט, ולהפך.</li>
+    <li><strong><bdi>Managed</bdi> תמיד מנצח:</strong> אפילו ארגומנט שורת פקודה כמו <code>--allowedTools</code> לא עוקף <code>deny</code> ארגוני.</li>
+  </ul>
+  <div class="callout note"><span class="title">קובץ נפרד: ~/.claude.json</span><p>אל תתבלבלו: הגדרות <bdi>MCP</bdi> ברמת המשתמש ומצב פנימי יושבים בקובץ אחר, <code>~/.claude.json</code>, והגדרות <bdi>MCP</bdi> של פרויקט בקובץ <code>.mcp.json</code>. פירוט ב<a href="ch23.html">פרק 23</a>.</p></div>
+
+  <h2 id="how-to-edit">שלוש דרכים לערוך הגדרות</h2>
+  <p><strong>1. ממשק אינטראקטיבי:</strong> הפקודה <code>/config</code> (כינוי: <code>/settings</code>) פותחת ממשק הגדרות עם לשוניות: ערכת נושא, מודל, <bdi>Output Style</bdi> והעדפות נוספות.</p>
+  <p><strong>2. עריכה ישירה מהשורה:</strong> החל מגרסה 2.1.181 אפשר להעביר ל-<code>/config</code> זוגות <code>key=value</code> בלי לפתוח ממשק, למשל <code>/config theme=dark</code> או <code>/config model=sonnet</code>. הפקודה <code>/config --help</code> מציגה את כל המפתחות הניתנים לקביעה. זה עובד גם במצב לא-אינטראקטיבי (<code>-p</code>).</p>
+  <p><strong>3. עריכת הקבצים ישירות:</strong> פותחים את קובץ ה-<bdi>JSON</bdi> בעורך. רוב השינויים נטענים אוטומטית לתוך <bdi>Session</bdi> רץ (למשל <code>permissions</code> ו-<code>hooks</code>), אבל <code>model</code> ו-<code>outputStyle</code> דורשים <bdi>Session</bdi> חדש או <code>/clear</code>.</p>
+  <p>לאימות: <code>/status</code> מציג אילו מקורות הגדרות פעילים, ו-<code>/doctor</code> מאתר קובצי הגדרות שלא ניתנים לפענוח וערכים לא תקינים.</p>
+
+  <h2 id="env-vars">משתני סביבה</h2>
+  <p>משתני סביבה שולטים בהתנהגויות שחוצות את גבול קובץ ההגדרות: אימות, רשתות, <bdi>Timeouts</bdi> ומתגי תכונות. אפשר לקבוע אותם בשתי דרכים: ייצוא ב-<bdi>Shell</bdi> (<code>export VAR=value</code> ב-<bdi>Bash</bdi>, <code>$env:VAR = "value"</code> ב-<bdi>PowerShell</bdi>), או, נוח יותר, במפתח <code>env</code> בתוך כל קובץ <code>settings.json</code>, ואז הם חלים על כל ה-<bdi>Sessions</bdi> ותתי-התהליכים. לפי התיעוד, ערכי <code>env</code> מקובצי הגדרות גוברים על משתני סביבה של ה-<bdi>Shell</bdi>, ודגלי CLI ופקודות בתוך ה-<bdi>Session</bdi> (כמו <code>/model</code>) גוברים על שניהם.</p>
+  <div class="callout warn"><span class="title">אזהרה: ANTHROPIC_API_KEY</span><p>אם משתנה הסביבה <code>ANTHROPIC_API_KEY</code> מוגדר, הוא נשלח ככותרת <bdi>X-Api-Key</bdi> וגובר על חיוב דרך המנוי (Pro/Max/Team). מפתחים רבים גילו חיובי <bdi>API</bdi> לא צפויים כי מפתח ישן נשאר מיוצא ב-<code>.zshrc</code>. אם אתם על מנוי, ודאו שהמשתנה לא מוגדר, ולעולם אל תשמרו מפתחות אמיתיים בקובצי הגדרות שנכנסים ל-<bdi>Git</bdi>.</p></div>
+  <p>המשתנים השימושיים ביותר מתוך התיעוד הרשמי:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>משתנה</th><th>מטרה</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>ANTHROPIC_API_KEY</code></td><td>מפתח <bdi>API</bdi>; אם מוגדר, גובר על חיוב המנוי</td></tr>
+        <tr><td class="ltr"><code>ANTHROPIC_MODEL</code></td><td>שם או כינוי המודל ל-<bdi>Session</bdi> שמופעל איתו</td></tr>
+        <tr><td class="ltr"><code>ANTHROPIC_DEFAULT_SONNET_MODEL</code></td><td>לאיזו גרסה מדויקת הכינוי <code>sonnet</code> יתורגם (קיימים גם מקבילים ל-<bdi>Opus</bdi>, <bdi>Haiku</bdi> ו-<bdi>Fable</bdi>)</td></tr>
+        <tr><td class="ltr"><code>ANTHROPIC_BASE_URL</code></td><td>ניתוב הבקשות דרך <bdi>Proxy</bdi> או <bdi>LLM Gateway</bdi></td></tr>
+        <tr><td class="ltr"><code>HTTPS_PROXY</code> / <code>HTTP_PROXY</code></td><td>כתובת שרת <bdi>Proxy</bdi> ארגוני</td></tr>
+        <tr><td class="ltr"><code>API_TIMEOUT_MS</code></td><td><bdi>Timeout</bdi> לבקשות <bdi>API</bdi> (ברירת מחדל: 600000, כלומר 10 דקות)</td></tr>
+        <tr><td class="ltr"><code>BASH_DEFAULT_TIMEOUT_MS</code></td><td><bdi>Timeout</bdi> ברירת מחדל לפקודות <bdi>Bash</bdi> ארוכות (ברירת מחדל: 120000)</td></tr>
+        <tr><td class="ltr"><code>BASH_MAX_TIMEOUT_MS</code></td><td>ה-<bdi>Timeout</bdi> המקסימלי שהמודל רשאי לקבוע לפקודת <bdi>Bash</bdi></td></tr>
+        <tr><td class="ltr"><code>MAX_THINKING_TOKENS</code></td><td>תקציב <bdi>Tokens</bdi> ל-<bdi>Extended Thinking</bdi> (כשחשיבה אדפטיבית כבויה); <code>0</code> מכבה חשיבה ברוב המודלים</td></tr>
+        <tr><td class="ltr"><code>CLAUDE_CODE_EFFORT_LEVEL</code></td><td>קביעת רמת ה-<bdi>Effort</bdi>; גובר על כל שאר דרכי הקביעה</td></tr>
+        <tr><td class="ltr"><code>CLAUDE_CODE_DISABLE_AUTO_MEMORY</code></td><td><code>1</code> מכבה <bdi>Auto Memory</bdi>, <code>0</code> כופה הפעלה (<a href="ch16.html">פרק 16</a>)</td></tr>
+        <tr><td class="ltr"><code>CLAUDE_CODE_DISABLE_1M_CONTEXT</code></td><td><code>1</code> מכבה את תמיכת חלון ההקשר של מיליון <bdi>Tokens</bdi></td></tr>
+        <tr><td class="ltr"><code>CLAUDE_AUTOCOMPACT_PCT_OVERRIDE</code></td><td>באיזה אחוז ניצול <bdi>Context</bdi> יופעל <bdi>Auto-Compaction</bdi> (1 עד 100)</td></tr>
+        <tr><td class="ltr"><code>CLAUDECODE</code></td><td>מוגדר ל-<code>1</code> אוטומטית בתתי-תהליכים ש-<bdi>Claude Code</bdi> מריץ; שימושי לסקריפטים שרוצים לזהות שהם רצים תחת Claude</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="permissions">הגדרת Permissions: התחביר המלא</h2>
+  <p>מפתח ה-<code>permissions</code> הוא ליבת האבטחה של קובץ ההגדרות. שלושה סוגי חוקים, וסדר הערכה מתועד וקבוע: קודם <code>deny</code>, אחר כך <code>ask</code>, ולבסוף <code>allow</code>. ההתאמה הראשונה בסדר הזה קובעת, וספציפיות לא משנה את הסדר: <code>deny</code> רחב כמו <code>Bash(aws *)</code> חוסם גם קריאה שתואמת <code>allow</code> צר יותר.</p>
+  <ul>
+    <li><strong><code>allow</code>:</strong> הכלי רץ בלי בקשת אישור.</li>
+    <li><strong><code>ask</code>:</strong> בקשת אישור בכל שימוש, גם אם חוק <code>allow</code> תואם.</li>
+    <li><strong><code>deny</code>:</strong> חסימה. חוק <code>deny</code> עם שם כלי חשוף (כמו <code>Bash</code>) מסיר את הכלי מה-<bdi>Context</bdi> של Claude לגמרי; חוק תחום (כמו <code>Bash(rm *)</code>) משאיר את הכלי וחוסם קריאות תואמות.</li>
+  </ul>
+  <p>תבנית חוק: <code>Tool</code> (כל השימושים בכלי) או <code>Tool(specifier)</code>. הצורות החשובות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תחביר</th><th>מה הוא תופס</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>Bash(npm run build)</code></td><td>בדיוק הפקודה <code>npm run build</code></td></tr>
+        <tr><td class="ltr"><code>Bash(npm run test *)</code></td><td>כל פקודה שמתחילה ב-<code>npm run test</code>; ה-<code>*</code> יכול להופיע בכל מיקום ותופס גם רווחים</td></tr>
+        <tr><td class="ltr"><code>Bash(ls *)</code> לעומת <code>Bash(ls*)</code></td><td>הרווח לפני ה-<code>*</code> כופה גבול מילה: <code>ls *</code> תופס <code>ls -la</code> אבל לא <code>lsof</code>; בלי רווח, שניהם נתפסים</td></tr>
+        <tr><td class="ltr"><code>Read(.env)</code></td><td>לפי סמנטיקת <bdi>gitignore</bdi>, שם קובץ חשוף תופס בכל עומק תחת התיקייה הנוכחית (שקול ל-<code>Read(**/.env)</code>)</td></tr>
+        <tr><td class="ltr"><code>Edit(/src/**)</code></td><td><code>/</code> בודד מעגן לשורש מקור ההגדרות (בקובץ פרויקט: שורש הפרויקט); זה לא נתיב מוחלט!</td></tr>
+        <tr><td class="ltr"><code>Read(//etc/passwd)</code>, <code>Read(~/.ssh/**)</code></td><td><code>//</code> מעגן לשורש מערכת הקבצים; <code>~/</code> לתיקיית הבית</td></tr>
+        <tr><td class="ltr"><code>WebFetch(domain:example.com)</code></td><td>בקשות <bdi>WebFetch</bdi> לדומיין הזה; <code>domain:*.example.com</code> תופס תתי-דומיינים בכל עומק אך לא את הדומיין עצמו</td></tr>
+        <tr><td class="ltr"><code>mcp__github</code></td><td>כל כלי משרת ה-<bdi>MCP</bdi> בשם <code>github</code></td></tr>
+        <tr><td class="ltr"><code>mcp__github__get_issue</code></td><td>כלי ספציפי משרת ספציפי; ב-<code>allow</code> מותר גם <code>mcp__github__*</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>עוד שלוש עובדות מתועדות שחשוב להכיר: (1) חוקי <code>Edit</code> חלים על כל הכלים המובנים שעורכים קבצים, וחוקי <code>Read</code> נאכפים גם על פקודות קבצים מזוהות ב-<bdi>Bash</bdi> כמו <code>cat</code> ו-<code>head</code>, אבל לא על סקריפטים שרצים כתת-תהליך ופותחים קבצים בעצמם; לאכיפה ברמת מערכת ההפעלה יש <bdi>Sandboxing</bdi>. (2) Claude Code מודע לאופרטורים של ה-<bdi>Shell</bdi>: חוק <code>allow</code> חייב להתאים לכל תת-פקודה בנפרד, כך ש-<code>Bash(safe-cmd *)</code> לא מתיר את <code>safe-cmd &amp;&amp; other-cmd</code>. (3) קבוצה מובנית של פקודות קריאה בלבד (<code>ls</code>, <code>pwd</code>, <code>grep</code> וכדומה) רצה בלי בקשה בכל מצב, אלא אם הוספתם להן חוק <code>ask</code> או <code>deny</code>.</p>
+  <p>שני מפתחות נוספים תחת <code>permissions</code>: <code>additionalDirectories</code> (רשימת תיקיות נוספות ש-Claude רשאי לגשת אליהן מעבר לתיקיית העבודה) ו-<code>defaultMode</code>, שקובע את מצב ההרשאות ההתחלתי של ה-<bdi>Session</bdi>. הערכים המתועדים של <code>defaultMode</code>: <code>default</code> (בקשת אישור בשימוש ראשון בכל כלי; מוצג בממשק כ-<bdi>Manual</bdi>), <code>acceptEdits</code> (אישור אוטומטי לעריכות קבצים), <code>plan</code> (קריאה וחקירה בלבד), <code>auto</code> (אישור אוטומטי עם בדיקות בטיחות ברקע), <code>dontAsk</code> (דחייה אוטומטית של כל מה שלא אושר מראש) ו-<code>bypassPermissions</code> (דילוג על רוב הבקשות; מסוכן). ההגדרה <code>permissions.disableBypassPermissionsMode: "disable"</code> מונעת שימוש במצב העוקף, והיא שימושית במיוחד ב-<bdi>Managed Settings</bdi>. פירוט מלא של המצבים והעבודה איתם: <a href="ch18.html">פרק 18</a>.</p>
+
+  <h2 id="model-settings">הגדרות מודל</h2>
+  <p>ארבעה מפתחות עיקריים (הרחבה על בחירת מודלים בפרקי העבודה המתקדמים):</p>
+  <ul>
+    <li><strong><code>model</code>:</strong> המודל הראשי. מקבל כינוי (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>, <code>fable</code>, <code>best</code>, <code>sonnet[1m]</code>, <code>opus[1m]</code>, <code>opusplan</code>) או שם מודל מלא כמו <code>claude-sonnet-5</code> לנעילת גרסה. הכינויים מתעדכנים עם הזמן לגרסה המומלצת. הערך <code>default</code> מנקה את הבחירה וחוזר לברירת המחדל של סוג החשבון. סדר עדיפויות לקביעת מודל: <code>/model</code> בתוך ה-<bdi>Session</bdi>, ואז <code>claude --model</code> בהפעלה, ואז משתנה הסביבה <code>ANTHROPIC_MODEL</code>, ולבסוף המפתח <code>model</code> בהגדרות.</li>
+    <li><strong><code>effortLevel</code>:</strong> שמירת רמת ה-<bdi>Effort</bdi> בין <bdi>Sessions</bdi>. ערכים חוקיים בהגדרות: <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code> (הרמות <code>max</code> ו-<code>ultracode</code> הן ל-<bdi>Session</bdi> בודד ואינן נשמרות כאן). ברירת המחדל היא <code>high</code> ברוב המודלים התומכים.</li>
+    <li><strong><code>availableModels</code>:</strong> רשימת היתר של מודלים שמותר לבחור, מיועד בעיקר ל-<bdi>Managed Settings</bdi> ארגוניים. תופס משפחה (<code>sonnet</code>), קידומת גרסה או מזהה מלא. התוספת <code>enforceAvailableModels: true</code> מחילה את הרשימה גם על אפשרות ה-<bdi>Default</bdi> בבורר.</li>
+    <li><strong><code>fallbackModel</code>:</strong> מערך של עד שלושה מודלים חלופיים שינוסו לפי הסדר כשהמודל הראשי עמוס או לא זמין; המעבר תקף לתור הנוכחי בלבד. מקבילה לזמן הפעלה: הדגל <code>--fallback-model sonnet,haiku</code>, שגובר על ההגדרה.</li>
+  </ul>
+
+  <h2 id="pointers">Hooks, MCP ו-Plugins: מצביעים קדימה</h2>
+  <p><strong>Hooks (<a href="ch22.html">פרק 22</a>):</strong> המפתח <code>hooks</code> רושם פקודות <bdi>Shell</bdi> שרצות באירועי מחזור חיים קבועים, למשל <code>PostToolUse</code> אחרי כל עריכת קובץ או <code>PreToolUse</code> לפני הרצת כלי, עם <code>matcher</code> שמסנן לאילו כלים להגיב. בניגוד ל-<bdi>CLAUDE.md</bdi>, <bdi>Hook</bdi> רץ תמיד, בלי תלות בהחלטת המודל, ולכן זה מנגנון האכיפה האמיתי. נראה <bdi>Stub</bdi> בסיסי בקובץ הצוותי בהמשך הפרק, והעמקה מלאה בפרק 22.</p>
+  <p><strong>MCP (<a href="ch23.html">פרק 23</a>):</strong> שרתי <bdi>MCP</bdi> עצמם לא מוגדרים ב-<code>settings.json</code> אלא ב-<code>.mcp.json</code> (פרויקט) וב-<code>~/.claude.json</code> (משתמש). מה שכן יושב ב-<code>settings.json</code>: מפתחות שליטה כמו <code>enabledMcpjsonServers</code> ו-<code>disabledMcpjsonServers</code> (אישור או דחייה של שרתים מ-<code>.mcp.json</code>), <code>enableAllProjectMcpServers</code> (אישור גורף), וחוקי הרשאה בתבנית <code>mcp__server__tool</code>. פרק 23 מכסה הכול.</p>
+  <p><strong>Plugins (<a href="ch26.html">פרק 26</a>):</strong> <bdi>Plugins</bdi> אורזים <bdi>Skills</bdi>, <bdi>Hooks</bdi>, <bdi>Agents</bdi> ו-<bdi>MCP</bdi> לחבילה מותקנת אחת. בקובצי ההגדרות תפגשו מפתחות כמו <code>enabledPlugins</code>, ובצד הארגוני מפתחות ניהול כמו <code>strictKnownMarketplaces</code> ו-<code>blockedMarketplaces</code>. פירוט בפרק 26.</p>
+
+  <h2 id="statusline-output">Status Line ו-Output Styles</h2>
+  <p><strong>Status Line:</strong> שורת סטטוס מותאמת אישית בתחתית הממשק, שמריצה סקריפט <bdi>Shell</bdi> שאתם בוחרים. Claude Code שולח לסקריפט נתוני <bdi>Session</bdi> כ-<bdi>JSON</bdi> ב-<bdi>stdin</bdi> (מודל, תיקייה, אחוז ניצול <bdi>Context</bdi> ועוד), ומציג את מה שהסקריפט מדפיס. הדרך הקלה: הפקודה <code>/statusline</code> עם תיאור חופשי, למשל <code>/statusline show model name and context percentage</code>, ש-Claude יכתוב עבורכם את הסקריפט ויעדכן את ההגדרות. הדרך הידנית: מפתח <code>statusLine</code> עם <code>"type": "command"</code> ונתיב הסקריפט ב-<code>command</code>, ואופציונלית <code>padding</code> לריווח. נראה דוגמה בקובץ האישי בהמשך.</p>
+  <p><strong>Output Styles:</strong> תכונה פעילה ועדכנית שמשנה את ה-<bdi>System Prompt</bdi>: תפקיד, טון ופורמט תשובה. סגנונות מובנים: <bdi>Default</bdi>, <bdi>Proactive</bdi> (ביצוע מיידי עם פחות עצירות), <bdi>Explanatory</bdi> (תוספות לימודיות) ו-<bdi>Learning</bdi> (עבודה משותפת עם משימות <code>TODO(human)</code> עבורכם). בוחרים דרך <code>/config</code> תחת <bdi>Output style</bdi>; הבחירה נשמרת ב-<code>.claude/settings.local.json</code>, ואפשר גם לקבוע את המפתח <code>outputStyle</code> ישירות בקובץ הגדרות. שימו לב: הפקודה העצמאית <code>/output-style</code> הוצאה משימוש בגרסה 2.1.73 והוסרה בגרסה 2.1.91. סגנונות מותאמים אישית הם קובצי <bdi>Markdown</bdi> ב-<code>~/.claude/output-styles</code> (משתמש) או <code>.claude/output-styles</code> (פרויקט), ושינוי סגנון נכנס לתוקף אחרי <code>/clear</code> או <bdi>Session</bdi> חדש.</p>
+
+  <h2 id="annotated-personal">קובץ מלא 1: settings.json אישי למפתח יחיד</h2>
+  <p>זה קובץ הגדרות משתמש מלא ועובד. העתיקו אותו ל-<code>~/.claude/settings.json</code> והתאימו לטעמכם; מתחתיו הסבר על כל שורה:</p>
+  <div class="codeblock">
+    <div class="codehead">~/.claude/settings.json</div>
+    <pre><code>{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "model": "sonnet",
+  "effortLevel": "high",
+  "autoUpdatesChannel": "stable",
+  "cleanupPeriodDays": 60,
+  "includeCoAuthoredBy": true,
+  "autoMemoryEnabled": true,
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "300000"
+  },
+  "permissions": {
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)"
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh",
+    "padding": 2
+  }
+}</code></pre>
+  </div>
+  <p>שורה אחר שורה:</p>
+  <ul>
+    <li><code>"$schema"</code>: מפנה לסכמת ה-<bdi>JSON</bdi> הרשמית, כך שעורכים כמו <bdi>VS Code</bdi> יציעו השלמות ויסמנו מפתחות שגויים תוך כדי הקלדה. לא חובה, מומלץ מאוד.</li>
+    <li><code>"model": "sonnet"</code>: כינוי משפחה, לא גרסה נעולה. הכינוי יתורגם תמיד לגרסת ה-<bdi>Sonnet</bdi> המומלצת אצל הספק שלכם. מי שרוצה לנעול גרסה יכתוב שם מלא כמו <code>claude-sonnet-5</code>.</li>
+    <li><code>"effortLevel": "high"</code>: רמת ה-<bdi>Effort</bdi> שתחול בכל <bdi>Session</bdi> חדש. ערכים חוקיים כאן: <code>low</code> / <code>medium</code> / <code>high</code> / <code>xhigh</code>.</li>
+    <li><code>"autoUpdatesChannel": "stable"</code>: קבלת עדכוני גרסה מערוץ ה-<bdi>Stable</bdi> השמרני במקום <code>latest</code>. בחירה טובה למי שמעדיף יציבות על חידושים.</li>
+    <li><code>"cleanupPeriodDays": 60</code>: מחיקה אוטומטית של קובצי <bdi>Sessions</bdi> ישנים אחרי 60 יום במקום ברירת המחדל של 30. מי שנשען הרבה על <code>/resume</code> היסטורי ירצה ערך גבוה יותר.</li>
+    <li><code>"includeCoAuthoredBy": true</code>: הוספת שורת <bdi>Co-Authored-By</bdi> ל-<bdi>Commits</bdi> ש-Claude יוצר, לשקיפות בהיסטוריית ה-<bdi>Git</bdi>.</li>
+    <li><code>"autoMemoryEnabled": true</code>: הצהרה מפורשת על הפעלת <bdi>Auto Memory</bdi> (זו גם ברירת המחדל; כתיבה מפורשת מתעדת כוונה). ראו <a href="ch16.html">פרק 16</a>.</li>
+    <li><code>"env"</code>: משתני סביבה שיחולו על כל ה-<bdi>Sessions</bdi>. כאן: העלאת ה-<bdi>Timeout</bdi> של פקודות <bdi>Bash</bdi> ל-5 דקות (300000 מילישניות), שימושי לחבילות בדיקות איטיות. שימו לב שהערכים הם תמיד מחרוזות.</li>
+    <li><code>"permissions.deny"</code>: חגורת בטיחות אישית שחלה בכל פרויקט: איסור קריאה של מפתחות <bdi>SSH</bdi> ואישורי <bdi>AWS</bdi>. שימו לב לתחביר: דווקא בגלל שזה קובץ ברמת המשתמש, חובה לעגן עם <code>~/</code> (או <code>//</code>); תבנית עם <code>/</code> בודד הייתה נמדדת יחסית ל-<code>~/.claude/</code> ולא תופסת את מה שהתכוונתם.</li>
+    <li><code>"statusLine"</code>: הרצת הסקריפט <code>~/.claude/statusline.sh</code> כשורת סטטוס. <code>"type": "command"</code> פירושו "הרץ פקודת <bdi>Shell</bdi>", ו-<code>"padding": 2</code> מוסיף שני תווי ריווח אופקי.</li>
+  </ul>
+  <p>שימו לב מה <em>אין</em> כאן: חוקי <code>allow</code> ספציפיים לפרויקטים. אלה שייכים לקובצי הפרויקט, כי <code>Bash(npm run test *)</code> ברמת המשתמש היה מתיר את הפקודה בכל תיקייה במחשב.</p>
+
+  <h2 id="annotated-team">קובץ מלא 2: settings.json צוותי לפרויקט TaskFlow</h2>
+  <p>הקובץ הזה יושב ב-<code>.claude/settings.json</code> בשורש <bdi>TaskFlow</bdi>, נכנס ל-<bdi>Git</bdi>, וחל על כל חברי הצוות (אחרי שיאשרו את חלון ה-<bdi>Trust</bdi> של התיקייה, שמציג להם בדיוק אילו חוקי <code>allow</code> הקובץ מבקש להעניק):</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/settings.json</div>
+    <pre><code>{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "model": "sonnet",
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Bash(npm run lint)",
+      "Bash(npm run test *)",
+      "Bash(npm run build)",
+      "Bash(pytest *)",
+      "WebFetch(domain:fastapi.tiangolo.com)"
+    ],
+    "ask": [
+      "Bash(git push *)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(secrets/**)",
+      "Bash(curl *)",
+      "Bash(wget *)"
+    ]
+  },
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "300000"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "./scripts/check-style.sh" }
+        ]
+      }
+    ]
+  }
+}</code></pre>
+  </div>
+  <p>שורה אחר שורה:</p>
+  <ul>
+    <li><code>"model": "sonnet"</code>: הצוות מיישר קו על מודל אחיד לעבודה היומיומית. זו בחירת פתיחה, לא נעילה: כל מפתח יכול להחליף עם <code>/model</code>, וההגדרה הצוותית תוחזר בהפעלה הבאה. נעילה אמיתית דורשת <code>availableModels</code> ב-<bdi>Managed Settings</bdi>.</li>
+    <li><code>"defaultMode": "default"</code>: כל <bdi>Session</bdi> בפרויקט נפתח במצב הרגיל שבו Claude מבקש אישור. הצהרה מפורשת שמונעת מצב שבו מפתח מגדיר לעצמו ברירת מחדל מתירנית ושוכח.</li>
+    <li><code>"allow"</code>, חמשת החוקים:
+      <ul>
+        <li><code>Bash(npm run lint)</code> ו-<code>Bash(npm run build)</code>: התאמה מדויקת, בלי <bdi>Wildcard</bdi>. רק הפקודות האלה בדיוק, בלי ארגומנטים נוספים.</li>
+        <li><code>Bash(npm run test *)</code>: הרווח לפני ה-<code>*</code> קובע גבול מילה, כך שנתפסות <code>npm run test</code> עם כל ארגומנט שאחריה (למשל נתיב קובץ בדיקה), אבל לא סקריפט אחר שבמקרה מתחיל באותן אותיות.</li>
+        <li><code>Bash(pytest *)</code>: הרצת בדיקות ה-<bdi>Backend</bdi> עם כל ארגומנט. זכרו: Claude Code בודק כל תת-פקודה בנפרד, אז <code>pytest &amp;&amp; rm -rf /</code> לא יעבור בזכות החוק הזה.</li>
+        <li><code>WebFetch(domain:fastapi.tiangolo.com)</code>: היתר לקרוא את התיעוד הרשמי של <bdi>FastAPI</bdi> בלי בקשה, ורק אותו.</li>
+      </ul>
+    </li>
+    <li><code>"ask": ["Bash(git push *)"]</code>: דחיפה ל-<bdi>Remote</bdi> תמיד תעצור לבקשת אישור, אפילו אם מפתח הוסיף לעצמו <code>allow</code> רחב ל-<bdi>Git</bdi>; חוקי <code>ask</code> נבדקים לפני <code>allow</code>.</li>
+    <li><code>"deny"</code>, חמשת החוקים:
+      <ul>
+        <li><code>Read(.env)</code> ו-<code>Read(.env.*)</code>: איסור קריאת קובצי סודות. שם קובץ חשוף בתחביר <bdi>gitignore</bdi> תופס בכל עומק, כך ש-<code>backend/.env</code> חסום גם הוא. חוק <code>Read</code> נאכף גם על פקודות כמו <code>cat</code> ב-<bdi>Bash</bdi>, ומגרסה 2.1.208 חוסם גם עריכת הנתיב ויצירת קובץ חדש בו.</li>
+        <li><code>Read(secrets/**)</code>: כחוק <code>deny</code>, התבנית תופסת תיקיית <code>secrets</code> בכל עומק תחת הפרויקט.</li>
+        <li><code>Bash(curl *)</code> ו-<code>Bash(wget *)</code>: חסימת הורדות שרירותיות מהרשת. גישה מבוקרת לרשת נשארת דרך <bdi>WebFetch</bdi> עם חוקי <code>domain:</code>, שקל הרבה יותר לתחום. זו בדיוק ההמלצה המתועדת, כי תבניות <bdi>Bash</bdi> שמנסות להגביל <bdi>URL</bdi> הן שבירות.</li>
+      </ul>
+    </li>
+    <li><code>"env"</code>: הבדיקות של <bdi>TaskFlow</bdi> יכולות לרוץ כמה דקות; הצוות מיישר את ה-<bdi>Timeout</bdi> ל-5 דקות אצל כולם, כדי שכשלון <bdi>Timeout</bdi> לא יופיע רק אצל חלק מהמפתחים.</li>
+    <li><code>"hooks"</code>: שלד (Stub) של <bdi>Hook</bdi> אחד: אחרי כל שימוש בכלי עריכה או כתיבה (<code>matcher</code> בתבנית <code>Edit|Write</code>), רץ הסקריפט <code>./scripts/check-style.sh</code>. בשלב הזה הסקריפט יכול להיות שלוש שורות שמריצות <bdi>Linter</bdi> על הקובץ שהשתנה; את הפוטנציאל המלא, כולל חסימת פעולות, נפתח ב<a href="ch22.html">פרק 22</a>. מכיוון ש-<bdi>Hooks</bdi> מריצים פקודות <bdi>Shell</bdi>, הם מוצגים לאישור המשתמש דרך מנגנון ה-<bdi>Trust</bdi>.</li>
+  </ul>
+
+  <h3 id="local-example">ומה בקובץ המקומי? settings.local.json מינימלי</h3>
+  <p>הקובץ <code>.claude/settings.local.json</code> הוא ההשלמה האישית לקובץ הצוותי: אותו פורמט, אבל לא נכנס ל-<bdi>Git</bdi> וגובר על קובץ הפרויקט. גם <bdi>Claude Code</bdi> עצמו כותב אליו, למשל כשאתם בוחרים "Yes, don't ask again" על פקודת <bdi>Bash</bdi> או בוחרים <bdi>Output Style</bdi>. דוגמה מינימלית:</p>
+  <div class="codeblock">
+    <div class="codehead">.claude/settings.local.json</div>
+    <pre><code>{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose up *)"
+    ]
+  },
+  "outputStyle": "Explanatory"
+}</code></pre>
+  </div>
+  <p>ההסבר: המפתח הזה מריץ את סביבת הפיתוח שלו דווקא ב-<bdi>Docker</bdi>, העדפה אישית שלא כופים על הצוות, ועובד עם סגנון הפלט הלימודי <bdi>Explanatory</bdi>. ודאו ש-<code>.claude/settings.local.json</code> רשום ב-<code>.gitignore</code> של הפרויקט, כדי שהעדפות אישיות (וחוקי <bdi>allow</bdi> שנשמרו אוטומטית) לא ידלפו ל-<bdi>Repository</bdi>.</p>
+  <div class="verify">
+    <p><strong>אימות שלושת הקבצים:</strong> כל דוגמאות ה-<bdi>JSON</bdi> בפרק נבדקו עם <bdi>Parser</bdi> ותקינות. אצלכם: הריצו <code>/doctor</code> אחרי כל עריכה; הוא מדווח על קובצי הגדרות שלא ניתנים לפענוח ועל מפתחות לא תקינים. בדיקה ידנית מהטרמינל: <code>python3 -m json.tool .claude/settings.json</code> תדפיס את הקובץ אם הוא תקין ותצביע על השורה השבורה אם לא.</p>
+  </div>
+
+  <h2 id="troubleshooting">Troubleshooting: כשההגדרות לא נתפסות</h2>
+  <p>תקלות הגדרות כמעט תמיד נופלות לאחת מחמש קטגוריות:</p>
+  <ol>
+    <li><strong>שגיאת תחביר JSON.</strong> פסיק מיותר אחרי האיבר האחרון, מרכאות חסרות, הערת <code>//</code> (אסורה ב-<bdi>JSON</bdi>). סימפטום: הקובץ כולו מנוטרל בשקט. אבחון: <code>/doctor</code>, שמאתר קובצי הגדרות לא ניתנים לפענוח, או <code>python3 -m json.tool</code> על הקובץ.</li>
+    <li><strong>בלבול עדיפויות: "הגדרתי, אבל קובץ אחר מנצח".</strong> זכרו את הסולם: <bdi>Managed</bdi>, ואז שורת פקודה, ואז <code>settings.local.json</code>, ואז קובץ הפרויקט, ואז קובץ המשתמש. ערך סקלרי כמו <code>model</code> בקובץ המקומי ידרוס את קובץ הפרויקט; ולגבי הרשאות, <code>deny</code> מכל רמה שהיא גובר, כך שאי אפשר "לפתוח" ברמה נמוכה מה שנחסם ברמה גבוהה (או הפוכה). אבחון: <code>/status</code> מציג את מקורות ההגדרות הפעילים, ו-<code>/permissions</code> מציג ליד כל חוק מאיזה קובץ <code>settings.json</code> הוא הגיע.</li>
+    <li><strong>חוקי allow של פרויקט לא חלים לפני אישור Trust.</strong> חוקי <code>permissions.allow</code> ו-<code>additionalDirectories</code> בקובץ פרויקט נאכפים רק אחרי שאישרתם את חלון ה-<bdi>Trust</bdi> של התיקייה (חוקי <code>deny</code> ו-<code>ask</code> חלים תמיד, כי הם רק מגבילים). אם עמית מתלונן שה-<bdi>Allowlist</bdi> "לא עובד" אצלו, בדקו אם הוא דחה את החלון.</li>
+    <li><strong>ההגדרה דורשת Session חדש.</strong> רוב ההגדרות נטענות מחדש תוך כדי ריצה, אבל <code>model</code> ו-<code>outputStyle</code> נקראים בתחילת <bdi>Session</bdi>; שינוי בקובץ ייתפס רק אחרי <code>/clear</code> או הפעלה מחדש.</li>
+    <li><strong>משתנה סביבה חיצוני דורס.</strong> למשל <code>ANTHROPIC_MODEL</code> ישן שמיוצא ב-<code>.zshrc</code> וגובר על מפתח <code>model</code> בהגדרות. אבחון עומק: <code>claude --debug</code> מדפיס לוג מפורט של תהליך הטעינה, כולל אילו קבצים נקראו ומה נדחה.</li>
+  </ol>
+  <div class="callout danger"><span class="title">Security</span><p>קובץ <code>.claude/settings.json</code> שמגיע מ-<bdi>Repository</bdi> זר הוא וקטור תקיפה: הוא יכול לבקש חוקי <code>allow</code> מסוכנים ו-<bdi>Hooks</bdi> שמריצים קוד. זו בדיוק הסיבה שחלון ה-<bdi>Trust</bdi> מציג את חוקי ההרשאות לפני האישור. קראו אותם באמת לפני שאתם מאשרים תיקייה שלא אתם יצרתם, ולעולם אל תשימו סודות (מפתחות <bdi>API</bdi>, סיסמאות) בשום קובץ הגדרות שנכנס ל-<bdi>Git</bdi>.</p></div>
+
+  <h2 id="best-practices">Best Practices ו-Anti-patterns</h2>
+  <div class="callout tip"><span class="title">Best Practices</span>
+    <ul>
+      <li>התחילו מ-<code>deny</code> ורק אז הוסיפו <code>allow</code>: קל להרחיב הרשאות בהמשך, קשה לאסוף חזרה סודות שנקראו.</li>
+      <li>כתבו חוקי <code>allow</code> צרים ככל האפשר: פקודה מדויקת עדיפה על תבנית, ותבנית עם רווח לפני <code>*</code> עדיפה על תבנית בלי.</li>
+      <li>שמרו על חלוקת תפקידים בין הקבצים: העדפות אישיות בקובץ המשתמש, חוזה הצוות בקובץ הפרויקט, חריגות מקומיות ב-<code>settings.local.json</code>, ואכיפה ארגונית ב-<bdi>Managed Settings</bdi> בלבד.</li>
+      <li>העבירו כל שינוי בקובץ הפרויקט דרך <bdi>Pull Request</bdi>, בדיוק כמו <bdi>CLAUDE.md</bdi> ב<a href="ch16.html">פרק 16</a>: שינוי הרשאות הוא שינוי התנהגות אצל כל הצוות.</li>
+      <li>הוסיפו את <code>"$schema"</code> לכל קובץ, והריצו <code>/doctor</code> אחרי כל עריכה ידנית.</li>
+    </ul>
+  </div>
+  <div class="callout warn"><span class="title">Anti-patterns</span>
+    <ul>
+      <li>חוק <code>allow</code> רחב כמו <code>Bash(git *)</code> "כדי לחסוך אישורים": הוא מתיר גם <code>git push --force</code> וגם <code>git clean -fdx</code>.</li>
+      <li>ניסיון להגביל כתובות רשת דרך תבניות <code>curl</code> ב-<bdi>Bash</bdi>: התיעוד מגדיר זאת במפורש כתבנית שבירה; חסמו את <code>curl</code> והשתמשו ב-<code>WebFetch(domain:...)</code>.</li>
+      <li>הכנסת <code>.claude/settings.local.json</code> ל-<bdi>Git</bdi>: הקובץ צובר חוקים אישיים אוטומטיים ואין לו מקום ב-<bdi>Repository</bdi>.</li>
+      <li>שכפול אותם חוקי <code>allow</code> לכל פרויקט ביד במקום לרכז העדפות אמת בקובץ המשתמש.</li>
+      <li>סוד כלשהו, אפילו "זמני", בתוך מפתח <code>env</code> בקובץ שנכנס ל-<bdi>Git</bdi>.</li>
+    </ul>
+  </div>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 17.1: בניית שכבות ההגדרות ובדיקת ההכרעה</div>
+    <div class="body">
+      <p>על פרויקט <bdi>TaskFlow</bdi> (או כל פרויקט תרגול):</p>
+      <ol>
+        <li>צרו <code>.claude/settings.json</code> עם החוקים מהדוגמה הצוותית (אפשר לצמצם), כולל <code>deny</code> על <code>Read(.env)</code>.</li>
+        <li>צרו קובץ <code>.env</code> עם תוכן דמה (<code>API_KEY=dummy123</code>), פתחו <bdi>Session</bdi> חדש, אשרו את חלון ה-<bdi>Trust</bdi>, ובקשו מ-Claude: <code>read the .env file and tell me what is in it</code>. תעדו מה קורה.</li>
+        <li>הריצו <code>/permissions</code> ומצאו את חוק ה-<code>deny</code> שלכם ואת הקובץ שממנו הגיע.</li>
+        <li>נסו "לעקוף": הוסיפו ב-<code>.claude/settings.local.json</code> חוק <code>allow</code> של <code>Read(.env)</code>, פתחו <bdi>Session</bdi> חדש ובקשו שוב. מה קרה, ולמה?</li>
+        <li>סיימו עם <code>/doctor</code>: ודאו שאין אזהרות על קובצי ההגדרות, ומחקו את קובץ ה-<code>.env</code> הדמה.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>(2) Claude ינסה לקרוא את הקובץ וייחסם: תראו הודעת דחייה שמפנה לחוק ההרשאות. ייתכן ש-Claude יעיר בעצמו שהקובץ חסום, ואולי אף ינסה דרך <code>cat .env</code> ב-<bdi>Bash</bdi>, וגם זה ייחסם, כי חוקי <code>Read</code> נאכפים גם על פקודות קבצים מזוהות ב-<bdi>Bash</bdi>. (3) ב-<code>/permissions</code> תראו את החוק לצד מקורו: <code>.claude/settings.json</code>. (4) הקריאה עדיין נחסמת. זה הלקח המרכזי של הפרק: חוקי <bdi>Permissions</bdi> מתמזגים בין הרמות ולא דורסים, וסדר ההערכה הוא <code>deny</code> תחילה. <code>deny</code> מקובץ הפרויקט מנצח <code>allow</code> מהקובץ המקומי, למרות שהקובץ המקומי "חזק יותר" עבור ערכים סקלריים כמו <code>model</code>. ההבחנה בין שני סוגי ההכרעה, דריסה לסקלרים מול מיזוג עם קדימות <code>deny</code> להרשאות, היא מה שהתרגיל בא לקבע. (5) אם <code>/doctor</code> מדווח על קובץ לא תקין, כמעט תמיד מדובר בפסיק עודף; תקנו והריצו שוב.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>למדנו את שכבת התצורה של <bdi>Claude Code</bdi> מקצה לקצה: חמש רמות הגדרות עם סדר עדיפויות מוגדר (<bdi>Managed</bdi>, שורת פקודה, מקומי, פרויקט, משתמש), כללי ההכרעה (דריסה לסקלרים, מיזוג עם קדימות <code>deny</code> להרשאות), ושלוש דרכי עריכה: <code>/config</code>, <code>/config key=value</code> ועריכת קבצים ישירה. סקרנו את משתני הסביבה החשובים ואת אזהרת ה-<code>ANTHROPIC_API_KEY</code>, פירקנו את תחביר חוקי ה-<bdi>Permissions</bdi> על עוגני הנתיבים שלהם, עברנו על הגדרות המודל (<code>model</code>, <code>effortLevel</code>, <code>availableModels</code>, <code>fallbackModel</code>), והצצנו ל-<bdi>Hooks</bdi>, <bdi>MCP</bdi>, <bdi>Plugins</bdi>, <bdi>Status Line</bdi> ו-<bdi>Output Styles</bdi> שיעמיקו בפרקים הבאים. במרכז: שלושה קובצי הגדרות מלאים ומוסברים שאפשר לאמץ כבסיס אמיתי. בפרק הבא נעמיק במצבי ההרשאות עצמם: <bdi>Permission Modes</bdi>.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/settings">Claude Code settings (hierarchy, precedence, available settings)</a> |
+      <a href="https://code.claude.com/docs/en/permissions">Configure permissions (rule syntax, defaultMode, managed settings)</a> |
+      <a href="https://code.claude.com/docs/en/env-vars">Environment variables reference</a> |
+      <a href="https://code.claude.com/docs/en/model-config">Model configuration (aliases, effort, availableModels, fallback)</a> |
+      <a href="https://code.claude.com/docs/en/statusline">Customize your status line</a> |
+      <a href="https://code.claude.com/docs/en/output-styles">Output styles</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands reference (/config, /status, /doctor, /permissions)</a> |
+      <a href="https://code.claude.com/docs/en/server-managed-settings">Server-managed settings</a>
+      | נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch16.html"><span class="lbl">הפרק הקודם</span>Memory ו-Project Knowledge</a>
+    <a href="ch18.html"><span class="lbl">הפרק הבא</span>Permission Modes</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

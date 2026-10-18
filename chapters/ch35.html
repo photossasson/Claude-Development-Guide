@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 35: Migration ו-Large Refactoring</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ח | פרק 35</p>
+  <h1>Migration ו-Large Refactoring</h1>
+  <p class="lead">בפרק הקודם בנינו <bdi>Feature</bdi> חדש. בפרק הזה משנים דברים שכבר עובדים, וזה מסוכן יותר: שדרוג <bdi>Dependency</bdi> לגרסת <bdi>Major</bdi>, החלפת שכבת גישה לנתונים ב-<bdi>Strangler Pattern</bdi>, שינוי סכמת בסיס נתונים עם תאימות לאחור, הוספת גרסת <bdi>API</bdi> חדשה לצד הישנה, ופיצול מודול גדול לשכבות. לכל תרחיש נציג את ה-<bdi>Prompts</bdi> המלאים, את נקודות הבקרה ואת האימות. נלמד גם את הכלים של <bdi>Claude Code</bdi> לעבודה בקנה מידה גדול: <bdi>Git Worktrees</bdi> לענפים מקבילים, ה-<bdi>Skill</bdi> המובנה <code>/batch</code> לשינויים מכניים רבי-קבצים, ו-<bdi>Subagents</bdi> מבודדים. והכי חשוב: מתי לעצור ולחשוב מחדש.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what">מה מבדיל Migration גדול משינוי רגיל</h2>
+  <p><bdi>Refactoring</bdi> רגיל (<a href="ch12.html">פרק 12</a>) משנה מבנה בלי לשנות התנהגות, בהיקף שאפשר לסקור ב-<bdi>PR</bdi> אחד. <bdi>Migration</bdi> ו-<bdi>Large Refactoring</bdi> חולקים את אותה הבטחה, "ההתנהגות החיצונית נשמרת", אבל שוברים את שני התנאים האחרים: הם לא נכנסים ל-<bdi>PR</bdi> אחד, והם חיים לאורך זמן שבו קוד ישן וחדש מתקיימים זה לצד זה. מכאן נובעים ארבעה עקרונות שחוזרים בכל תרחיש בפרק:</p>
+  <ul>
+    <li><strong>חוזה תאימות לאחור (Backward Compatibility Contract):</strong> הצהרה כתובה, לפני השינוי, על מה שאסור להישבר: תשובות <bdi>API</bdi>, סכמת נתונים שלקוחות ישנים קוראים, פורמט קבצים, משתני סביבה. החוזה הופך לבדיקות.</li>
+    <li><strong>כל צעד הפיך:</strong> אין שלב שאי אפשר להחזיר תוך דקות. זה קובע את הסדר: מוסיפים לפני שמסירים, כותבים כפול לפני שמפסיקים לכתוב לישן.</li>
+    <li><strong>חבילת רגרסיה לפני הכול:</strong> אם אין בדיקות שמתעדות את ההתנהגות הנוכחית, כותבים אותן קודם (<bdi>Characterization Tests</bdi>; נרחיב ב<a href="ch36.html">פרק 36</a>). ההמלצה הרשמית ל-<bdi>Refactoring</bdi> היא לעבוד בצעדים קטנים וניתנים לבדיקה, ולבקש במפורש שמירה על תאימות לאחור.</li>
+    <li><strong>נקודות עצירה מוגדרות מראש:</strong> מה יגרום לנו לעצור ולהעריך מחדש (בדיקות שנשברות ללא הסבר, היקף שגדל פי שניים, ממצא ארכיטקטוני חדש). מגדירים לפני שמתחילים, כי באמצע הסערה קשה להחליט.</li>
+  </ul>
+  <p><strong>מתי להשתמש בשיטות של הפרק:</strong> שינוי שנוגע במעל עשרה קבצים או בחוזה חיצוני, שדורש יותר מיום עבודה, או שקוד ישן וחדש יצטרכו לחיות יחד. <strong>מתי לא:</strong> שינוי מקומי שאפשר לסיים ולסקור ב-<bdi>PR</bdi> אחד; שם התהליך של <a href="ch09.html">פרק 9</a> מספיק. ואל תשכחו את השאלה שקודמת לכל תהליך: האם ה-<bdi>Migration</bdi> בכלל נחוץ? "כי הגרסה החדשה יצאה" אינה סיבה; פגיעות אבטחה, סוף תמיכה או יכולת שחסרה בפועל הן סיבות.</p>
+
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>הפרק מניח שליטה ב<a href="ch09.html">פרק 9</a> (תהליך מבוקר), <a href="ch11.html">פרק 11</a> (<bdi>Testing</bdi>), <a href="ch12.html">פרק 12</a> (<bdi>Refactoring</bdi>), <a href="ch13.html">פרק 13</a> (<bdi>Git</bdi> ו-<bdi>Worktrees</bdi>) ו-<a href="ch34.html">פרק 34</a> (מחזור החיים המלא). מבחינת סביבה: <bdi>TaskFlow</bdi> עם <bdi>Git</bdi> ולפחות <bdi>Commit</bdi> אחד (בלעדיו <code>--worktree</code> נכשל), <code>sqlite3</code> בשורת הפקודה, ו-<code>gh</code> מחובר אם תרצו ש-<code>/batch</code> יפתח <bdi>PRs</bdi>.</p></div>
+
+  <h2 id="tools">ארגז הכלים של Claude Code לעבודה בקנה מידה גדול</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>כלי</th><th>מה הוא נותן</th><th>מתי בפרק</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>Plan Mode</bdi> + <code>SPEC.md</code></td><td>מיפוי היקף וחוזה תאימות לפני נגיעה בקוד</td><td>תחילת כל תרחיש</td></tr>
+        <tr><td><bdi>Subagents</bdi> לחקירה</td><td>מלאי שימושים (<bdi>Inventory</bdi>) בלי למלא את ה-<bdi>Context</bdi> הראשי</td><td>תרחישים 1, 5</td></tr>
+        <tr><td class="ltr"><code>claude --worktree &lt;name&gt;</code></td><td><bdi>Session</bdi> מבודד ב-<bdi>Worktree</bdi> משלו, בענף משלו; עבודה מקבילה בלי התנגשויות</td><td>ניסוי מקביל של שתי גישות; עבודה על v2 בלי להפריע ל-v1</td></tr>
+        <tr><td class="ltr"><code>/batch &lt;instruction&gt;</code></td><td>פירוק שינוי מכני ל-5 עד 30 יחידות, <bdi>Subagent</bdi> ברקע לכל יחידה ב-<bdi>Worktree</bdi> מבודד, בדיקות ו-<bdi>PR</bdi> לכל יחידה</td><td>שינויים מכניים רחבים (החלפת <bdi>Import</bdi>, <bdi>API</bdi> של ספרייה)</td></tr>
+        <tr><td class="ltr"><code>claude -p</code> בלולאה עם <code>--allowedTools</code></td><td>פריסה של אותו <bdi>Prompt</bdi> על רשימת קבצים, עם הרשאות מצומצמות</td><td>חלופה סקריפטית ל-<code>/batch</code></td></tr>
+        <tr><td class="ltr"><code>/code-review</code>, <code>/security-review</code></td><td>סקירה טרייה של כל פרוסה לפני <bdi>Merge</bdi></td><td>סוף כל צעד</td></tr>
+        <tr><td class="ltr"><code>/rewind</code></td><td>חזרה ל-<bdi>Checkpoint</bdi> של ה-<bdi>Session</bdi>; לא מבטל פקודות <bdi>Shell</bdi> ולא שינויי בסיס נתונים</td><td>רשת ביטחון משנית; הראשית היא <bdi>Git</bdi></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout note"><span class="title">Worktrees בקצרה</span><p><code>claude --worktree feature-x</code> (או <code>-w</code>) יוצר <bdi>Worktree</bdi> תחת <code>.claude/worktrees/feature-x/</code> על ענף חדש בשם <code>worktree-feature-x</code>, ומפעיל שם <bdi>Session</bdi> מבודד. ביציאה, אם יש בו עבודה, Claude שואל אם לשמור או למחוק. קובץ <code>.worktreeinclude</code> מעתיק קבצים שאינם ב-<bdi>Git</bdi> (כמו <code>.env</code>) לכל <bdi>Worktree</bdi> חדש. הוסיפו <code>.claude/worktrees/</code> ל-<code>.gitignore</code>. פרטים ב<a href="ch13.html">פרק 13</a>.</p></div>
+
+  <h2 id="contract">חוזה תאימות לאחור: תבנית</h2>
+  <p>לפני כל תרחיש כותבים חוזה קצר. הוא לא מסמך משפטי; הוא רשימה של הבטחות שכל אחת מהן ניתנת להפיכה לבדיקה. הטבלה הבאה היא התבנית שאנחנו מבקשים מ-Claude למלא ב-<bdi>Plan Mode</bdi>, ואז מתקנים ידנית:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תחום</th><th>מה מובטח</th><th>איך נבדק</th><th>עד מתי</th></tr></thead>
+      <tbody>
+        <tr><td>תשובות API</td><td>מבנה <bdi>JSON</bdi>, קודי תשובה, גופי שגיאה, סדר תוצאות של כל <bdi>Endpoint</bdi> קיים</td><td>בדיקות <bdi>Snapshot</bdi> על הקוד הישן</td><td>עד <bdi>Sunset</bdi> של v1</td></tr>
+        <tr><td>סכמת נתונים</td><td>עמודות שקוראים ישנים צריכים ממשיכות להתקיים ולהתמלא</td><td>שאילתת עקביות + <code>.schema</code></td><td>עד שלב ה-<bdi>Contract</bdi></td></tr>
+        <tr><td>הגדרות וסביבה</td><td>משתני סביבה, דגלים ונתיבי קבצים קיימים ממשיכים לעבוד</td><td>בדיקת הפעלה עם ההגדרות הישנות</td><td>לאורך כל ה-<bdi>Migration</bdi></td></tr>
+        <tr><td>קבצים ופורמטים</td><td>קובץ בסיס הנתונים נשאר קריא לגרסה הישנה של הקוד</td><td>הרצת הגרסה הישנה על עותק</td><td>עד נקודת האל-חזור</td></tr>
+        <tr><td>ביצועים</td><td>זמני תגובה לא מתדרדרים מעבר לסף מוסכם</td><td>מדידה לפני ואחרי</td><td>תמיד</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">Prompt (Plan Mode)</div>
+    <pre><code>Fill the backward-compatibility contract table for &lt;change&gt;:
+for each row, what exactly is promised, which existing test or new
+test proves it, and until which milestone the promise holds. Mark
+any promise you cannot verify automatically as MANUAL. Save to
+SPEC.md under "Compatibility contract". Do not start coding.</code></pre>
+  </div>
+  <p>החוזה גם קובע את מבנה ה-<bdi>Commits</bdi> וה-<bdi>PRs</bdi>: כל הבטחה שנשברת בכוונה (למשל הסרת עמודה בשלב ה-<bdi>Contract</bdi>) מקבלת <bdi>PR</bdi> משלה, עם כותרת שאומרת זאת במפורש. סוקר שרואה "Remove legacy description column (contract step, see SPEC.md)" יודע לבדוק את המדידה שקדמה להסרה; סוקר שרואה "cleanup" לא ידע לשאול.</p>
+
+  <h2 id="scenario1">תרחיש 1: שדרוג Dependency לגרסת Major</h2>
+  <p>התרחיש (היפותטי, לצורך ההדגמה): ספרייה מרכזית ב-<bdi>Backend</bdi> של <bdi>TaskFlow</bdi> פרסמה גרסת <bdi>Major</bdi> חדשה עם שינויים שוברים, ואנחנו נדרשים לשדרג בגלל סוף תמיכה בגרסה הישנה. הסכנה בשדרוג <bdi>Major</bdi> אינה הקומפילציה; היא שינויי התנהגות שקטים שהבדיקות לא מכסות.</p>
+  <p><strong>צעד 1: קריאת ה-Changelog ומלאי שימושים.</strong> ב-<bdi>Plan Mode</bdi>, ואחרי שהעתקתם את קטעי ה-<bdi>Changelog</bdi> הרלוונטיים לקובץ מקומי (או נתתם <bdi>URL</bdi> רשמי; Claude יבקש אישור לגשת אליו):</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (Plan Mode)</div>
+    <pre><code>We must upgrade &lt;library&gt; from &lt;current major&gt; to &lt;next major&gt;.
+Read docs/upgrade-notes.md (the official migration guide I saved).
+Then use a subagent to inventory every usage in backend/: for each
+breaking change in the guide, list file:line where we rely on the
+old behavior, and mark it MECHANICAL (rename/signature) or
+SEMANTIC (behavior changed). Also list which of our tests cover
+each usage. Do not change anything. Save the inventory to
+docs/upgrade-inventory.md.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">המחשה: קטע מהמלאי</div>
+    <pre><code>| Breaking change              | Where                         | Kind      | Covered by |
+| default of X changed         | app/models.py:14              | SEMANTIC  | none       |
+| helper Y renamed to Z        | app/routers/tasks.py:9,42     | MECHANICAL| test_tasks |
+| validation error format      | (all 422 responses)           | SEMANTIC  | 3 tests    |</code></pre>
+  </div>
+  <p><strong>נקודת בקרה:</strong> כל שורה <bdi>SEMANTIC</bdi> עם "none" בעמודת הכיסוי היא חור בחבילת הרגרסיה. לפני שדרוג, כותבים לה בדיקת אפיון על הגרסה הישנה. <strong>אימות:</strong> קראו את המלאי ובדקו שתיים או שלוש שורות בעצמכם עם <code>grep -n</code>. מודל שמייצר טבלה יפה יכול גם לפספס שימוש דינמי.</p>
+  <p><strong>צעד 2: תוכנית מדורגת ותוכנית Rollback.</strong></p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (Plan Mode)</div>
+    <pre><code>Create an upgrade plan as ordered steps, each verifiable by
+"pytest -q" and each revertible with a single git revert:
+(1) add characterization tests for uncovered SEMANTIC rows on the
+OLD version; (2) mechanical changes that are compatible with BOTH
+versions; (3) bump the pin in requirements.txt in its own commit;
+(4) semantic fixes; (5) remove compatibility shims. Include a
+rollback section: exact commands to return to the old version and
+what data or files could be affected. Then stop and wait for my
+approval.</code></pre>
+  </div>
+  <p><strong>צעד 3: ביצוע, צעד אחר צעד, במצב ברירת המחדל.</strong> אחרי כל צעד: <code>pytest -q</code>, <code>/diff</code>, <bdi>Commit</bdi>. הצעד של הקפצת הגרסה נעשה לבד ב-<bdi>Commit</bdi> משלו: כך <code>git bisect</code> עתידי יצביע בדיוק עליו. הפעלה ידנית מול השרת (<code>uvicorn</code> ו-<code>curl</code>) אחרי צעד 3, כי בדיקות ירוקות לא תופסות שינוי בפורמט הודעות שגיאה שלקוח אמיתי מסתמך עליו.</p>
+  <div class="terminal"><span class="p">$</span> git log --oneline main..HEAD
+<span class="out">c41e2d0 Remove compatibility shim for old helper name
+8b7f0a3 Adapt 422 error mapping to new validation format
+5e19c77 Bump &lt;library&gt; to &lt;next major&gt;
+2d0aa91 Rename helper Y to Z (compatible with both versions)
+a7c3e10 Add characterization tests for default of X and 422 format</span></div>
+  <div class="callout tip"><span class="title">תבנית תוכנית Rollback</span>
+    <div class="codeblock"><div class="codehead">docs/rollback-plan.md (template)</div><pre><code># Rollback plan: &lt;change name&gt;
+Trigger: which symptom or metric makes us roll back
+Decision owner: who decides (a person, not the model)
+Steps:
+  1. git revert &lt;commit range&gt; (or: git checkout &lt;tag-before&gt;)
+  2. reinstall pinned deps: pip install -r requirements.txt
+  3. data: none / restore backup &lt;file&gt; / run down-migration &lt;script&gt;
+  4. verify: pytest -q; curl /health; smoke checklist
+Time to complete: &lt;minutes&gt;
+Data written by the new version that the old version cannot read: &lt;list or none&gt;
+Tested on: &lt;date&gt;, by: &lt;name&gt;</code></pre></div>
+    <p>תוכנית <bdi>Rollback</bdi> שלא נוסתה פעם אחת אינה תוכנית. הריצו אותה על עותק לפני ה-<bdi>Merge</bdi>.</p>
+  </div>
+
+  <h2 id="scenario2">תרחיש 2: החלפת שכבת גישה לנתונים ב-Strangler Pattern</h2>
+  <p><bdi>TaskFlow</bdi> משתמש ב-<code>sqlite3</code> ישירות, בהתאם לקונבנציה "no ORM" ב-<code>CLAUDE.md</code>. נניח שהצוות החליט (החלטה שנרשמת, כולל הסיבה) לעבור ל-<bdi>SQLAlchemy</bdi>. הגישה הבטוחה אינה שכתוב אלא <bdi>Strangler Pattern</bdi>: יצירת שכבת <bdi>Repository</bdi> חדשה, העברת נתיב אחד בכל פעם, והפעלת שתי המימושים זה לצד זה עד שהישן מתרוקן ונמחק.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 1 (Plan Mode)</div>
+    <pre><code>We will migrate TaskFlow's data access from raw sqlite3 to
+SQLAlchemy Core (not ORM models yet) using a strangler pattern.
+Constraints: every endpoint keeps identical responses (status codes,
+JSON, ordering, error bodies); the SQLite file format stays
+readable by the old code until the migration ends; the CLAUDE.md
+"no ORM" rule is updated as an explicit decision, not silently.
+Plan: (1) introduce a TaskRepository protocol; (2) implement
+SqliteTaskRepository by moving the existing SQL out of the router
+with zero behavior change; (3) implement SqlAlchemyTaskRepository;
+(4) a contract test module that runs the same test suite against
+BOTH implementations; (5) switch endpoints one at a time via a
+TASKFLOW_REPO env var; (6) delete the old implementation.
+List the files per step and the verification for each. Wait for
+approval.</code></pre>
+  </div>
+  <p><strong>נקודת בקרה ראשונה: ההחלטה עצמה.</strong> לפני שנכתבת שורת קוד, ההחלטה לעבור ל-<bdi>SQLAlchemy</bdi> נרשמת בקצרה (למה, מה החלופות שנדחו, מה תנאי ההצלחה) ב-<code>docs/decisions/</code> או ב-<code>SPEC.md</code>, ושורת "no ORM" ב-<code>CLAUDE.md</code> מתעדכנת ל"data access via TaskRepository; sqlite3 implementation is legacy during migration". בלי העדכון הזה, כל <bdi>Session</bdi> עתידי יקרא את הכלל הישן ויתנגד לקוד החדש. על <bdi>Architecture Decision Records</bdi> נרחיב ב<a href="ch37.html">פרק 37</a>.</p>
+  <p><strong>לב השיטה: בדיקות חוזה כפולות.</strong> הצעד הרביעי הוא מה שהופך את ה-<bdi>Migration</bdi> לבטוח. אותן בדיקות בדיוק רצות פעמיים, פעם על כל מימוש; כל פער בין השניים הוא כשל, גם אם המימוש החדש "צודק יותר":</p>
+  <div class="codeblock">
+    <div class="codehead">backend/tests/test_repository_contract.py (המחשה)</div>
+    <pre><code>import pytest
+from app.repositories.sqlite_repo import SqliteTaskRepository
+from app.repositories.sqlalchemy_repo import SqlAlchemyTaskRepository
+
+
+@pytest.fixture(params=[SqliteTaskRepository, SqlAlchemyTaskRepository])
+def repo(request, tmp_path):
+    return request.param(db_path=str(tmp_path / "t.db"))
+
+
+def test_create_then_list_preserves_insertion_order(repo):
+    a = repo.create(title="a")
+    b = repo.create(title="b")
+    assert [t.id for t in repo.list()] == [a.id, b.id]
+
+
+def test_update_unknown_id_returns_none(repo):
+    assert repo.update(9999, {"title": "x"}) is None</code></pre>
+  </div>
+  <p><strong>נקודת בקרה בכל צעד:</strong> אחרי צעד 2 (חילוץ ה-<bdi>SQL</bdi> הקיים ל-<bdi>Repository</bdi>) ה-<bdi>Diff</bdi> חייב להיות "העברה בלבד": אותן מחרוזות <bdi>SQL</bdi>, אותו סדר, אותם קודי שגיאה. בקשו במפורש: "move, do not improve". שיפורים נרשמים לרשימה ומבוצעים אחרי שהמעבר הסתיים. הפעלת המימוש החדש בפועל נעשית ל-<bdi>Endpoint</bdi> אחד, מריצים יום או שניים, ורק אז לבא. ה-<bdi>Rollback</bdi> הוא שינוי משתנה סביבה, בלי <bdi>Deploy</bdi>.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (per endpoint switch)</div>
+    <pre><code>Switch only GET /tasks to use the repository selected by
+TASKFLOW_REPO (default "sqlite"). Keep POST/PATCH/DELETE on the
+old path. Run the contract tests and the API tests with
+TASKFLOW_REPO=sqlite and again with TASKFLOW_REPO=sqlalchemy, and
+paste both summary lines. Nothing else changes in this step.</code></pre>
+  </div>
+
+  <h2 id="scenario3">תרחיש 3: שינוי סכמה עם תאימות לאחור (Expand, Migrate, Contract)</h2>
+  <p>הדוגמה: שינוי שם העמודה <code>description</code> ל-<code>notes</code> בטבלת <code>tasks</code>, בזמן שגרסה ישנה של השרת (או של סקריפטים) עדיין קוראת וכותבת <code>description</code>. שינוי שם ישיר שובר את הישן ברגע. הדפוס הבטוח בשלושה שלבים, שכל אחד מהם <bdi>Deploy</bdi> נפרד:</p>
+  <ol>
+    <li><strong>Expand:</strong> מוסיפים את העמודה החדשה (<code>ALTER TABLE tasks ADD COLUMN notes TEXT</code>), הקוד כותב לשתי העמודות (<bdi>Dual Write</bdi>) וקורא מהישנה. סקריפט <bdi>Backfill</bdi> מעתיק ערכים קיימים. הישן והחדש עובדים.</li>
+    <li><strong>Migrate:</strong> הקוד עובר לקרוא מהעמודה החדשה, ממשיך לכתוב לשתיים. בדיקת עקביות (<code>SELECT COUNT(*) WHERE notes IS NOT description</code>) חייבת להחזיר אפס.</li>
+    <li><strong>Contract:</strong> מפסיקים לכתוב לישנה, ואחרי תקופת חסד מסירים אותה. ב-<bdi>SQLite</bdi>, <code>ALTER TABLE ... DROP COLUMN</code> נתמך בגרסאות מודרניות אך עם מגבלות (למשל עמודה שמשתתפת באינדקס או ב-<bdi>Constraint</bdi>); במקרים כאלה נדרש בנייה מחדש של הטבלה לפי הנוהל המתועד של <bdi>SQLite</bdi>: יצירת טבלה חדשה, העתקה, מחיקה, שינוי שם, בתוך <bdi>Transaction</bdi>. תנו ל-Claude לכתוב את הסקריפט, ובדקו אותו על עותק.</li>
+  </ol>
+  <div class="codeblock">
+    <div class="codehead">Prompt (Plan Mode)</div>
+    <pre><code>Plan an expand/migrate/contract migration renaming tasks.description
+to tasks.notes with zero downtime for old readers. For SQLite
+specifically: which ALTER TABLE operations are supported for this
+change, and where a table rebuild is required. Deliver three
+separate PR-sized steps, each with: schema change (idempotent, using
+PRAGMA table_info checks like init_db already does), code change,
+backfill or consistency query, verification command, and rollback.
+State explicitly which step is the point of no return.</code></pre>
+  </div>
+  <p><strong>נקודת הבקרה הקריטית:</strong> "נקודת האל-חזור" היא שלב ה-<bdi>Contract</bdi>. עד אליו כל צעד הפיך בלי אובדן נתונים; אחריו, החזרה דורשת שחזור מגיבוי. לכן שלב 3 מחכה: שבוע, גרסה, או עד שאין יותר קוראים ישנים, לפי מדידה ולא לפי תחושה. <strong>אימות:</strong> אחרי כל שלב, <code>sqlite3 taskflow.db ".schema tasks"</code> ושאילתת העקביות; לפני שלב 3, גיבוי מאומת (<code>sqlite3 taskflow.db ".backup pre-contract.db"</code>) ובדיקה שהגיבוי נפתח.</p>
+  <p>כך נראה שלב ה-<bdi>Expand</bdi> בקוד, להמחשה. שימו לב שהוא אידמפוטנטי (בטוח להריץ פעמיים) ושה-<bdi>Backfill</bdi> נוגע רק בשורות שעדיין לא הועתקו:</p>
+  <div class="codeblock">
+    <div class="codehead">backend/app/database.py (expand step, המחשה)</div>
+    <pre><code>cols = {row["name"] for row in conn.execute("PRAGMA table_info(tasks)")}
+if "notes" not in cols:
+    conn.execute("ALTER TABLE tasks ADD COLUMN notes TEXT")
+# backfill only rows not yet copied; safe to re-run
+conn.execute(
+    "UPDATE tasks SET notes = description WHERE notes IS NULL"
+)</code></pre>
+  </div>
+  <p>ובשכבת הכתיבה, בזמן ה-<bdi>Dual Write</bdi>, כל <code>INSERT</code> ו-<code>UPDATE</code> שנוגעים ב-<code>description</code> כותבים את אותו ערך גם ל-<code>notes</code>. זה בדיוק המקום שבו כדאי לבקש מ-Claude "list every SQL statement that writes description and show me each change", ולהשוות את הרשימה ל-<code>grep -n "description" backend/app</code>. שאילתת העקביות רצה כבדיקה אוטומטית ולא רק ידנית: בדיקה שיוצרת משימה, מעדכנת אותה, וקוראת ישירות מבסיס הנתונים ששתי העמודות שוות.</p>
+  <div class="callout warn"><span class="title">Migration אינה מריצה מתוך ה-Session על Production</span><p>גם כאן חוזר הכלל מ<a href="ch34.html">פרק 34</a>: המודל כותב סקריפטים אידמפוטנטיים ובדיקות; אדם מריץ אותם על נתונים אמיתיים, אחרי גיבוי, בחלון מתוכנן. הוסיפו חוק <bdi>Deny</bdi> ל-<code>Bash(sqlite3 *prod*)</code> וכדומה ב-<code>settings.json</code> אם קובץ ה-<bdi>Production</bdi> נגיש מהמכונה (<a href="ch18.html">פרק 18</a>).</p></div>
+
+  <h2 id="scenario4">תרחיש 4: שינוי גרסת API (v1 נשמר, v2 נוסף)</h2>
+  <p>הדרישה: <code>GET /tasks</code> צריך להחזיר מעטפת עם <bdi>Pagination</bdi> (<code>{"items": [...], "total": N, "next": ...}</code>) במקום מערך גולמי. לקוחות קיימים (ה-<bdi>Frontend</bdi>, סקריפטים) מצפים למערך. הפתרון: <code>/v1/tasks</code> ממשיך להחזיר מערך, <code>/v2/tasks</code> מחזיר מעטפת, ו-<code>/tasks</code> הישן הופך ל-<bdi>Alias</bdi> של v1 עם כותרות <bdi>Deprecation</bdi>.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (Plan Mode)</div>
+    <pre><code>Add API versioning to TaskFlow without breaking existing clients:
+mount the current router at /v1 and keep /tasks as an alias of v1
+that adds standard deprecation headers (Deprecation, Sunset, and a
+Link header to the migration doc). Add /v2/tasks where GET returns
+{items,total,next} with limit/offset params (max limit 100); all
+other v2 endpoints identical to v1 for now. Share the handlers, do
+not copy-paste the router. Tests: v1 responses byte-for-byte
+unchanged (snapshot the current JSON of the existing tests first),
+alias sends headers, v2 pagination edge cases (offset past end,
+limit 0, limit 1000 -> 422). Then update frontend api.ts to v2 in a
+separate step. Plan first.</code></pre>
+  </div>
+  <p><strong>נקודות בקרה:</strong> (1) "snapshot the current JSON first" הוא הצעד המגן: בדיקות ה-<bdi>Snapshot</bdi> נכתבות על הקוד הישן ולפני כל שינוי; (2) "share the handlers" מונע פיצול שבו תיקון באג יגיע רק לגרסה אחת; (3) מועד ה-<bdi>Sunset</bdi> נקבע על ידי אדם, ונרשם גם בתיעוד. <strong>אימות:</strong></p>
+  <div class="terminal"><span class="p">$</span> curl -si localhost:8000/tasks | grep -iE "^(Deprecation|Sunset|Link):"
+<span class="out">Deprecation: true
+Sunset: Sat, 31 Oct 2026 00:00:00 GMT
+Link: &lt;https://example.com/docs/api-v2-migration&gt;; rel="deprecation"</span></div>
+  <p>הכותרות <bdi>Deprecation</bdi> ו-<bdi>Sunset</bdi> הן כותרות סטנדרטיות של <bdi>HTTP</bdi> (ה-<bdi>Sunset</bdi> מוגדר ב-<bdi>RFC 8594</bdi>); הפורמט המדויק של ערך ה-<bdi>Deprecation</bdi> תלוי בגרסת התקן שאתם מאמצים, ולכן בקשו מ-Claude להצביע על המקור שעליו הוא מסתמך ולא להמציא. הסרת v1 בפועל היא תרחיש 3 בלבוש אחר: <bdi>Contract</bdi> אחרי תקופת חסד, עם מדידה של תעבורה ל-v1 לפני ההסרה.</p>
+  <p><strong>המעבר של ה-Frontend</strong> נעשה בצעד נפרד, ורצוי ב-<bdi>Worktree</bdi> נפרד כדי לא לערבב שינויי שרת ולקוח ב-<bdi>PR</bdi> אחד: <code>claude --worktree frontend-v2</code>, ושם <bdi>Prompt</bdi> ממוקד: "switch api.ts to /v2/tasks, adapt listTasks to the {items,total,next} envelope, keep the UI behavior identical, run npm run typecheck". כשה-<bdi>Frontend</bdi> ב-<bdi>Production</bdi> כבר על v2, המדידה של קריאות ל-<code>/tasks</code> הישן אמורה לרדת; מה שנשאר הם סקריפטים ולקוחות שלא ידעתם עליהם, וזו בדיוק הסיבה שלא מסירים לפי לוח שנה אלא לפי מספרים.</p>
+
+  <h2 id="scenario5">תרחיש 5: פיצול מודול גדול לשכבות Service ו-Repository</h2>
+  <p><code>routers/tasks.py</code> של <bdi>TaskFlow</bdi> קטן, אבל דמיינו אותו אחרי שנתיים: 900 שורות, <bdi>SQL</bdi> משולב בלוגיקה עסקית משולבת בטיפול ב-<bdi>HTTP</bdi>. הפיצול הרצוי: <bdi>Router</bdi> (HTTP בלבד), <bdi>Service</bdi> (חוקים עסקיים), <bdi>Repository</bdi> (גישה לנתונים). הסיכון: שינוי התנהגות בדרך. ההגנה: בדיקות אפיון קודם.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt 1 (Plan Mode)</div>
+    <pre><code>Before any refactor of routers/tasks.py: generate characterization
+tests that pin its CURRENT behavior, including the odd parts. Use
+the API tests as a base and add: exact error bodies for 400/404/422,
+behavior of PATCH with an empty body, ordering of list results, and
+what happens with title of 200 vs 201 chars. Do not "fix" anything
+you find; record surprises in docs/refactor-notes.md as questions
+for me. Run the suite; it must be green on the current code.</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">Prompt 2 (default mode, one move at a time)</div>
+    <pre><code>Step 1 of the split: create app/services/tasks_service.py and move
+ONLY the update_task logic (field filtering, empty-payload rule) out
+of the router into TaskService.update(). The router calls the
+service; SQL stays where it is for now. Zero behavior change: run
+the characterization suite. Show me the diff before committing.</code></pre>
+  </div>
+  <p><strong>נקודת בקרה:</strong> כל תזוזה היא <bdi>Commit</bdi> נפרד, וכל <bdi>Commit</bdi> ירוק על חבילת האפיון. אם באמצע הפיצול מתגלה באג אמיתי (למשל <code>PATCH</code> ריק שמחזיר 400 במקום 422), הוא נרשם ולא מתוקן: <bdi>Refactoring</bdi> ותיקון באגים לא חיים באותו <bdi>Commit</bdi>. אחרי סיום הפיצול, פותחים <bdi>Branch</bdi> נפרד לתיקונים, ומעדכנים את בדיקות האפיון בכוונה. סיימו ב-<code>/code-review</code> על כל ה-<bdi>Branch</bdi>, ואחריו <code>/simplify</code>: לפי התיעוד, זו סקירת ניקיון בלבד שמיישמת פישוטים (כפילויות, קוד מיותר) בלי לצוד באגים, בדיוק מה שנוצר בדרך בפיצול. זכרו ששני הכלים רצים ב-<bdi>Subagent</bdi> ברקע, ועריכות שהם מבצעים (למשל עם <code>--fix</code>) אינן נשמרות ב-<bdi>Checkpoints</bdi> של ה-<bdi>Session</bdi>: <code>/rewind</code> לא יבטל אותן, רק <bdi>Git</bdi>.</p>
+  <p>מבנה הקבצים בסוף הפיצול, להמחשה:</p>
+  <div class="codeblock">
+    <div class="codehead">backend/app/ (after the split)</div>
+    <pre><code>app/
+├── main.py
+├── database.py
+├── models.py
+├── routers/
+│   └── tasks.py              # HTTP בלבד: פרסור, קודי תשובה, קריאה ל-Service
+├── services/
+│   └── tasks_service.py      # חוקים עסקיים: מעברי סטטוס, done_at, ולידציה צולבת
+└── repositories/
+    ├── protocol.py           # TaskRepository (Protocol)
+    └── sqlite_repo.py        # SQL בלבד; אותן מחרוזות שהיו ב-Router</code></pre>
+  </div>
+  <p>שימו לב שהפיצול הזה הוא גם ההכנה הטבעית לתרחיש 2: ברגע שיש <bdi>Repository</bdi> עם <bdi>Protocol</bdi>, החלפת המימוש מתחת היא צעד קטן. סדר טוב הוא לכן: קודם פיצול (תרחיש 5), אחר כך החלפת טכנולוגיה (תרחיש 2). לנסות את שניהם יחד הוא בדיוק סוג ה"צעד גדול מדי" שתנאי העצירה נועדו לתפוס.</p>
+
+  <h2 id="batch">/batch, Worktrees ופריסה מקבילית לשינויים מכניים</h2>
+  <p>חלק מה-<bdi>Migrations</bdi> הם מכניים לחלוטין: החלפת שם פונקציה בעשרות קבצים, מעבר מ-<bdi>API</bdi> ישן של ספרייה לחדש, הוספת <bdi>Type Hints</bdi>. ל-<bdi>Claude Code</bdi> יש שלוש דרכים לפרוס עבודה כזאת במקביל:</p>
+  <ul>
+    <li><strong><code>/batch &lt;instruction&gt;</code>:</strong> <bdi>Skill</bdi> מובנה שחוקר את ה-<bdi>Codebase</bdi>, מפרק את העבודה ל-5 עד 30 יחידות בלתי תלויות, מציג תוכנית לאישור, ואז מריץ <bdi>Subagent</bdi> ברקע לכל יחידה ב-<bdi>Git Worktree</bdi> מבודד; כל <bdi>Subagent</bdi> מממש את היחידה שלו, מריץ בדיקות ופותח <bdi>Pull Request</bdi>. דורש <bdi>Repository</bdi> של <bdi>Git</bdi>. הדוגמה מהתיעוד: <code>/batch migrate src/ from Solid to React</code>.</li>
+    <li><strong>Worktrees ידניים:</strong> <code>claude --worktree upgrade-a</code> ו-<code>claude --worktree upgrade-b</code> בשני <bdi>Terminals</bdi>, למשל כדי לנסות שתי גישות מקבילות ולבחור. <bdi>Subagent</bdi> מותאם עם <code>isolation: worktree</code> ב-<bdi>Frontmatter</bdi> תמיד רץ ב-<bdi>Worktree</bdi> משלו.</li>
+    <li><strong>לולאת <code>claude -p</code>:</strong> לפי התיעוד הרשמי, מייצרים רשימת קבצים, ואז <code>for file in $(cat files.txt); do claude -p "Migrate $file ... Return OK or FAIL." --allowedTools "Edit,Bash(git commit *)"; done</code>. מנסים על שניים או שלושה קבצים, מחדדים את ה-<bdi>Prompt</bdi>, ורק אז מריצים על הכול.</li>
+  </ul>
+  <div class="codeblock">
+    <div class="codehead">Prompt: /batch לשינוי מכני</div>
+    <pre><code>/batch replace every direct call to the deprecated helper
+old_helper() in backend/ with new_helper() per
+docs/upgrade-notes.md section 3. Each unit must keep pytest green.
+Do not touch behavior beyond the rename.</code></pre>
+  </div>
+  <div class="callout warn"><span class="title">בטיחות בעבודה מקבילית</span>
+    <ul>
+      <li>קראו את תוכנית הפירוק לפני האישור: יחידות שאינן באמת בלתי תלויות (שתיים שנוגעות באותו קובץ) ייצרו קונפליקטים ב-<bdi>Merge</bdi>.</li>
+      <li>כל <bdi>PR</bdi> שנוצר עדיין נסקר על ידי אדם. מקביליות מגדילה תפוקה, לא אמון.</li>
+      <li>סוכני רקע ו-<bdi>Subagents</bdi> ב-<bdi>Worktrees</bdi> יוצרים ענפים ותיקיות; אחרי הסיום, <code>git worktree list</code> ו-<code>git worktree remove</code> לניקוי (Claude מנקה <bdi>Worktrees</bdi> ריקים בעצמו; כאלה עם עבודה נשמרים).</li>
+      <li>אל תריצו <code>/batch</code> על שינוי סמנטי. הוא מצוין ל"החלף X ב-Y", גרוע ל"שנה את מודל ההרשאות".</li>
+      <li>לולאת <code>claude -p</code> רצה ללא השגחה: <code>--allowedTools</code> מצומצם הוא חובה, ו-<bdi>Sandbox</bdi> (<a href="ch20.html">פרק 20</a>) מומלץ.</li>
+    </ul>
+  </div>
+
+  <p><strong>איך נראית הרצת <code>/batch</code> בפועל, להמחשה:</strong> Claude חוקר את ה-<bdi>Codebase</bdi>, מציג רשימה של יחידות (למשל "unit 1: app/routers/tasks.py, unit 2: app/services/, unit 3: scripts/") ומחכה לאישור. אחרי האישור, לכל יחידה נפתח <bdi>Subagent</bdi> ברקע ב-<bdi>Worktree</bdi> משלו; אתם יכולים להמשיך לעבוד ב-<bdi>Session</bdi> הראשי בזמן שהם רצים. כשיחידה מסתיימת, מופיע <bdi>PR</bdi> ב-<bdi>GitHub</bdi> (דרך <code>gh</code>) עם ההסבר והבדיקות שרצו. הסקירה שלכם היא לכל <bdi>PR</bdi> בנפרד, ואם יחידה נכשלה, ה-<bdi>Worktree</bdi> שלה נשאר על הדיסק לבדיקה. שני דברים שכדאי לבדוק לפני האישור: שהיחידות באמת לא נוגעות באותם קבצים, ושההוראה כוללת את פקודת הבדיקה שכל יחידה חייבת להעביר.</p>
+
+  <h2 id="regression">אסטרטגיית חבילת הרגרסיה</h2>
+  <p>לאורך כל התרחישים, החבילה שמגינה עלינו בנויה משלוש שכבות, וכדאי לבנות אותה בסדר הזה:</p>
+  <ol>
+    <li><strong>בדיקות אפיון (Characterization):</strong> מה הקוד עושה היום, כולל המוזרויות. נכתבות לפני השינוי, ירוקות על הקוד הישן.</li>
+    <li><strong>בדיקות חוזה (Contract):</strong> ההבטחות שהצהרנו עליהן בחוזה התאימות: תשובות <bdi>API</bdi>, סכמה, פורמטים. רצות על ישן וחדש כאחד (כמו <code>test_repository_contract.py</code>).</li>
+    <li><strong>בדיקות Smoke ידניות ואוטומטיות:</strong> הפעלה אמיתית של המערכת אחרי כל צעד; מה שבדיקות יחידה לא רואות (הגדרות, נתונים ותיקים, לקוחות חיצוניים).</li>
+  </ol>
+  <p>ב-<bdi>CI</bdi> (<a href="ch28.html">פרק 28</a>) חבילת הרגרסיה רצה על כל <bdi>PR</bdi> של ה-<bdi>Migration</bdi>, ואפשר להוסיף <bdi>Hook</bdi> מסוג <bdi>Stop</bdi> (<a href="ch22.html">פרק 22</a>) שלא מאפשר לתור להסתיים כשהחבילה אדומה.</p>
+
+  <h2 id="stop">מתי לעצור ולהעריך מחדש</h2>
+  <p>הכלל החשוב בפרק: <bdi>Migration</bdi> טוב יודע לעצור. הגדירו מראש, ב-<code>SPEC.md</code>, את תנאי העצירה, ובדקו אותם בסוף כל צעד:</p>
+  <ul class="check">
+    <li>בדיקות אפיון נשברות ואין הסבר תוך שני סבבי תיקון. עוצרים, <code>/clear</code>, חוקרים בנפרד. לא "מרככים" בדיקה.</li>
+    <li>ההיקף גדל: רשימת הקבצים המושפעים כפולה מהמלאי המקורי. חוזרים ל-<bdi>Plan Mode</bdi> ומחלקים מחדש.</li>
+    <li>ממצא ארכיטקטוני חדש (למשל: קוד ישן כותב ישירות לבסיס הנתונים ממקום שלא ידענו עליו). ה-<bdi>Migration</bdi> משנה צורה; ה-<bdi>Spec</bdi> מתעדכן לפני הקוד.</li>
+    <li>ה-<bdi>Session</bdi> חוצה את סף ה-<bdi>Context</bdi> שקבעתם (<code>/context</code>). <bdi>Commit</bdi> בנקודה ירוקה, <bdi>Handoff</bdi> ל-<bdi>Session</bdi> חדש (<a href="ch14.html">פרק 14</a>).</li>
+    <li>ה-<bdi>Rollback</bdi> נהיה לא טריוויאלי (נתונים בפורמט שהישן לא קורא) לפני שהתכוונתם. זו נקודת אל-חזור לא מתוכננת; עוצרים ומחליטים במודע.</li>
+    <li>יותר משני <bdi>PRs</bdi> של ה-<bdi>Migration</bdi> פתוחים בו זמנית ומחכים לסקירה. מקביליות מעבר ליכולת הסקירה היא חוב, לא תפוקה.</li>
+  </ul>
+
+  <h2 id="mistakes">טעויות נפוצות</h2>
+  <ul>
+    <li><strong>לשדרג ולתקן באותו Commit:</strong> אי אפשר לדעת מה נשבר בגלל השדרוג ומה בגלל התיקון.</li>
+    <li><strong>לדלג על מלאי השימושים:</strong> "בטח זה רק בשלושה מקומות". בדרך כלל זה בשמונה, ושניים מהם דינמיים.</li>
+    <li><strong>לתת למודל "לשפר תוך כדי":</strong> "move, do not improve" הוא המשפט החשוב ביותר בכל <bdi>Prompt</bdi> של <bdi>Refactoring</bdi>.</li>
+    <li><strong>Contract לפני שהקוראים הישנים נעלמו:</strong> מדדו, אל תניחו.</li>
+    <li><strong>לסמוך על /rewind כרשת ביטחון ל-Migration:</strong> הוא לא מבטל פקודות <bdi>Shell</bdi> ולא שינויים בבסיס הנתונים. <bdi>Git</bdi> וגיבויים הם רשת הביטחון (<a href="ch19.html">פרק 19</a>).</li>
+    <li><strong>/batch על שינוי סמנטי:</strong> 20 <bdi>PRs</bdi> שכל אחד פירש את הדרישה קצת אחרת.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>אבחון וטיפול</th></tr></thead>
+      <tbody>
+        <tr><td>אחרי הקפצת הגרסה, בדיקות נכשלות בהמוניהן עם אותה שגיאה</td><td>כמעט תמיד שינוי אחד רוחבי (פורמט שגיאות, ברירת מחדל). אל תתקנו בדיקה-בדיקה; בקשו מ-Claude לקבץ את הכשלים לפי הודעה ולתקן את השורש</td></tr>
+        <tr><td>בדיקות החוזה עוברות על המימוש הישן ונכשלות על החדש בסדר תוצאות</td><td>הישן הסתמך על סדר לא מובטח (למשל סדר הכנסה בלי <code>ORDER BY</code>). החליטו: להוסיף <code>ORDER BY</code> מפורש לשני המימושים (ולתעד), או להקל בבדיקה. החלטה של אדם</td></tr>
+        <tr><td class="ltr"><code>Failed to resolve base branch "HEAD"</code> ב-<code>--worktree</code></td><td>ל-<bdi>Repository</bdi> אין אף <bdi>Commit</bdi>. צרו <bdi>Commit</bdi> ראשון</td></tr>
+        <tr><td>Worktrees ישנים תופסים מקום וענפים</td><td><code>git worktree list</code>, ואז <code>git worktree remove &lt;path&gt;</code> (עם <code>--force</code> אם יש שינויים לא שמורים). Claude מנקה אוטומטית רק <bdi>Worktrees</bdi> ללא עבודה</td></tr>
+        <tr><td>Claude ב-Worktree מסרב להריץ פקודה "שנוגעת ב-main checkout"</td><td>זו אכיפת הבידוד: בתוך <bdi>Worktree</bdi> נחסמות עריכות ופקודות שפוגעות ב-<bdi>Checkout</bdi> הראשי. הריצו את הפקודה מה-<bdi>Session</bdi> הראשי, או פצלו לפקודות פשוטות</td></tr>
+        <tr><td>שלב ה-Contract נכשל: DROP COLUMN לא נתמך על העמודה</td><td>מגבלת <bdi>SQLite</bdi> (עמודה באינדקס, <bdi>FK</bdi> או <bdi>Constraint</bdi>). בקשו סקריפט בנייה מחדש של הטבלה בתוך <bdi>Transaction</bdi>, בדקו על עותק, ורק אז על האמיתי</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="security">Security</h2>
+  <ul>
+    <li><strong>Dependencies:</strong> שדרוג הוא הרגע לבדוק את שרשרת האספקה: מקור החבילה, <bdi>Hash</bdi> נעול, ומה השתנה ברשימת התלויות העקיפות. אל תתנו למודל להוסיף חבילות "עזר" בדרך.</li>
+    <li><strong>ריצה ללא השגחה:</strong> <code>/batch</code> ולולאות <code>claude -p</code> מקבלות הרשאות מינימליות (<code>--allowedTools</code>, חוקי <bdi>Deny</bdi>) ורצות ב-<bdi>Sandbox</bdi> כשאפשר.</li>
+    <li><strong>נתונים:</strong> סקריפטי <bdi>Migration</bdi> ו-<bdi>Backfill</bdi> נכתבים על ידי המודל, נבדקים על עותק, ומורצים על ידי אדם. גיבוי מאומת לפני כל נקודת אל-חזור.</li>
+    <li><strong>API v1/v2:</strong> אותה שכבת הרשאות לשתי הגרסאות; ודאו שהוספת v2 לא פתחה נתיב שעוקף בדיקה קיימת.</li>
+  </ul>
+
+  <h2 id="cost">עלות ו-Context</h2>
+  <p><bdi>Migrations</bdi> ארוכים הם הצרכן הגדול ביותר של <bdi>Tokens</bdi> במדריך, ורוב הבזבוז בא משני מקורות: מלאי שימושים שנעשה ב-<bdi>Context</bdi> הראשי (האצילו ל-<bdi>Subagent</bdi>), וסבבי תיקון על בדיקות שנשברו בגלל צעד גדול מדי (הקטינו צעדים). <code>/batch</code> ו-<bdi>Subagents</bdi> מקבילים מכפילים תפוקה אבל גם צריכה; ב-<bdi>Session</bdi> ראשי השאירו את המודל החזק לתכנון ולסקירה, ותנו ליחידות המכניות לרוץ על מודל מהיר יותר. ראו <a href="ch30.html">פרק 30</a>.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>חוזה תאימות כתוב לפני השינוי; הוא הופך לבדיקות חוזה שרצות על ישן וחדש.</li>
+    <li>בדיקות אפיון ירוקות על הקוד הישן לפני התזוזה הראשונה.</li>
+    <li>"move, do not improve"; שיפורים נרשמים ומבוצעים אחרי.</li>
+    <li>הקפצת גרסה, שינוי סכמה ונקודת אל-חזור: כל אחד ב-<bdi>Commit</bdi> או <bdi>PR</bdi> משלו.</li>
+    <li>תוכנית <bdi>Rollback</bdi> כתובה ומנוסה על עותק, לפני ה-<bdi>Merge</bdi>.</li>
+    <li>תנאי עצירה מוגדרים מראש ונבדקים בסוף כל צעד.</li>
+    <li>מקביליות (<code>/batch</code>, <bdi>Worktrees</bdi>) לשינויים מכניים בלבד, בקצב שהסקירה האנושית עומדת בו.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>ה-Big Bang Rewrite:</strong> "תכתוב את שכבת הנתונים מחדש ב-SQLAlchemy" ב-<bdi>Session</bdi> אחד ארוך; בסוף אין דרך לדעת מה נשמר ומה השתנה.</li>
+    <li><strong>Migration בלי מדידה:</strong> להסיר v1 "כי כבר עברו חודשיים" בלי לדעת אם מישהו עוד קורא לו.</li>
+    <li><strong>ריכוך בדיקות אפיון:</strong> כשהחדש מתנהג אחרת, "לעדכן את הבדיקה" במקום להחליט במודע.</li>
+    <li><strong>ה-Session הנצחי:</strong> <bdi>Migration</bdi> של שבוע ב-<bdi>Session</bdi> אחד עם עשרות <code>/compact</code>; ההקשר מתדרדר בדיוק כשהוא הכי נחוץ.</li>
+    <li><strong>מקביליות כתחליף לתכנון:</strong> להריץ <code>/batch</code> לפני שיש מלאי, חוזה ובדיקות.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 35.1: מזהי משימות מ-INTEGER ל-UUID, בלי להשבית לקוחות</div>
+    <div class="body">
+      <p>ב-<bdi>TaskFlow</bdi>, המזהה <code>id</code> הוא <bdi>INTEGER AUTOINCREMENT</bdi>. הדרישה: לעבור למזהה <bdi>UUID</bdi> ציבורי (<code>public_id</code>) בכל ה-<bdi>API</bdi>, תוך שמירה על תאימות: לקוחות ישנים ממשיכים לעבוד עם המספר לתקופת מעבר, ה-<bdi>Frontend</bdi> עובר ל-<bdi>UUID</bdi>, וטבלת <code>comments</code> (מפרק 34) ממשיכה להצביע נכון. תכננו וממשו ב-<bdi>Expand, Migrate, Contract</bdi>, עם חוזה תאימות, בדיקות אפיון, בדיקות חוזה, תוכנית <bdi>Rollback</bdi> מנוסה, ותנאי עצירה. השתמשו ב-<bdi>Worktree</bdi> נפרד לצד ה-<bdi>Frontend</bdi>.</p>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>חוזה:</strong> <code>GET /tasks/{n}</code> עם מספר ממשיך לעבוד עד תאריך <bdi>Sunset</bdi>; כל תשובה כוללת גם <code>id</code> וגם <code>public_id</code> בתקופת המעבר; <bdi>FK</bdi> של תגובות לא משתנה בשלב ראשון (נשאר על המספר הפנימי, שהוא לעולם לא נחשף אחרי ה-<bdi>Contract</bdi>).</p>
+      <p><strong>Expand:</strong> <code>ALTER TABLE tasks ADD COLUMN public_id TEXT</code> (אידמפוטנטי דרך <code>PRAGMA table_info</code>), אינדקס ייחודי, <bdi>Backfill</bdi> עם <code>uuid4</code> לכל שורה קיימת, יצירה חדשה ממלאת אוטומטית. תשובות ה-<bdi>API</bdi> מוסיפות <code>public_id</code>. בדיקות אפיון קיימות נשארות ירוקות; בדיקות חדשות: כל שורה מקבלת <bdi>UUID</bdi> ייחודי.</p>
+      <p><strong>Migrate:</strong> נתיבים מקבלים גם מספר וגם <bdi>UUID</bdi> (זיהוי לפי צורה, עם בדיקות לשני המקרים); ה-<bdi>Frontend</bdi> ב-<bdi>Worktree</bdi> נפרד עובר ל-<code>public_id</code>; כותרות <bdi>Deprecation</bdi> על קריאות עם מספר. מדידה: כמה קריאות עם מספר עדיין מגיעות.</p>
+      <p><strong>Contract:</strong> אחרי שהמדידה יורדת לאפס ותאריך ה-<bdi>Sunset</bdi> עבר: הסרת התמיכה במספר בנתיבים, הסרת <code>id</code> מהתשובות. העמודה הפנימית נשארת (<bdi>PK</bdi> ו-<bdi>FK</bdi>); לא צריך בנייה מחדש של הטבלה, וזה יתרון של החלטת החוזה. <strong>Rollback:</strong> עד ה-<bdi>Contract</bdi>, <code>git revert</code> בלבד; אחריו, שחזור הקוד הישן עדיין עובד כי הנתונים לא נמחקו. <strong>תנאי עצירה</strong> שכדאי היה לרשום: גילוי לקוח שמפרסר את המזהה כמספר בצד שלו (למשל ממיין לפיו).</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>חמישה תרחישים, מתודולוגיה אחת: חוזה תאימות כתוב, בדיקות אפיון וחוזה לפני השינוי, צעדים קטנים והפיכים שכל אחד <bdi>Commit</bdi> ירוק, <bdi>Expand</bdi> לפני <bdi>Contract</bdi>, תוכנית <bdi>Rollback</bdi> מנוסה, ותנאי עצירה מוגדרים מראש. <bdi>Claude Code</bdi> מוסיף לזה כלים של קנה מידה: <bdi>Subagents</bdi> למלאי, <bdi>Worktrees</bdi> לענפים מקבילים, <code>/batch</code> ולולאות <code>claude -p</code> לשינויים מכניים, ו-<code>/code-review</code> לכל פרוסה. מה שהוא לא מוסיף, ולא צריך להוסיף, זה את ההחלטות: מתי נקודת האל-חזור, מתי להסיר את הישן, ומתי לעצור. בפרק הבא ניקח את הכלים האלה למקום הקשה ביותר: קוד <bdi>Legacy</bdi> שאיש לא זוכר למה הוא עובד.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/commands">Commands reference (/batch, /code-review, /security-review, /rewind, /context)</a> |
+      <a href="https://code.claude.com/docs/en/worktrees">Worktrees (--worktree, .claude/worktrees, cleanup, .worktreeinclude, isolation enforcement, isolation: worktree)</a> |
+      <a href="https://code.claude.com/docs/en/common-workflows">Common workflows (refactoring in increments, backward compatibility tip, parallel sessions with worktrees)</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (fan out across files with claude -p and --allowedTools, adversarial review, /clear after repeated corrections)</a> |
+      <a href="https://code.claude.com/docs/en/sub-agents">Subagents (isolation, tools, frontmatter)</a> |
+      <a href="https://www.sqlite.org/lang_altertable.html">SQLite ALTER TABLE (supported operations and table rebuild procedure)</a> |
+      <a href="https://www.rfc-editor.org/rfc/rfc8594">RFC 8594: The Sunset HTTP Header Field</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch34.html"><span class="lbl">הפרק הקודם</span>פיתוח Feature מורכב מקצה לקצה</a>
+    <a href="ch36.html"><span class="lbl">הפרק הבא</span>עבודה עם Legacy Code</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

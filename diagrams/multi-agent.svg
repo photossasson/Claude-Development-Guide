@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4552d"/>
+    </marker>
+    <marker id="arrg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b6b6b"/>
+    </marker>
+  </defs>
+  <style>
+    .box { fill:#ffffff; stroke:#c9c2b8; stroke-width:1.5; rx:12; }
+    .accent { fill:#f3e3da; stroke:#b4552d; }
+    .gate { fill:#fbf6ea; stroke:#b4552d; stroke-dasharray:6 4; }
+    .t { font-size:17px; fill:#1a1a1a; text-anchor:middle; direction:rtl; }
+    .s { font-size:13px; fill:#6b6b6b; text-anchor:middle; direction:rtl; }
+    .en { font-size:13px; fill:#6b6b6b; text-anchor:middle; }
+    .edge { stroke:#b4552d; stroke-width:2; fill:none; marker-end:url(#arr); }
+    .back { stroke:#6b6b6b; stroke-width:1.5; fill:none; marker-end:url(#arrg); stroke-dasharray:6 5; }
+    .lane { fill:none; stroke:#e4ded5; stroke-width:1; stroke-dasharray:4 4; rx:14; }
+  </style>
+  <text x="450" y="34" class="t" font-size="21" font-weight="bold">Multi-Agent Development: תזמור, בידוד ואישור אנושי</text>
+
+  <!-- human -->
+  <rect x="350" y="58" width="200" height="60" rx="12" class="box accent"/>
+  <text x="450" y="84" class="t">המפתח</text>
+  <text x="450" y="104" class="en">Goal + Contract + Ownership</text>
+
+  <!-- orchestrator -->
+  <rect x="320" y="160" width="260" height="76" rx="12" class="box accent"/>
+  <text x="450" y="188" class="t">Orchestrator (Session ראשי)</text>
+  <text x="450" y="210" class="en">decompose / assign / integrate</text>
+  <text x="450" y="228" class="s">מחזיק את החוזה המשותף</text>
+
+  <!-- isolation lane -->
+  <rect x="40" y="272" width="820" height="150" class="lane"/>
+  <text x="820" y="292" class="s">כל Subagent: Context Window נפרד + Worktree נפרד</text>
+
+  <!-- three subagents -->
+  <rect x="70" y="310" width="220" height="90" rx="12" class="box"/>
+  <text x="180" y="338" class="t">Docs Agent</text>
+  <text x="180" y="360" class="en">owns: README, docs/</text>
+  <text x="180" y="382" class="en">worktree: docs-comments</text>
+
+  <rect x="340" y="310" width="220" height="90" rx="12" class="box"/>
+  <text x="450" y="338" class="t">Tester Agent</text>
+  <text x="450" y="360" class="en">owns: tests/</text>
+  <text x="450" y="382" class="en">worktree: tests-comments</text>
+
+  <rect x="610" y="310" width="220" height="90" rx="12" class="box"/>
+  <text x="720" y="338" class="t">Reviewer Agent</text>
+  <text x="720" y="360" class="en">read-only: Read / Grep / Glob</text>
+  <text x="720" y="382" class="en">reports gaps, edits nothing</text>
+
+  <!-- gate -->
+  <rect x="290" y="460" width="320" height="76" rx="12" class="gate"/>
+  <text x="450" y="488" class="t">שער אישור אנושי</text>
+  <text x="450" y="508" class="en">review PRs / merge order / integration tests</text>
+  <text x="450" y="526" class="s">רק אדם ממזג ל-main</text>
+
+  <!-- edges: human -> orchestrator -->
+  <path class="edge" d="M 450 118 L 450 156"/>
+  <!-- orchestrator -> agents -->
+  <path class="edge" d="M 380 236 C 300 260 220 280 190 306"/>
+  <path class="edge" d="M 450 236 L 450 306"/>
+  <path class="edge" d="M 520 236 C 600 260 680 280 710 306"/>
+  <!-- agents -> gate (results) -->
+  <path class="edge" d="M 190 400 C 220 440 270 460 300 476"/>
+  <path class="edge" d="M 450 400 L 450 456"/>
+  <path class="edge" d="M 710 400 C 680 440 630 460 600 476"/>
+  <!-- feedback loop gate -> human -->
+  <path class="back" d="M 610 500 C 780 470 800 200 560 90"/>
+  <text x="790" y="250" class="s">ממצאים חוזרים למפתח</text>
+  <text x="790" y="268" class="en">rework / re-review</text>
+  <!-- budget note -->
+  <text x="450" y="575" class="s">לכל סוכן: תקציב, מגבלת סבבים ותנאי עצירה; חריגה מסלימה לאדם</text>
+</svg>

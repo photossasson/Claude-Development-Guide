@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 37: Architecture ו-Design Review</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ח | פרק 37</p>
+  <h1>Architecture ו-Design Review</h1>
+  <p class="lead">סקירת <bdi>Architecture</bdi> ו-<bdi>Design</bdi> היא הרגע שבו שואלים "האם אנחנו בונים את הדבר הנכון, בדרך שתחזיק מעמד?" לפני שכותבים קוד או ממזגים אותו. בפרק הזה נלמד להפעיל את <bdi>Claude Code</bdi> כאנליסט קריאה-בלבד: מיפוי רכיבים ותלויות, איתור הפרות שכבות, ניסוח <bdi>ADR</bdi>, מידול איומים בסגנון <bdi>STRIDE</bdi>, סקירת זרימת נתונים, <bdi>API</bdi>, דרישות לא-פונקציונליות ותלויות, ביקורת של תוכנית בנייה לפני יישום, וזיהוי סטייה בין תיעוד לקוד. לאורך כל הפרק חוזר כלל אחד: Claude מספק ניתוח והמלצות; בני אדם מחזיקים בהחלטות ה-<bdi>Architecture</bdi> ובאחריות עליהן.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what">מהי סקירת Architecture ו-Design ואיזו בעיה היא פותרת</h2>
+  <p>סקירת <bdi>Architecture</bdi> בוחנת את המבנה של המערכת: אילו רכיבים קיימים, איך הם תלויים זה בזה, איפה עוברים הנתונים ואיפה עוברים גבולות האמון. סקירת <bdi>Design</bdi> בוחנת החלטה ספציפית לפני שהיא הופכת לקוד: האם הפתרון המוצע מתאים לבעיה, מה החלופות, ומה המחיר לטווח ארוך. שתיהן שונות מ-<bdi>Code Review</bdi> רגיל (<a href="ch09.html">פרק 9</a> ו-<a href="ch28.html">פרק 28</a>), שבודק שורות קוד קונקרטיות אחרי שנכתבו.</p>
+  <p>הבעיה שהסקירה פותרת היא בעיה של עלות: טעות בשורת קוד עולה דקות לתקן; טעות במבנה עולה שבועות, כי היא מתפשטת לכל מה שנבנה מעליה. הקושי המסורתי הוא שסקירה כזו דורשת מישהו שקורא את כל הקוד הרלוונטי, זוכר את התלויות ומצליב אותן מול התיעוד. זו עבודה יקרה ומשעממת, ולכן היא לעיתים קרובות לא נעשית כלל. כאן בדיוק Claude מועיל: הוא קורא הרבה קבצים במהירות, לא מתעייף מהצלבות, ומחזיר תמונה מבוססת ראיות שאתם יכולים לאשר, לתקן או לדחות.</p>
+
+  <h2 id="core-rule">הכלל המרכזי: Claude מנתח, בני אדם מחליטים</h2>
+  <p>לפני שנצלול לטכניקות, חשוב לקבע את חלוקת התפקידים. בכל מה שקשור ל-<bdi>Architecture</bdi>, Claude הוא יועץ, לא בעל ההחלטה. שלוש סיבות מהותיות:</p>
+  <ol>
+    <li><strong>אחריות (Accountability).</strong> כשמערכת נופלת בייצור, מישהו צריך להסביר למה נבחר מבנה מסוים. "המודל המליץ" אינה תשובה מקצועית. החלטת <bdi>Architecture</bdi> היא התחייבות של הצוות, ומי שחותם עליה צריך להבין ולעמוד מאחוריה.</li>
+    <li><strong>הקשר שמחוץ ל-Repository.</strong> Claude רואה את מה שקיים בקבצים וב-<bdi>Git History</bdi>. הוא לא רואה את התקציב, את החוזה עם הלקוח, את הכישורים של הצוות, את מפת הדרכים לשנה הבאה, או את הסיבה הפוליטית שבגללה מערכת ישנה עדיין חיה. חלק גדול מהחלטות ה-<bdi>Architecture</bdi> נקבע דווקא על ידי הגורמים האלה.</li>
+    <li><strong>תמריצים.</strong> מודל שמתבקש "למצוא בעיות" ימצא בעיות; מודל שמתבקש "להמליץ" ימליץ בביטחון. התיעוד הרשמי מציין במפורש שסוקר שהתבקש למצוא פערים ידווח בדרך כלל על כמה גם כשהעבודה תקינה. הביקורת של Claude אינה מכוילת לפי מה שחשוב לעסק שלכם, אלא לפי מה שביקשתם. אתם הפילטר.</li>
+  </ol>
+  <div class="callout tip"><span class="title">Best Practice</span><p>נסחו כל בקשת סקירה עם שלושה חלקים: היקף (מה בודקים), קריטריונים (מה נחשב ממצא) ופורמט פלט (טבלה, רשימה מדורגת, מסמך). ואז התייחסו לתוצאה כאל טיוטה של יועץ חיצוני: קראו, אמתו מול הקוד, החליטו.</p></div>
+
+  <h2 id="when">מתי להשתמש ומתי לא</h2>
+  <p><strong>מתי כן:</strong></p>
+  <ul>
+    <li>לפני התחלת <bdi>Feature</bdi> שנוגע ביותר ממודול אחד, כדי לאשר תוכנית לפני שנכתב קוד (בהמשך ל-<a href="ch07.html">פרק 7</a>).</li>
+    <li>לפני <bdi>Merge</bdi> של שינוי מבני: הוספת שכבה, החלפת ספרייה מרכזית, שינוי חוזה <bdi>API</bdi>.</li>
+    <li>בכניסה לפרויקט קיים (<a href="ch06.html">פרק 6</a>) או <bdi>Legacy</bdi> (<a href="ch36.html">פרק 36</a>), כשאין תיעוד עדכני.</li>
+    <li>לפני ביקורת אבטחה או תאימות, כאשר צריך מיפוי איומים וסיווג נתונים.</li>
+    <li>באופן מחזורי, למשל אחת לרבעון, כדי לגלות סחף בין התיעוד לבין המציאות.</li>
+  </ul>
+  <p><strong>מתי לא:</strong></p>
+  <ul>
+    <li>לשינויים זעירים ומקומיים. סקירת מבנה לתיקון שגיאת כתיב היא בזבוז <bdi>Tokens</bdi> וזמן.</li>
+    <li>כתחליף לדיון צוותי. Claude מכין חומר לדיון; הוא לא מחליף את הדיון.</li>
+    <li>כשההחלטה תלויה בעיקר בגורמים שאינם בקוד (עלות רישוי, כישורי צוות, לוחות זמנים). אפשר לבקש מ-Claude לרשום את השיקולים, אבל השקילה היא שלכם.</li>
+  </ul>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>הפרק מניח שאתם יודעים לחקור <bdi>Repository</bdi> במצב קריאה-בלבד (<a href="ch06.html">פרק 6</a>), לעבוד ב-<bdi>Plan Mode</bdi> (<a href="ch07.html">פרק 7</a>) ולהגדיר <bdi>Subagents</bdi> (<a href="ch25.html">פרק 25</a>). הדוגמאות רצות על <bdi>TaskFlow</bdi> מהתיקייה <code>examples/taskflow</code>.</p></div>
+
+  <h2 id="how">איך זה עובד מושגית: סוקר קריאה-בלבד</h2>
+  <p>סקירת <bdi>Architecture</bdi> היא לולאת <bdi>Agentic</bdi> שמורכבת כמעט רק מקריאות: <code>Read</code>, <code>Grep</code>, <code>Glob</code>, ולעיתים <code>Bash</code> לפקודות כמו <code>git log</code>. שום דבר לא צריך להשתנות. לכן שלוש דרכי ההגנה מפרק 6 תקפות גם כאן: ניסוח מפורש ("research only"), מצב ברירת המחדל שעוצר כל עריכה, ו-<bdi>Plan Mode</bdi> כאכיפה. הדרך הנקייה ביותר לסקירה שלמה היא לפתוח את ה-<bdi>Session</bdi> כך:</p>
+  <div class="terminal"><span class="p">$</span> cd examples/taskflow
+<span class="p">$</span> claude --permission-mode plan</div>
+  <p>יש שתי דרכים לארגן את הסקירה, ושתיהן לגיטימיות:</p>
+  <ul>
+    <li><strong>בשיחה הראשית.</strong> מתאים לסקירה קצרה, כשאתם רוצים לשאול שאלות המשך ולנווט בעצמכם.</li>
+    <li><strong>ב-Subagent ייעודי.</strong> מתאים לסקירה רחבה. ה-<bdi>Subagent</bdi> קורא עשרות קבצים ב-<bdi>Context Window</bdi> נפרד ומחזיר רק סיכום, כך שהשיחה הראשית נשארת נקייה. במדריך הזה מוגדרים כבר שני סוקרים בתיקייה <code>subagents/</code>: <code>architecture-reviewer</code> (כלים: <code>Read, Grep, Glob</code> בלבד, זיכרון פרויקט) ו-<code>security-reviewer</code> (כולל <code>Bash</code> ל-<code>git diff</code>, קריאה-בלבד). העתיקו אותם ל-<code>.claude/agents/</code> של הפרויקט כפי שהוסבר ב-<a href="ch25.html">פרק 25</a>.</li>
+  </ul>
+  <p>עיקרון נוסף מהתיעוד הרשמי: <bdi>Context</bdi> טרי משפר סקירה, כי הסוקר לא מוטה כלפי קוד או תוכנית שהוא עצמו ייצר. לכן דפוס "הסוקר השני" (Adversarial Reviewer) חוזר לאורך הפרק: אחרי שהשיחה הראשית ניסחה ניתוח, מבקשים מ-<bdi>Subagent</bdi> טרי לנסות להפריך אותו.</p>
+
+  <h2 id="mapping">מיפוי Architecture: ארבעה Prompts</h2>
+  <p>הצעד הראשון בכל סקירה הוא מפה. ארבעה <bdi>Prompts</bdi> מכסים את רוב הצרכים. הריצו אותם בזה אחר זה באותו <bdi>Session</bdi>, כדי שכל תשובה תבנה על קודמתה.</p>
+  <h3>1. מפת רכיבים</h3>
+  <div class="codeblock">
+    <div class="codehead">prompt (plan mode)</div>
+    <pre><code>Research only, do not modify files.
+Produce a component map of this repository: for each top-level component
+(backend app, routers, storage layer, models, frontend app, API client, CI),
+give: responsibility (one sentence), entry file(s), what it depends on,
+what depends on it. Output as a table, then a short list of anything
+that does not fit the layering described in CLAUDE.md.</code></pre>
+  </div>
+  <h3>2. גרף תלויות</h3>
+  <div class="codeblock">
+    <div class="codehead">prompt (plan mode)</div>
+    <pre><code>Build a dependency graph of the backend package: list every import
+between modules under backend/app/ (module A -&gt; module B). Then render it
+as a Mermaid graph LR diagram. Flag any cycle and any import that goes
+from a lower layer (database) to a higher layer (routers).</code></pre>
+  </div>
+  <h3>3. הפרות שכבות</h3>
+  <div class="codeblock">
+    <div class="codehead">prompt (plan mode)</div>
+    <pre><code>Assume the intended layering is: routers -&gt; models/services -&gt; database.
+Search for layer violations: SQL strings outside database.py, HTTP
+concerns (status codes, request objects) inside the storage layer,
+frontend code that hardcodes backend URLs instead of using api.ts.
+For each finding give file:line, why it is a violation, and the cheapest fix.
+If you find none, say so explicitly.</code></pre>
+  </div>
+  <h3>4. זיהוי גבולות</h3>
+  <div class="codeblock">
+    <div class="codehead">prompt (plan mode)</div>
+    <pre><code>Identify the boundaries of this system: process boundaries (browser,
+API server, database file), trust boundaries (where untrusted input enters),
+and ownership boundaries (which directory a hypothetical frontend team vs
+backend team would own). For each boundary, name the file(s) that implement
+the crossing (e.g. CORS setup, fetch calls, sqlite3.connect).</code></pre>
+  </div>
+  <p>תוצאה צפויה (המחשה) לשאלת הפרות השכבות ב-<bdi>TaskFlow</bdi>:</p>
+  <div class="terminal"><span class="out">המחשה: פלט מקוצר
+Layer violations found: 1
+1. backend/app/routers/tasks.py:10  _row_to_task() maps a raw sqlite3.Row
+   into a Task model inside the router. This couples the HTTP layer to the
+   column order of the tasks table. Cheapest fix: move the mapper into
+   database.py (or a new repository module) and return Task objects.
+No SQL strings found outside database.py. Frontend uses api.ts consistently.</span></div>
+  <p>שימו לב למבנה התשובה: מיקום מדויק, סיבה, תיקון זול. אם התשובה שאתם מקבלים אינה במבנה הזה, בקשו אותו במפורש. וכמו תמיד, לפני שאתם מסמנים ממצא כאמיתי, פתחו את הקובץ ובדקו.</p>
+
+  <div class="verify"><strong>אימות המיפוי:</strong> לפני שממשיכים, בדקו שלושה דברים: (1) כל רכיב בטבלה מצביע על קובץ שקיים בפועל (הריצו <code>ls</code> על הנתיבים); (2) גרף התלויות תואם ל-<code>import</code> אמיתי לפחות בשני מודולים שבחרתם אקראית; (3) כל "הפרת שכבות" נפתחה בעורך ואושרה או נדחתה על ידיכם. רק ממצאים שעברו את הבדיקה נכנסים למסמכי ה-<code>docs/</code>.</div>
+
+  <h2 id="adr">ADR: תיעוד החלטות Architecture</h2>
+  <p><bdi>ADR</bdi> (Architecture Decision Record) הוא מסמך קצר, קובץ אחד להחלטה אחת, שמתעד הקשר, החלטה, חלופות והשלכות. הערך שלו מתגלה אחרי חצי שנה, כשמישהו שואל "למה בחרנו ככה?". Claude מצטיין בניסוח הטיוטה, כי הוא רואה את הקוד ואת ההיסטוריה; אתם מצטיינים בהוספת ההקשר העסקי ובחתימה.</p>
+  <h3>תבנית</h3>
+  <div class="codeblock">
+    <div class="codehead">docs/adr/0000-template.md</div>
+    <pre><code># ADR-NNNN: &lt;short decision title&gt;
+
+- Status: Proposed | Accepted | Superseded by ADR-XXXX
+- Date: YYYY-MM-DD
+- Deciders: &lt;names, humans only&gt;
+- Drafted with: Claude Code (analysis); decision owned by deciders
+
+## Context
+What forces are at play: technical, business, team, timeline.
+
+## Decision
+The decision, stated in one or two sentences, in the active voice.
+
+## Alternatives considered
+For each: what it is, why it was not chosen.
+
+## Consequences
+Positive, negative, and neutral. What becomes easier, what becomes harder.
+
+## Follow-ups
+Concrete tasks, owners, revisit date.</code></pre>
+  </div>
+  <h3>Prompt לטיוטה</h3>
+  <div class="codeblock">
+    <div class="codehead">prompt (plan mode)</div>
+    <pre><code>Draft an ADR using docs/adr/0000-template.md for the decision:
+"Keep raw sqlite3 in TaskFlow vs adopt SQLAlchemy".
+Base the Context section on what you can verify in the code (database.py,
+routers/tasks.py, tests, CLAUDE.md conventions). List at least three
+alternatives. Mark every statement you cannot verify from the repository
+with [ASSUMPTION]. Set Status to Proposed. Do not decide; present the
+tradeoffs and leave the Decision section as two options for the deciders.</code></pre>
+  </div>
+  <p>טיוטה שחוזרת (המחשה, מקוצרת):</p>
+  <div class="codeblock">
+    <div class="codehead">docs/adr/0003-sqlite3-vs-sqlalchemy.md (draft, המחשה)</div>
+    <pre><code># ADR-0003: Keep raw sqlite3 vs adopt SQLAlchemy
+
+- Status: Proposed
+- Date: 2026-07-29
+- Deciders: [ASSUMPTION] backend lead
+- Drafted with: Claude Code (analysis); decision owned by deciders
+
+## Context
+TaskFlow's storage layer is a single module (backend/app/database.py) using
+the standard-library sqlite3 with parameterized SQL and a context-managed
+connection. CLAUDE.md states "no ORM; parameterized SQL only". There is one
+table (tasks) with a CHECK constraint that is the source of truth for
+status values. Tests point TASKFLOW_DB at a temp file.
+[ASSUMPTION] The team expects to add comments and users within two releases.
+
+## Decision
+Option A: keep sqlite3, add a small repository module for row mapping.
+Option B: adopt SQLAlchemy Core (not ORM) with Alembic migrations.
+
+## Alternatives considered
+1. SQLAlchemy ORM: most features, largest conceptual jump, conflicts with
+   the "no ORM" convention; would require rewriting the CHECK-based enum.
+2. SQLAlchemy Core: typed query building and migrations without ORM
+   sessions; moderate cost.
+3. Keep sqlite3 and hand-written migrations: zero new dependencies; cost
+   grows with each new table.
+
+## Consequences
+A: no dependency change, fastest now, manual migrations later.
+B: one new dependency, migration tooling, learning curve, easier growth.
+
+## Follow-ups
+- Decide by: [ASSUMPTION] next planning meeting
+- If B: spike Alembic on a branch, measure test runtime</code></pre>
+  </div>
+  <p>עכשיו החלק שלכם: מוחקים או מאשרים כל <code>[ASSUMPTION]</code>, בוחרים אופציה, מוסיפים שיקולים שאינם בקוד (למשל: "אין לנו ניסיון עם Alembic ואנחנו לפני שחרור"), משנים ל-<code>Accepted</code> וחותמים בשם. הקובץ נכנס ל-<bdi>Commit</bdi> יחד עם השינוי שמיישם אותו. אל תתנו ל-Claude לשנות סטטוס ל-<code>Accepted</code>; זה הרגע שבו האחריות עוברת אליכם, וזה צריך להיות מעשה מכוון.</p>
+
+  <h2 id="threat">מידול איומים בסגנון STRIDE</h2>
+  <p>מידול איומים שואל "מה יכול להשתבש, איפה, ומה נעשה בעניין". <bdi>STRIDE</bdi> הוא ראשי תיבות של שש קטגוריות איום: <bdi>Spoofing</bdi> (התחזות), <bdi>Tampering</bdi> (שיבוש נתונים), <bdi>Repudiation</bdi> (הכחשת פעולה), <bdi>Information Disclosure</bdi> (חשיפת מידע), <bdi>Denial of Service</bdi> (מניעת שירות) ו-<bdi>Elevation of Privilege</bdi> (הסלמת הרשאות). התהליך המומלץ: Claude מציע, אתם מאמתים ומדרגים.</p>
+  <h3>שלב א: גבולות אמון וסיווג נתונים</h3>
+  <div class="codeblock">
+    <div class="codehead">prompt (plan mode)</div>
+    <pre><code>Threat modeling, research only.
+1) List the trust boundaries of TaskFlow: browser -&gt; API, API -&gt; SQLite
+   file, CI -&gt; repository. For each, name the code that sits on the boundary.
+2) Classify every data element that crosses a boundary (task title,
+   description, status, id, created_at, DB path env var) as
+   Public / Internal / Confidential / Secret, and state where it is stored,
+   logged, or returned.
+3) Then run a STRIDE pass over every API endpoint in routers/tasks.py and
+   main.py. Output a table: Endpoint | STRIDE category | Threat |
+   Existing mitigation (cite file:line or "none") | Proposed mitigation |
+   Severity (your estimate, to be validated by a human).</code></pre>
+  </div>
+  <p>טבלה שחוזרת (המחשה, שורות נבחרות):</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Endpoint</th><th>קטגוריה</th><th>איום</th><th>הגנה קיימת</th><th>הגנה מוצעת</th><th>חומרה (הצעה)</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr">POST /tasks</td><td><bdi>Tampering</bdi></td><td>כותרת ארוכה מאוד או תוכן זדוני</td><td>Pydantic מאמת טיפוסים; אין מגבלת אורך</td><td>הוספת <code>max_length</code> ב-<code>TaskCreate</code></td><td>Medium</td></tr>
+        <tr><td class="ltr">PATCH /tasks/{id}</td><td><bdi>Spoofing</bdi></td><td>כל משתמש יכול לערוך כל משימה</td><td>אין (אין Auth כלל)</td><td>הוספת אימות ובעלות על משימה</td><td>High (אם המערכת חשופה)</td></tr>
+        <tr><td class="ltr">GET /tasks</td><td><bdi>Information Disclosure</bdi></td><td>חשיפת כל המשימות לכל דורש</td><td>אין</td><td>סינון לפי משתמש לאחר הוספת Auth</td><td>High (אם המערכת חשופה)</td></tr>
+        <tr><td class="ltr">GET /tasks</td><td><bdi>Denial of Service</bdi></td><td>אין Pagination; רשימה ענקית</td><td>אין</td><td>Pagination + מגבלת גודל</td><td>Low</td></tr>
+        <tr><td class="ltr">*</td><td><bdi>Repudiation</bdi></td><td>אין רישום מי שינה מה</td><td>אין</td><td>Audit log מינימלי אחרי Auth</td><td>Low</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>העמודה "חומרה" מסומנת בכוונה כהצעה. הדירוג האמיתי תלוי בשאלה שרק אתם יכולים לענות עליה: האם <bdi>TaskFlow</bdi> רץ על <code>localhost</code> של מפתח יחיד או חשוף לאינטרנט? Claude לא יודע. תוצר הסקירה הופך למסמך <code>docs/threat-model.md</code> שאתם עורכים, ולרשימת משימות שמקושרות ל-<bdi>ADR</bdi> הרלוונטי (בפרק זה: הוספת <bdi>Auth</bdi>, ראו התרגיל).</p>
+  <div class="callout warn"><span class="title">אזהרה</span><p>מידול איומים אינו בדיקת חדירה. Claude מזהה דפוסים בקוד; הוא לא מוכיח שאיום ניתן לניצול ולא מוכיח שאיום אינו קיים. אל תציגו טבלת <bdi>STRIDE</bdi> שנוצרה על ידי מודל כאישור אבטחה.</p></div>
+
+  <h2 id="dfd">סקירת זרימת נתונים</h2>
+  <p>תרשים זרימת נתונים (<bdi>DFD</bdi>) מראה מאיפה נתון נכנס, דרך אילו תהליכים הוא עובר, איפה הוא נשמר ולאן הוא יוצא. זה הכלי הטוב ביותר למצוא מסלולים שבהם מידע רגיש דולף ללוגים, לתשובות שגיאה או ל-<bdi>Frontend</bdi>.</p>
+  <div class="codeblock">
+    <div class="codehead">prompt (plan mode)</div>
+    <pre><code>Draw a level-1 data flow diagram of TaskFlow as a Mermaid flowchart:
+external entities (browser user), processes (Vite dev server / proxy,
+FastAPI app, routers, storage layer), data stores (taskflow.db),
+and data flows with the payload named on each edge.
+Then trace the path of the TASKFLOW_DB environment variable and of any
+error message from the database up to the HTTP response, and tell me
+whether internal details (paths, SQL, stack traces) can reach the client.</code></pre>
+  </div>
+  <p>הנקודה שלרוב עולה בסקירה כזו: מסלולי שגיאה. חריגה מ-<code>sqlite3</code> שלא נתפסת עלולה להפוך לתשובת <code>500</code> עם פרטים פנימיים, בהתאם להגדרות ה-<bdi>Debug</bdi> של השרת. הבקשה "tell me whether internal details can reach the client" מכריחה את Claude להסתכל על מסלול השגיאה ולא רק על המסלול השמח. את התרשים שחוזר שומרים ב-<code>docs/architecture/dfd.md</code>, ובודקים אחת לכמה זמן שהוא עדיין נכון (ראו סעיף הסחף בהמשך).</p>
+
+  <h2 id="api">סקירת API</h2>
+  <p>סקירת <bdi>API</bdi> בודקת את החוזה בין צרכן לספק, לא את המימוש. ארבעה צירים:</p>
+  <ul>
+    <li><strong>חוזים (Contracts).</strong> האם הסכמה של הבקשה והתשובה מוגדרת במקום אחד? ב-<bdi>TaskFlow</bdi>: מודלי <bdi>Pydantic</bdi> ב-<bdi>Backend</bdi> ו-<code>types.ts</code> ב-<bdi>Frontend</bdi>. האם הם מסונכרנים?</li>
+    <li><strong>גרסאות (Versioning).</strong> מה יקרה כשנשנה שדה? האם יש נתיב <code>/v1/</code>, כותרת גרסה, או לפחות מדיניות?</li>
+    <li><strong>סמנטיקת שגיאות.</strong> האם קודי הסטטוס עקביים (404 לחסר, 422 לקלט לא תקין, 409 להתנגשות)? האם גוף השגיאה במבנה אחיד?</li>
+    <li><strong>אידמפוטנטיות (Idempotency).</strong> האם קריאה חוזרת של <code>PATCH</code> או <code>DELETE</code> נותנת אותה תוצאה? האם <code>POST</code> חוזר יוצר כפילויות, ואם כן, האם צריך <bdi>Idempotency Key</bdi>?</li>
+  </ul>
+  <div class="codeblock">
+    <div class="codehead">prompt (plan mode)</div>
+    <pre><code>Review the TaskFlow HTTP API as a contract. For each endpoint list:
+method, path, request schema, response schema, status codes actually
+returned (read the code, do not guess), and whether it is idempotent.
+Then compare backend models.py against frontend src/types.ts and report
+any field or enum mismatch. Finally, propose a versioning policy in three
+sentences and list the breaking changes that would trigger it.</code></pre>
+  </div>
+  <p>תוצאה צפויה (המחשה): טבלה של שישה <bdi>Endpoints</bdi> (חמישה של משימות ועוד <code>/health</code>), שבה <code>POST /tasks</code> מסומן כלא אידמפוטנטי, <code>PATCH</code> ו-<code>DELETE</code> מסומנים כאידמפוטנטיים, וכל קודי הסטטוס נלקחו מהקוד עצמו (<code>201</code>, <code>204</code>, <code>404</code>, ו-<code>422</code> שמגיע מ-<bdi>FastAPI</bdi> על קלט לא תקין). בהשוואת הטיפוסים צפוי דיווח שערכי הסטטוס תואמים בין ה-<code>CHECK</code> ב-<bdi>Database</bdi> לבין <code>TaskStatus</code> ב-<code>types.ts</code>, בהתאם לקונבנציה ב-<code>CLAUDE.md</code>. אם Claude מדווח על אי-התאמה, זו הזדמנות טובה לבדוק מי צודק: הקוד, התיעוד או המודל.</p>
+  <p>הביטוי "read the code, do not guess" חשוב: בלי הנחיה כזו, מודל עלול להשלים מהזיכרון קודי סטטוס "סבירים" שאינם קיימים בקוד. סקירת <bdi>API</bdi> טובה היא סקירה של מה שיש, לא של מה שאמור להיות.</p>
+
+  <h2 id="nfr">סקירת דרישות לא-פונקציונליות (NFR)</h2>
+  <p>דרישות לא-פונקציונליות הן איך המערכת מתנהגת, לא מה היא עושה. שלוש רשימות בדיקה שאפשר להעביר ל-Claude כ-<bdi>Checklist</bdi> ולבקש דירוג "קיים / חלקי / חסר" עם ראיה מהקוד לכל פריט:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תחום</th><th>שאלות לבדיקה</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>Scalability</bdi></td><td>מה הצוואר הראשון שיישבר תחת עומס? האם יש <bdi>Pagination</bdi>? האם חיבורי <bdi>Database</bdi> נפתחים לכל בקשה? האם יש מצב משותף בזיכרון שמונע ריצה של יותר ממופע אחד?</td></tr>
+        <tr><td><bdi>Availability</bdi></td><td>האם יש <code>/health</code> ומה הוא בודק באמת? מה קורה כשקובץ ה-<bdi>Database</bdi> נעול? האם יש <bdi>Timeouts</bdi> ו-<bdi>Retries</bdi> בצד הלקוח? איך המערכת עולה מחדש?</td></tr>
+        <tr><td><bdi>Observability</bdi></td><td>האם יש <bdi>Logging</bdi> מובנה, ובאיזה פורמט? האם לכל בקשה יש מזהה? האם יש מדדים (latency, error rate)? האם שגיאות נרשמות עם הקשר מספיק לאבחון, ובלי מידע רגיש?</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">prompt (plan mode)</div>
+    <pre><code>Score TaskFlow against this NFR checklist. For each item answer
+Present / Partial / Missing, cite the file:line that proves it, and give
+a one-line remediation. Do not propose new frameworks; prefer the
+smallest change consistent with CLAUDE.md.
+[paste the checklist table]</code></pre>
+  </div>
+  <p>ההנחיה "do not propose new frameworks" היא דוגמה לשליטה בתמריצים: בלי הגבלה, סקירת <bdi>NFR</bdi> נוטה להמליץ על ערימה של כלים. אתם רוצים ממצאים, לא רשימת קניות.</p>
+
+  <h2 id="deps">ניתוח תלויות</h2>
+  <p>ניתוח תלויות עונה על שלוש שאלות: מה אנחנו מריצים, באיזה רישיון, ומה הסיכון. Claude יכול להפיק רשימה בסגנון <bdi>SBOM</bdi> (Software Bill of Materials) מקובצי המניפסט, אך שימו לב לגבול: הוא קורא את <code>requirements.txt</code> ואת <code>package.json</code>, לא את הרשומות העדכניות של פגיעויות. את בדיקת הפגיעויות בפועל עושים כלים ייעודיים (<code>pip-audit</code>, <code>npm audit</code>), ו-Claude יכול להריץ אותם ולפרש את הפלט.</p>
+  <div class="codeblock">
+    <div class="codehead">prompt</div>
+    <pre><code>Produce an SBOM-style table of TaskFlow's direct dependencies from
+backend/requirements.txt and frontend/package.json:
+Package | Ecosystem | Declared version range | Purpose in this project |
+License (only if you can verify it from node_modules or site-packages
+metadata; otherwise write "verify") | Risk notes (pinning, transitive
+weight, maintenance).
+Then run `pip-audit` (if installed) and `npm audit --omit=dev` and
+summarize the results. Do not upgrade anything.</code></pre>
+  </div>
+  <p>תוצאה צפויה (המחשה, חלקית):</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Package</th><th>Ecosystem</th><th>Range</th><th>תפקיד</th><th>רישיון</th><th>הערות סיכון</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr">fastapi</td><td class="ltr">pip</td><td class="ltr">&gt;=0.115</td><td>מסגרת ה-API</td><td>verify</td><td>טווח פתוח כלפי מעלה; לשקול הצמדה ל-Minor ב-CI</td></tr>
+        <tr><td class="ltr">uvicorn[standard]</td><td class="ltr">pip</td><td class="ltr">&gt;=0.30</td><td>שרת ASGI</td><td>verify</td><td>extra "standard" מושך תלויות בינאריות</td></tr>
+        <tr><td class="ltr">react</td><td class="ltr">npm</td><td class="ltr">^18.3.0</td><td>UI</td><td>verify</td><td>גרסה יציבה; לעקוב אחר 19</td></tr>
+        <tr><td class="ltr">vite</td><td class="ltr">npm (dev)</td><td class="ltr">^5.4.0</td><td>Build</td><td>verify</td><td>dev בלבד; לא נכנס ל-Bundle</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>הערך <code>verify</code> בעמודת הרישיון מכוון: אל תתנו למודל "לזכור" רישיונות. אם המידע אינו בקבצי המטא-דאטה המותקנים, הוא נשאר לבדיקה אנושית או לכלי ייעודי.</p>
+
+  <h2 id="plan-review">ביקורת תוכנית בנייה לפני יישום</h2>
+  <p>ב-<a href="ch07.html">פרק 7</a> למדנו לייצר תוכנית ב-<bdi>Plan Mode</bdi>. סקירת <bdi>Design</bdi> מוסיפה שלב: לפני שמאשרים את התוכנית, מבקשים מ-Claude, רצוי ב-<bdi>Context</bdi> טרי, לבקר אותה. שמרו את התוכנית לקובץ (<code>Ctrl+G</code> פותח אותה בעורך; העתיקו ל-<code>PLAN.md</code>), ואז:</p>
+  <div class="codeblock">
+    <div class="codehead">prompt (session חדש או subagent)</div>
+    <pre><code>Use the architecture-reviewer subagent to critique @PLAN.md before any
+implementation. Check: does the plan respect the layering in CLAUDE.md?
+Does it change any public API contract, and if so is that called out?
+What is missing (tests, migration, rollback, docs)? What could be
+simplified? Report only issues that would change the plan; ignore style.</code></pre>
+  </div>
+  <p>הביקורת חוזרת כרשימה קצרה. אתם מחליטים אילו הערות לקבל, מעדכנים את התוכנית, ורק אז יוצאים מ-<bdi>Plan Mode</bdi> ומיישמים. עלות השלב הזה היא כמה דקות וכמה אלפי <bdi>Tokens</bdi>; החיסכון הוא יישום שלם שלא צריך לזרוק.</p>
+
+  <h2 id="drift">זיהוי סטייה בין תיעוד לקוד</h2>
+  <p>תיעוד מזדקן מהר יותר מקוד. <bdi>README</bdi> שמתאר <bdi>Endpoint</bdi> שכבר לא קיים, תרשים <bdi>DFD</bdi> שלא כולל את הרכיב החדש, <bdi>CLAUDE.md</bdi> עם פקודת בדיקה ישנה. Claude טוב במיוחד במשימה הזו, כי היא הצלבה מכנית של שני מקורות.</p>
+  <div class="codeblock">
+    <div class="codehead">prompt (plan mode)</div>
+    <pre><code>Compare the documentation (README.md, CLAUDE.md, docs/**) against the
+code. Produce a drift report with three sections:
+1) Documented but not in code (stale docs)
+2) In code but not documented (missing docs), limited to public surface:
+   endpoints, env vars, commands, config files
+3) Documented incorrectly (wrong command, wrong path, wrong default)
+For each item cite the doc location and the code location. Do not edit
+any file; I will decide what to update.</code></pre>
+  </div>
+  <p>דוח סטייה (המחשה):</p>
+  <div class="terminal"><span class="out">המחשה: פלט מקוצר
+Drift report for TaskFlow (docs vs code)
+1) Stale docs: none found.
+2) Missing docs:
+   - GET /health (main.py:24) is not mentioned in README.md
+   - TASKFLOW_DB env var (database.py:11) documented only in a docstring
+3) Incorrect docs: none found.
+Suggested action: add an "Environment" section to README.md.</span></div>
+  <p>אחרי שאישרתם את הממצאים, אפשר לבקש מ-Claude לעדכן את התיעוד (עכשיו כבר במצב עריכה רגיל), אבל הסדר חשוב: קודם דוח, אחר כך החלטה, ורק אז שינוי. אפשר גם להריץ את הבדיקה הזו באופן אוטומטי ב-<bdi>CI</bdi> עם <code>claude -p</code> (<a href="ch33.html">פרק 33</a>) ולפרסם את הדוח כהערה על ה-<bdi>Pull Request</bdi>, בלי לתת לו הרשאות עריכה.</p>
+
+  <h2 id="files">מבנה קבצים: תוצרי הסקירה</h2>
+  <p>סקירה טובה משאירה אחריה קבצים, לא רק שיחה. כך נראית תיקיית <code>docs/</code> של <bdi>TaskFlow</bdi> לפני ואחרי סבב סקירה מלא:</p>
+  <div class="codeblock">
+    <div class="codehead">לפני</div>
+    <pre><code>examples/taskflow/
+  CLAUDE.md
+  README.md
+  backend/
+  frontend/</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">אחרי</div>
+    <pre><code>examples/taskflow/
+  CLAUDE.md
+  README.md
+  docs/
+    architecture/
+      components.md        (מפת רכיבים + גרף תלויות Mermaid)
+      dfd.md               (תרשים זרימת נתונים)
+    adr/
+      0000-template.md
+      0003-sqlite3-vs-sqlalchemy.md
+    threat-model.md
+    api-review.md
+    nfr-review.md
+    dependencies.md        (טבלת SBOM)
+    drift-report.md
+  backend/
+  frontend/</code></pre>
+  </div>
+  <p>כל קובץ נושא בראשו שורת מקור ("Drafted with Claude Code on 2026-07-29; reviewed by ...") ותאריך. כך גם מי שיקרא את המסמך בעוד שנה יידע מה מקורו ומי אחראי עליו. הקבצים נכנסים ל-<bdi>Git</bdi> ועוברים <bdi>Code Review</bdi> רגיל כמו קוד.</p>
+
+  <h2 id="advanced">דוגמה מתקדמת: דוח סטייה אוטומטי ב-CI</h2>
+  <p>ברגע שיש לכם <bdi>Prompt</bdi> סטייה שעובד, אפשר להריץ אותו באופן לא-אינטראקטיבי בכל <bdi>Pull Request</bdi>. שמרו את ה-<bdi>Prompt</bdi> בקובץ <code>prompts/drift.md</code> והריצו:</p>
+  <div class="terminal"><span class="p">$</span> claude -p "$(cat prompts/drift.md)"     --permission-mode plan     --output-format json     --max-turns 40     --max-budget-usd 2 | jq -r '.result' &gt; drift-report.md</div>
+  <p>הסבר הדגלים: <code>-p</code> מריץ ללא ממשק אינטראקטיבי; <code>--permission-mode plan</code> מבטיח קריאה-בלבד גם אם ה-<bdi>Prompt</bdi> ינוסח לא טוב; <code>--output-format json</code> מחזיר אובייקט עם השדה <code>result</code> ועם <code>total_cost_usd</code>; <code>--max-turns</code> ו-<code>--max-budget-usd</code> (שניהם זמינים רק עם <code>-p</code>) מגבילים את מספר הסבבים ואת ההוצאה. את הדוח אפשר לפרסם כהערה על ה-<bdi>PR</bdi> באמצעות <code>gh pr comment</code>. הרחבה על הרצה ב-<bdi>CI</bdi>, כולל <code>--bare</code> וניהול הרשאות, ב-<a href="ch33.html">פרק 33</a>. סיכון לניהול: הדוח נוצר בלי אדם בלולאה, ולכן הוא מוגש כהערה בלבד ולעולם לא כ-<bdi>Commit</bdi> אוטומטי לתיעוד.</p>
+
+  <h2 id="subagents">Subagents ייעודיים ודפוס הסוקר השני</h2>
+  <p>שני הסוקרים המוגדרים במדריך מתאימים בדיוק לפרק הזה. <code>architecture-reviewer</code> בודק מבנה, שכבות ותלויות ומדווח לפי השפעה (Blocking / Should fix / Consider); <code>security-reviewer</code> עוקב אחרי קלט חיצוני עד לנקודת הפענוח, האחסון או ההרצה. שניהם קריאה-בלבד ברמת הכלים, כך שגם אם ה-<bdi>Prompt</bdi> ינוסח לא טוב, הם לא יערכו קבצים.</p>
+  <p>דפוס הסוקר השני משלב אותם: אחרי שהשיחה הראשית (או סוקר ראשון) ניסחה מסקנה, מפעילים סוקר טרי עם משימה הפוכה:</p>
+  <div class="codeblock">
+    <div class="codehead">prompt</div>
+    <pre><code>Use the security-reviewer subagent as a second, adversarial reviewer.
+Here is the threat model produced earlier: @docs/threat-model.md.
+Do not repeat it. Try to refute it: find threats it missed, mitigations
+it overstates, and severity ratings you disagree with, with evidence
+from the code. If you agree with an item, say nothing about it.</code></pre>
+  </div>
+  <p>למה זה עובד: הסוקר השני לא רואה את שרשרת ההנמקה שהובילה למסקנה, רק את התוצר ואת הקוד. התיעוד הרשמי מתאר בדיוק את הדפוס הזה תחת "Add an adversarial review step". וזכרו את האזהרה שמופיעה שם: סוקר שהתבקש למצוא פערים ימצא פערים; בקשו ממנו לסמן רק מה שמשפיע על נכונות או על הדרישות, והתייחסו לשאר כאופציונלי.</p>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>קבלת ממצאים בלי לפתוח את הקובץ.</strong> כל ממצא צריך <code>file:line</code>, ואתם צריכים להסתכל שם.</li>
+    <li><strong>לתת ל-Claude "להחליט".</strong> "מה עדיף, A או B?" בלי הקשר יחזיר תשובה בטוחה בעצמה ולא בהכרח נכונה לכם. בקשו טבלת שיקולים, החליטו בעצמכם.</li>
+    <li><strong>סקירה במצב עריכה.</strong> אם ה-<bdi>Session</bdi> אינו ב-<bdi>Plan Mode</bdi> ואינו מוגבל לכלי קריאה, סקירה עלולה להפוך ל"תיקון קטן" לא מבוקש. פתחו ב-<code>--permission-mode plan</code>.</li>
+    <li><strong>Prompt בלי קריטריון.</strong> "review the architecture" יחזיר חיבור כללי. ציינו מה נחשב ממצא.</li>
+    <li><strong>הסתמכות על זיכרון המודל לרישיונות וגרסאות.</strong> דרשו "verify" או הרצה של כלי אמיתי.</li>
+    <li><strong>ADR שנכתב אחרי המעשה כדי להצדיק.</strong> ADR נכתב כשההחלטה מתקבלת, כולל החלופות שנדחו.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>סיבה סבירה</th><th>פתרון</th></tr></thead>
+      <tbody>
+        <tr><td>הסקירה שטחית ומדברת בכלליות</td><td>הפרויקט גדול והמודל לא קרא את הקבצים המרכזיים</td><td>מקדו: תנו רשימת קבצים או תיקייה, או האצילו ל-<bdi>Subagent</bdi> ייעודי לכל תחום</td></tr>
+        <tr><td>ממצאים סותרים בין הרצות</td><td>אי-דטרמיניזם רגיל של מודל שפה</td><td>בקשו ראיות (file:line) והתייחסו רק לממצאים מבוססים; הריצו סוקר שני</td></tr>
+        <tr><td>ה-<bdi>Context</bdi> מתמלא באמצע הסקירה</td><td>יותר מדי קבצים בשיחה הראשית</td><td>העבירו את המיפוי ל-<bdi>Subagent</bdi>; שמרו תוצרי ביניים לקבצים ב-<code>docs/</code>; השתמשו ב-<code>/compact</code> עם הנחיה לשמור ממצאים</td></tr>
+        <tr><td>Claude מציע לערוך למרות בקשה למחקר בלבד</td><td>הנחיית טקסט אינה אכיפה</td><td>עברו ל-<bdi>Plan Mode</bdi> או הגבילו כלים ב-<bdi>Subagent</bdi> (<code>tools: Read, Grep, Glob</code>)</td></tr>
+        <tr><td>ה-<bdi>Subagent</bdi> לא נבחר אוטומטית</td><td>שדה <code>description</code> לא מספיק ספציפי</td><td>קראו לו במפורש בשם ("Use the architecture-reviewer subagent"), ראו <a href="ch25.html">פרק 25</a></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="security">Security</h2>
+  <ul>
+    <li>סקירת <bdi>Architecture</bdi> היא קריאה-בלבד. הגבילו כלים ברמת ה-<bdi>Subagent</bdi>, לא רק ב-<bdi>Prompt</bdi>.</li>
+    <li>מסמכי מידול איומים הם עצמם מידע רגיש: הם מפרטים איפה המערכת חלשה. שמרו אותם ב-<bdi>Repository</bdi> פרטי או במערכת ניהול מסמכים עם הרשאות, לא ב-<bdi>Issue</bdi> ציבורי.</li>
+    <li>בסקירת זרימת נתונים, ודאו שהפלט של Claude עצמו אינו מכיל סודות שנקראו מקבצי סביבה. אם יש קבצי <code>.env</code> בפרויקט, הוסיפו <code>Read(.env)</code> לרשימת ה-<code>deny</code> (<a href="ch18.html">פרק 18</a>).</li>
+    <li>אל תציגו תוצרים שנוצרו על ידי מודל כאישור עמידה בתקן. הם קלט לתהליך אנושי.</li>
+  </ul>
+
+  <h2 id="cost">Cost ו-Context</h2>
+  <p>סקירה מלאה של פרויקט קטן כמו <bdi>TaskFlow</bdi> צורכת עשרות אלפי <bdi>Tokens</bdi> של קריאה; בפרויקט גדול, מאות אלפים. שלוש דרכים לשלוט בעלות: לפצל לתחומים ולהאציל ל-<bdi>Subagents</bdi> שמחזירים סיכום בלבד; לשמור תוצרי ביניים לקבצים ולהתחיל <bdi>Session</bdi> חדש לכל שלב (מיפוי, איומים, API) במקום שיחה אחת ארוכה; ולהשתמש בקבצי <code>docs/</code> שנוצרו בסקירה הקודמת כנקודת פתיחה במקום למפות מאפס. השתמשו ב-<code>/cost</code> כדי לראות את הצריכה של ה-<bdi>Session</bdi> הנוכחי.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>פתחו סקירות ב-<code>claude --permission-mode plan</code>.</li>
+    <li>דרשו <code>file:line</code> לכל ממצא, ובדקו לפחות מדגם.</li>
+    <li>הגדירו במפורש היקף, קריטריונים ופורמט פלט.</li>
+    <li>שמרו כל תוצר סקירה כקובץ ב-<code>docs/</code> תחת בקרת גרסאות.</li>
+    <li>סמנו הנחות ב-<code>[ASSUMPTION]</code> וסגרו אותן לפני קבלת החלטה.</li>
+    <li>הריצו סוקר שני ב-<bdi>Context</bdi> טרי לפני מסקנות מהותיות.</li>
+    <li>ADR נחתם על ידי בני אדם, וסטטוס <code>Accepted</code> נקבע ידנית.</li>
+    <li>חזרו על בדיקת הסחף אחרי כל שינוי מבני משמעותי.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>"Claude אמר".</strong> שימוש בפלט המודל כסמכות בדיון צוותי במקום כקלט לדיון.</li>
+    <li><strong>סקירה חד-פעמית.</strong> מיפוי שנעשה פעם אחת ולא מתעדכן הופך בעצמו לתיעוד סוטה.</li>
+    <li><strong>הצפת ממצאים.</strong> דוח של שישים פריטים ללא דירוג לא יטופל. דרשו דירוג לפי השפעה ומגבלה על מספר הפריטים.</li>
+    <li><strong>ADR שנכתב על ידי מודל ונחתם על ידי אף אחד.</strong></li>
+    <li><strong>ערבוב סקירה ותיקון באותו Session.</strong> קודם סקירה במצב קריאה, החלטה, ואז Session נפרד ליישום.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 37.1: ADR ומודל איומים להוספת Auth ל-TaskFlow</div>
+    <div class="body">
+      <p>ההנהלה החליטה ש-<bdi>TaskFlow</bdi> יוצא מ-<code>localhost</code> ויוגש לצוות של עשרים משתמשים. הכינו את שני המסמכים הבאים, בעזרת Claude כאנליסט ובלי לשנות קוד:</p>
+      <ol>
+        <li><code>docs/adr/0004-authentication.md</code>: ADR על מנגנון האימות (לפחות שלוש חלופות: Session cookie, JWT, הזדהות דרך ספק חיצוני כמו OAuth), עם סטטוס <code>Proposed</code>, כל הנחה מסומנת, ושתי אופציות בסעיף ההחלטה.</li>
+        <li><code>docs/threat-model.md</code>: טבלת <bdi>STRIDE</bdi> לכל ה-<bdi>Endpoints</bdi> אחרי הוספת Auth, כולל גבולות אמון וסיווג נתונים (כעת נוספים גם פרטי משתמש וסודות).</li>
+      </ol>
+      <p>לאחר מכן הריצו את <code>security-reviewer</code> כסוקר שני על מודל האיומים, קלטו לפחות ממצא אחד שלו, וקבלו החלטה אנושית: אילו שתי הגנות נכנסות ל-<bdi>Sprint</bdi> הראשון ולמה. תעדו את ההחלטה ב-<bdi>ADR</bdi> ושנו את הסטטוס בעצמכם.</p>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>שלב 1: הקשר.</strong> פתחו <code>claude --permission-mode plan</code> ב-<code>examples/taskflow</code>. הריצו את ה-<bdi>Prompt</bdi> של זיהוי הגבולות מהסעיף "מיפוי Architecture" כדי שהשיחה תכיר את המערכת.</p>
+      <p><strong>שלב 2: ADR.</strong> השתמשו ב-<bdi>Prompt</bdi> של הטיוטה עם ההחלטה "How should TaskFlow authenticate users when served to a 20-person team". דרשו שהחלופות יכללו: (א) Session cookie עם טבלת משתמשים ב-SQLite; (ב) JWT חתום, ללא מצב בשרת; (ג) OAuth מול ספק זהות ארגוני. Claude צפוי לציין שהאפשרות (א) הכי קרובה לקונבנציות הקיימות (אין תלויות חדשות כבדות, SQL פרמטרי), ש-(ב) דורש ניהול סודות ורענון, ו-(ג) מעביר את ניהול הסיסמאות החוצה אך תלוי בתשתית ארגונית. כל הנחה על "יש לארגון ספק זהות" תסומן <code>[ASSUMPTION]</code>. אתם סוגרים אותה: אם יש ספק זהות ארגוני, (ג) לרוב עדיפה; אם אין, (א) היא הצעד הראשון הסביר.</p>
+      <p><strong>שלב 3: מודל איומים.</strong> הריצו את ה-<bdi>Prompt</bdi> של <bdi>STRIDE</bdi> עם התוספת "assume the chosen ADR option is implemented". הטבלה צריכה לכלול כעת שורות חדשות: <bdi>Spoofing</bdi> על <code>POST /login</code> (Brute force, צורך ב-Rate limiting), <bdi>Information Disclosure</bdi> של סיסמאות בלוגים, <bdi>Elevation of Privilege</bdi> אם משתמש יכול לגשת למשימה של אחר (בדיקת בעלות בכל <bdi>Endpoint</bdi>), <bdi>Tampering</bdi> ב-Cookie ללא <code>HttpOnly</code>/<code>Secure</code>. סיווג הנתונים: סיסמה מוצפנת (Hash) = Secret; אימייל = Confidential; משימות = Internal.</p>
+      <p><strong>שלב 4: סוקר שני.</strong> הפעילו את <code>security-reviewer</code> עם ה-<bdi>Prompt</bdi> ההפוך מהסעיף "דפוס הסוקר השני". ממצא אופייני שהוא יוסיף: אין <bdi>CSRF</bdi> בטבלה, למרות שאימות מבוסס Cookie חשוף אליו; או שדירוג ה-<bdi>DoS</bdi> על <code>GET /tasks</code> צריך לעלות כי כעת המערכת חשופה לרשת.</p>
+      <p><strong>שלב 5: החלטה אנושית.</strong> בחירה סבירה ל-<bdi>Sprint</bdi> ראשון: (1) בדיקת בעלות בכל <bdi>Endpoint</bdi> של משימות, כי היא סוגרת את איום ההסלמה שהוא הכי חמור והכי זול; (2) הגנות Cookie ו-CSRF, כי הן קלות ליישום עם המסגרת הקיימת. Rate limiting ו-Audit log נדחים ל-<bdi>Sprint</bdi> הבא ומתועדים ב-Follow-ups. אתם משנים את הסטטוס ל-<code>Accepted</code>, מוסיפים את שמכם ל-Deciders, ומבצעים <bdi>Commit</bdi> לשני הקבצים.</p>
+      <p>הנקודה החינוכית: כל התוכן נכתב על ידי Claude; כל ההחלטות והחתימות הן שלכם.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>סקירת <bdi>Architecture</bdi> ו-<bdi>Design</bdi> עם <bdi>Claude Code</bdi> היא שימוש שיטתי במודל כאנליסט קריאה-בלבד: מיפוי רכיבים, תלויות, שכבות וגבולות; טיוטות <bdi>ADR</bdi> עם הנחות מסומנות; מידול איומים בסגנון <bdi>STRIDE</bdi> עם גבולות אמון וסיווג נתונים; סקירת זרימת נתונים, <bdi>API</bdi>, דרישות לא-פונקציונליות ותלויות; ביקורת תוכנית לפני יישום; וזיהוי סחף בין תיעוד לקוד. ה-<bdi>Subagents</bdi> <code>architecture-reviewer</code> ו-<code>security-reviewer</code> ודפוס הסוקר השני מספקים הפרדה ו-<bdi>Context</bdi> טרי. ומעל הכול: Claude מנתח וממליץ, בני אדם מחליטים וחותמים. בפרק הבא נעבור מסקירה לביצוע מקבילי: איך מפצלים עבודה בין כמה סוכנים בלי שיתנגשו.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (Explore first, Adversarial review step, Run multiple sessions)</a> |
+      <a href="https://code.claude.com/docs/en/sub-agents">Subagents</a> |
+      <a href="https://code.claude.com/docs/en/permission-modes">Permission modes (Plan Mode)</a> |
+      <a href="https://code.claude.com/docs/en/common-workflows">Common workflows</a> |
+      <a href="https://code.claude.com/docs/en/headless">Run Claude Code programmatically</a> |
+      <a href="https://code.claude.com/docs/en/security">Security</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch36.html"><span class="lbl">הפרק הקודם</span>עבודה עם Legacy Code</a>
+    <a href="ch38.html"><span class="lbl">הפרק הבא</span>Multi-Agent Development</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

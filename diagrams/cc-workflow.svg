@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 470" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a7ba6"/>
+    </marker>
+  </defs>
+  <style>
+    .box { fill:#ffffff; stroke:#c9c2b8; stroke-width:1.5; }
+    .hl { fill:#eef3f7; stroke:#4a7ba6; }
+    .t { font-size:16px; fill:#1a1a1a; text-anchor:middle; direction:rtl; }
+    .en { font-size:12.5px; fill:#6b6b6b; text-anchor:middle; }
+    .s { font-size:12.5px; fill:#6b6b6b; text-anchor:middle; direction:rtl; }
+    .edge { stroke:#4a7ba6; stroke-width:2; fill:none; marker-end:url(#arr2); }
+  </style>
+  <text x="430" y="34" class="t" font-size="20" font-weight="bold">Workflow מקצועי עם Claude Code</text>
+
+  <!-- row 1 (RTL: start on right) -->
+  <rect x="640" y="70" width="180" height="62" rx="10" class="box hl"/>
+  <text x="730" y="96" class="t">הגדרת המשימה</text>
+  <text x="730" y="118" class="s">דרישה + קריטריונים</text>
+
+  <rect x="410" y="70" width="180" height="62" rx="10" class="box"/>
+  <text x="500" y="96" class="t">מחקר ה-Codebase</text>
+  <text x="500" y="118" class="en">Read-only exploration</text>
+
+  <rect x="180" y="70" width="180" height="62" rx="10" class="box"/>
+  <text x="270" y="96" class="t">תכנון ב-Plan Mode</text>
+  <text x="270" y="118" class="en">Plan + Trade-offs</text>
+
+  <!-- row 2 -->
+  <rect x="180" y="200" width="180" height="62" rx="10" class="box hl"/>
+  <text x="270" y="226" class="t">אישור המפתח</text>
+  <text x="270" y="248" class="s">בדיקת ה-Plan ותיקונו</text>
+
+  <rect x="410" y="200" width="180" height="62" rx="10" class="box"/>
+  <text x="500" y="226" class="t">ביצוע מדורג</text>
+  <text x="500" y="248" class="en">Small, reviewable steps</text>
+
+  <rect x="640" y="200" width="180" height="62" rx="10" class="box"/>
+  <text x="730" y="226" class="t">בדיקה ואימות</text>
+  <text x="730" y="248" class="en">Diff / Lint / Tests</text>
+
+  <!-- row 3 -->
+  <rect x="640" y="330" width="180" height="62" rx="10" class="box"/>
+  <text x="730" y="356" class="t">Review עצמי</text>
+  <text x="730" y="378" class="en">Security + Quality</text>
+
+  <rect x="410" y="330" width="180" height="62" rx="10" class="box"/>
+  <text x="500" y="356" class="t">Commit ו-PR</text>
+  <text x="500" y="378" class="en">Branch, Commit, Pull Request</text>
+
+  <rect x="180" y="330" width="180" height="62" rx="10" class="box hl"/>
+  <text x="270" y="356" class="t">Code Review אנושי</text>
+  <text x="270" y="378" class="s">האחריות נשארת אצל המפתח</text>
+
+  <!-- edges -->
+  <path class="edge" d="M 636 101 L 594 101"/>
+  <path class="edge" d="M 406 101 L 364 101"/>
+  <path class="edge" d="M 270 136 L 270 196"/>
+  <path class="edge" d="M 364 231 L 406 231"/>
+  <path class="edge" d="M 594 231 L 636 231"/>
+  <path class="edge" d="M 730 266 L 730 326"/>
+  <path class="edge" d="M 636 361 L 594 361"/>
+  <path class="edge" d="M 406 361 L 364 361"/>
+  <!-- feedback loop from tests to execution -->
+  <path class="edge" d="M 700 266 C 660 300 600 300 560 268" stroke-dasharray="6 5"/>
+  <text x="628" y="305" class="s">תיקונים לפי תוצאות</text>
+</svg>

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 32: בניית Agent מותאם</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ז | פרק 32</p>
+  <h1>בניית Agent מותאם</h1>
+  <p class="lead">בפרק הזה בונים סוכן שלם מההתחלה ועד הסוף: סוכן משימות פיתוח שמקבל משימה, חוקר את ה-<bdi>Repository</bdi> בקריאה בלבד, מגיש תוכנית מובנית, עוצר לאישור אנושי, מבצע את השינוי, מריץ בדיקות עם לולאת תיקונים מוגבלת, סוקר את ה-<bdi>Diff</bdi> ומפיק דוח סיום עם נתוני עלות. נעבור על הקוד האמיתי, קובץ <code>agent-sdk/python/02_code_reviewer.py</code> מחבילת המדריך, סעיף אחרי סעיף, ונסביר כל אפשרות, כל מעקה בטיחות וכל החלטת תכנון.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-we-build">מה בונים ולמה ככה</h2>
+  <p>סוכן "עשה הכול בפעם אחת" הוא מתכון לצרות: אין נקודת עצירה לביקורת, אין הפרדה בין שלב שקורא לשלב שכותב, וכשמשהו נכשל קשה לדעת איפה. לכן הסוכן שלנו בנוי כשמונה שלבים מוגדרים, שכל אחד מהם ניתן לבדיקה בנפרד:</p>
+  <ol>
+    <li><strong>קבלת משימה</strong> מהמפעיל (Command Line).</li>
+    <li><strong>מחקר ה-Repository</strong> בקריאה בלבד: <code>Read</code>, <code>Glob</code>, <code>Grep</code> ולא שום דבר אחר.</li>
+    <li><strong>הכנת תוכנית</strong> כפלט מובנה שאומת מול <bdi>JSON Schema</bdi>: קבצים לשינוי, צעדים, סיכונים ופקודת בדיקה.</li>
+    <li><strong>אישור אנושי</strong>: הסקריפט מדפיס את התוכנית ועוצר על <code>input()</code>. בלי "כן" מפורש, שום קובץ לא משתנה.</li>
+    <li><strong>ביצוע השינוי</strong> בעריכות קבצים בלבד; כלי ה-<code>Bash</code> מוסר מה-Context לגמרי בשלב הזה.</li>
+    <li><strong>הרצת בדיקות</strong>: רק פקודות <code>pytest</code> מאושרות מראש.</li>
+    <li><strong>סקירה</strong>: אם הבדיקות נכשלו, לולאת תיקונים עם תקרה קשיחה; ואז סקירת <code>git diff</code> עצמית.</li>
+    <li><strong>דוח סיום</strong> מובנה, בתוספת חשבונאות עלות וטרנים מכל שלב.</li>
+  </ol>
+  <p>העיקרון המארגן הוא <strong>הרשאה מינימלית לכל שלב</strong> (Least Privilege): כל שלב הוא קריאת <code>query()</code> נפרדת עם סט אפשרויות משלה, וכולן חולקות את אותו <bdi>Session</bdi> דרך <code>resume</code>, כך שההקשר (מה שהסוכן כבר למד על הקוד) נשמר בין השלבים בלי לוותר על הבידול בהרשאות. שימו לב שזה עיצוב שונה מ-<bdi>Subagents</bdi> (פרק 31): שם סוכן ראשי מאציל לסוכני משנה מקביליים; כאן יש סוכן אחד שעובר בין "מצבי עבודה" טוריים, כי השלבים תלויים זה בזה ואסור שירוצו במקביל. שני הדפוסים משלימים, ואפשר לשלב ביניהם (למשל: שלב המחקר יכול להאציל ל-Subagents).</p>
+  <h3 id="files-structure">מבנה הקבצים</h3>
+  <div class="codeblock">
+    <div class="codehead">agent-sdk/ בחבילת המדריך</div>
+    <pre><code>agent-sdk/
+├── python/
+│   ├── 01_quickstart.py       # הדוגמה המינימלית מפרק 31
+│   ├── 02_code_reviewer.py    # הסוכן של הפרק הזה (כ-410 שורות)
+│   └── requirements.txt
+└── typescript/
+    ├── 01-quickstart.ts
+    ├── 02-automation.ts       # עיבוד אצווה, נשתמש בו בפרק 33
+    ├── package.json
+    └── tsconfig.json</code></pre>
+  </div>
+  <p>הקובץ בנוי מחמישה חלקים בסדר קריאה טבעי: קונפיגורציה ומעקות, סכמות פלט, ה-Permission Callback, מריץ השלבים, ולבסוף פונקציית <code>main()</code> עם שמונת השלבים. נעבור עליהם בסדר הזה.</p>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>פרק 31 (מושגי ה-SDK), התקנת <code>claude-agent-sdk</code> בגרסה 0.2.139 ומעלה, <bdi>Python 3.10+</bdi>, משתנה סביבה <code>ANTHROPIC_API_KEY</code>, ועותק של פרויקט <bdi>TaskFlow</bdi> עם <bdi>Git</bdi> מאותחל (פרק 3). ה-Repository צריך <code>pytest</code> זמין: <code>pip install -r backend/requirements.txt</code>.</p></div>
+  <p>למה Python ולא TypeScript לדוגמה הזאת? שיקול פרקטי בלבד: שער האישור מבוסס <code>input()</code> פשוט במיוחד ב-Python, ופרויקט הדוגמה TaskFlow הוא ממילא <bdi>Backend</bdi> של Python, כך שסביבת בדיקות אחת משרתת גם את הסוכן וגם את הקוד הנבדק. כל מה שנבנה כאן ניתן לתרגום ישיר ל-TypeScript עם השמות המקבילים מפרק 31 (<code>canUseTool</code>, <code>maxTurns</code>, <code>outputFormat</code> וכן הלאה), ואת המקבילה ההפוכה, סוכן אצווה ב-TypeScript, תמצאו בקובץ <code>02-automation.ts</code> שנפגוש בפרק 33.</p>
+
+  <h2 id="config">חלק 1: קונפיגורציה ומעקות בטיחות</h2>
+  <p>בראש הקובץ מרוכזים כל הגבולות במקום אחד, כדי שסקירת אבטחה של הסוכן תתחיל ותיגמר במסך אחד:</p>
+  <div class="codeblock">
+    <div class="codehead">agent-sdk/python/02_code_reviewer.py (קטע: קונפיגורציה)</div>
+    <pre><code>TOTAL_BUDGET_USD = 3.00      # תקרה קשיחה לכל הריצה (אומדן צד-לקוח)
+PHASE_BUDGET_USD = 1.00      # תקרה לכל קריאת query() בודדת
+MAX_FIX_ATTEMPTS = 2         # לולאת תיקונים חסומה כשבדיקות נכשלות
+TRANSIENT_RETRIES = 2        # ניסיונות חוזרים לכשלי תקשורת/תהליך
+
+GLOBAL_DENY_RULES = [
+    "Bash(git push *)",       # סוכן אוטומטי לא דוחף ל-Remote, נקודה
+    "Bash(rm -rf *)",         # בלי מחיקות רקורסיביות
+    "Bash(sudo *)",           # בלי הסלמת הרשאות
+    "Read(.env)",             # סודות לא נכנסים ל-Context
+    "Edit(.env)",
+    "WebFetch",               # שם מלא: הסרת כלי הרשת לגמרי
+    "WebSearch",
+]
+
+DANGEROUS_COMMAND_MARKERS = [
+    "git push", "rm -rf", "sudo", "curl", "wget", "pip install",
+    "npm install", "chmod 777", "&gt; /dev/", "mkfs", "shutdown",
+]</code></pre>
+  </div>
+  <p>הסבר כל שדה:</p>
+  <ul>
+    <li><code>TOTAL_BUDGET_USD</code> ו-<code>PHASE_BUDGET_USD</code>: הגנה כפולה. התקרה לשלב מועברת כ-<code>max_budget_usd</code> ל-SDK, שעוצר את השאילתה בעצמו; התקרה הכוללת נבדקת בקוד שלנו אחרי כל שלב, כי כפי שלמדנו בפרק 31, כל <code>query()</code> מדווח רק על עצמו.</li>
+    <li><code>GLOBAL_DENY_RULES</code> מצורפים ל-<code>disallowed_tools</code> <strong>בכל שלב</strong>. כלל עם תבנית כמו <code>Bash(git push *)</code> דוחה קריאות תואמות בכל מצב הרשאות, כולל <code>bypassPermissions</code>; שם מלא כמו <code>WebFetch</code> מסיר את הכלי מה-Context כך שהמודל כלל לא רואה אותו. הסוכן הזה עובד רק על קבצים מקומיים, אז אין לו שום סיבה לגשת לרשת.</li>
+    <li><code>DANGEROUS_COMMAND_MARKERS</code>: שכבת הגנה שנייה (Defense in Depth) בתוך ה-<bdi>Permission Callback</bdi>, למקרה שפקודה מסוכנת מגיעה בניסוח שכללי התבנית לא תפסו.</li>
+  </ul>
+
+  <h2 id="schemas">חלק 2: שלוש סכמות פלט</h2>
+  <p>לתוכנית, לתוצאת הבדיקות ולדוח הסיום מוגדרות סכמות <bdi>JSON Schema</bdi> (draft-07). זה מה שהופך את הסוכן לרכיב תוכנה אמין: הקוד שלנו ניגש ל-<code>plan["files_to_change"]</code> בביטחון, בלי לנתח טקסט חופשי. כך נראית סכמת התוכנית:</p>
+  <div class="codeblock">
+    <div class="codehead">02_code_reviewer.py (קטע: PLAN_SCHEMA)</div>
+    <pre><code>PLAN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "task_summary": {"type": "string"},
+        "files_to_change": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["path", "reason"],
+            },
+        },
+        "steps": {"type": "array", "items": {"type": "string"}},
+        "risks": {"type": "array", "items": {"type": "string"}},
+        "test_command": {"type": "string"},
+    },
+    "required": ["task_summary", "files_to_change", "steps", "test_command"],
+}</code></pre>
+  </div>
+  <p>שימו לב ש-<code>risks</code> אינו שדה חובה: לפי ההמלצה הרשמית, שדות שאולי אין להם תוכן משאירים אופציונליים, אחרת המודל עלול להמציא תוכן רק כדי לספק את הסכמה. <code>TEST_RESULT_SCHEMA</code> (עם <code>passed</code>, <code>summary</code> ו-<code>failing_tests</code>) ו-<code>REPORT_SCHEMA</code> (קבצים ששונו, תיאור, סטטוס בדיקות והמלצות המשך) בנויות באותו עיקרון.</p>
+
+  <h2 id="guard">חלק 3: ה-Permission Callback</h2>
+  <div class="codeblock">
+    <div class="codehead">02_code_reviewer.py (קטע: guard_tool)</div>
+    <pre><code>async def guard_tool(tool_name: str, input_data: dict[str, Any], context: Any):
+    if tool_name == "Bash":
+        command = str(input_data.get("command", ""))
+        for marker in DANGEROUS_COMMAND_MARKERS:
+            if marker in command:
+                log.warning("DENIED dangerous command: %s", command)
+                return PermissionResultDeny(
+                    message=f"Command contains forbidden pattern '{marker}'. "
+                    "This agent may only run the approved test commands.",
+                    interrupt=True,  # עצירת התור הנוכחי כולו
+                )
+        log.info("DENIED unapproved command: %s", command)
+        return PermissionResultDeny(
+            message="Only the pre-approved pytest commands are allowed in this phase."
+        )
+    log.info("DENIED unapproved tool: %s", tool_name)
+    return PermissionResultDeny(
+        message=f"Tool {tool_name} is not part of this phase's allowed set."
+    )</code></pre>
+  </div>
+  <p>נקודות מהותיות, כולן מהתיעוד הרשמי של מערכת ההרשאות:</p>
+  <ul>
+    <li>ה-Callback מוזמן <strong>רק</strong> כשבקשת הכלי "נופלת" עד סוף שרשרת ההרשאות: מה שכבר אושר על ידי <code>allowed_tools</code> או על ידי מצב ההרשאות לא מגיע אליו בכלל. לכן העיצוב כאן הוא "ברירת מחדל: דחייה". כל מה שהסוכן באמת צריך מאושר מראש ברשימות ה-<code>allowed_tools</code> של השלב, ומה שמגיע ל-Callback הוא בהגדרה חריג.</li>
+    <li><code>PermissionResultDeny</code> עם <code>message</code> מחזיר למודל הסבר, כך שהוא יכול להמשיך בדרך אחרת במקום להיתקע. עם <code>interrupt=True</code> (במקרה של דפוס מסוכן) התור נקטע מיד.</li>
+    <li>כל דחייה נרשמת ל-Log. בסוכן אוטומטי, ה-Log של הדחיות הוא חומר החקירה הראשון כשמשהו מתנהג מוזר.</li>
+  </ul>
+
+  <h2 id="runner">חלק 4: מריץ השלבים, Logging, עלות ו-Retry</h2>
+  <p>לפני המריץ עצמו, מחלקת עזר קטנה מרכזת את מצב הריצה: מזהה ה-Session המשותף, העלות המצטברת, סך ה-Turns ושורות החשבונאות לדוח:</p>
+  <div class="codeblock">
+    <div class="codehead">02_code_reviewer.py (קטע: RunState)</div>
+    <pre><code>@dataclass
+class RunState:
+    session_id: str | None = None
+    total_cost_usd: float = 0.0
+    turns: int = 0
+    log_lines: list[str] = field(default_factory=list)</code></pre>
+  </div>
+  <p>ה-Logging מוגדר בראש הקובץ עם מודול <code>logging</code> הסטנדרטי, לערוץ <bdi>stderr</bdi>: כך הפלט "האנושי" (התוכנית, הדוח) נשאר נקי ב-<bdi>stdout</bdi> ואפשר להפנות את הלוג לקובץ בנפרד (<code>2&gt;agent.log</code>). מה נרשם? שלושה סוגי אירועים, לפי סדר חשיבות תחקירית: כל <strong>דחיית הרשאה</strong> (מי ניסה מה ולמה נדחה), כל <strong>קריאת כלי</strong> (רמת INFO, השלד של "מה הסוכן עשה"), וכל <strong>סיכום שלב</strong> עם עלות. כשסוכן מתנהג לא צפוי, שלושת אלה עונים על תשעים אחוז מהשאלות.</p>
+  <p>הפונקציה <code>run_phase()</code> היא הלב התפעולי: היא מריצה קריאת <code>query()</code> אחת, מזרימה התקדמות ל-Log, אוספת את ה-<code>ResultMessage</code>, צוברת עלות, ומיישמת מדיניות Retry זהירה:</p>
+  <div class="codeblock">
+    <div class="codehead">02_code_reviewer.py (קטע: run_phase, מקוצר להסבר)</div>
+    <pre><code>for attempt in range(1, TRANSIENT_RETRIES + 2):
+    result: ResultMessage | None = None
+    try:
+        async for message in query(prompt=prompt, options=options):
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if isinstance(block, ToolUseBlock):
+                        log.info("[%s] tool: %s", phase, block.name)
+            elif isinstance(message, ResultMessage):
+                result = message
+    except (CLIConnectionError, ProcessError, CLIJSONDecodeError) as exc:
+        # כשל תעבורה: שווה ניסיון חוזר עם השהיה
+        log.warning("[%s] transient failure (attempt %d): %s", phase, attempt, exc)
+        if attempt &lt;= TRANSIENT_RETRIES:
+            await asyncio.sleep(2**attempt)
+            continue
+        raise
+    except Exception as exc:
+        # query() חד-פעמי זורק חריגה רגילה אחרי ResultMessage מסוג שגיאה.
+        # אם כבר קיבלנו את התוצאה, זו תוצאת שלב, לא קריסה.
+        if result is None:
+            raise
+        log.warning("[%s] query ended with an error result: %s", phase, exc)</code></pre>
+  </div>
+  <p><strong>מדיניות ה-Retry</strong> מבחינה בין שני סוגי כשל, וההבחנה הזאת חשובה:</p>
+  <ul>
+    <li><strong>כשלים חולפים (Transient):</strong> <code>CLIConnectionError</code>, <code>ProcessError</code> ו-<code>CLIJSONDecodeError</code> הם כשלי תקשורת עם תהליך המשנה של Claude Code. אותם מנסים שוב, עד <code>TRANSIENT_RETRIES</code> פעמים, עם <bdi>Exponential Backoff</bdi> (<code>2**attempt</code> שניות). חשוב לציין שה-SDK עצמו כבר מבצע Retry לשגיאות API (ברירת מחדל מתועדת: עד 10 ניסיונות, נשלט דרך <code>CLAUDE_CODE_MAX_RETRIES</code>), אז השכבה שלנו מטפלת רק במה שנשאר.</li>
+    <li><strong>כשלים לוגיים:</strong> חריגה שמגיעה <em>אחרי</em> שכבר התקבל <code>ResultMessage</code> היא ההתנהגות המתועדת של <code>query()</code> חד-פעמי שנגמר בתוצאת שגיאה (כמו <code>error_max_turns</code>). את זה לא מנסים שוב בעיוורון; מחזירים את התוצאה ונותנים ללוגיקת השלבים להחליט.</li>
+  </ul>
+  <p>אחרי כל שלב מתבצעת החשבונאות: <code>session_id</code> נשמר להמשך, <code>total_cost_usd</code> מצטבר לסכום הכולל, ואם הסכום חצה את <code>TOTAL_BUDGET_USD</code> הריצה כולה נעצרת עם חריגה. זה ההבדל בין "תקציב לשלב" שה-SDK אוכף לבין "תקציב לריצה" שאנחנו אוכפים.</p>
+
+  <h2 id="research">חלק 5: שלב המחקר והתוכנית (שלבים 1 עד 3)</h2>
+  <div class="codeblock">
+    <div class="codehead">02_code_reviewer.py (קטע: אפשרויות שלב המחקר)</div>
+    <pre><code>research_options = ClaudeAgentOptions(
+    cwd=args.repo,
+    system_prompt=(
+        "You are a careful senior engineer. Research the repository and plan "
+        "the requested change. You are in a READ-ONLY phase: do not modify "
+        "anything. The test command in your plan must be runnable from the "
+        "repository root and must start with 'python -m pytest'."
+    ),
+    allowed_tools=["Read", "Glob", "Grep"],
+    disallowed_tools=GLOBAL_DENY_RULES,
+    permission_mode="dontAsk",  # כל מה שלא אושר מראש נדחה
+    max_turns=25,
+    max_budget_usd=PHASE_BUDGET_USD,
+    output_format={"type": "json_schema", "schema": PLAN_SCHEMA},
+)</code></pre>
+  </div>
+  <p>כל אפשרות והסיבה שלה:</p>
+  <ul>
+    <li><code>cwd</code>: תיקיית העבודה של הסוכן היא ה-Repository שהמפעיל נתן, לא התיקייה שממנה הופעל הסקריפט. בלי זה הסוכן יחקור את התיקייה הלא נכונה.</li>
+    <li><code>system_prompt</code> כמחרוזת: אנחנו לא צריכים את מלוא ה-Prompt של Claude Code כאן, רק פרסונה ממוקדת. שימו לב לתחבולה המעשית בסופו: אנחנו מכתיבים שפקודת הבדיקה בתוכנית תתחיל ב-<code>python -m pytest</code>, כי בשלב הבדיקות בדיוק הקידומת הזאת תאושר אוטומטית. הסוכן מתכנן את מה שההרשאות שלו יאפשרו לבצע.</li>
+    <li><code>permission_mode="dontAsk"</code>: בשלב קריאה בלבד אין שום סיבה שבקשה כלשהי תגיע ל-Callback. מה שלא אושר, נדחה. שקט, צפוי, בטוח.</li>
+    <li><code>max_turns=25</code>: מחקר של Repository בינוני דורש עשרות קריאות קבצים; 25 סבבים מספיקים ל-TaskFlow בלי לאפשר שוטטות אינסופית.</li>
+    <li><code>output_format</code> עם <code>PLAN_SCHEMA</code>: בסוף השלב, <code>result.structured_output</code> מכיל את התוכנית כאובייקט מאומת.</li>
+  </ul>
+  <p>הקוד שקורא לשלב בודק את שני התנאים המתועדים: <code>subtype == "success"</code> וגם קיום <code>structured_output</code>. תוצאה בלי אחד מהם נחשבת כישלון והריצה נעצרת לפני שנגעה בקובץ כלשהו.</p>
+  <p><strong>מה רואים ב-Log בזמן השלב הזה?</strong> רצף אופייני על TaskFlow: קריאת <code>Glob</code> אחת או שתיים למיפוי המבנה, <code>Read</code> על <code>CLAUDE.md</code> ו-<code>README.md</code>, סדרת <code>Grep</code> לאיתור המקומות הרלוונטיים למשימה (למשל חיפוש <code>status</code> ו-<code>completed</code>), ואז <code>Read</code> ממוקדים על <code>models.py</code>, <code>routers/tasks.py</code> וקובצי הבדיקות. אם אתם רואים במקום זה עשרות קריאות <code>Read</code> גורפות על כל הקבצים, המשימה מנוסחת עמום מדי והסוכן "קורא הכול ליתר ביטחון": חדדו את הניסוח, כמו שלמדנו בפרק על כתיבת Prompts.</p>
+
+  <h2 id="approval">חלק 6: שער האישור האנושי (שלב 4)</h2>
+  <div class="codeblock">
+    <div class="codehead">02_code_reviewer.py (קטע: שער האישור)</div>
+    <pre><code>print("\n=== Proposed plan ===")
+print(f"Task: {plan['task_summary']}")
+print("Files to change:")
+for entry in plan["files_to_change"]:
+    print(f"  - {entry['path']}: {entry['reason']}")
+# ... הדפסת הצעדים, הסיכונים ופקודת הבדיקה ...
+answer = input("\nApprove this plan and apply the change? [y/N]: ").strip().lower()
+if answer not in ("y", "yes"):
+    print("Plan rejected by operator. No changes were made.")
+    return 0</code></pre>
+  </div>
+  <p>זה השלב הפשוט ביותר בקוד והחשוב ביותר בתפעול. שלושה עקרונות עיצוב: ברירת המחדל היא סירוב (<code>[y/N]</code> עם N גדולה: Enter ריק דוחה); הסירוב הוא יציאה נקייה עם קוד 0, כי "המפעיל בחר לא" איננו שגיאה; והתוכנית מודפסת <em>במלואה</em>, כולל הסיכונים, כי אישור על סמך כותרת בלבד אינו אישור. בגרסת ה-CLI של אותו רעיון, זה המקביל ל-<bdi>Plan Mode</bdi> עם אישור ידני (פרק 6).</p>
+  <p>שווה לשים לב מה השער הזה <em>לא</em> עושה: הוא לא מריץ את הסוכן ברקע בזמן ההמתנה, והוא לא פג אחרי Timeout. <code>input()</code> חוסם עד שאדם עונה, וזו בדיוק הכוונה. בסביבה שבה אין טרמינל (למשל שרת), מחליפים את המימוש של השער באותו רעיון בלבוש אחר: שליחת התוכנית לערוץ צוות ועצירה עד לקבלת אישור, או, פשוט יותר, פיצול הסקריפט לשניים: <code>plan</code> שמדפיס תוכנית ושומר את מזהה ה-Session לקובץ, ו-<code>apply</code> שמופעל ידנית אחרי הקריאה, עם <code>resume</code> מאותו קובץ. הארכיטקטורה שבנינו תומכת בזה בלי שינוי, כי ממילא כל שלב הוא קריאה נפרדת שמחוברת ב-<code>resume</code>. חשוב רק לזכור את המגבלה מפרק 31: קובצי Session הם מקומיים למכונה, אז שני החצאים חייבים לרוץ על אותה מכונה, או לחלוק <bdi>SessionStore</bdi>.</p>
+
+  <h2 id="execute">חלק 7: שלב הביצוע (שלב 5)</h2>
+  <div class="codeblock">
+    <div class="codehead">02_code_reviewer.py (קטע: אפשרויות שלב הביצוע)</div>
+    <pre><code>execute_options = ClaudeAgentOptions(
+    cwd=args.repo,
+    resume=state.session_id,  # שמירת הקשר המחקר
+    allowed_tools=["Read", "Edit", "Glob", "Grep"],
+    disallowed_tools=GLOBAL_DENY_RULES + ["Bash"],  # שם מלא: אין Shell בכלל
+    permission_mode="acceptEdits",
+    can_use_tool=guard_tool,
+    max_turns=30,
+    max_budget_usd=PHASE_BUDGET_USD,
+)</code></pre>
+  </div>
+  <p>שלוש החלטות שכדאי לעצור עליהן:</p>
+  <ul>
+    <li><code>resume=state.session_id</code>: הסוכן <strong>ממשיך את אותו Session</strong> שבו חקר את הקוד. הוא לא קורא הכול מחדש; הידע כבר ב-Context. זו הדגמה חיה של תבנית ה-Resume מפרק 31, והיא חוסכת גם זמן וגם <bdi>Tokens</bdi>.</li>
+    <li><code>disallowed_tools=... + ["Bash"]</code>: בשלב שכל תפקידו עריכת קבצים, ה-Shell מוסר מה-Context לחלוטין. המודל אפילו לא רואה שקיים כלי כזה, מה שמקטין את מרחב הטעויות. ההנחיה ב-<bdi>Prompt</bdi> ("Do not run any commands") היא נימוס; ההסרה מהרשימה היא אכיפה.</li>
+    <li><code>permission_mode="acceptEdits"</code> יחד עם <code>can_use_tool=guard_tool</code>: עריכות בתוך תיקיית העבודה מאושרות אוטומטית (לשם כך קיבלנו אישור אנושי לתוכנית), וכל בקשה אחרת שמגיעה בכל זאת לשרשרת נופלת ל-Callback שלנו, שדוחה כברירת מחדל.</li>
+  </ul>
+
+  <h2 id="tests">חלק 8: בדיקות ולולאת תיקונים (שלבים 6 עד 7)</h2>
+  <p>שלב הבדיקות רץ עם סט הרשאות שלישי: קריאה בלבד פלוס בדיוק משפחת פקודות אחת של Shell:</p>
+  <div class="codeblock">
+    <div class="codehead">02_code_reviewer.py (קטע: אפשרויות בדיקות ולולאת התיקונים)</div>
+    <pre><code>test_options = ClaudeAgentOptions(
+    cwd=args.repo,
+    resume=state.session_id,
+    allowed_tools=["Read", "Glob", "Grep", "Bash(python -m pytest *)"],
+    disallowed_tools=GLOBAL_DENY_RULES,
+    permission_mode="dontAsk",
+    max_turns=10,
+    max_budget_usd=PHASE_BUDGET_USD,
+    output_format={"type": "json_schema", "schema": TEST_RESULT_SCHEMA},
+)
+
+tests_passed = False
+for attempt in range(MAX_FIX_ATTEMPTS + 1):
+    result = await run_phase(state, f"test-{attempt}",
+        f"Run the test suite with: {plan['test_command']}\n"
+        "Report whether it passed and which tests failed.",
+        test_options)
+    outcome = result.structured_output if result.subtype == "success" else None
+    if outcome and outcome.get("passed"):
+        tests_passed = True
+        break
+    if attempt &gt;= MAX_FIX_ATTEMPTS:
+        log.error("Tests still failing after %d fix attempts.", MAX_FIX_ATTEMPTS)
+        break
+    # ... שלב fix: הרשאות עריכה + pytest, ואז חוזרים לראש הלולאה ...</code></pre>
+  </div>
+  <p>הכלל <code>Bash(python -m pytest *)</code> משתמש בתחביר כללי ההרשאות שהכרנו: הרווח לפני הכוכבית חשוב, כי הוא מפעיל התאמת קידומת מדויקת (<code>python -m pytest backend/tests -q</code> יאושר; <code>python -m pytestX</code> לא). כל פקודת Shell אחרת נדחית על ידי <code>dontAsk</code>.</p>
+  <p><strong>מה קורה כשהבדיקות נכשלות?</strong> זה התרחיש שמפריד סוכן צעצוע מסוכן אמיתי. העיצוב כאן:</p>
+  <ul>
+    <li>הלולאה רצה לכל היותר <code>MAX_FIX_ATTEMPTS + 1</code> פעמים (בדיקה ראשונה ועוד שני סבבי תיקון). בלי תקרה, סוכן יכול "לרדוף אחרי הזנב" של בדיקה שבירה עד שהתקציב נגמר.</li>
+    <li>שלב התיקון מקבל את שמות הבדיקות שנכשלו (מתוך הפלט המובנה של שלב הבדיקה) והנחיה מפורשת: לתקן רק מה שנדרש, בלי לשנות את כוונת התוכנית המאושרת. חשוב: הרשאות שלב התיקון כוללות עריכה <em>וגם</em> pytest, כדי שהסוכן יוכל לאמת את התיקון בעצמו לפני שהוא מחזיר שליטה.</li>
+    <li>אם אחרי כל הניסיונות הבדיקות עדיין אדומות, הסוכן <em>לא</em> מסתיר את זה: הדוח הסופי מסומן <code>tests_passed: false</code> וקוד היציאה של הסקריפט הוא 1, כך שגם בן אדם וגם מערכת CI רואים כישלון.</li>
+  </ul>
+
+  <h2 id="report">חלק 9: סקירה ודוח (שלב 8)</h2>
+  <p>השלב האחרון חוזר להרשאות צרות: קריאה, <code>Bash(git diff *)</code> ו-<code>Bash(git status *)</code> בלבד. הסוכן מתבקש לסקור את השינוי של עצמו ולהפיק את הדוח הסופי לפי <code>REPORT_SCHEMA</code>. למה שלב סקירה נפרד ולא לסמוך על שלב הביצוע שידווח? משתי סיבות: ראשית, <code>git diff</code> מראה את <strong>מה שקרה בפועל</strong> על הדיסק, כולל שינויים משלבי התיקון, ולא את מה שהסוכן זוכר שהתכוון לעשות; שנית, ניסיון מעשי מראה שבקשת ביקורת עצמית מפורשת ("סקור את השינוי שלך") מעלה בעיות שהסוכן לא היה מציין מיוזמתו, כמו <bdi>Edge Case</bdi> שלא כוסה בבדיקה. שדה <code>follow_ups</code> בסכמה נותן לזה בית מסודר בדוח. הסקריפט מדפיס את הדוח ואחריו את שורת החשבונאות של כל שלב, מתוך הנתונים שנצברו מכל <code>ResultMessage</code>:</p>
+  <div class="terminal"><span class="p">$</span> python 02_code_reviewer.py --repo ~/projects/taskflow --task "..."
+<span class="out">=== Final report ===
+What changed: Added completed_at timestamp handling to the task update flow
+Changed files: backend/app/models.py, backend/app/routers/tasks.py
+Tests passed: True
+
+=== Run accounting (client-side estimates) ===
+  phase=research subtype=success turns=14 cost=$0.21 total=$0.21
+  phase=execute subtype=success turns=9 cost=$0.18 total=$0.39
+  phase=test-0 subtype=success turns=3 cost=$0.05 total=$0.44
+  phase=review subtype=success turns=4 cost=$0.07 total=$0.51
+Total: ~$0.51, 30 agentic turns</span></div>
+  <p>הפלט למעלה הוא <strong>המחשה של מבנה הפלט הצפוי</strong>, לא תמליל של הרצה אמיתית: המספרים והניסוחים ישתנו מריצה לריצה (ראו סעיף האימות בהמשך).</p>
+
+  <h2 id="run-taskflow">הרצה על TaskFlow, צעד אחר צעד</h2>
+  <div class="codeblock">
+    <div class="codehead">Bash (macOS / Linux / WSL)</div>
+    <pre><code># 1. סביבה
+cd /path/to/guide/agent-sdk/python
+python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r requirements.txt
+export ANTHROPIC_API_KEY=your-api-key
+
+# 2. ודאו שה-Repository נקי, כדי שה-Diff בסוף ישקף רק את עבודת הסוכן
+cd ~/projects/taskflow &amp;&amp; git status
+
+# 3. הרצה
+cd - &amp;&amp; python 02_code_reviewer.py \
+  --repo ~/projects/taskflow \
+  --task "Add a completed_at timestamp to tasks when they are marked done"</code></pre>
+  </div>
+  <p><strong>תוצאה צפויה:</strong> דקה או שתיים של שורות Log על קריאות <code>Read</code> ו-<code>Grep</code>, ואז התוכנית המודפסת ושאלת האישור. אחרי אישור: Log של עריכות, הרצת pytest, והדוח הסופי. <strong>אימות ידני מומלץ אחרי הריצה:</strong> <code>git diff</code> לבחינת השינוי בעיניים שלכם, ו-<code>git checkout -- .</code> אם אתם רוצים לבטל הכול ולהריץ שוב.</p>
+  <p><strong>שלוש משימות לתרגול בדרגות קושי עולות</strong>, כולן על TaskFlow: (1) בסיסית: <code>"Add input validation: task titles must be 1-200 characters"</code>, שינוי בקובץ אחד עם בדיקה קיימת קרובה; (2) מציאותית: משימת ה-<code>completed_at</code> שבדוגמה למעלה, שנוגעת במודל, ב-Router ובבדיקות; (3) מתקדמת: <code>"Add a priority field (low/medium/high) to tasks, including API, database defaults and tests"</code>, שמאלצת את הסוכן לתכנן סדר שינויים נכון. השוו בין התוכניות שהסוכן מציע בשלוש הרמות: זו דרך מצוינת לפתח אינטואיציה מתי סוכן אוטונומי מתאים ומתי המשימה גדולה מדי לריצה אחת.</p>
+  <h3 id="post-run">אימות אחרי ריצה</h3>
+  <div class="verify">
+    <p>אל תסמכו על הדוח של הסוכן; אמתו בעצמכם. רשימת בדיקה אחרי כל ריצה:</p>
+    <ul class="check">
+      <li><code>git status</code> ו-<code>git diff</code>: האם שונו בדיוק הקבצים שהתוכנית הבטיחה? קובץ לא צפוי ברשימה הוא דגל אדום.</li>
+      <li>הרצת הבדיקות בעצמכם: <code>python -m pytest backend/tests -q</code>. התוצאה צריכה להתאים ל-<code>tests_passed</code> שבדוח.</li>
+      <li>קריאת ה-Diff בעיניים: האם השינוי מינימלי וממוקד, או שהסוכן "שיפץ" דברים שלא התבקשו?</li>
+      <li>בדיקת הלוג לדחיות הרשאה: דחיות רבות מעידות שהסוכן ניסה שוב ושוב לחרוג מהמגבלות, וכדאי להבין למה.</li>
+      <li>העלות הכוללת מול הצפי: ריצה על TaskFlow שעולה פי כמה מהרגיל מעידה על שוטטות או לולאת תיקונים שהתארכה.</li>
+    </ul>
+  </div>
+
+  <h2 id="cost-context">שיקולי Cost ו-Context</h2>
+  <ul>
+    <li><strong>ה-Resume חוסך כסף פעמיים:</strong> גם כי הסוכן לא קורא קבצים מחדש בכל שלב, וגם כי ה-<bdi>Prompt Caching</bdi> האוטומטי של ה-SDK מנצל את ההיסטוריה המשותפת. שרשרת שלבים על Session אחד זולה משמעותית מחמישה Sessions נפרדים על אותו קוד.</li>
+    <li><strong>אבל Session מתארך צובר Context:</strong> אחרי הרבה שלבים, ההיסטוריה גדלה והעלות לכל תור עולה (פרק 30). לסוכן עם עשרות שלבים שקלו לפצל: להעביר לשלב הבא רק את הסיכום המובנה של השלב הקודם ב-Prompt, במקום resume, בדיוק כפי שהתיעוד מציע לסביבות ארעיות.</li>
+    <li><strong>מודלים לפי שלב:</strong> האפשרות <code>model</code> נקבעת לכל <code>query()</code> בנפרד. שלב בדיקות פשוט יכול לרוץ על מודל קטן ומהיר, ואת המודל החזק לשמור למחקר ולביצוע.</li>
+    <li><strong>כוונון התקרות הוא איטרטיבי:</strong> התחילו מהערכים שבקובץ, הריצו על משימות אמיתיות, וקראו את שורות החשבונאות. אחרי חמש עד עשר ריצות תדעו מה נורמלי לפרויקט שלכם, ותוכלו להדק את התקציב סביבו.</li>
+  </ul>
+
+  <h2 id="validation">מה אומת ומה לא: שקיפות מלאה</h2>
+  <div class="callout note"><span class="title">גבולות האימות של פרק זה</span>
+    <p>הקוד של <code>01_quickstart.py</code> ו-<code>02_code_reviewer.py</code> עבר בסביבת העבודה של המדריך: התקנת <code>claude-agent-sdk==0.2.139</code>, קומפילציה מלאה (<code>python -m py_compile</code>), ייבוא החבילה, ואימות תוכניתי שכל שם ב-API שהקוד משתמש בו (<code>query</code>, <code>ClaudeAgentOptions</code> על כל השדות שבשימוש, מחלקות ההודעות, מחלקות ההרשאות והחריגות) קיים בחבילה המותקנת. <strong>מה שלא בוצע:</strong> הרצה מקצה לקצה מול ה-API, כי בסביבת הכתיבה אין מפתח API. לכן פלטי הטרמינל בפרק מסומנים כהמחשות מבנה ולא כתמלילים, והתנהגות זמן הריצה מתוארת אך ורק על פי ההתנהגות המתועדת רשמית.</p>
+  </div>
+
+  <h2 id="troubleshooting">שגיאות נפוצות ו-Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>סימפטום</th><th>סיבה שכיחה</th><th>פתרון</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr">API key not found</td><td>המפתח לא מוגדר בסביבת התהליך; ה-SDK לא קורא .env</td><td>הגדירו <code>ANTHROPIC_API_KEY</code> באותו Shell שמריץ את הסקריפט</td></tr>
+        <tr><td class="ltr">CLINotFoundError</td><td>התקנה בלי הקובץ הבינארי המובנה (למשל Source Distribution)</td><td><code>pip install --force-reinstall claude-agent-sdk</code>, או התקנת Claude Code רגילה</td></tr>
+        <tr><td>התוכנית חוזרת ריקה או שהריצה נגמרת ב-<code>error_max_structured_output_retries</code></td><td>סכמה מסובכת מדי או משימה עמומה</td><td>פשטו את הסכמה, הפכו שדות לאופציונליים, חדדו את ניסוח המשימה</td></tr>
+        <tr><td>שלב הבדיקות מדווח שהפקודה נדחתה</td><td>פקודת הבדיקה בתוכנית לא מתחילה ב-<code>python -m pytest</code></td><td>זה המעקה עובד כמתוכנן; ההנחיה ב-System Prompt של שלב המחקר אמורה למנוע זאת. אפשר להוסיף כלל Allow נוסף אם בפרויקט שלכם הפקודה שונה</td></tr>
+        <tr><td class="ltr">error_max_turns</td><td>המשימה גדולה מדי לתקרות שהוגדרו</td><td>פצלו את המשימה, או העלו <code>max_turns</code> באופן מבוקר. אפשר גם להמשיך את אותו Session עם <code>resume</code> ותקרה חדשה</td></tr>
+        <tr><td>הריצה נעצרת על חריגת תקציב</td><td><code>TOTAL_BUDGET_USD</code> נחצה</td><td>זו התנהגות רצויה. בדקו ב-Log איזה שלב צרך הרבה, וצמצמו את היקף המשימה לפני שמעלים תקציב</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="security">Security: סיכום המעקות</h2>
+  <ul class="check">
+    <li>ארבעה סטים של הרשאות, אחד לכל סוג שלב; אף שלב לא מקבל יותר ממה שהוא צריך.</li>
+    <li>כללי Deny גלובליים שחלים בכל מצב הרשאות, כולל על <code>git push</code>, מחיקות רקורסיביות וקבצי סודות.</li>
+    <li>כלי הרשת הוסרו לגמרי: הסוכן לא יכול להדליף קוד החוצה וגם לא למשוך הוראות זדוניות מהאינטרנט.</li>
+    <li>שער אישור אנושי לפני כל כתיבה; ברירת המחדל היא דחייה.</li>
+    <li>Callback שדוחה כברירת מחדל כל מה שלא אושר מראש, עם Log מלא של הדחיות.</li>
+    <li>תקציב כפול (שלב וריצה) ותקרות Turns בכל שלב.</li>
+  </ul>
+  <div class="callout danger"><span class="title">סכנה</span><p>אל תריצו את הסוכן עם <code>permission_mode="bypassPermissions"</code> "כדי שיהיה מהיר". במצב הזה <code>allowed_tools</code> לא מגביל דבר וכל כלי מאושר. אם אתם חייבים אוטונומיה מלאה, עשו זאת רק בתוך קונטיינר מבודד בלי אישורי רשת ובלי גישה ל-Repositories אמיתיים, כמתואר בתיעוד ה-Hosting וה-Secure Deployment.</p></div>
+
+  <h2 id="best-practices">Best Practices ו-Anti-patterns</h2>
+  <ul>
+    <li><strong>עשו:</strong> שלבים נפרדים עם <code>resume</code> משותף; פלט מובנה בין שלבים; תקרות בכל שלב; Log לכל דחיית הרשאה; קוד יציאה שמשקף את האמת.</li>
+    <li><strong>אל:</strong> שלב אחד ענק שעושה הכול (<span class="badge exp">Anti-pattern</span>); Retry אוטומטי על כשל לוגי של המודל (זה רק שורף תקציב); הסתרת כישלון בדיקות בדוח; הרחבת <code>allowed_tools</code> "ליתר ביטחון".</li>
+    <li><strong>עשו:</strong> הריצו קודם על Repository משוכפל או על Branch נפרד. הסוכן עורך קבצים אמיתיים; Git הוא רשת הביטחון שלכם.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 32.1: הוספת שלב Lint לסוכן</div>
+    <div class="body"><p>הרחיבו את <code>02_code_reviewer.py</code> בשלב <bdi>Lint</bdi> שרץ אחרי שהבדיקות עוברות ולפני שלב הסקירה: הסוכן מריץ <code>ruff check .</code> על ה-Repository, ואם יש ממצאים בקבצים שהשתנו, מתקן אותם (עד שני ניסיונות) ומריץ שוב גם את ה-Lint וגם את הבדיקות. דרישות: (1) סט הרשאות ייעודי לשלב, שמאשר רק את פקודות ה-<code>ruff</code> ואת <code>pytest</code>; (2) פלט מובנה עם <code>clean</code> (בוליאני) ו-<code>issues</code> (רשימה); (3) הממצאים שלא תוקנו מופיעים בדוח הסופי. רמז: תבנית הכלל היא <code>"Bash(ruff check *)"</code>, ותצטרכו גם <code>"Bash(ruff format *)"</code> אם תרצו תיקון פורמט אוטומטי.</p></div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>מוסיפים סכמה, סט אפשרויות ולולאה, באותה תבנית בדיוק כמו שלב הבדיקות:</p>
+      <div class="codeblock">
+        <div class="codehead">תוספת ל-02_code_reviewer.py (אחרי לולאת הבדיקות)</div>
+        <pre><code>LINT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "clean": {"type": "boolean"},
+        "issues": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["clean"],
+}
+
+lint_check_options = ClaudeAgentOptions(
+    cwd=args.repo,
+    resume=state.session_id,
+    allowed_tools=["Read", "Glob", "Grep", "Bash(ruff check *)"],
+    disallowed_tools=GLOBAL_DENY_RULES,
+    permission_mode="dontAsk",
+    max_turns=8,
+    max_budget_usd=PHASE_BUDGET_USD,
+    output_format={"type": "json_schema", "schema": LINT_SCHEMA},
+)
+lint_fix_options = ClaudeAgentOptions(
+    cwd=args.repo,
+    resume=state.session_id,
+    allowed_tools=["Read", "Edit", "Glob", "Grep",
+                   "Bash(ruff check *)", "Bash(python -m pytest *)"],
+    disallowed_tools=GLOBAL_DENY_RULES,
+    permission_mode="acceptEdits",
+    can_use_tool=guard_tool,
+    max_turns=15,
+    max_budget_usd=PHASE_BUDGET_USD,
+)
+
+lint_issues: list[str] = []
+if tests_passed:
+    for attempt in range(2 + 1):
+        result = await run_phase(state, f"lint-{attempt}",
+            "Run 'ruff check .' and report the findings for the files "
+            "you changed. Do not fix anything in this phase.",
+            lint_check_options)
+        outcome = result.structured_output if result.subtype == "success" else None
+        if outcome and outcome.get("clean"):
+            lint_issues = []
+            break
+        lint_issues = (outcome or {}).get("issues", ["lint phase failed"])
+        if attempt &gt;= 2:
+            break
+        await run_phase(state, f"lint-fix-{attempt + 1}",
+            "Fix the lint findings in the files you changed only, then rerun "
+            "'ruff check .' and the test suite to confirm nothing broke.",
+            lint_fix_options)</code></pre>
+      </div>
+      <p>ולבסוף, בשלב הדוח, מזינים את הממצאים שנשארו ל-<bdi>Prompt</bdi> הסקירה (למשל: <code>"Unresolved lint issues: ..."</code>) כדי שייכנסו ל-<code>review_notes</code>. שימו לב לשלושה עקרונות שחוזרים מהפרק: שלב הבדיקה של ה-Lint הוא קריאה בלבד עם <code>dontAsk</code>; שלב התיקון מקבל גם <code>pytest</code> כדי לוודא שתיקון סגנון לא שבר לוגיקה; והלולאה חסומה בתקרה. הפתרון עבר את אותו אימות כמו שאר הקוד בפרק: קומפילציה ובדיקת שמות API, ללא הרצה מול ה-API.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul class="check">
+    <li>סוכן אמין בנוי משלבים מוגדרים, כל אחד עם קריאת <code>query()</code> נפרדת והרשאות מינימליות משלו, מחוברים ב-<code>resume</code> לאותו Session.</li>
+    <li>פלט מובנה בין השלבים (<code>output_format</code>) הופך את הסוכן לרכיב תוכנה שאפשר לבנות עליו לוגיקה.</li>
+    <li>שער אישור אנושי לפני כתיבה הוא שורת קוד אחת שמונעת את רוב האסונות; ברירת המחדל תמיד דוחה.</li>
+    <li>מדיניות Retry מבחינה בין כשל תעבורה (מנסים שוב) לכשל לוגי (מטפלים, לא חוזרים בעיוורון), ולולאת תיקוני הבדיקות חסומה בתקרה.</li>
+    <li>עלות נצברת מכל <code>ResultMessage</code> ונאכפת בשתי רמות: תקציב לשלב (SDK) ותקציב לריצה (הקוד שלכם).</li>
+    <li>הדוח הסופי אומר את האמת, כולל בדיקות שנכשלו, וקוד היציאה משקף אותה.</li>
+  </ul>
+  <p>בפרק הבא נעבור מהסוכן הבודד לאוטומציה בקנה מידה: מצב לא אינטראקטיבי של Claude Code, אינטגרציה עם CI, משימות מתוזמנות וגבולות הבטיחות של הרצה ללא השגחה.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/agent-sdk/python">Python SDK reference</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/permissions">Configure permissions</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/structured-outputs">Structured outputs</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/sessions">Work with sessions</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/cost-tracking">Track cost and usage</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/agent-loop">How the agent loop works</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/hosting">Hosting the Agent SDK</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch31.html"><span class="lbl">הפרק הקודם</span>מבוא ל-Claude Agent SDK</a>
+    <a href="ch33.html"><span class="lbl">הפרק הבא</span>Automation מקצועית</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

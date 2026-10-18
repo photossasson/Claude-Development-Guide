@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 4: פקודות בסיסיות, Slash Commands ופקודות /</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק א | פרק 4</p>
+  <h1>פקודות בסיסיות, Slash Commands ופקודות /</h1>
+  <p class="lead">זהו פרק העזר המרכזי של המדריך לכל הפקודות ב-<bdi>Claude Code</bdi>: מתי משתמשים ב-<bdi>Slash Command</bdi> ומתי כותבים <bdi>Prompt</bdi> חופשי, טבלת עזר מלאה של כל הפקודות שאומתו מול התיעוד הרשמי בתאריך 28.07.2026, פירוט מעמיק של 12 הפקודות החשובות ביותר, פקודות ודגלים של ה-<bdi>CLI</bdi>, קיצורי מקלדת, השוואות בין פקודות דומות, תרגיל מסכם ופתרון תקלות.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="intro">מתי Slash Command ומתי Prompt חופשי</h2>
+  <p>ב-<bdi>Claude Code</bdi> יש שתי דרכים עיקריות לומר למערכת מה לעשות. הדרך הראשונה היא <bdi>Prompt</bdi> חופשי בשפה טבעית: אתם מתארים משימה, ו-<bdi>Claude</bdi> מתכנן ומבצע אותה בעזרת הכלים שלו. הדרך השנייה היא פקודה שמתחילה בתו <code>/</code>, שנקראת <bdi>Slash Command</bdi>. פקודה כזאת שולטת ב-<bdi>Claude Code</bdi> עצמו: החלפת מודל, ניהול הרשאות, פינוי <bdi>Context</bdi>, הפעלת <bdi>Workflow</bdi> ועוד.</p>
+  <p>כלל האצבע פשוט: כשאתם רוצים שהמודל <em>יחשוב ויעבוד</em> על הקוד שלכם, כתבו <bdi>Prompt</bdi> חופשי. כשאתם רוצים <em>לשלוט בסביבת העבודה</em>, בהגדרות או במצב ה-<bdi>Session</bdi>, השתמשו בפקודה. לדוגמה: "תקן את באג ההתחברות בפרויקט <bdi>TaskFlow</bdi>" הוא <bdi>Prompt</bdi>. לעומת זאת, <code>/model sonnet</code> היא פקודה שמחליפה מודל, בלי לבקש מהמודל דבר.</p>
+  <div class="callout note"><span class="title">הערה</span><p>פקודה מזוהה רק בתחילת ההודעה. טקסט שמופיע אחרי שם הפקודה הופך לארגומנטים שלה. אם שולחים פקודה בזמן ש-<bdi>Claude</bdi> עונה, היא נכנסת לתור ורצה אחרי סיום התור הנוכחי, מלבד פקודות כמו <code>/status</code>, <code>/tasks</code> ו-<code>/usage</code> שרצות מיד בלי להפריע לתשובה. החל מגרסה <bdi>v2.1.199</bdi> אפשר לשרשר עד שישה <bdi>Skills</bdi> בתחילת הודעה אחת, למשל <code>/skill-a /skill-b do XYZ</code>.</p></div>
+
+  <h3 id="types">תשעה סוגים שחשוב להבדיל ביניהם</h3>
+  <p>המילה "פקודה" משמשת בתיעוד לכמה דברים שונים. הטבלה הבאה היא טבלת ההבחנות המחייבת של המדריך. חשוב במיוחד להבין את היחס בין <bdi>Skills</bdi> לפקודות מותאמות אישית: לפי התיעוד הרשמי, פקודות מותאמות אישית (<bdi>Custom Commands</bdi>) מוזגו לתוך מנגנון ה-<bdi>Skills</bdi>. קובץ בנתיב <code>.claude/commands/deploy.md</code> ו-<bdi>Skill</bdi> בנתיב <code>.claude/skills/deploy/SKILL.md</code> יוצרים שניהם את הפקודה <code>/deploy</code> ועובדים באותו אופן. קובצי <code>.claude/commands/</code> קיימים ממשיכים לעבוד, אך התיעוד ממליץ על <bdi>Skills</bdi> כי הם תומכים בקובצי עזר, ב-<bdi>Frontmatter</bdi> ובטעינה אוטומטית. כאשר <bdi>Skill</bdi> ופקודה ותיקה חולקים שם, ה-<bdi>Skill</bdi> גובר.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>סוג</th><th>מה זה</th><th>איפה מוגדר או רץ</th><th>דוגמה</th></tr></thead>
+      <tbody>
+        <tr><td>Built-in Slash Command</td><td>פקודה שההתנהגות שלה מקודדת בתוך ה-<bdi>CLI</bdi> עצמו. רצה בתוך <bdi>Session</bdi>.</td><td>מובנית ב-<bdi>Claude Code</bdi></td><td class="ltr"><code>/compact</code></td></tr>
+        <tr><td>Bundled Skill</td><td><bdi>Skill</bdi> שמגיע ארוז עם <bdi>Claude Code</bdi>: הנחיה שנמסרת למודל, ו-<bdi>Claude</bdi> יכול להפעיל אותה גם אוטומטית כשהיא רלוונטית.</td><td>ארוז במוצר, מסומן <bdi>Skill</bdi> בטבלת הפקודות הרשמית</td><td class="ltr"><code>/code-review</code></td></tr>
+        <tr><td>User-created Skill (אישי)</td><td><bdi>Skill</bdi> שכתבתם לעצמכם, זמין בכל הפרויקטים שלכם.</td><td class="ltr"><code>~/.claude/skills/&lt;name&gt;/SKILL.md</code></td><td class="ltr"><code>/summarize-changes</code></td></tr>
+        <tr><td>Project Skill</td><td><bdi>Skill</bdi> ששייך לפרויקט מסוים ומשותף לצוות דרך ה-<bdi>Repository</bdi>.</td><td class="ltr"><code>.claude/skills/&lt;name&gt;/SKILL.md</code></td><td class="ltr"><code>/deploy-staging</code></td></tr>
+        <tr><td>Custom Command ותיק <span class="badge dep">Legacy</span></td><td>קובץ <bdi>Markdown</bdi> בתיקיית הפקודות הישנה. עדיין עובד ותומך באותו <bdi>Frontmatter</bdi>, אך התיעוד ממליץ לעבור ל-<bdi>Skills</bdi>.</td><td class="ltr"><code>.claude/commands/&lt;name&gt;.md</code></td><td class="ltr"><code>.claude/commands/deploy.md</code> ← <code>/deploy</code></td></tr>
+        <tr><td>CLI command</td><td>פקודת מעטפת שרצה ב-<bdi>Terminal</bdi>, מחוץ ל-<bdi>Session</bdi> או כדי להתחיל אחת.</td><td>שורת הפקודה של מערכת ההפעלה</td><td class="ltr"><code>claude doctor</code></td></tr>
+        <tr><td>CLI flag</td><td>דגל שמצורף לפקודת <bdi>CLI</bdi> ומשנה את התנהגות ההפעלה.</td><td>שורת הפקודה, בעת ההפעלה</td><td class="ltr"><code>claude --model sonnet</code></td></tr>
+        <tr><td>Keyboard shortcut</td><td>קיצור מקלדת שפועל בתוך <bdi>Session</bdi> אינטראקטיבי.</td><td>המקלדת, בזמן ריצה; ניתן להתאמה דרך <code>/keybindings</code></td><td class="ltr"><code>Shift+Tab</code></td></tr>
+        <tr><td>Natural-language Prompt</td><td>הודעה חופשית בשפה טבעית שהמודל מפרש ומבצע.</td><td>שורת הקלט של ה-<bdi>Session</bdi></td><td>"הרץ את הבדיקות ותקן כשלים"</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout tip"><span class="title">Best Practice</span><p>לפני שמחפשים פקודה, הקלידו <code>/</code> בשורת הקלט: ייפתח תפריט של כל הפקודות הזמינות <em>לכם</em>, כולל <bdi>Skills</bdi> של הפרויקט ופקודות של <bdi>Plugins</bdi>. הקלדת אותיות אחרי ה-<code>/</code> מסננת את הרשימה. זה תמיד המקור המדויק ביותר למה שזמין בסביבה הספציפית שלכם.</p></div>
+
+  <h2 id="reference">טבלת עזר מלאה: כל הפקודות המאומתות</h2>
+  <p>הטבלאות הבאות כוללות את <strong>כל</strong> הפקודות שמופיעות בטבלת הפקודות הרשמית של <bdi>Claude Code</bdi> נכון ל-28.07.2026: 87 פקודות מובנות, 13 <bdi>Bundled Skills</bdi> ו-<bdi>Workflow</bdi> אחד. פקודות שלא אומתו מול התיעוד החי לא נכללות. סימון הארגומנטים כמו בתיעוד: <code>&lt;arg&gt;</code> חובה, <code>[arg]</code> רשות.</p>
+  <div class="callout warn"><span class="title">אזהרה</span><p>לא כל פקודה מופיעה אצל כל משתמש. הזמינות תלויה בפלטפורמה, בתוכנית (Plan) ובסביבה. לדוגמה, <code>/desktop</code> מוצגת רק ב-<bdi>macOS</bdi> וב-<bdi>Windows</bdi> עם מנוי <bdi>Claude</bdi>, ו-<code>/upgrade</code> לא מוצגת בתוכניות <bdi>Enterprise</bdi>. אילוצי גרסה מסומנים בעמודת הזמינות.</p></div>
+  <div class="callout note"><span class="title">מצב העדכון של הטבלאות (גרסה 1.1)</span><p>הטבלאות בפרק זה הן תמונת מצב של התיעוד מ-28.07.2026 מול <bdi>Claude Code</bdi> <bdi>2.1.220</bdi>. ב-15.10.2026 עודכנו בהן נקודתית, מול טבלת הפקודות הרשמית ומול גרסה <bdi>2.1.300</bdi>, השורות של <code>/review</code> ו-<code>/code-review</code> וההערה על <bdi>Bundled Skills</bdi>. בדיקה מלאה של כל הטבלאות מול הגרסה העדכנית מתוכננת לסבב התחזוקה הבא, ולכן לפני שאתם מסתמכים על אילוץ גרסה מסוים כדאי לפתוח את <a href="https://code.claude.com/docs/en/commands">טבלת הפקודות הרשמית</a>.</p></div>
+
+  <h3 id="builtin-table">פקודות מובנות (Built-in)</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פקודה</th><th>מטרה</th><th>Syntax / Arguments</th><th>זמינות</th><th>סטטוס</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>/add-dir</code></td><td>הוספת תיקיית עבודה לגישת קבצים ב-Session הנוכחי (לא לגילוי תצורה)</td><td class="ltr"><code>/add-dir &lt;path&gt;</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/advisor</code></td><td>הפעלה או כיבוי של כלי ה-Advisor שמתייעץ עם מודל שני</td><td class="ltr"><code>/advisor [model|off]</code></td><td>מ-v2.1.210 לא ניתן לבחור Fable 5 כ-Advisor</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/agents</code></td><td>ניהול Subagents</td><td class="ltr"><code>/agents</code></td><td>מ-v2.1.198 מדפיסה תזכורת לבקש מ-Claude או לערוך <code>.claude/agents/</code></td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/autofix-pr</code></td><td>Session ענן שצופה ב-PR ומתקן כשלי CI והערות סוקרים</td><td class="ltr"><code>/autofix-pr [prompt]</code></td><td>דורש gh CLI וגישה ל-Claude Code on the web</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/background</code></td><td>ניתוק ה-Session להמשך ריצה כ-Background Agent; כינוי <code>/bg</code></td><td class="ltr"><code>/background [prompt]</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/branch</code></td><td>הסתעפות השיחה לניסיון כיוון אחר; חזרה למקור עם <code>/resume</code></td><td class="ltr"><code>/branch [name]</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/btw</code></td><td>שאלת אגב מהירה בלי להוסיף לשיחה</td><td class="ltr"><code>/btw [question]</code></td><td>מ-v2.1.212 ללא ארגומנט נפתחת השאלה האחרונה</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/bug</code></td><td>דיווח באג או שיתוף שיחה עם מסך הסכמה; כינוי <code>/share</code></td><td class="ltr"><code>/bug [report]</code></td><td>מ-v2.1.212 פקודה עצמאית; קודם הייתה כינוי של <code>/feedback</code></td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/cd</code></td><td>העברת ה-Session לתיקיית עבודה חדשה תוך שמירת ה-Prompt Cache</td><td class="ltr"><code>/cd &lt;path&gt;</code></td><td>v2.1.169 ומעלה; השלמת נתיבים מ-v2.1.206</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/chrome</code></td><td>הגדרות Claude in Chrome</td><td class="ltr"><code>/chrome</code></td><td>אינטגרציית Chrome</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/clear</code></td><td>שיחה חדשה עם Context ריק; כינויים <code>/reset</code>, <code>/new</code></td><td class="ltr"><code>/clear [name]</code></td><td>לכולם; שחזור דרך תפריט ה-Rewind מ-v2.1.191</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/color</code></td><td>צבע שורת ה-Prompt ל-Session הנוכחי</td><td class="ltr"><code>/color [color|default]</code></td><td>לכולם; במצב <code>-p</code> מ-v2.1.205</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/compact</code></td><td>פינוי Context על ידי סיכום השיחה</td><td class="ltr"><code>/compact [instructions]</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/config</code></td><td>ממשק הגדרות או קביעה ישירה; כינוי <code>/settings</code></td><td class="ltr"><code>/config [key=value ...]</code></td><td>key=value מ-v2.1.181; קיצורי שמות מ-v2.1.182</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/context</code></td><td>הצגת ניצול ה-Context כרשת צבעונית עם המלצות</td><td class="ltr"><code>/context [all]</code></td><td>לכולם; אזהרת חריגה מ-v2.1.216</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/copy</code></td><td>העתקת התשובה האחרונה (או ה-N אחורה) ללוח</td><td class="ltr"><code>/copy [N]</code></td><td>לכולם; <code>w</code> בבורר כותב לקובץ</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/cost</code></td><td>כינוי של <code>/usage</code></td><td class="ltr"><code>/cost</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/design-login</code></td><td>הרשאת גישה למערכת עיצוב עבור <code>/design-sync</code></td><td class="ltr"><code>/design-login</code></td><td>דורש חשבון claude.ai</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/desktop</code></td><td>המשך ה-Session באפליקציית Desktop; כינוי <code>/app</code></td><td class="ltr"><code>/desktop</code></td><td>macOS/Windows עם מנוי Claude</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/diff</code></td><td>מציג Diff אינטראקטיבי: שינויים לא מוגשים ושינויים לפי תור</td><td class="ltr"><code>/diff</code></td><td>לכולם; רענון אוטומטי מ-v2.1.198</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/effort</code></td><td>קביעת רמת מאמץ למודל</td><td class="ltr"><code>/effort [level|auto]</code></td><td>הרמות תלויות מודל; <code>max</code> ו-<code>ultracode</code> ל-Session בלבד</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/exit</code></td><td>יציאה מה-CLI; ב-Session רקע מנותק בלבד; כינוי <code>/quit</code></td><td class="ltr"><code>/exit</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/export</code></td><td>ייצוא השיחה כטקסט</td><td class="ltr"><code>/export [filename]</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/fast</code></td><td>הפעלה או כיבוי של Fast Mode (מודלי Opus בלבד)</td><td class="ltr"><code>/fast [on|off]</code></td><td>Fast Mode דורש v2.1.36 ומעלה, Opus 4.8/4.7/4.6, ו-Usage Credits במנוי</td><td><span class="badge preview">Research Preview</span></td></tr>
+        <tr><td class="ltr"><code>/feedback</code></td><td>שליחת משוב על המוצר (אותו דיאלוג כמו <code>/bug</code>)</td><td class="ltr"><code>/feedback [report]</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/focus</code></td><td>תצוגת מיקוד: Prompt אחרון, סיכום כלים ותשובה סופית</td><td class="ltr"><code>/focus</code></td><td>Fullscreen rendering בלבד</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/fork</code></td><td>העתקת השיחה ל-Background Session חדש והמשך עבודה כאן</td><td class="ltr"><code>/fork [prompt]</code></td><td>v2.1.212 ומעלה; בגרסאות 2.1.161 עד 2.1.211 יצרה Forked Subagent</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/goal</code></td><td>קביעת יעד ש-Claude עובד עליו לאורך תורות עד השגתו</td><td class="ltr"><code>/goal [condition|clear]</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/heapdump</code></td><td>כתיבת Heap Snapshot ופירוט זיכרון לאבחון</td><td class="ltr"><code>/heapdump</code></td><td>לכולם; הקובץ מכיל אישורי גישה, אין לשתף</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/help</code></td><td>הצגת עזרה והפקודות הזמינות</td><td class="ltr"><code>/help</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/hooks</code></td><td>צפייה בתצורות Hooks לאירועי כלים</td><td class="ltr"><code>/hooks</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/ide</code></td><td>ניהול אינטגרציות IDE והצגת סטטוס</td><td class="ltr"><code>/ide</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/init</code></td><td>אתחול הפרויקט עם קובץ <code>CLAUDE.md</code></td><td class="ltr"><code>/init</code></td><td>לכולם; זרימה אינטראקטיבית עם <code>CLAUDE_CODE_NEW_INIT=1</code></td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/insights</code></td><td>דוח ניתוח של ה-Sessions: תחומים, דפוסים, נקודות חיכוך</td><td class="ltr"><code>/insights</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/install-github-app</code></td><td>התקנת Claude GitHub App עם הגדרת Actions אופציונלית</td><td class="ltr"><code>/install-github-app</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/install-slack-app</code></td><td>התקנת אפליקציית Claude ל-Slack דרך OAuth</td><td class="ltr"><code>/install-slack-app</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/keybindings</code></td><td>פתיחת קובץ קיצורי המקלדת</td><td class="ltr"><code>/keybindings</code></td><td>התאמת קיצורים דורשת v2.1.18 ומעלה</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/login</code></td><td>התחברות לחשבון Anthropic</td><td class="ltr"><code>/login</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/logout</code></td><td>התנתקות מהחשבון</td><td class="ltr"><code>/logout</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/mcp</code></td><td>ניהול חיבורי שרתי MCP ואימות OAuth</td><td class="ltr"><code>/mcp [reconnect &lt;server&gt;|enable|disable [&lt;server&gt;|all]]</code></td><td>לכולם; במצב <code>-p</code> מ-v2.1.205 מודפס סיכום טקסטואלי</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/memory</code></td><td>עריכת קובצי <code>CLAUDE.md</code> וניהול Auto-memory</td><td class="ltr"><code>/memory</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/mobile</code></td><td>קוד QR להורדת האפליקציה; כינויים <code>/ios</code>, <code>/android</code></td><td class="ltr"><code>/mobile</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/model</code></td><td>החלפת מודל ושמירתו כברירת מחדל</td><td class="ltr"><code>/model [model]</code></td><td>לכולם; במצב <code>-p</code> מ-v2.1.205 ל-Session בלבד</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/passes</code></td><td>שיתוף שבוע חינם של Claude Code</td><td class="ltr"><code>/passes</code></td><td>חשבונות זכאים בלבד</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/permissions</code></td><td>ניהול כללי Allow/Ask/Deny; כינוי <code>/allowed-tools</code></td><td class="ltr"><code>/permissions</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/plan</code></td><td>כניסה ל-Plan Mode ישירות מהשורה, עם תיאור משימה אופציונלי</td><td class="ltr"><code>/plan [description]</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/plugin</code></td><td>תפריט Plugins או תת-פקודה ישירה</td><td class="ltr"><code>/plugin [list|install|enable|disable]</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/powerup</code></td><td>שיעורים אינטראקטיביים קצרים על יכולות Claude Code</td><td class="ltr"><code>/powerup</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/privacy-settings</code></td><td>צפייה ועדכון של הגדרות פרטיות</td><td class="ltr"><code>/privacy-settings</code></td><td>מנויי Pro ו-Max בלבד</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/radio</code></td><td>פתיחת Claude FM בדפדפן</td><td class="ltr"><code>/radio</code></td><td>לא זמין ב-Bedrock, GCP Agent Platform, Foundry, AWS Platform</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/recap</code></td><td>סיכום ה-Session הנוכחי בשורה אחת לפי דרישה</td><td class="ltr"><code>/recap</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/release-notes</code></td><td>צפייה ב-Changelog בבורר גרסאות</td><td class="ltr"><code>/release-notes</code></td><td>מ-v2.1.208 לא נכנס לשיחה</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/reload-plugins</code></td><td>טעינה מחדש של Plugins בלי הפעלה מחדש</td><td class="ltr"><code>/reload-plugins [--force]</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/reload-skills</code></td><td>סריקה מחדש של תיקיות Skills ופקודות</td><td class="ltr"><code>/reload-skills</code></td><td>v2.1.152 ומעלה</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/remote-control</code></td><td>פתיחת ה-Session לשליטה מ-claude.ai; כינוי <code>/rc</code></td><td class="ltr"><code>/remote-control</code></td><td>דורש מנוי claude.ai</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/remote-env</code></td><td>בחירת סביבת ברירת מחדל ל-Cloud Agents</td><td class="ltr"><code>/remote-env</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/rename</code></td><td>שינוי שם ה-Session; בלי ארגומנט נוצר שם אוטומטי</td><td class="ltr"><code>/rename [name]</code></td><td>לכולם; במצב <code>-p</code> מ-v2.1.205</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/resume</code></td><td>חזרה לשיחה לפי מזהה או שם, או בורר; כינוי <code>/continue</code></td><td class="ltr"><code>/resume [session]</code></td><td>לכולם; Sessions ברקע מסומנים <code>bg</code> מ-v2.1.144</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/review</code></td><td>כינוי של <code>/code-review</code>: סקירת ה-Diff הנוכחי, או של PR, Branch או נתיב שמעבירים, עם אותן רמות ודגלים</td><td class="ltr"><code>/review [level] [--fix] [--comment] [pr#|branch|path]</code></td><td>כינוי מ-v2.1.223; עד v2.1.222 פקודה נפרדת לסקירת PR לקריאה בלבד</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/rewind</code></td><td>חזרה אחורה בשיחה או בקוד ל-Checkpoint; כינויים <code>/checkpoint</code>, <code>/undo</code></td><td class="ltr"><code>/rewind</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/sandbox</code></td><td>הפעלה או כיבוי של Sandbox Mode</td><td class="ltr"><code>/sandbox</code></td><td>פלטפורמות נתמכות בלבד</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/schedule</code></td><td>יצירה וניהול של Routines בתשתית הענן; כינוי <code>/routines</code></td><td class="ltr"><code>/schedule [description]</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/scroll-speed</code></td><td>כוונון מהירות גלילת העכבר</td><td class="ltr"><code>/scroll-speed</code></td><td>Fullscreen בלבד; לא בטרמינל JetBrains</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/security-review</code></td><td>בדיקת פגיעויות אבטחה בשינויים הממתינים ב-Branch</td><td class="ltr"><code>/security-review</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/setup-bedrock</code></td><td>אשף הגדרת Amazon Bedrock</td><td class="ltr"><code>/setup-bedrock</code></td><td>רק עם <code>CLAUDE_CODE_USE_BEDROCK=1</code></td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/setup-vertex</code></td><td>אשף הגדרת Google Cloud Agent Platform</td><td class="ltr"><code>/setup-vertex</code></td><td>רק עם <code>CLAUDE_CODE_USE_VERTEX=1</code></td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/skills</code></td><td>רשימת ה-Skills הזמינים עם סינון ומיון</td><td class="ltr"><code>/skills</code></td><td>סינון לפי הקלדה מ-v2.1.121</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/stats</code></td><td>כינוי של <code>/usage</code>, נפתח בלשונית Stats</td><td class="ltr"><code>/stats</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/status</code></td><td>לשונית Status: גרסה, מודל, חשבון, קישוריות; רצה גם בזמן תשובה</td><td class="ltr"><code>/status</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/statusline</code></td><td>הגדרת שורת הסטטוס</td><td class="ltr"><code>/statusline</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/stickers</code></td><td>הזמנת מדבקות Claude Code</td><td class="ltr"><code>/stickers</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/stop</code></td><td>עצירת ה-Background Session הנוכחי</td><td class="ltr"><code>/stop</code></td><td>רק כשמחוברים ל-Session רקע</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/subtask</code></td><td>Forked Subagent שיורש את השיחה ומחזיר תוצאה אליה</td><td class="ltr"><code>/subtask &lt;task&gt;</code></td><td>v2.1.212 ומעלה; לא זמין כשתצוגת ה-Agents כבויה</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/tasks</code></td><td>עבודת רקע ב-Session הנוכחי, כולל Subagents שסיימו; כינוי <code>/bashes</code></td><td class="ltr"><code>/tasks</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/team-onboarding</code></td><td>מדריך קליטת עמיתים מנתוני השימוש של 30 יום</td><td class="ltr"><code>/team-onboarding</code></td><td>קישור שיתוף ב-Pro/Max/Team/Enterprise</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/teleport</code></td><td>משיכת Session מהאתר אל הטרמינל; כינוי <code>/tp</code></td><td class="ltr"><code>/teleport</code></td><td>דורש מנוי claude.ai</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/terminal-setup</code></td><td>הגדרת קיצור <code>Shift+Enter</code> בטרמינלים שצריכים זאת</td><td class="ltr"><code>/terminal-setup</code></td><td>מוצג רק ב-VS Code, Cursor, Devin Desktop, Alacritty, Zed</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/theme</code></td><td>החלפת ערכת צבעים, כולל ערכות נגישות ומותאמות</td><td class="ltr"><code>/theme</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/tui</code></td><td>בחירת מנוע התצוגה בטרמינל</td><td class="ltr"><code>/tui [default|fullscreen]</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/ultraplan</code></td><td>ניסוח תוכנית ב-Session ייעודי, סקירה בדפדפן וביצוע</td><td class="ltr"><code>/ultraplan &lt;prompt&gt;</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/ultrareview</code></td><td>סקירת קוד רב-סוכנית עמוקה בענן; הצורה המועדפת: <code>/code-review ultra</code></td><td class="ltr"><code>/ultrareview [PR or branch]</code></td><td>3 ריצות חינם ב-Pro/Max, אחר כך Usage Credits</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/upgrade</code></td><td>פתיחת עמוד שדרוג התוכנית</td><td class="ltr"><code>/upgrade</code></td><td>לא מוצג ב-Enterprise</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/usage</code></td><td>עלות Session, מגבלות תוכנית וסטטיסטיקות פעילות</td><td class="ltr"><code>/usage</code></td><td>פילוח לפי Skill/Subagent/Plugin/MCP בתוכניות בתשלום</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/usage-credits</code></td><td>הגדרת Usage Credits או בקשה מהמנהל; לשעבר <code>/extra-usage</code></td><td class="ltr"><code>/usage-credits</code></td><td>מנוי; חברי Team/Enterprise ללא הרשאת חיוב שולחים בקשה</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/voice</code></td><td>הכתבה קולית</td><td class="ltr"><code>/voice [hold|tap|off]</code></td><td>דורש חשבון Claude.ai</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/web-setup</code></td><td>חיבור חשבון GitHub ל-Claude Code on the web</td><td class="ltr"><code>/web-setup</code></td><td>לכולם; משתמש באישורי gh מקומיים</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td class="ltr"><code>/workflows</code></td><td>תצוגת התקדמות של Workflows: צפייה, השהיה, המשך</td><td class="ltr"><code>/workflows</code></td><td>לכולם</td><td><span class="badge stable">Stable</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="skills-table">Bundled Skills ו-Workflows</h3>
+  <p>הפקודות הבאות אינן מקודדות ב-<bdi>CLI</bdi> אלא ארוזות כ-<bdi>Skills</bdi> או כ-<bdi>Workflows</bdi>. הן מתנהגות כמו <bdi>Skills</bdi> שאתם כותבים בעצמכם: הנחיה שנמסרת ל-<bdi>Claude</bdi>, שיכול להפעיל אותן גם באופן אוטומטי כשהן רלוונטיות. יוצא דופן: <code>/verify</code> רץ רק בהפעלה מפורשת שלכם (מ-<bdi>v2.1.215</bdi>). <code>/code-review</code> היה מוגבל באותו אופן בגרסאות 2.1.215 עד 2.1.245; מ-<bdi>v2.1.246</bdi> <bdi>Claude</bdi> יכול להפעיל אותו גם בעצמו. כדי להשאיר אותו להפעלה ידנית בלבד, הגדירו <code>"skillOverrides": {"code-review": "user-invocable-only"}</code> (<a href="ch21.html#bundled">פרק 21</a>).</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פקודה</th><th>מטרה</th><th>Syntax / Arguments</th><th>זמינות</th><th>סטטוס</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>/batch</code></td><td>שינוי רחב היקף במקביל: פירוק ל-5 עד 30 יחידות, Subagent לכל יחידה ב-Worktree נפרד, כולל PR</td><td class="ltr"><code>/batch &lt;instruction&gt;</code></td><td>דורש Git Repository</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/claude-api</code></td><td>טעינת חומר עזר של Claude API והגירת קוד למודל חדש</td><td class="ltr"><code>/claude-api [migrate|managed-agents-onboard]</code></td><td>נטען אוטומטית כשהקוד מייבא SDK של Anthropic</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/code-review</code></td><td>סקירת ה-Diff לאיתור באגים; <code>--fix</code> מיישם ממצאים, <code>ultra</code> סקירת ענן</td><td class="ltr"><code>/code-review [low|medium|high|xhigh|max|ultra] [--fix] [--comment] [target]</code></td><td>לכולם; מ-v2.1.246 גם בהפעלה אוטומטית של Claude (2.1.215 עד 2.1.245: רק בהפעלה מפורשת); כינוי: <code>/review</code> מ-v2.1.223</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/dataviz</code></td><td>הנחיות עיצוב לגרפים ולוחות מחוונים עם ולידציית צבעים</td><td class="ltr"><code>/dataviz [request]</code></td><td>v2.1.198 ומעלה</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/debug</code></td><td>הפעלת רישום Debug ואבחון תקלות מתוך יומן ה-Session</td><td class="ltr"><code>/debug [description]</code></td><td>לכולם</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/deep-research</code></td><td>מחקר רשת רב-סוכני עם דוח מצוטט, רץ ברקע</td><td class="ltr"><code>/deep-research &lt;question&gt;</code></td><td>לכולם</td><td><span class="badge stable">Workflow</span></td></tr>
+        <tr><td class="ltr"><code>/design-sync</code></td><td>המרת מערכת עיצוב React והעלאתה ל-Claude Design</td><td class="ltr"><code>/design-sync [hint]</code></td><td>Anthropic API בלבד; לא זמין ב-Bedrock, GCP, Foundry, AWS Platform</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/doctor</code></td><td>בדיקת תקינות מלאה עם תיקונים, כולל קיצוץ CLAUDE.md; כינוי <code>/checkup</code></td><td class="ltr"><code>/doctor</code></td><td>לכולם; בדיקת הקיצוץ מ-v2.1.206</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/fewer-permission-prompts</code></td><td>סריקת תמלילים ובניית Allowlist לפעולות קריאה נפוצות</td><td class="ltr"><code>/fewer-permission-prompts</code></td><td>לכולם</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/loop</code></td><td>הרצת Prompt שוב ושוב כל עוד ה-Session פתוח; כינוי <code>/proactive</code></td><td class="ltr"><code>/loop [interval] [prompt]</code></td><td>לכולם</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/run</code></td><td>הרצת האפליקציה של הפרויקט ובדיקתה בפועל</td><td class="ltr"><code>/run</code></td><td>v2.1.145 ומעלה</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/run-skill-generator</code></td><td>יצירת Skill פר-פרויקט שמלמד את <code>/run</code> ו-<code>/verify</code> להריץ את האפליקציה</td><td class="ltr"><code>/run-skill-generator</code></td><td>v2.1.145 ומעלה</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/simplify</code></td><td>סקירת ניקיון בלבד עם יישום תיקונים, 4 סוכנים במקביל</td><td class="ltr"><code>/simplify [target]</code></td><td>v2.1.154 ומעלה</td><td><span class="badge stable">Skill</span></td></tr>
+        <tr><td class="ltr"><code>/verify</code></td><td>אימות שינוי על ידי בנייה, הרצה ותצפית על האפליקציה</td><td class="ltr"><code>/verify</code></td><td>v2.1.145 ומעלה; מ-v2.1.215 רק בהפעלה מפורשת</td><td><span class="badge stable">Skill</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>בנוסף, שרתי <bdi>MCP</bdi> יכולים לחשוף <bdi>Prompts</bdi> שמופיעים כפקודות בפורמט <code>/mcp__&lt;server&gt;__&lt;prompt&gt;</code>, והם מתגלים דינמית מהשרתים המחוברים.</p>
+  <div class="callout warn"><span class="title">פקודות שהוסרו</span><p>שתי פקודות מתועדות כפקודות שהוסרו ואין להסתמך עליהן: <code>/pr-comments</code> <span class="badge dep">Removed v2.1.91</span> (במקומה מבקשים מ-<bdi>Claude</bdi> ישירות להציג הערות על ה-<bdi>Pull Request</bdi>), ו-<code>/vim</code> <span class="badge dep">Removed v2.1.92</span> (מצב <bdi>Vim</bdi> מופעל דרך <code>/config</code> בשדה <bdi>Editor mode</bdi>).</p></div>
+
+  <h2 id="scenarios">תרחישים מעשיים לפי משפחות פקודות</h2>
+  <p>בסעיף זה נעבור על משפחות הפקודות העיקריות, עם תרחיש עבודה קצר ומציאותי לכל משפחה. התרחישים מבוססים על פרויקט הדוגמה <bdi>TaskFlow</bdi> שמלווה את המדריך. שורות שמתחילות ב-<code>&gt;</code> הן קלט בתוך <bdi>Session</bdi> של <bdi>Claude Code</bdi>, ושורות שמתחילות ב-<code>$</code> הן פקודות מעטפת ב-<bdi>Terminal</bdi>.</p>
+
+  <h3 id="fam-help">עזרה ותיעוד</h3>
+  <p>מתחילים <bdi>Session</bdi> ראשון ולא זוכרים מה זמין? <code>/help</code> מציגה את העזרה והפקודות, <code>/release-notes</code> מציגה מה חדש בגרסה, ו-<code>/powerup</code> מלמדת יכולות דרך שיעורים אינטראקטיביים.</p>
+  <div class="terminal"><span class="p">&gt;</span> /help
+<span class="out">Claude Code v2.1.220 ... רשימת פקודות זמינות וקיצורי מקלדת</span>
+<span class="p">&gt;</span> /release-notes
+<span class="out">בורר גרסאות: בחרו גרסה לצפייה בהערות השחרור שלה</span></div>
+
+  <h3 id="fam-model">בחירת מודל ומאמץ: /model, /effort, /fast</h3>
+  <p>לפני משימה גדולה כדאי לוודא איזה מודל פעיל ובאיזו רמת מאמץ. במשימה מורכבת מעלים מאמץ; בעבודה אינטראקטיבית מהירה על <bdi>Opus</bdi> אפשר להפעיל <bdi>Fast Mode</bdi> (זכרו: <span class="badge preview">Research Preview</span> ובתמחור גבוה יותר לכל <bdi>Token</bdi>).</p>
+  <div class="terminal"><span class="p">&gt;</span> /model
+<span class="out">בורר מודלים נפתח; חצים ימינה ושמאלה מכווננים Effort, האות s מחליפה ל-Session הנוכחי בלבד</span>
+<span class="p">&gt;</span> /effort high
+<span class="out">Effort level set to high</span>
+<span class="p">&gt;</span> /fast
+<span class="out">Fast mode ON (מעבר אוטומטי ל-Opus; סמל ↯ ליד שורת הקלט)</span></div>
+  <div class="callout note"><span class="title">הערה</span><p>החלפת מודל באמצע שיחה עם פלט קודם מבקשת אישור, כי התשובה הבאה קוראת מחדש את כל ההיסטוריה בלי <bdi>Context</bdi> שמור ב-<bdi>Cache</bdi>, וזה מייקר את התור.</p></div>
+
+  <h3 id="fam-session">ניהול Session: /clear, /rename, /exit, /resume, /fork, /branch, /desktop</h3>
+  <p>תרחיש: סיימתם לתקן באג ב-<bdi>TaskFlow</bdi> ועכשיו עוברים לפיצ'ר חדש. נותנים שם לשיחה הישנה, פותחים שיחה נקייה, וכשצריך חוזרים אל הישנה.</p>
+  <div class="terminal"><span class="p">&gt;</span> /rename fix-login-bug
+<span class="out">Session renamed: fix-login-bug</span>
+<span class="p">&gt;</span> /clear new-feature-work
+<span class="out">שיחה חדשה נפתחה; הקודמת תופיע בבורר של /resume תחת השם שנתתם</span>
+<span class="p">&gt;</span> /resume fix-login-bug
+<span class="out">חזרה לשיחה הקודמת עם מלוא ההקשר שלה</span>
+<span class="p">&gt;</span> /exit
+<span class="out">יציאה מה-CLI (ב-Session רקע: ניתוק בלבד, הריצה נמשכת)</span></div>
+  <p>כשרוצים לנסות כיוון חלופי בלי לאבד את השיחה: <code>/branch</code> יוצרת הסתעפות שאתם עוברים אליה, ו-<code>/fork</code> (מ-<bdi>v2.1.212</bdi>) מעתיקה את השיחה ל-<bdi>Background Session</bdi> עצמאי בזמן שאתם ממשיכים כאן. <code>/desktop</code> מעבירה את ה-<bdi>Session</bdi> לאפליקציית ה-<bdi>Desktop</bdi> ב-<bdi>macOS</bdi> או <bdi>Windows</bdi>.</p>
+
+  <h3 id="fam-context">בדיקת Context ודחיסה: /context, /compact, /usage</h3>
+  <p>תרחיש: אחרי שעתיים של עבודה התשובות נעשות איטיות והמחיר עולה. בודקים מה ממלא את חלון ה-<bdi>Context</bdi>, מסכמים את השיחה עם הנחיית מיקוד, ומוודאים את מצב הניצול.</p>
+  <div class="terminal"><span class="p">&gt;</span> /context
+<span class="out">רשת צבעונית: System prompt, כלים, MCP, Memory, שיחה; המלצות אופטימיזציה</span>
+<span class="p">&gt;</span> /compact focus on the payment module changes
+<span class="out">Conversation compacted. הסיכום שומר את הקשר העבודה על מודול התשלומים</span>
+<span class="p">&gt;</span> /usage
+<span class="out">עלות ה-Session, מגבלות התוכנית וסטטיסטיקות פעילות</span></div>
+
+  <h3 id="fam-memory">Memory ו-CLAUDE.md: /init, /memory</h3>
+  <p>תרחיש: <bdi>Session</bdi> ראשון ב-<bdi>Repository</bdi> חדש. יוצרים קובץ <code>CLAUDE.md</code> התחלתי ואז מלטשים אותו.</p>
+  <div class="terminal"><span class="p">&gt;</span> /init
+<span class="out">Claude סורק את הפרויקט ויוצר CLAUDE.md עם מוסכמות, פקודות Build ומבנה</span>
+<span class="p">&gt;</span> /memory
+<span class="out">תפריט Memory: עריכת קובצי CLAUDE.md, הפעלת Auto-memory וצפייה ברשומות</span></div>
+
+  <h3 id="fam-perm">הרשאות: /permissions, /sandbox, Shift+Tab, /fewer-permission-prompts</h3>
+  <p>תרחיש: יותר מדי חלונות אישור קוטעים את העבודה. סוקרים את הכללים, נותנים ל-<bdi>Skill</bdi> הייעודי לבנות <bdi>Allowlist</bdi> לפעולות קריאה, ובודקים את מצב ה-<bdi>Sandbox</bdi>. מעבר מהיר בין מצבי הרשאה נעשה עם <code>Shift+Tab</code>: המקש מדלג בין <bdi>default</bdi> (מוצג כ-<bdi>Manual</bdi>), <bdi>acceptEdits</bdi>, <bdi>plan</bdi> וכל מצב נוסף שהפעלתם, כמו <bdi>auto</bdi> או <bdi>bypassPermissions</bdi>.</p>
+  <div class="terminal"><span class="p">&gt;</span> /permissions
+<span class="out">דיאלוג כללי Allow / Ask / Deny לפי Scope, כולל סקירת דחיות אחרונות של Auto mode</span>
+<span class="p">&gt;</span> /fewer-permission-prompts
+<span class="out">סריקת תמלילים; הצעת Allowlist שתתווסף אל .claude/settings.json באישורכם</span>
+<span class="p">&gt;</span> /sandbox
+<span class="out">מצב Sandbox להרצת Bash מבודדת (בפלטפורמות נתמכות)</span></div>
+
+  <h3 id="fam-plan">Plan Mode: /plan</h3>
+  <p>לפני שינוי גדול נכנסים ל-<bdi>Plan Mode</bdi>, שבו <bdi>Claude</bdi> חוקר ומנסח תוכנית בלי לגעת בקבצים. אפשר להיכנס עם <code>Shift+Tab</code> או ישירות עם הפקודה, כולל תיאור המשימה.</p>
+  <div class="terminal"><span class="p">&gt;</span> /plan migrate TaskFlow auth to JWT tokens
+<span class="out">Plan Mode פעיל; Claude חוקר את הקוד ומציג תוכנית לאישור לפני כל שינוי</span></div>
+
+  <h3 id="fam-review">סקירת שינויים: /diff, /rewind</h3>
+  <p>תרחיש: <bdi>Claude</bdi> ביצע סדרת עריכות ואתם רוצים לראות בדיוק מה השתנה, ואם צריך, לחזור אחורה לנקודת ביקורת.</p>
+  <div class="terminal"><span class="p">&gt;</span> /diff
+<span class="out">מציג Diff אינטראקטיבי: חצים ימינה ושמאלה בין Git diff לתורות, למעלה ולמטה בין קבצים</span>
+<span class="p">&gt;</span> /rewind
+<span class="out">תפריט Rewind: שחזור קוד, שיחה או שניהם ל-Checkpoint קודם (גם Esc Esc בקלט ריק)</span></div>
+
+  <h3 id="fam-debug">Debugging: /debug, /doctor, /bug</h3>
+  <div class="terminal"><span class="p">&gt;</span> /doctor
+<span class="out">בדיקת תקינות: התקנה, הגדרות, Hooks איטיים, Skills שאינם בשימוש, גרסה; מציע תיקונים</span>
+<span class="p">&gt;</span> /debug the MCP server keeps disconnecting
+<span class="out">רישום Debug הופעל; Claude מנתח את יומן ה-Session ומציע אבחנה</span>
+<span class="p">&gt;</span> /bug
+<span class="out">דיאלוג דיווח עם מסך הסכמה: אתם בוחרים כמה היסטוריה לצרף לפני שנשלח דבר</span></div>
+
+  <h3 id="fam-mcp">MCP: /mcp</h3>
+  <div class="terminal"><span class="p">&gt;</span> /mcp
+<span class="out">רשימת שרתי MCP: מצב חיבור, כלים, אימות OAuth</span>
+<span class="p">&gt;</span> /mcp reconnect github
+<span class="out">חיבור מחדש של שרת יחיד שהתנתק, בלי לפתוח את הדיאלוג</span></div>
+
+  <h3 id="fam-skills">Skills: /skills</h3>
+  <div class="terminal"><span class="p">&gt;</span> /skills
+<span class="out">רשימת Skills; הקלדה מסננת, t ממיין לפי עלות Tokens, רווח מחליף מצב נראות</span>
+<span class="p">&gt;</span> /reload-skills
+<span class="out">סריקה מחדש: Skills שנוספו על הדיסק במהלך ה-Session נהיים זמינים</span></div>
+
+  <h3 id="fam-hooks">Hooks: /hooks</h3>
+  <div class="terminal"><span class="p">&gt;</span> /hooks
+<span class="out">תצוגת תצורות ה-Hooks הפעילות לפי אירוע (PreToolUse, PostToolUse וכן הלאה)</span></div>
+
+  <h3 id="fam-plugins">Plugins: /plugin</h3>
+  <div class="terminal"><span class="p">&gt;</span> /plugin
+<span class="out">תפריט Plugins: עיון, התקנה, ניהול</span>
+<span class="p">&gt;</span> /plugin install code-review@claude-plugins-official
+<span class="out">התקנת Plugin ישירות מ-Marketplace</span>
+<span class="p">&gt;</span> /reload-plugins
+<span class="out">טעינה מחדש של Plugins פעילים בלי להפעיל מחדש את ה-CLI</span></div>
+
+  <h3 id="fam-usage">שימוש ועלות: /usage, /cost, /usage-credits, /insights</h3>
+  <div class="terminal"><span class="p">&gt;</span> /usage
+<span class="out">עלות Session, מגבלות תוכנית, פילוח לפי Skill, Subagent, Plugin ו-MCP (בתוכניות בתשלום)</span>
+<span class="p">&gt;</span> /usage-credits
+<span class="out">פתיחת הגדרות ה-Usage Credits בדפדפן, או בקשה מהמנהל ב-Team/Enterprise</span>
+<span class="p">&gt;</span> /insights
+<span class="out">דוח ניתוח שימוש: תחומי פרויקט, דפוסי אינטראקציה ונקודות חיכוך</span></div>
+
+  <h3 id="fam-config">תצורה: /config, /keybindings, /ide</h3>
+  <div class="terminal"><span class="p">&gt;</span> /config theme=dark
+<span class="out">הגדרה נקבעה ישירות בלי לפתוח את הממשק (קיצורי שמות מ-v2.1.182)</span>
+<span class="p">&gt;</span> /config --help
+<span class="out">רשימת כל המפתחות הניתנים לקביעה עם האפשרויות שלהם</span>
+<span class="p">&gt;</span> /keybindings
+<span class="out">פתיחת ~/.claude/keybindings.json לעריכת קיצורי מקלדת (v2.1.18 ומעלה)</span>
+<span class="p">&gt;</span> /ide
+<span class="out">ניהול אינטגרציות IDE והצגת מצב חיבור</span></div>
+
+  <h3 id="fam-status">סטטוס: /status, /context</h3>
+  <div class="terminal"><span class="p">&gt;</span> /status
+<span class="out">לשונית Status: גרסה, מודל, חשבון, קישוריות; רצה מיד גם כש-Claude עונה</span>
+<span class="p">&gt;</span> /context all
+<span class="out">רשת הניצול עם פירוט מלא פר-פריט</span></div>
+
+  <h2 id="deep">12 פקודות במבט עמוק</h2>
+  <p>לכל אחת מ-12 הפקודות החשובות ביותר מוצגת כאן תבנית מלאה: מטרה, תחביר, זמינות, פרמטרים, התנהגות צפויה, דוגמה, פלט צפוי, טעויות נפוצות, מגבלות, השלכות הרשאות, השלכות <bdi>Context</bdi>, השלכות עלות, פקודות קשורות ומקור. כל הפרטים אומתו מול התיעוד הרשמי בתאריך 28.07.2026.</p>
+
+  <h3 id="cmd-help">/help</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>הצגת עזרה ורשימת הפקודות הזמינות ב-<bdi>Session</bdi> הנוכחי.</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/help</code></td></tr>
+    <tr><th>זמינות</th><td>לכולם, בכל פלטפורמה.</td></tr>
+    <tr><th>פרמטרים</th><td>אין.</td></tr>
+    <tr><th>התנהגות צפויה</th><td>מציגה מסך עזרה עם הפקודות שזמינות לכם בפועל, בהתאם לפלטפורמה ולתוכנית.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/help</code></td></tr>
+    <tr><th>פלט צפוי</th><td>רשימת פקודות והסברים; אין שינוי במצב ה-<bdi>Session</bdi>.</td></tr>
+    <tr><th>טעויות נפוצות</th><td>לחפש בתיעוד פקודה שלא מופיעה אצלכם ב-<code>/help</code>: אם היא לא שם, היא כנראה לא זמינה בגרסה או בתוכנית שלכם.</td></tr>
+    <tr><th>מגבלות</th><td>מציגה רק את מה שזמין בסביבה הנוכחית.</td></tr>
+    <tr><th>השלכות הרשאות</th><td>אין.</td></tr>
+    <tr><th>השלכות Context</th><td>זניחות.</td></tr>
+    <tr><th>השלכות עלות</th><td>אין קריאת מודל.</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>/release-notes</code>, <code>/powerup</code>, <code>/status</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">code.claude.com/docs/en/commands</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-clear">/clear</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>פתיחת שיחה חדשה עם <bdi>Context</bdi> ריק, תוך שמירת ה-<bdi>Memory</bdi> של הפרויקט (<code>CLAUDE.md</code> נטען מחדש).</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/clear [name]</code></td></tr>
+    <tr><th>זמינות</th><td>לכולם. כינויים: <code>/reset</code>, <code>/new</code>.</td></tr>
+    <tr><th>פרמטרים</th><td><code>[name]</code>: תווית לשיחה הקודמת בבורר של <code>/resume</code>.</td></tr>
+    <tr><th>התנהגות צפויה</th><td>השיחה הנוכחית נסגרת ונשמרת, ונפתחת שיחה ריקה. מ-<bdi>v2.1.191</bdi>, באותו תהליך <bdi>CLI</bdi>, אפשר לשחזר את השיחה הקודמת מתפריט ה-<bdi>Rewind</bdi> דרך רשומת ה-<bdi>Session</bdi> הקודם.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/clear payments-refactor-done</code></td></tr>
+    <tr><th>פלט צפוי</th><td>שורת קלט נקייה; מונה ה-<bdi>Context</bdi> מתאפס.</td></tr>
+    <tr><th>טעויות נפוצות</th><td>להשתמש ב-<code>/clear</code> כשרוצים רק לפנות מקום באמצע משימה. לשם כך נועדה <code>/compact</code>, ששומרת את חוט העבודה.</td></tr>
+    <tr><th>מגבלות</th><td>ההקשר של המשימה הנוכחית אובד; מה שלא נשמר ב-<code>CLAUDE.md</code> או בקבצים לא יעבור לשיחה החדשה.</td></tr>
+    <tr><th>השלכות הרשאות</th><td>אישורים בתוקף ל-<bdi>Session</bdi> אינם רלוונטיים עוד לשיחה החדשה.</td></tr>
+    <tr><th>השלכות Context</th><td>איפוס מלא. זו הדרך הזולה והנקייה ביותר להתחיל משימה חדשה.</td></tr>
+    <tr><th>השלכות עלות</th><td>מוזילה את ההמשך: פחות <bdi>Tokens</bdi> בכל תור לעומת שיחה ארוכה.</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>/compact</code>, <code>/resume</code>, <code>/rewind</code>, <code>/rename</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">code.claude.com/docs/en/commands</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-compact">/compact</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>פינוי <bdi>Context</bdi> על ידי סיכום השיחה עד כה, בלי לאבד את חוט העבודה.</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/compact [instructions]</code></td></tr>
+    <tr><th>זמינות</th><td>לכולם.</td></tr>
+    <tr><th>פרמטרים</th><td><code>[instructions]</code>: הנחיות מיקוד לסיכום, למשל על אילו חלקים לשמור בפירוט.</td></tr>
+    <tr><th>התנהגות צפויה</th><td>ההיסטוריה מוחלפת בסיכום. לפי התיעוד, כללים, <bdi>Skills</bdi> וקובצי <bdi>Memory</bdi> שורדים את הדחיסה.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/compact keep the failing test names and the API contract</code></td></tr>
+    <tr><th>פלט צפוי</th><td>הודעת סיכום; מונה ה-<bdi>Context</bdi> יורד משמעותית.</td></tr>
+    <tr><th>טעויות נפוצות</th><td>לדחוס מאוחר מדי, אחרי שהחלון כמעט מלא; או לדחוס בלי הנחיות כשבשיחה יש פרטים קריטיים שחשוב לשמר.</td></tr>
+    <tr><th>מגבלות</th><td>סיכום הוא איבוד מידע מבוקר: פרטים שלא נכללו בו לא יהיו זמינים בהמשך.</td></tr>
+    <tr><th>השלכות הרשאות</th><td>אין.</td></tr>
+    <tr><th>השלכות Context</th><td>מפנה נתח גדול מהחלון ומאפשר להמשיך שיחה ארוכה.</td></tr>
+    <tr><th>השלכות עלות</th><td>פעולת הסיכום עצמה צורכת <bdi>Tokens</bdi>, אך התורים הבאים זולים יותר.</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>/context</code>, <code>/clear</code>, <code>/rewind</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">commands</a> | <a href="https://code.claude.com/docs/en/context-window">context-window</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-context">/context</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>הצגה חזותית של ניצול חלון ה-<bdi>Context</bdi>: מה תופס מקום ומה אפשר לייעל.</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/context [all]</code></td></tr>
+    <tr><th>זמינות</th><td>לכולם; אזהרת חריגה מהחלון דורשת <bdi>v2.1.216</bdi> ומעלה.</td></tr>
+    <tr><th>פרמטרים</th><td><code>all</code>: הרחבת הפירוט פר-פריט (ב-<bdi>Fullscreen</bdi> הפירוט מכווץ כברירת מחדל).</td></tr>
+    <tr><th>התנהגות צפויה</th><td>רשת צבעונית של רכיבי החלון: <bdi>System Prompt</bdi>, כלים, שרתי <bdi>MCP</bdi>, <bdi>Memory</bdi>, שיחה; לצדה המלצות על כלים כבדים, ניפוח <bdi>Memory</bdi> ואזהרות קיבולת.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/context all</code></td></tr>
+    <tr><th>פלט צפוי</th><td>תרשים במסך בלבד; אין שינוי במצב.</td></tr>
+    <tr><th>טעויות נפוצות</th><td>להתעלם מההמלצות: שרת <bdi>MCP</bdi> לא בשימוש שתופס עשרות אלפי <bdi>Tokens</bdi> הוא מועמד טבעי לניתוק.</td></tr>
+    <tr><th>מגבלות</th><td>תצוגה בלבד; היא לא משנה דבר בעצמה.</td></tr>
+    <tr><th>השלכות הרשאות</th><td>אין.</td></tr>
+    <tr><th>השלכות Context</th><td>אין; זהו כלי המדידה של ה-<bdi>Context</bdi>.</td></tr>
+    <tr><th>השלכות עלות</th><td>אין קריאת מודל; מסייעת להוזיל תורים עתידיים.</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>/compact</code>, <code>/usage</code>, <code>/mcp</code>, <code>/skills</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">code.claude.com/docs/en/commands</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-model">/model</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>החלפת מודל השפה הפעיל ושמירתו כברירת מחדל ל-<bdi>Sessions</bdi> חדשים.</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/model [model]</code></td></tr>
+    <tr><th>זמינות</th><td>לכולם; במצב לא אינטראקטיבי (<code>-p</code>) מ-<bdi>v2.1.205</bdi>, עם ארגומנט בלבד ול-<bdi>Session</bdi> הנוכחי בלבד.</td></tr>
+    <tr><th>פרמטרים</th><td><code>[model]</code>: כינוי או שם מלא. בלי ארגומנט נפתח בורר: חצים ימינה ושמאלה מכווננים <bdi>Effort</bdi>, והאות <code>s</code> מחליפה ל-<bdi>Session</bdi> הנוכחי בלבד.</td></tr>
+    <tr><th>התנהגות צפויה</th><td>ההחלפה חלה מיד, בלי להמתין לסיום התשובה הנוכחית. כשיש פלט קודם בשיחה, הבורר מבקש אישור.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/model claude-sonnet-5</code></td></tr>
+    <tr><th>פלט צפוי</th><td>אישור החלפה; שם המודל מתעדכן בשורת הסטטוס.</td></tr>
+    <tr><th>טעויות נפוצות</th><td>להחליף מודל באמצע שיחה ארוכה בלי להבין את השלכת ה-<bdi>Cache</bdi>; לצפות ששמות מודלים מומצאים יעבדו.</td></tr>
+    <tr><th>מגבלות</th><td>המודלים המוצעים תלויים בחשבון ובפלטפורמה.</td></tr>
+    <tr><th>השלכות הרשאות</th><td>אין.</td></tr>
+    <tr><th>השלכות Context</th><td>גודל החלון עשוי להשתנות בין מודלים.</td></tr>
+    <tr><th>השלכות עלות</th><td>מהותיות: תמחור שונה פר-מודל, והחלפה באמצע שיחה גוררת קריאה מחודשת של ההיסטוריה ללא <bdi>Cache</bdi>.</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>/effort</code>, <code>/fast</code>, <code>claude --model</code>, <code>--fallback-model</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">commands</a> | <a href="https://code.claude.com/docs/en/model-config">model-config</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-effort">/effort</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>קביעת רמת המאמץ (עומק החשיבה) של המודל הנוכחי.</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/effort [level|auto]</code></td></tr>
+    <tr><th>זמינות</th><td>הרמות הזמינות תלויות מודל; במצב <code>-p</code> מ-<bdi>v2.1.205</bdi> עם ארגומנט, ל-<bdi>Session</bdi> בלבד.</td></tr>
+    <tr><th>פרמטרים</th><td><code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>, <code>max</code>, <code>ultracode</code>; <code>auto</code> מחזיר לברירת המחדל של המודל. <code>max</code> ו-<code>ultracode</code> חלות על ה-<bdi>Session</bdi> בלבד. בלי ארגומנט נפתח מחוון אינטראקטיבי.</td></tr>
+    <tr><th>התנהגות צפויה</th><td>נכנסת לתוקף מיד, בלי להמתין לסיום התשובה הנוכחית.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/effort xhigh</code></td></tr>
+    <tr><th>פלט צפוי</th><td>אישור הרמה החדשה; מוצגת גם בשורת הסטטוס לפי הגדרתה.</td></tr>
+    <tr><th>טעויות נפוצות</th><td>להשאיר <code>max</code> קבוע גם למשימות פשוטות; לצפות ש-<code>max</code> יישמר ל-<bdi>Sessions</bdi> הבאים (הוא ל-<bdi>Session</bdi> בלבד).</td></tr>
+    <tr><th>מגבלות</th><td>בזמן שמנגנון ההחזקה של ברירת מחדל פעיל, <code>/effort</code> לא אינטראקטיבי מדווח <bdi>Not applied</bdi>; יש להשתמש בדגל <code>--effort</code> בהפעלה. בחלק מהמודלים מומלץ בתיעוד להעדיף את הדגל.</td></tr>
+    <tr><th>השלכות הרשאות</th><td>אין.</td></tr>
+    <tr><th>השלכות Context</th><td>רמות גבוהות מייצרות יותר חשיבה, כלומר יותר תוכן בשיחה.</td></tr>
+    <tr><th>השלכות עלות</th><td>ישירות: יותר מאמץ = יותר <bdi>Tokens</bdi> לכל תור, ולרוב איכות גבוהה יותר במשימות מורכבות.</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>/model</code>, <code>/fast</code>, <code>claude --effort</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">commands</a> | <a href="https://code.claude.com/docs/en/model-config">model-config</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026. הערה: ב-<code>claude --help</code> המקומי (v2.1.220) הדגל <code>--effort</code> מציג את הרמות עד <code>max</code> בלבד; <code>ultracode</code> מתועד בתיעוד ה-CLI מ-<bdi>v2.1.203</bdi>.</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-init">/init</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>אתחול הפרויקט עם קובץ <code>CLAUDE.md</code>: מדריך קבוע שנטען בכל <bdi>Session</bdi> ומלמד את <bdi>Claude</bdi> את מוסכמות הפרויקט.</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/init</code></td></tr>
+    <tr><th>זמינות</th><td>לכולם. משתנה הסביבה <code>CLAUDE_CODE_NEW_INIT=1</code> מפעיל זרימה אינטראקטיבית שכוללת גם <bdi>Skills</bdi>, <bdi>Hooks</bdi> וקובצי <bdi>Memory</bdi> אישיים.</td></tr>
+    <tr><th>פרמטרים</th><td>אין.</td></tr>
+    <tr><th>התנהגות צפויה</th><td><bdi>Claude</bdi> סורק את ה-<bdi>Codebase</bdi> ומחולל <code>CLAUDE.md</code> עם פקודות <bdi>Build</bdi> ובדיקה, מבנה ומוסכמות.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/init</code></td></tr>
+    <tr><th>פלט צפוי</th><td>קובץ <code>CLAUDE.md</code> חדש בשורש הפרויקט (עריכתו כפופה לאישור הרשאות רגיל).</td></tr>
+    <tr><th>טעויות נפוצות</th><td>לקבל את הקובץ שנוצר כמו שהוא בלי לקצץ; קובץ מנופח מבזבז <bdi>Context</bdi> בכל <bdi>Session</bdi>. השתמשו ב-<code>/doctor</code>, שיודע לקצץ תוכן ש-<bdi>Claude</bdi> יכול להסיק בעצמו מהקוד.</td></tr>
+    <tr><th>מגבלות</th><td>פעולה חד-פעמית ליצירה; תחזוקה שוטפת דרך <code>/memory</code>.</td></tr>
+    <tr><th>השלכות הרשאות</th><td>כתיבת קובץ בפרויקט, בכפוף לאישור.</td></tr>
+    <tr><th>השלכות Context</th><td>הקובץ נטען בכל <bdi>Session</bdi> עתידי; גודלו משפיע ישירות על החלון.</td></tr>
+    <tr><th>השלכות עלות</th><td>הסריקה צורכת <bdi>Tokens</bdi> חד-פעמית; קובץ טוב חוסך הסברים חוזרים בהמשך.</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>/memory</code>, <code>/doctor</code>, <code>/context</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">commands</a> | <a href="https://code.claude.com/docs/en/memory">memory</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-memory">/memory</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>עריכת קובצי ה-<bdi>Memory</bdi> (<code>CLAUDE.md</code>), הפעלה או כיבוי של <bdi>Auto-memory</bdi> וצפייה ברשומות שנשמרו אוטומטית.</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/memory</code></td></tr>
+    <tr><th>זמינות</th><td>לכולם.</td></tr>
+    <tr><th>פרמטרים</th><td>אין; נפתח תפריט בחירה.</td></tr>
+    <tr><th>התנהגות צפויה</th><td>בחירת קובץ <bdi>Memory</bdi> (משתמש או פרויקט) לעריכה בעורך, וניהול רשומות ה-<bdi>Auto-memory</bdi>.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/memory</code></td></tr>
+    <tr><th>פלט צפוי</th><td>תפריט; לאחר עריכה, השינויים חלים על ה-<bdi>Sessions</bdi> הבאים (ולפי סוג הקובץ גם על הנוכחי).</td></tr>
+    <tr><th>טעויות נפוצות</th><td>לשים הנחיות אישיות בקובץ הפרויקט המשותף לצוות, או להפך; לצבור בקובץ מידע שמתיישן.</td></tr>
+    <tr><th>מגבלות</th><td>עריכה ידנית; אינה מסכמת שיחה (לשם כך <code>/compact</code>).</td></tr>
+    <tr><th>השלכות הרשאות</th><td>עריכת קבצים מקומיים.</td></tr>
+    <tr><th>השלכות Context</th><td>כל שורה בקובצי <bdi>Memory</bdi> נטענת שוב ושוב; לשמור אותם רזים.</td></tr>
+    <tr><th>השלכות עלות</th><td>קבצים גדולים מייקרים כל תור בכל <bdi>Session</bdi>.</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>/init</code>, <code>/doctor</code>, <code>/context</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">commands</a> | <a href="https://code.claude.com/docs/en/memory">memory</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-mcp">/mcp</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>ניהול חיבורי שרתי <bdi>MCP</bdi> ואימות <bdi>OAuth</bdi> מתוך ה-<bdi>Session</bdi>.</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/mcp [reconnect &lt;server&gt;|enable|disable [&lt;server&gt;|all]]</code></td></tr>
+    <tr><th>זמינות</th><td>לכולם; במצב <code>-p</code> מ-<bdi>v2.1.205</bdi> מודפס סיכום טקסטואלי במקום דיאלוג.</td></tr>
+    <tr><th>פרמטרים</th><td>בלי ארגומנט: רשימה אינטראקטיבית. <code>reconnect &lt;server&gt;</code>: חיבור מחדש של שרת שהתנתק. <code>enable</code>/<code>disable</code> עם שם שרת או <code>all</code>: שינוי מצב חיבור בלי לפתוח דיאלוג.</td></tr>
+    <tr><th>התנהגות צפויה</th><td>תצוגת מצב לכל שרת, כלים חשופים ואפשרות אימות.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/mcp disable all</code></td></tr>
+    <tr><th>פלט צפוי</th><td>עדכון מצב חיבורים; כלים של שרתים מנוטרלים נעלמים.</td></tr>
+    <tr><th>טעויות נפוצות</th><td>להשאיר שרתים מחוברים שאינם בשימוש; להתעלם משרת שדורש אימות מחדש.</td></tr>
+    <tr><th>מגבלות</th><td>הוספת שרתים חדשים נעשית ב-<bdi>CLI</bdi> עם <code>claude mcp add</code> או בקובצי תצורה, לא מפקודה זו.</td></tr>
+    <tr><th>השלכות הרשאות</th><td>כלי <bdi>MCP</bdi> כפופים למערכת ההרשאות; חיבור שרת חדש מוסיף יכולות שדורשות בקרה.</td></tr>
+    <tr><th>השלכות Context</th><td>כל שרת מחובר מוסיף הגדרות כלים לחלון; ניתוק שרתים כבדים מפנה מקום מיידית.</td></tr>
+    <tr><th>השלכות עלות</th><td>פחות הגדרות כלים = פחות <bdi>Tokens</bdi> קבועים בכל תור.</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>claude mcp add/list/remove/login</code>, <code>/context</code>, <code>--mcp-config</code>, <code>--strict-mcp-config</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">commands</a> | <a href="https://code.claude.com/docs/en/mcp">mcp</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-rewind">/rewind</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>חזרה אחורה בשיחה, בקוד או בשניהם לנקודת ביקורת (<bdi>Checkpoint</bdi>) קודמת, או סיכום חלק מהשיחה.</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/rewind</code></td></tr>
+    <tr><th>זמינות</th><td>לכולם. כינויים: <code>/checkpoint</code>, <code>/undo</code>. נפתח גם בלחיצה כפולה על <code>Esc</code> כשהקלט ריק.</td></tr>
+    <tr><th>פרמטרים</th><td>אין; נפתח תפריט לבחירת נקודה ומה לשחזר.</td></tr>
+    <tr><th>התנהגות צפויה</th><td>בחירת הודעה בהיסטוריה ושחזור הקוד, השיחה או שניהם למצב באותה נקודה. מ-<bdi>v2.1.191</bdi> התפריט כולל גם רשומת שיחה קודמת שנסגרה עם <code>/clear</code>.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/rewind</code></td></tr>
+    <tr><th>פלט צפוי</th><td>הקבצים והשיחה חוזרים למצב שנבחר.</td></tr>
+    <tr><th>טעויות נפוצות</th><td>לבלבל בין <code>/rewind</code> ל-<code>git revert</code>: מנגנון ה-<bdi>Checkpoints</bdi> עוקב אחרי עריכות של <bdi>Claude</bdi> ואינו תחליף ל-<bdi>Git</bdi>.</td></tr>
+    <tr><th>מגבלות</th><td>מכסה את השינויים שנעשו דרך ה-<bdi>Session</bdi>; שינויים חיצוניים מנוהלים ב-<bdi>Git</bdi>.</td></tr>
+    <tr><th>השלכות הרשאות</th><td>משחזרת קבצים בדיסק; פעולה עוצמתית שראוי להפעיל בכוונה.</td></tr>
+    <tr><th>השלכות Context</th><td>חזרה בשיחה מוחקת מהחלון את כל מה שאחרי הנקודה.</td></tr>
+    <tr><th>השלכות עלות</th><td>מוזילה תיקון כיוון: במקום לשלם על "תבטל את מה שעשית", חוזרים לנקודה נקייה.</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>/diff</code>, <code>/clear</code>, <code>/branch</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">commands</a> | <a href="https://code.claude.com/docs/en/checkpointing">checkpointing</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-usage">/usage</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>הצגת עלות ה-<bdi>Session</bdi>, מגבלות התוכנית וסטטיסטיקות פעילות.</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/usage</code></td></tr>
+    <tr><th>זמינות</th><td>לכולם; רצה מיד גם בזמן שהמודל עונה. כינויים: <code>/cost</code>, <code>/stats</code> (נפתחת בלשונית <bdi>Stats</bdi>).</td></tr>
+    <tr><th>פרמטרים</th><td>אין.</td></tr>
+    <tr><th>התנהגות צפויה</th><td>תצוגת עלות ומגבלות; בתוכניות <bdi>Pro</bdi>, <bdi>Max</bdi>, <bdi>Team</bdi> ו-<bdi>Enterprise</bdi> מוצג גם פילוח שימוש לפי <bdi>Skill</bdi>, <bdi>Subagent</bdi>, <bdi>Plugin</bdi> ושרת <bdi>MCP</bdi>.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/usage</code></td></tr>
+    <tr><th>פלט צפוי</th><td>מסך נתונים; אין שינוי במצב.</td></tr>
+    <tr><th>טעויות נפוצות</th><td>לבלבל בין <code>/usage</code> (עלות ומגבלות) ל-<code>/context</code> (ניצול חלון ה-<bdi>Context</bdi>); אלה שני מדדים שונים.</td></tr>
+    <tr><th>מגבלות</th><td>תצוגה בלבד; ניהול <bdi>Usage Credits</bdi> נעשה ב-<code>/usage-credits</code>.</td></tr>
+    <tr><th>השלכות הרשאות</th><td>אין.</td></tr>
+    <tr><th>השלכות Context</th><td>זניחות.</td></tr>
+    <tr><th>השלכות עלות</th><td>אין; זה כלי המעקב אחרי העלות.</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>/usage-credits</code>, <code>/insights</code>, <code>/context</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">commands</a> | <a href="https://code.claude.com/docs/en/costs">costs</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026</td></tr>
+  </tbody></table></div>
+
+  <h3 id="cmd-config">/config</h3>
+  <div class="tablewrap"><table><tbody>
+    <tr><th>מטרה</th><td>פתיחת ממשק ההגדרות, או קביעת הגדרה ישירות משורת הקלט.</td></tr>
+    <tr><th>Syntax</th><td class="ltr"><code>/config [key=value ...]</code></td></tr>
+    <tr><th>זמינות</th><td>לכולם. צורת <code>key=value</code> מ-<bdi>v2.1.181</bdi>; קיצורי שמות כמו <code>theme=dark</code> מ-<bdi>v2.1.182</bdi>; עובדת גם במצב <code>-p</code> ומ-<bdi>Remote Control</bdi>. כינוי: <code>/settings</code>.</td></tr>
+    <tr><th>פרמטרים</th><td>זוגות <code>key=value</code>, אחד או יותר. <code>/config --help</code> מציגה את כל המפתחות הניתנים לקביעה.</td></tr>
+    <tr><th>התנהגות צפויה</th><td>בלי ארגומנטים נפתח ממשק ההגדרות (ובו גם מצב העורך, כולל מצב <bdi>Vim</bdi>); עם ארגומנטים ההגדרה נקבעת מיד.</td></tr>
+    <tr><th>דוגמה</th><td class="ltr"><code>/config theme=dark model=sonnet</code></td></tr>
+    <tr><th>פלט צפוי</th><td>אישור ההגדרות שנקבעו, או ממשק ההגדרות.</td></tr>
+    <tr><th>טעויות נפוצות</th><td>לחפש את מצב <bdi>Vim</bdi> בפקודה נפרדת (<code>/vim</code> הוסרה ב-<bdi>v2.1.92</bdi>); לנחש שמות מפתחות במקום להריץ <code>/config --help</code>.</td></tr>
+    <tr><th>מגבלות</th><td>הגדרות מנוהלות על ידי ארגון (<bdi>Managed Settings</bdi>) גוברות על מה שתקבעו.</td></tr>
+    <tr><th>השלכות הרשאות</th><td>שינוי הגדרות עלול להשפיע על התנהגות הרשאות, לפי המפתח.</td></tr>
+    <tr><th>השלכות Context</th><td>זניחות.</td></tr>
+    <tr><th>השלכות עלות</th><td>עקיפות בלבד (למשל שינוי מודל דרך <code>model=</code>).</td></tr>
+    <tr><th>פקודות קשורות</th><td class="ltr"><code>/status</code>, <code>/theme</code>, <code>/keybindings</code>, <code>--settings</code></td></tr>
+    <tr><th>מקור רשמי</th><td class="ltr"><a href="https://code.claude.com/docs/en/commands">commands</a> | <a href="https://code.claude.com/docs/en/settings">settings</a></td></tr>
+    <tr><th>אומת לאחרונה</th><td>28.07.2026</td></tr>
+  </tbody></table></div>
+
+  <h2 id="cli">פקודות ודגלים של ה-CLI</h2>
+  <p>עד כאן עסקנו בפקודות שרצות בתוך <bdi>Session</bdi>. ה-<bdi>CLI</bdi> עצמו, הפקודה <code>claude</code> ב-<bdi>Terminal</bdi>, מקבל פקודות משנה ודגלים שקובעים איך <bdi>Session</bdi> מתחיל ואיך המערכת מנוהלת מבחוץ. כל השורות כאן אומתו מול <bdi>cli-reference</bdi> ב-28.07.2026, ורובן אומתו גם מול הפלט של <code>claude --help</code> בגרסה 2.1.220 שהותקנה מקומית.</p>
+
+  <h3 id="cli-cmds">פקודות CLI עיקריות</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פקודה</th><th>מה היא עושה</th><th>הערות</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>claude</code></td><td>פתיחת Session אינטראקטיבי</td><td>אפשר לצרף Prompt פותח: <code>claude "explain this project"</code></td></tr>
+        <tr><td class="ltr"><code>claude -p "query"</code></td><td>שאילתה לא אינטראקטיבית: תשובה ויציאה</td><td>מקבל גם קלט מ-Pipe: <code>cat logs.txt | claude -p "explain"</code></td></tr>
+        <tr><td class="ltr"><code>claude -c</code></td><td>המשך השיחה האחרונה בתיקייה הנוכחית</td><td>ניתן לשילוב עם <code>-p</code></td></tr>
+        <tr><td class="ltr"><code>claude -r "&lt;session&gt;"</code></td><td>חזרה ל-Session לפי מזהה או שם, או בורר</td><td>לפי שם: כולל Sessions שהוסיפו את התיקייה עם <code>/add-dir</code></td></tr>
+        <tr><td class="ltr"><code>claude update</code></td><td>עדכון לגרסה האחרונה</td><td>כינוי: <code>claude upgrade</code></td></tr>
+        <tr><td class="ltr"><code>claude install [version]</code></td><td>התקנת Build נייטיבי</td><td><code>stable</code>, <code>latest</code> או מספר גרסה</td></tr>
+        <tr><td class="ltr"><code>claude doctor</code></td><td>אבחון התקנה והגדרות לקריאה בלבד</td><td>לבדיקה מלאה עם תיקונים: <code>/doctor</code> בתוך Session</td></tr>
+        <tr><td class="ltr"><code>claude auth login|logout|status</code></td><td>ניהול אימות</td><td><code>status</code> מחזירה JSON; <code>--text</code> לפלט קריא; קוד יציאה 0/1</td></tr>
+        <tr><td class="ltr"><code>claude setup-token</code></td><td>יצירת OAuth Token ארוך טווח ל-CI</td><td>דורש מנוי Claude</td></tr>
+        <tr><td class="ltr"><code>claude mcp add|add-json|list|get|remove|login|logout</code></td><td>ניהול שרתי MCP</td><td><code>login</code>/<code>logout</code> מ-v2.1.186; גם <code>add-from-claude-desktop</code></td></tr>
+        <tr><td class="ltr"><code>claude plugin ...</code></td><td>ניהול Plugins: התקנה, הפעלה, השבתה ועוד</td><td>כינוי: <code>claude plugins</code></td></tr>
+        <tr><td class="ltr"><code>claude agents</code></td><td>תצוגת Agents לניטור ושיגור Sessions ברקע</td><td>תומכת בין השאר ב-<code>--json</code>, <code>--all</code></td></tr>
+        <tr><td class="ltr"><code>claude attach|logs|stop|respawn|rm &lt;id&gt;</code></td><td>ניהול Session רקע: התחברות, לוגים, עצירה, הפעלה מחדש, הסרה</td><td><code>stop</code> עם כינוי <code>kill</code>; מאומת בתיעוד</td></tr>
+        <tr><td class="ltr"><code>claude project purge [path]</code></td><td>מחיקת כל מצב Claude Code המקומי של פרויקט</td><td><code>--dry-run</code> לבדיקה לפני מחיקה</td></tr>
+        <tr><td class="ltr"><code>claude auto-mode defaults|reset</code></td><td>הצגת כללי המסווג של Auto mode ואיפוסם</td><td>defaults מ-v2.1.208; reset מ-v2.1.212</td></tr>
+        <tr><td class="ltr"><code>claude ultrareview [target]</code></td><td>סקירת ענן רב-סוכנית לא אינטראקטיבית</td><td><code>--json</code>, <code>--timeout</code>; קוד יציאה 0/1</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="cli-flags">דגלים מרכזיים</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>דגל</th><th>מה הוא עושה</th><th>הערות</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>-p, --print</code></td><td>מצב לא אינטראקטיבי: תשובה ויציאה</td><td>הבסיס לסקריפטים ול-Agent SDK</td></tr>
+        <tr><td class="ltr"><code>-c, --continue</code></td><td>המשך השיחה האחרונה בתיקייה</td><td></td></tr>
+        <tr><td class="ltr"><code>-r, --resume</code></td><td>חזרה ל-Session לפי מזהה או שם</td><td>Sessions ברקע מסומנים <code>bg</code> בבורר</td></tr>
+        <tr><td class="ltr"><code>--fork-session</code></td><td>בעת Resume, יצירת מזהה Session חדש במקום שימוש חוזר במקורי</td><td>עם <code>--resume</code> או <code>--continue</code></td></tr>
+        <tr><td class="ltr"><code>--session-id &lt;uuid&gt;</code></td><td>קביעת מזהה Session מפורש</td><td>חייב להיות UUID תקין</td></tr>
+        <tr><td class="ltr"><code>--bg, --background</code></td><td>הפעלת ה-Session כ-Background Agent וחזרה מיידית</td><td>לא משתלב עם <code>-p</code></td></tr>
+        <tr><td class="ltr"><code>-n, --name</code></td><td>שם תצוגה ל-Session</td><td>מופיע ב-<code>/resume</code> ובכותרת הטרמינל</td></tr>
+        <tr><td class="ltr"><code>--model &lt;model&gt;</code></td><td>מודל ל-Session הנוכחי</td><td>כינוי או שם מלא; גובר על ההגדרה</td></tr>
+        <tr><td class="ltr"><code>--effort &lt;level&gt;</code></td><td>רמת מאמץ ל-Session</td><td>ראו הערת ultracode בסעיף /effort</td></tr>
+        <tr><td class="ltr"><code>--fallback-model &lt;models&gt;</code></td><td>מודלי גיבוי אוטומטיים כשהעיקרי אינו זמין</td><td>רשימה מופרדת בפסיקים, לפי הסדר</td></tr>
+        <tr><td class="ltr"><code>--permission-mode &lt;mode&gt;</code></td><td>מצב הרשאות פותח</td><td class="ltr"><code>default</code> / <code>acceptEdits</code> / <code>plan</code> / <code>auto</code> / <code>dontAsk</code> / <code>bypassPermissions</code> / <code>manual</code></td></tr>
+        <tr><td class="ltr"><code>--allowedTools, --disallowedTools</code></td><td>כללי Allow/Deny לכלים בהפעלה</td><td>תחביר תואם כללי הרשאות, למשל <code>"Bash(git diff *)"</code></td></tr>
+        <tr><td class="ltr"><code>--tools &lt;list&gt;</code></td><td>צמצום סט הכלים המובנים</td><td class="ltr"><code>""</code>, <code>"default"</code> או <code>"Bash,Edit,Read"</code></td></tr>
+        <tr><td class="ltr"><code>--add-dir &lt;dirs&gt;</code></td><td>תיקיות עבודה נוספות לגישת קבצים</td><td>לקביעה קבועה: <code>permissions.additionalDirectories</code></td></tr>
+        <tr><td class="ltr"><code>--output-format</code></td><td>פורמט פלט במצב <code>-p</code></td><td class="ltr"><code>text</code> / <code>json</code> / <code>stream-json</code></td></tr>
+        <tr><td class="ltr"><code>--json-schema</code></td><td>פלט מובנה מאומת מול JSON Schema</td><td>מצב <code>-p</code> בלבד</td></tr>
+        <tr><td class="ltr"><code>--max-turns, --max-budget-usd</code></td><td>תקרת תורות ותקרת תקציב בדולרים</td><td>מצב <code>-p</code> בלבד; <code>--max-turns</code> מתועד אך אינו מוצג ב---help המקומי</td></tr>
+        <tr><td class="ltr"><code>--settings, --mcp-config, --plugin-dir</code></td><td>טעינת הגדרות, שרתי MCP ו-Plugins להפעלה זו</td><td><code>--strict-mcp-config</code> מתעלם משאר תצורות ה-MCP</td></tr>
+        <tr><td class="ltr"><code>--system-prompt, --append-system-prompt</code></td><td>החלפה או הרחבה של ה-System Prompt</td><td>גרסאות קובץ (<code>-file</code>) מתועדות ב-cli-reference</td></tr>
+        <tr><td class="ltr"><code>--bare, --safe-mode</code></td><td>מצב מינימלי בלי גילוי אוטומטי; מצב פתרון תקלות בלי התאמות אישיות</td><td><code>--safe-mode</code> מ-v2.1.169</td></tr>
+        <tr><td class="ltr"><code>--verbose, --debug</code></td><td>פלט מפורט; מצב Debug עם סינון קטגוריות</td><td class="ltr"><code>claude --debug "api,mcp"</code></td></tr>
+        <tr><td class="ltr"><code>-w, --worktree</code></td><td>יצירת Git Worktree חדש ל-Session</td><td><code>--tmux</code> דורש <code>--worktree</code></td></tr>
+        <tr><td class="ltr"><code>-v, --version</code></td><td>הצגת מספר הגרסה</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout danger"><span class="title">סכנה: --dangerously-skip-permissions</span><p>הדגל <code>--dangerously-skip-permissions</code> (שקול ל-<code>--permission-mode bypassPermissions</code>) מבטל את <strong>כל</strong> בקשות האישור: עריכת קבצים, הרצת פקודות, גישה לרשת. השתמשו בו אך ורק בסביבות מבודדות (Sandbox או Container) ללא גישה לאינטרנט וללא סודות, ולעולם לא על תחנת העבודה הראשית או מול מערכות <bdi>Production</bdi>. חלופה מדורגת: <code>--allow-dangerously-skip-permissions</code> מוסיפה את מצב <bdi>bypassPermissions</bdi> למחזור של <code>Shift+Tab</code> בלי להתחיל בו.</p></div>
+  <div class="terminal"><span class="p">$</span> claude --version
+<span class="out">2.1.220 (Claude Code)</span>
+<span class="p">$</span> claude -p --output-format json "list the TODO comments in src/"
+<span class="out">{"result": "...", ...}</span>
+<span class="p">$</span> claude --permission-mode plan --model sonnet -n taskflow-auth
+<span class="out">Session אינטראקטיבי חדש נפתח ב-Plan Mode, על Sonnet, עם שם מזוהה</span></div>
+
+  <h2 id="kbd">קיצורי מקלדת</h2>
+  <p>הטבלה מציגה את קיצורי המקלדת המרכזיים כפי שאומתו בתיעוד <bdi>interactive-mode</bdi> ו-<bdi>keybindings</bdi>. קיצורים עשויים להשתנות לפי פלטפורמה וטרמינל; ב-<bdi>macOS</bdi> קיצורי <bdi>Option</bdi> דורשים הגדרת <bdi>Option as Meta</bdi> בטרמינל.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>קיצור</th><th>פעולה</th><th>הערות</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>Ctrl+C</code></td><td>עצירת פעולה רצה, או ניקוי הקלט</td><td>קיצור שמור שלא ניתן למיפוי מחדש; לחיצה שנייה על קלט ריק יוצאת</td></tr>
+        <tr><td class="ltr"><code>Ctrl+D</code></td><td>יציאה מ-Claude Code</td><td>שמור; לחיצה שנייה בתוך 800ms מאשרת</td></tr>
+        <tr><td class="ltr"><code>Esc</code></td><td>עצירת התשובה הנוכחית באמצע, או סגירת דיאלוג</td><td>העבודה שבוצעה עד כה נשמרת</td></tr>
+        <tr><td class="ltr"><code>Esc Esc</code></td><td>ניקוי טיוטת קלט, או פתיחת תפריט ה-Rewind</td><td>התפריט נפתח כשהקלט ריק</td></tr>
+        <tr><td class="ltr"><code>Shift+Tab</code></td><td>מעבר מחזורי בין מצבי הרשאה</td><td>default (Manual), acceptEdits, plan ומצבים שהופעלו; ב-Windows מסוים: <code>Alt+M</code></td></tr>
+        <tr><td class="ltr"><code>Ctrl+O</code></td><td>פתיחה וסגירה של ה-Transcript Viewer המפורט</td><td>כולל חותמות זמן ומודל לכל הודעה</td></tr>
+        <tr><td class="ltr"><code>Ctrl+R</code></td><td>חיפוש הפוך בהיסטוריית הפקודות</td><td><code>Ctrl+S</code> בתוך החיפוש מחליף Scope: session, project, everywhere</td></tr>
+        <tr><td class="ltr"><code>Ctrl+T</code></td><td>הצגה והסתרה של רשימת המשימות של Claude</td><td>שונה מ-<code>/tasks</code> שמציגה עבודת רקע</td></tr>
+        <tr><td class="ltr"><code>Ctrl+B</code></td><td>העברת המשימה הרצה לרקע</td><td>משתמשי tmux לוחצים פעמיים; גם <code>Ctrl+X Ctrl+B</code> מ-v2.1.169</td></tr>
+        <tr><td class="ltr"><code>Shift+Enter</code></td><td>שורה חדשה בלי שליחה</td><td>מובנה ברוב הטרמינלים; ב-VS Code, Cursor, Alacritty, Zed: הריצו <code>/terminal-setup</code>. חלופה אוניברסלית: <code>Ctrl+J</code> או <code>\</code> ואז <code>Enter</code></td></tr>
+        <tr><td class="ltr"><code>Tab</code></td><td>קבלת הצעת השלמה (Autocomplete)</td><td>נתיבים אחרי <code>@</code>, פקודות אחרי <code>/</code>, נתיבי <code>/add-dir</code> ו-<code>/cd</code></td></tr>
+        <tr><td class="ltr"><code>Option/Alt+P</code></td><td>פתיחת בורר המודלים</td><td>בלי לנקות את ה-Prompt שכתבתם</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout note"><span class="title">מצב Vim והתאמה אישית</span><p>מצב <bdi>Vim</bdi> מופעל דרך <code>/config</code> בשדה <bdi>Editor mode</bdi> ופועל ברמת קלט הטקסט (תנועות, מצבים), במקביל ולא במקום מערכת הקיצורים. במצב <bdi>NORMAL</bdi>, התו <code>/</code> פותח חיפוש היסטוריה כמו <code>Ctrl+R</code>. התאמה אישית מלאה של קיצורים: <code>/keybindings</code> יוצרת ופותחת את <code>~/.claude/keybindings.json</code> (דורש <bdi>v2.1.18</bdi> ומעלה); שינויים בקובץ נטענים אוטומטית בלי הפעלה מחדש. הקיצורים <code>Ctrl+C</code>, <code>Ctrl+D</code>, <code>Ctrl+M</code> ו-<bdi>Caps Lock</bdi> שמורים ואינם ניתנים למיפוי.</p></div>
+
+  <h2 id="compare">השוואות בין פקודות דומות</h2>
+
+  <h3 id="cmp-context">/clear מול /compact מול /rewind מול Session חדש</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פעולה</th><th>מה קורה לשיחה</th><th>מה קורה לקוד</th><th>מתי להשתמש</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>/clear</code></td><td>מתאפסת לגמרי; הישנה נשמרת ל-<code>/resume</code></td><td>לא משתנה</td><td>מעבר למשימה חדשה שלא תלויה בקודמת</td></tr>
+        <tr><td class="ltr"><code>/compact</code></td><td>מוחלפת בסיכום; חוט העבודה נשמר</td><td>לא משתנה</td><td>אמצע משימה ארוכה כשהחלון מתמלא</td></tr>
+        <tr><td class="ltr"><code>/rewind</code></td><td>חוזרת לנקודה קודמת (לבחירתכם)</td><td>יכול לחזור ל-Checkpoint</td><td>כיוון שגוי: מבטלים ומנסים מחדש מנקודה נקייה</td></tr>
+        <tr><td>יציאה ופתיחת <code>claude</code> חדש</td><td>שיחה חדשה; הקודמת זמינה עם <code>-c</code>/<code>-r</code></td><td>לא משתנה</td><td>החלפת תיקייה, מודל פותח או דגלים; איפוס סביבה</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="cmp-usage">/usage מול /cost מול /insights</h3>
+  <p><code>/cost</code> ו-<code>/stats</code> הן כינויים של <code>/usage</code>: כולן פותחות את אותה תצוגת עלות, מגבלות וסטטיסטיקות (כל אחת בלשונית ברירת מחדל אחרת). <code>/insights</code> שונה במהות: היא מחוללת <em>דוח ניתוח</em> על אופן העבודה שלכם עם <bdi>Claude Code</bdi> לאורך זמן: תחומי פרויקט, דפוסי אינטראקציה ונקודות חיכוך. בקצרה: <code>/usage</code> עונה על "כמה השתמשתי ומה נשאר", <code>/insights</code> עונה על "איך אני עובד ומה כדאי לשפר".</p>
+
+  <h3 id="cmp-fork">/fork מול /branch מול /subtask מול claude --fork-session</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פקודה</th><th>מה נוצר</th><th>איפה אתם נשארים</th><th>תוצאה חוזרת אליכם?</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>/branch [name]</code></td><td>הסתעפות של השיחה הנוכחית</td><td>עוברים אל ההסתעפות; חזרה עם <code>/resume</code></td><td>לא רלוונטי: אתם בתוכה</td></tr>
+        <tr><td class="ltr"><code>/fork [prompt]</code></td><td>העתק עצמאי כ-Background Session (v2.1.212+)</td><td>נשארים בשיחה הנוכחית</td><td>לא; ההעתק עצמאי, מנוטר ב-<code>claude agents</code></td></tr>
+        <tr><td class="ltr"><code>/subtask &lt;task&gt;</code></td><td>Forked Subagent שיורש את השיחה (v2.1.212+)</td><td>נשארים וממשיכים לעבוד</td><td>כן; התוצאה חוזרת לשיחה הזו</td></tr>
+        <tr><td class="ltr"><code>claude --resume X --fork-session</code></td><td>Session חדש עם מזהה חדש מתוך שיחה שמורה</td><td>ב-Session החדש</td><td>לא רלוונטי; המקור נשאר ללא שינוי</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="exercise">תרגיל: ניהול Session בפקודות בלבד</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 4.1: שליטה מלאה בלי Prompt חופשי אחד</div>
+    <div class="body">
+      <p>המטרה: לנהל <bdi>Session</bdi> שלם, מודל, <bdi>Context</bdi> והרשאות, באמצעות פקודות וקיצורים בלבד. בצעו בסדר הבא ותעדו מה קרה בכל שלב:</p>
+      <ol>
+        <li>פתחו <bdi>Session</bdi> חדש בתיקיית פרויקט עם <code>claude --permission-mode plan -n ch4-exercise</code>.</li>
+        <li>בדקו את מצב ההתקנה והחשבון עם <code>/status</code>, ואת ניצול ה-<bdi>Context</bdi> ההתחלתי עם <code>/context</code>.</li>
+        <li>העלו את רמת המאמץ עם <code>/effort high</code>, ובדקו איזה מודל פעיל עם <code>/model</code> (צאו מהבורר בלי לשנות, עם <code>Esc</code>).</li>
+        <li>עברו בין מצבי ההרשאות עם <code>Shift+Tab</code> עד שתחזרו ל-<bdi>plan</bdi>. שימו לב לתווית המצב מתחת לשורת הקלט.</li>
+        <li>בקשו מ-<bdi>Claude</bdi> משימה קטנה (זה ה-<bdi>Prompt</bdi> היחיד המותר), למשל סקירה קצרה של מבנה הפרויקט, ואז בדקו שוב <code>/context</code> והשוו לניצול ההתחלתי.</li>
+        <li>דחסו עם <code>/compact keep the project structure summary</code> ובדקו את ההשפעה עם <code>/context</code>.</li>
+        <li>תנו שם לשיחה עם <code>/rename ch4-done</code>, פתחו שיחה חדשה עם <code>/clear</code>, וחזרו אל הישנה עם <code>/resume ch4-done</code>.</li>
+        <li>סיימו: בדקו עלות עם <code>/usage</code> וצאו עם <code>/exit</code>.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>שלב 1:</strong> הדגל <code>--permission-mode plan</code> פותח את ה-<bdi>Session</bdi> ישירות ב-<bdi>Plan Mode</bdi>, כלומר <bdi>Claude</bdi> יחקור אך לא יערוך קבצים; <code>-n</code> נותן שם שיקל על <code>/resume</code> בעתיד.</p>
+      <p><strong>שלבים 2 עד 3:</strong> <code>/status</code> מציגה גרסה, מודל, חשבון וקישוריות. <code>/context</code> ההתחלתי מראה כמה מהחלון תפוס עוד לפני שכתבתם דבר: <bdi>System Prompt</bdi>, כלים, <code>CLAUDE.md</code> ושרתי <bdi>MCP</bdi>. <code>/effort high</code> נכנס לתוקף מיד. בבורר של <code>/model</code> שימו לב שאפשר לכוונן <bdi>Effort</bdi> עם החצים ושהאות <code>s</code> מחליפה ל-<bdi>Session</bdi> בלבד.</p>
+      <p><strong>שלב 4:</strong> <code>Shift+Tab</code> עובר בין <bdi>default</bdi> (מוצג <bdi>Manual</bdi>), <bdi>acceptEdits</bdi>, <bdi>plan</bdi> וכל מצב נוסף שהופעל אצלכם. זה שינוי מצב לכל ה-<bdi>Session</bdi>, לא אישור חד-פעמי.</p>
+      <p><strong>שלבים 5 עד 6:</strong> אחרי משימת הסקירה, <code>/context</code> יראה שהשיחה גדלה. הדחיסה עם הנחיית מיקוד שומרת בדיוק את מה שביקשתם. השוואת שתי התצוגות היא ההרגל החשוב ביותר לעבודה ארוכה ויעילה.</p>
+      <p><strong>שלבים 7 עד 8:</strong> <code>/rename</code> ואז <code>/clear</code> מדגימים שהשיחה הישנה לא נמחקת אלא נשמרת בבורר; <code>/resume ch4-done</code> מחזיר אתכם אליה עם מלוא ההקשר. <code>/usage</code> מסכם את העלות, ו-<code>/exit</code> סוגר. אם תרצו להמשיך מחר: <code>claude -r ch4-done</code> מה-<bdi>Terminal</bdi>.</p>
+    </div>
+  </details>
+
+  <h2 id="troubleshoot">Troubleshooting: כשפקודה לא עובדת</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>תסמין</th><th>סיבות אפשריות</th><th>מה לעשות</th></tr></thead>
+      <tbody>
+        <tr><td>הפקודה לא מופיעה בתפריט ה-<code>/</code></td><td>גרסה ישנה מדי; פקודה תלוית פלטפורמה או תוכנית (למשל <code>/desktop</code>, <code>/passes</code>, <code>/privacy-settings</code>); פקודה תלוית סביבה (<code>/setup-bedrock</code> רק עם משתנה הסביבה המתאים)</td><td>בדקו גרסה עם <code>claude --version</code> ועדכנו עם <code>claude update</code>; בדקו את עמודת הזמינות בטבלת העזר; ודאו את סוג החשבון והפלטפורמה</td></tr>
+        <tr><td class="ltr"><code>Unknown command</code></td><td>הפקודה חדשה מהגרסה המותקנת (למשל <code>/cd</code> לפני v2.1.169); שגיאת כתיב; הפקודה הוסרה (<code>/vim</code>, <code>/pr-comments</code>)</td><td>עדכון גרסה; הקלידו <code>/</code> עם תחילת השם וראו מה מוצע; חפשו את המחליפה בטבלת העזר</td></tr>
+        <tr><td>Skill או פקודה מותאמת לא מזוהים</td><td>הקובץ נוסף אחרי תחילת ה-Session בתיקייה שלא הייתה קיימת; שם שגוי; הקובץ בתיקייה שנוספה רק דרך הגדרת <code>additionalDirectories</code> (שאינה טוענת Skills)</td><td>הריצו <code>/reload-skills</code>; ודאו נתיב <code>.claude/skills/&lt;name&gt;/SKILL.md</code>; זכרו ש-<code>/add-dir</code> כן טוענת Skills מהתיקייה שנוספה</td></tr>
+        <tr><td>התנגשות שמות בין Skills לפקודות</td><td>Skill ופקודה ותיקה באותו שם; Skill מקומי באותו שם כמו Bundled Skill</td><td>לפי התיעוד: ה-Skill גובר על פקודת <code>.claude/commands/</code>, ו-Skill ברמת Enterprise/אישי/פרויקט מחליף Bundled Skill באותו שם (למשל <code>code-review</code> מקומי מחליף את המובנה, אבל לא את הכינויים שלו). Skills של Plugins ממוספים בנפרד (<code>plugin:skill</code>) ולא מתנגשים</td></tr>
+        <tr><td class="ltr"><code>Fast mode has been disabled by your organization</code></td><td>מנהל הארגון לא הפעיל Fast Mode ב-Team/Enterprise</td><td>פנו למנהל; ראו דרישות Fast Mode (Usage Credits, פלטפורמה)</td></tr>
+        <tr><td>פקודה לא עובדת במצב <code>-p</code></td><td>רוב הפקודות האינטראקטיביות דורשות Session מלא; תמיכת <code>-p</code> נוספה לפקודות נבחרות רק מ-v2.1.205</td><td>בדקו בטבלת העזר אם מצוינת תמיכה ב-<code>-p</code>; אחרת השתמשו בדגל המקביל בהפעלה (למשל <code>--effort</code> במקום <code>/effort</code>)</td></tr>
+        <tr><td>כל ה-Skills והפקודות מנוטרלים</td><td>ה-Session הופעל עם <code>--disable-slash-commands</code>, <code>--bare</code> או <code>--safe-mode</code></td><td>צאו והפעילו מחדש בלי הדגל</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="checklist">רשימת בדיקה: לפני שסומכים על פקודה</h2>
+  <ul class="check">
+    <li>הפקודה מופיעה בתפריט ה-<code>/</code> בסביבה שלכם, לא רק בתיעוד או בפוסט ישן.</li>
+    <li>בדקתם את דרישת הגרסה המינימלית מול <code>claude --version</code> אצלכם.</li>
+    <li>אתם יודעים אם זו פקודה מובנית, <bdi>Bundled Skill</bdi> או <bdi>Skill</bdi> מקומי, ומי גובר במקרה של התנגשות שמות.</li>
+    <li>אתם יודעים מה ההשפעה על ה-<bdi>Context</bdi>: מאפסת, מסכמת, מוסיפה או ניטרלית.</li>
+    <li>אתם יודעים מה ההשפעה על העלות, במיוחד ב-<code>/model</code>, <code>/effort</code>, <code>/fast</code> ובסקירות ענן.</li>
+    <li>לפקודות הרסניות או רחבות היקף (<code>/rewind</code>, <code>claude project purge</code>, דגלי עקיפת הרשאות): יש לכם דרך חזרה, למשל <bdi>Commit</bdi> נקי או <code>--dry-run</code>.</li>
+    <li>בדקתם את התנהגות הפקודה במצב שבו תריצו אותה בפועל: אינטראקטיבי מול <code>-p</code>.</li>
+    <li>המקור שהסתמכתם עליו הוא התיעוד הרשמי, עם תאריך בדיקה.</li>
+  </ul>
+
+  <h2 id="summary">סיכום</h2>
+  <p>בפרק זה מיפינו את כל שכבות הפקודות של <bdi>Claude Code</bdi>: 101 פקודות בתוך <bdi>Session</bdi> (87 מובנות, 13 <bdi>Bundled Skills</bdi> ו-<bdi>Workflow</bdi> אחד), פקודות ודגלים של ה-<bdi>CLI</bdi>, וקיצורי המקלדת המרכזיים. למדנו מתי פקודה עדיפה על <bdi>Prompt</bdi> חופשי, איך <bdi>Skills</bdi> ופקודות מותאמות אישית מתלכדים למנגנון אחד, איך 12 הפקודות החשובות משפיעות על הרשאות, <bdi>Context</bdi> ועלות, ואיך לאמת פקודה לפני שסומכים עליה. בפרק הבא נעבור מהמכניקה אל התוכן: איך מנסחים <bdi>Prompts</bdi> אפקטיביים ל-<bdi>Claude Code</bdi>.</p>
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/commands">Commands</a> |
+      <a href="https://code.claude.com/docs/en/cli-reference">CLI reference</a> |
+      <a href="https://code.claude.com/docs/en/interactive-mode">Interactive mode</a> |
+      <a href="https://code.claude.com/docs/en/keybindings">Keybindings</a> |
+      <a href="https://code.claude.com/docs/en/skills">Skills</a> |
+      <a href="https://code.claude.com/docs/en/fast-mode">Fast mode</a> |
+      נבדק: 28.07.2026. עדכון נקודתי: 15.10.2026, מול <bdi>Claude Code</bdi> <bdi>2.1.300</bdi> (שורות <code>/review</code> ו-<code>/code-review</code>).
+    </p>
+    <p>אימות מקומי: החבילה <code>@anthropic-ai/claude-code</code> הותקנה בהצלחה דרך <bdi>npm</bdi>; <code>claude --version</code> החזירה 2.1.220, והפלט של <code>claude --help</code>, <code>claude mcp --help</code> ו-<code>claude plugin --help</code> שימש להצלבת פקודות ודגלים של ה-<bdi>CLI</bdi>. פקודות ה-<bdi>Slash</bdi> רצות רק בתוך <bdi>Session</bdi> מאומת ולכן אומתו מול התיעוד הרשמי בלבד. פערים קטנים שנמצאו בין ה---help לתיעוד (למשל <code>ultracode</code> ברשימת רמות המאמץ, והדגלים הלא מתועדים <code>--brief</code> ו-<code>--file</code>) נרשמו ב-<bdi>qa-findings</bdi> והוחרגו מהמדריך.</p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch03.html"><span class="lbl">הפרק הקודם</span>פרק 3: ה-Session הראשון</a>
+    <a href="ch05.html"><span class="lbl">הפרק הבא</span>פרק 5: כיצד לדבר עם Claude Code</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.1 | הפרק עודכן: 15.10.2026 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

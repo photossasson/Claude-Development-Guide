@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 10: Debugging</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ב | פרק 10</p>
+  <h1>Debugging</h1>
+  <p class="lead"><bdi>Debugging</bdi> עם <bdi>Claude Code</bdi> הוא לא "תדביק שגיאה, תקבל תיקון". זו שיטה: הזנה נכונה של הודעות שגיאה, <bdi>Stack Traces</bdi> ו-<bdi>Logs</bdi>, רפרודוקציה מינימלית, עבודה מונחית השערות, ובדיקת רגרסיה שמוכיחה שהבעיה באמת נפתרה ולא הוסתרה. בפרק נעבור על השיטה ואז נפעיל אותה על תרחישים אמיתיים מ-<bdi>TaskFlow</bdi>: באג ב-<bdi>Backend</bdi> עם <bdi>Stack Trace</bdi>, באג <bdi>State</bdi> אסינכרוני ב-<bdi>React</bdi>, בדיקה הפכפכה (Flaky), כשל ב-<bdi>CI</bdi>, ו-<bdi>Race Conditions</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-changes">מה משתנה כשמדבגים עם Agent</h2>
+  <p>היתרון הגדול של <bdi>Claude Code</bdi> ב-<bdi>Debugging</bdi> הוא שהוא לא רק קורא את השגיאה, הוא יכול לפעול: להריץ את פקודת השחזור, לקרוא את הקוד סביב כל <bdi>Frame</bdi> ב-<bdi>Stack Trace</bdi>, להוסיף <bdi>Log</bdi> זמני, להריץ שוב ולהשוות. הלולאה שראינו לאורך המדריך (פעולה, קריאת פלט, מסקנה) היא בדיוק לולאת <bdi>Debugging</bdi>. הסיכון המרכזי הוא אותו סיכון: מודל שרוצה "לסגור את המשימה" עלול להציע תיקון שמעלים את התסמין בלי לגעת בשורש. לכן השיטה בפרק הזה בנויה משלושה עוגנים: <strong>ראיות</strong> (שגיאה מדויקת ושחזור), <strong>השערות מדורגות</strong> לפני קוד, ו<strong>בדיקת רגרסיה</strong> כתנאי לסיום.</p>
+  <p><strong>מתי להשתמש בתהליך המלא:</strong> באג שאינכם מבינים תוך דקה, באג שחוזר, וכל דבר הפכפך או תלוי תזמון. <strong>מתי לא:</strong> שגיאת תחביר או <bdi>Typo</bdi> שהקומפיילר כבר הסביר; שם, "fix this" עם השגיאה זה כל מה שצריך.</p>
+
+  <h2 id="raw-material">חומר הגלם: שגיאות, Stack Traces ו-Logs</h2>
+  <p>איכות ה-<bdi>Debugging</bdi> נקבעת קודם כול באיכות מה שהזנתם. הכלל: <strong>ראיות מדויקות, בכמות מדודה.</strong></p>
+  <ul>
+    <li><strong>הדביקו את השגיאה מילה במילה.</strong> "אני מקבל שגיאת 500" גרוע פי כמה מ-<bdi>Traceback</bdi> מלא. ניסוח חופשי מאבד בדיוק את הפרטים שמכריעים: שם החריגה, הקובץ, השורה, הערך.</li>
+    <li><strong>צרפו את דרך השחזור.</strong> ההמלצה הרשמית: לומר ל-Claude באיזו פקודה משחזרים את הבעיה, והאם היא עקבית או הפכפכה. "curl כזה מחזיר 422, קורה בכל פעם" נותן ל-Claude יכולת לאמת את התיקון בעצמו.</li>
+    <li><strong>Logs גדולים לא מדביקים, מסננים.</strong> קובץ <bdi>Log</bdi> של אלפי שורות ימלא את ה-<bdi>Context</bdi> ברעש (ראו סעיף ה-<bdi>Troubleshooting</bdi> בהמשך). חתכו עם <code>grep</code> או <code>tail</code>, או תנו ל-Claude לקרוא את הקובץ בעצמו ולחפש בו בכלים שלו, במקום להעמיס הכול לשיחה.</li>
+    <li><strong>צילומי מסך עובדים.</strong> שגיאה בדפדפן או ב-<bdi>DevTools</bdi>? הדביקו צילום מסך ישירות לשיחה (<code>Ctrl+V</code>, או גרירה לחלון). התיעוד ממליץ על כך במפורש לשגיאות ולמצבי UI.</li>
+  </ul>
+  <p>שתי דרכים מעשיות להזרים חומר גלם ל-<bdi>Session</bdi>: מבפנים, הרצה ישירה עם קידומת <code>!</code> כך שהפלט מצטרף לשיחה (<code>!pytest -q</code> למשל); ומבחוץ, צנרת (Pipe) אל <code>claude</code>, שעובדת כמו כל כלי <bdi>Unix</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash</div>
+    <pre><code># סיכום חד-פעמי של Log בלי לפתוח Session אינטראקטיבי
+tail -n 200 server.log | claude -p "identify the errors in this log, group them, and rank likely root causes"
+
+# שגיאות בלבד, משני הערוצים, ישירות לניתוח
+uvicorn app.main:app 2&gt;&amp;1 | grep -i error | claude -p "what is failing here?"</code></pre>
+  </div>
+  <p>הצורה <code>claude -p</code> (מצב לא אינטראקטיבי, <a href="ch33.html">פרק 33</a>) נוחה במיוחד לניתוחי <bdi>Log</bdi>: השאלה נענית פעם אחת, וה-<bdi>Session</bdi> האינטראקטיבי שלכם נשאר נקי.</p>
+
+  <h2 id="minimal-repro">עקרון הרפרודוקציה המינימלית</h2>
+  <p>רפרודוקציה מינימלית היא הדרך הקצרה ביותר לגרום לבאג לקרות: פקודה אחת, קלט אחד, בלי כל מה שלא הכרחי. היא משרתת שלוש מטרות: היא <strong>מוכיחה שהבנתם את התנאים</strong> (אם אינכם יכולים לשחזר, אתם עדיין מנחשים); היא <strong>נותנת ל-Claude לולאת אימות</strong>, להריץ לפני ואחרי התיקון; והיא <strong>הופכת כמעט מעצמה לבדיקת רגרסיה</strong>. כשבאג מגיע כתיאור עמום ("לפעמים הכותרות נעלמות"), העבודה הראשונה היא לצמצם:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>Users report that task titles sometimes appear empty in the list.
+Before proposing any fix: find the shortest reproduction you can,
+as a single curl command or a single test, and show me the exact
+output proving the bug happens.</code></pre>
+  </div>
+  <p>שימו לב לסדר הכפוי: קודם הוכחה שהבאג קורה, רק אחר כך דיבור על תיקון. זה מגן עליכם מהמצב הנפוץ שבו "תוקן" משהו שלא היה הבאג.</p>
+
+  <h2 id="hypotheses">Debugging מונחה השערות</h2>
+  <p>במקום לתת למודל לצלול לקוד ולנסות דברים, מבקשים ממנו קודם לחשוב כמו חוקר: רשימת השערות מדורגת לפי סבירות, ולכל השערה בדיקה ממוקדת שמאשרת או פוסלת אותה. זו התבנית המרכזית של הפרק:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (תבנית ההשערות)</div>
+    <pre><code>Here is the error, and how I trigger it: [error + repro].
+Give me the 3 most likely root causes, ranked. For each:
+what evidence supports it, and one specific, cheap check
+(a command, a log line to read, a file to inspect) that would
+confirm or eliminate it. Do not change any code yet.</code></pre>
+  </div>
+  <p>למה זה עדיף על "תתקן"? כי בדיקות ממוקדות זולות, וכי דירוג מפורש חושף את חשיבת המודל לביקורת שלכם. אם ההשערה המובילה נשמעת לכם לא סבירה על סמך מה שאתם יודעים על המערכת, אמרו זאת עכשיו, לפני שנכתב קוד. אחרי שהשערה אושרה בראיות, ורק אז, עוברים לתיקון.</p>
+
+  <h2 id="root-cause">שורש ולא סימפטום: רגרסיה לפני תיקון</h2>
+  <p>ההנחיה החשובה ביותר בפרק, ישירות מתוך ה-<bdi>Best Practices</bdi> הרשמיים: לבקש טיפול בשורש הבעיה, לא השתקת השגיאה. התבנית המומלצת בתיעוד לתיקון באג מתחילה בבדיקה נכשלת:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>write a failing test that reproduces the issue, then fix the
+code until the test passes. address the root cause, don't
+suppress the error. show me the test output before and after.</code></pre>
+  </div>
+  <p>הסדר הזה, רגרסיה קודם, נותן שלוש ערובות: הבדיקה הנכשלת מוכיחה שהבנתם את הבאג; המעבר מאדום לירוק מוכיח שהתיקון עובד; והבדיקה נשארת בקוד ומונעת מהבאג לחזור בשקט. "show me the test output before and after" מבקש ראיות, לא הצהרות; זה הרגל שהתיעוד ממליץ עליו לכל אימות. תיקון שמגיע בלי בדיקה שמוכיחה אותו הוא לא תיקון, הוא ניחוש שהתמזל.</p>
+
+  <h2 id="tools">/debug ו-claude doctor: לאבחון של Claude Code עצמו</h2>
+  <p>שני כלים שחשוב להכיר, וחשוב לא פחות להבין מה הם <strong>לא</strong>: הם מאבחנים את <bdi>Claude Code</bdi> עצמו, לא את האפליקציה שלכם.</p>
+  <ul>
+    <li><code>/debug [description]</code> הוא <bdi>Skill</bdi> מובנה שמפעיל רישום <bdi>Debug</bdi> ל-<bdi>Session</bdi> הנוכחי וחוקר תקלות בעזרת קריאת קובץ ה-<bdi>Debug Log</bdi> של ה-<bdi>Session</bdi> (רישום ה-<bdi>Debug</bdi> כבוי כברירת מחדל, אלא אם הפעלתם עם <code>claude --debug</code>). אפשר לצרף תיאור כדי למקד את הניתוח. השתמשו בו כשמשהו ב-<bdi>Claude Code</bdi> מתנהג מוזר: כלי שנכשל, <bdi>Hook</bdi> שלא רץ, <bdi>MCP Server</bdi> שלא נטען.</li>
+    <li><code>claude doctor</code>, מהטרמינל, מדפיס אבחון לקריאה בלבד של ההתקנה בלי לפתוח <bdi>Session</bdi>. בתוך <bdi>Session</bdi>, ה-<bdi>Skill</bdi> המובנה <code>/doctor</code> מריץ בדיקת תקינות רחבה שגם יכולה לתקן: התקנות כפולות, בעיות <bdi>PATH</bdi>, הגדרות לא תקינות, <bdi>Hooks</bdi> איטיים ועוד.</li>
+  </ul>
+  <p>כלל אצבע: הקוד שלכם שבור, השתמשו בשיטת הפרק הזה. <bdi>Claude Code</bdi> עצמו שבור, התחילו מ-<code>claude doctor</code> ו-<code>/debug</code>, והמשיכו ב<a href="ch39.html">פרק 39</a> (מדריך ה-<bdi>Troubleshooting</bdi> המרוכז).</p>
+
+  <h2 id="backend">תרחיש 1: Backend, באג עם Stack Trace ב-FastAPI</h2>
+  <p>נתרגל על תרחיש שאתם יכולים לשתול בעצמכם ב-<bdi>TaskFlow</bdi>. נניח שעמית הוסיף <bdi>Endpoint</bdi> סטטיסטיקה בסוף הקובץ <code>backend/app/routers/tasks.py</code> (הוסיפו אותו אצלכם כדי לעקוב):</p>
+  <div class="codeblock">
+    <div class="codehead">backend/app/routers/tasks.py (נוסף בסוף הקובץ, לצורך התרחיש)</div>
+    <pre><code>@router.get("/stats")
+def stats() -&gt; dict:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT status, COUNT(*) AS n FROM tasks GROUP BY status"
+        ).fetchall()
+    total = sum(r["n"] for r in rows)
+    done = next((r["n"] for r in rows if r["status"] == "done"), 0)
+    return {"total": total, "done_ratio": done / total}</code></pre>
+  </div>
+  <p>הוא בדק ידנית עם נתונים, עבד לו, ועשה <bdi>Commit</bdi>. אתם מושכים את הקוד, מריצים, ומקבלים:</p>
+  <div class="terminal"><span class="p">$</span> curl -s localhost:8000/tasks/stats
+<span class="out">{"detail":[{"type":"int_parsing","loc":["path","task_id"],
+"msg":"Input should be a valid integer, unable to parse string as an integer",
+"input":"stats"}]}</span></div>
+  <p>שגיאה מבלבלת: ביקשנו סטטיסטיקה, וקיבלנו תלונה על <code>task_id</code> לא חוקי. מפעילים את תבנית ההשערות עם הראיות המלאות:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>GET /tasks/stats returns this 422: [paste the JSON above].
+It reproduces every time. The endpoint exists in
+@backend/app/routers/tasks.py. Give me ranked root causes with
+a check for each. Don't change code yet.</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> ההשערה המובילה של Claude נכונה ומאלפת: ב-<bdi>FastAPI</bdi> נתיבים נבחנים לפי סדר ההגדרה, ו-<code>/tasks/stats</code> נתפס על ידי הנתיב הדינמי <code>/tasks/{task_id}</code> שהוגדר לפניו. המחרוזת <code>"stats"</code> נכשלת בהמרה ל-<code>int</code>, ומכאן ה-422. הבדיקה המאשרת: סדר ההגדרות בקובץ. התיקון: להעביר את <code>/stats</code> מעל <code>/{task_id}</code>. אבל לפני התיקון, רגרסיה:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>confirmed. first add a failing test: GET /tasks/stats should
+return 200. then fix by moving the route, and run the tests.</code></pre>
+  </div>
+  <p>הבדיקה החדשה נכשלת (422), הנתיב מוזז, ואז... הפתעה. הבדיקה עדיין נכשלת, הפעם אחרת:</p>
+  <div class="terminal"><span class="p">$</span> pytest -q tests/test_tasks.py::test_stats_endpoint
+<span class="out">FAILED ... ZeroDivisionError: division by zero
+  File "app/routers/tasks.py", line 30, in stats
+    return {"total": total, "done_ratio": done / total}</span></div>
+  <p>זה ערכו של <bdi>Stack Trace</bdi> אמיתי: השורה האחרונה מצביעה בדיוק על הבעיה השנייה, שהוסתרה מאחורי הראשונה. בבסיס נתונים ריק (כמו זה של הבדיקות!) <code>total</code> הוא אפס. העמית לא פגש את זה כי בדק ידנית עם נתונים. Claude מציע תיקון שורש: להחזיר <code>done_ratio: 0.0</code> כשאין משימות, ולהוסיף מקרה בדיקה לבסיס ריק. שני באגים, שתי בדיקות רגרסיה, ולולאה אחת שיטתית. שימו לב מה לא עשינו: לא עטפנו ב-<code>try/except</code> שמחזיר משהו גנרי. זו בדיוק "הסתרת הבעיה" שנדבר עליה ב-<bdi>Anti-patterns</bdi>.</p>
+
+  <h2 id="frontend">תרחיש 2: Frontend, באג State אסינכרוני ב-React</h2>
+  <p>הבאג הבא קיים בקוד האמיתי של <code>frontend/src/App.tsx</code>, ותוכלו לשחזר אותו בדפדפן: לחיצה מהירה כפולה על כפתור הסטטוס של משימה מקדמת אותה רק שלב אחד במקום שניים, ולפעמים משאירה את התצוגה לא מסונכרנת. תיאור טוב ל-Claude כולל את התסמין, את התנאי (מהירות), ואת הקובץ:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>In @frontend/src/App.tsx: clicking a task's status button twice
+quickly advances the status only one step instead of two.
+Slow clicks work. Explain the race step by step before fixing:
+what value does each click read, and when does state update?</code></pre>
+  </div>
+  <p><strong>מה קורה:</strong> Claude מסביר את שרשרת האירועים: הלחיצה קוראת <code>NEXT_STATUS[t.status]</code> מתוך ה-<bdi>Render</bdi> הנוכחי. שתי לחיצות מהירות רצות לפני ש-<code>refresh</code> הספיק להביא מצב חדש, ולכן שתיהן קוראות אותו סטטוס ישן ושולחות לשרת את אותו עדכון בדיוק (למשל פעמיים "העבר ל-<code>in_progress</code>"). הבעיה אינה בשרת; היא <bdi>Stale State</bdi> קלאסי בצד הלקוח. בונוס שנחשף באותה חקירה: השרשרת <code>updateStatus(...).then(refresh)</code> בלי טיפול בשגיאות, כך שכשל רשת נבלע בשקט ולא מגיע ל-<code>setError</code>.</p>
+  <p>התיקון שאושר אצלנו צנוע ומקומי: חסימת הכפתור בזמן שעדכון בתעופה (מצב <code>pending</code> לכל משימה), הוספת <code>catch</code> שמנתב ל-<code>setError</code>, ורענון בסיום. ב-<bdi>Frontend</bdi> קשה יותר לכתוב רגרסיה בלי תשתית בדיקות UI (אין כזו ב-<bdi>TaskFlow</bdi>; ראו <a href="ch11.html">פרק 11</a>), ולכן האימות כאן ידני ומפורש: <code>npm run typecheck</code> ירוק, ואז שחזור התרחיש בדפדפן, לחיצה כפולה מהירה, ובדיקה שהמשימה התקדמה בדיוק שלב אחד והכפתור היה חסום בזמן הבקשה.</p>
+
+  <h2 id="tests">תרחיש 3: בדיקה נכשלת או Flaky</h2>
+  <p>בדיקה הפכפכה היא בדיקה שעוברת לבד ונכשלת בחבילה, או להפך, או נכשלת אחת לכמה ריצות. הצעד הראשון בטריאז' הוא תמיד לקבוע באיזה משלושת הסוגים מדובר, וזה בדיוק מה שמבקשים:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt (תבנית טריאז')</div>
+    <pre><code>The test [name] is flaky. Run it three ways and report results:
+alone, as part of the full suite, and 10 times in a row alone.
+Based on the pattern, tell me whether this smells like shared
+state, ordering dependency, or timing, and what to check next.</code></pre>
+  </div>
+  <p>דוגמה אמיתית מ-<bdi>TaskFlow</bdi>: נניח שהוספתם בדיקה שסופרת משימות: יוצרים שתיים ומצפים ש-<code>GET /tasks</code> יחזיר בדיוק שתיים. לבדה היא עוברת; בחבילה המלאה היא נכשלת עם שש. הסיבה נמצאת ב-<bdi>Fixture</bdi> האמיתי של <code>backend/tests/test_tasks.py</code>: כל הבדיקות חולקות קובץ בסיס נתונים זמני אחד לריצה, ו-<code>init_db</code> רק יוצר את הטבלה אם אינה קיימת, בלי לנקות נתונים בין בדיקות. משימות שנוצרו בבדיקות קודמות מצטברות, וכל בדיקה שמניחה בסיס ריק תלויה בסדר הריצה. התיקון השורשי הוא בידוד: ניקוי הטבלה ב-<bdi>Fixture</bdi> לפני כל בדיקה (<code>DELETE FROM tasks</code>), ולא "תיקון" הבדיקה שתצפה לשש. ההבחנה הזאת היא לב הטריאז': כשבדיקה נכשלת, או שהקוד שבור, או שהבדיקה שבורה, או שהבידוד שבור, ולכל אחד מהשלושה תיקון אחר. אל תיתנו ל-Claude לבחור "לרכך את ה-<bdi>Assert</bdi>" בלי הוכחה שהבדיקה היא האשמה.</p>
+
+  <h2 id="ci">תרחיש 4: נכשל רק ב-CI</h2>
+  <p>"עובר אצלי, נכשל ב-<bdi>CI</bdi>" הוא כמעט תמיד הבדל סביבה: גרסאות, משתני סביבה, מצב התחלתי (בסיס נתונים ריק!), מערכת קבצים, או מקביליות. חומר הגלם כאן הוא ה-<bdi>Log</bdi> של ריצת ה-<bdi>CI</bdi>, ועם <bdi>GitHub</bdi> נוח למשוך רק את החלק הכושל דרך ה-<bdi>CLI</bdi> בשם <code>gh</code>:</p>
+  <div class="codeblock">
+    <div class="codehead">Bash</div>
+    <pre><code>gh run view --log-failed | claude -p "why did this CI run fail?
+the same tests pass locally. rank likely environment differences
+based on the log and our workflow file .github/workflows/ci.yml"</code></pre>
+  </div>
+  <p>הדגל <code>--log-failed</code> מחזיר את ה-<bdi>Log</bdi> של הצעדים הכושלים בלבד, בדיוק הסינון שמונע הצפת <bdi>Context</bdi>. ב-<bdi>TaskFlow</bdi>, קובץ ה-<bdi>Workflow</bdi> מריץ <code>pytest -q</code> על סביבה טרייה לגמרי; בדיקת הספירה מהתרחיש הקודם יכולה לעבור מקומית (בגלל סדר מקרי נוח) וליפול שם. באופן כללי, כששגיאת <bdi>CI</bdi> לא משוחזרת מקומית, בקשו מ-Claude להשוות במפורש: "list every difference between my local run and the CI job as defined in the workflow file". על אינטגרציית <bdi>GitHub Actions</bdi> המלאה, כולל הרצת Claude בתוך ה-<bdi>CI</bdi> עצמו, נרחיב ב<a href="ch28.html">פרק 28</a>.</p>
+
+  <h2 id="races">תרחיש 5: Race Conditions</h2>
+  <p><bdi>Race Condition</bdi> הוא באג שתלוי בסדר או בתזמון של פעולות מקביליות, ולכן הוא הקשה מכולם: הוא לא משוחזר בכל ריצה, נעלם כשמוסיפים <bdi>Debugger</bdi> (כי התזמון משתנה), וקורס דווקא בעומס אמיתי. ראינו כבר אחד אמיתי, הלחיצה הכפולה ב-<bdi>React</bdi>; דוגמה קלאסית בצד השרת עם <bdi>SQLite</bdi> היא שני תהליכים שכותבים בו זמנית ומקבלים <code>database is locked</code>. כיוון שאי אפשר "פשוט לשחזר", האסטרטגיה שונה משאר הפרק בשני מקומות:</p>
+  <ul>
+    <li><strong>אפיון במקום שחזור בודד (Characterization):</strong> הופכים באג הסתברותי לניתן למדידה על ידי ריצה בלולאה, ומודדים שכיחות לפני ואחרי התיקון. למשל: <code>for i in $(seq 1 50); do pytest -q -k test_name || echo "FAIL $i"; done</code>. אם נכשל 7 מתוך 50 לפני ו-0 מתוך 50 אחרי, יש לכם ראיה סטטיסטית, לא אנקדוטה.</li>
+    <li><strong>רישום (Logging) כראיה מרכזית:</strong> במקום לנחש את שרשרת האירועים, מתעדים אותה. בקשו מ-Claude להוסיף רישום זמני וממוקד עם חותמות זמן ומזהה בקשה סביב האזור החשוד, לשחזר בלולאה, ואז לנתח את ה-<bdi>Log</bdi> ולשרטט את סדר האירועים בפועל בריצה כושלת מול ריצה תקינה.</li>
+  </ul>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>I suspect a race in [area]. Plan a characterization first:
+1) a loop that measures how often it fails,
+2) temporary timestamped logging around the suspected section,
+3) run, then reconstruct the exact interleaving from the log.
+Only after we see the interleaving, propose a fix. Also plan
+how we remove the temporary logging afterwards.</code></pre>
+  </div>
+  <p>הערת יושרה הנדסית: תיקוני תזמון "קוסמטיים" (להוסיף <code>sleep</code>, לנסות שוב עד שמצליח) משנים את ההסתברות, לא את הסיבה. תיקון אמיתי משנה את מבנה הסנכרון: מנעילה, תור, פעולה אטומית, או ביטול השיתוף. דרשו מ-Claude להצביע על השורה שבה שני מסלולים ניגשים לאותו מצב, לפני שאתם מאשרים כל תיקון.</p>
+
+  <h2 id="prompt-library">ספריית Prompts ל-Debugging</h2>
+  <div class="codeblock">
+    <div class="codehead">Prompts לשימוש חוזר</div>
+    <pre><code># טריאז' פתיחה (התבנית המרכזית)
+Here is the error and the repro: [...]. Rank the 3 most likely
+root causes with one cheap check each. No code changes yet.
+
+# הסבר Stack Trace
+Explain this stack trace frame by frame: which frames are our
+code vs framework code, and where does the bad value originate?
+
+# רפרודוקציה מינימלית
+Reduce this bug to the smallest reproduction: one command or one
+test. Show the output proving it fails.
+
+# רגרסיה לפני תיקון (מבוסס על התבנית הרשמית)
+Write a failing test that reproduces the issue, then fix it.
+Address the root cause, don't suppress the error.
+
+# חקירת שינוי אחרון
+This worked before. Use git log and git diff on [area] to find
+which recent change could cause this behavior.
+
+# טריאז' Flaky
+Run the test alone, in the full suite, and 10 times in a row.
+Classify: shared state, ordering, or timing?
+
+# השוואת סביבות (CI)
+List every difference between my local run and the CI job as
+defined in the workflow file. Which could explain the failure?
+
+# אפיון Race
+Measure the failure rate in a loop, add timestamped logging,
+reconstruct the interleaving, then propose a structural fix.</code></pre>
+  </div>
+
+  <h2 id="mistakes">טעויות נפוצות</h2>
+  <ul>
+    <li><strong>לתאר את השגיאה במקום להדביק אותה:</strong> פרפרזה מוחקת את הפרטים המזהים. תמיד מילה במילה.</li>
+    <li><strong>להדביק Log של 5,000 שורות:</strong> ההפך הסימטרי, וקטלני ל-<bdi>Context</bdi>. סננו קודם.</li>
+    <li><strong>לדלג על הרפרודוקציה:</strong> אם אין פקודה שמפילה, אין דרך לדעת שהתיקון תיקן.</li>
+    <li><strong>לקבל את התיקון הראשון שמעלים את התסמין:</strong> שאלו תמיד "מה היה השורש, ולמה התיקון הזה מטפל בו?". תשובה מגומגמת = חזרו להשערות.</li>
+    <li><strong>לדבג בתוך Session עמוס:</strong> חקירה רצינית מתחילה נקייה. <code>/clear</code> ואז הראיות בלבד.</li>
+    <li><strong>לשכוח להסיר את הרישום הזמני:</strong> תכננו את ההסרה מראש, בתוך אותו <bdi>Prompt</bdi> שמוסיף אותו.</li>
+  </ul>
+
+  <h2 id="session-troubleshooting">Troubleshooting של <bdi>Session</bdi> ה-Debugging עצמו</h2>
+  <p>לפעמים מה שנתקע הוא לא הבאג אלא החקירה. שלושה מצבים וטיפולם:</p>
+  <ul>
+    <li><strong>ההקשר זוהם ב-Logs ובניסיונות כושלים:</strong> אחרי חקירה ארוכה, המודל מתחיל לערבב גרסאות ישנות של הקוד ותסמינים ממקרים קודמים. ההמלצה הרשמית חדה: אחרי שני תיקונים כושלים על אותה בעיה, <code>/clear</code> ו-<bdi>Prompt</bdi> פתיחה חדש שמסכם את מה שנלמד (ההשערות שנפסלו הן מידע יקר!). חלופה עדינה: <code>/rewind</code> עם "Summarize from here" שמכווץ את החלק הרועש. ניהול <bdi>Context</bdi> שיטתי, ב<a href="ch14.html">פרק 14</a>.</li>
+    <li><strong>Claude מסתובב במעגלים בין שתי השערות:</strong> עצרו את הלולאה ובקשו טבלה: כל השערה, הראיה בעדה, הראיה נגדה, והבדיקה שתכריע. אם אין בדיקה מכריעה, חסר לכם מידע, וזה הממצא.</li>
+    <li><strong>ניתוח Log כבד נדרש אבל חבל על ה-Context:</strong> האצילו ל-<bdi>Subagent</bdi>: "use a subagent to analyze server.log and report only the error patterns and their frequency". החקירה רצה ב-<bdi>Context</bdi> נפרד וחוזר רק סיכום (<a href="ch25.html">פרק 25</a>).</li>
+  </ul>
+
+  <h2 id="security">Security</h2>
+  <div class="callout danger"><span class="title">סודות בתוך Logs</span><p><bdi>Logs</bdi> אמיתיים מכילים לעיתים קרובות בדיוק את מה שאסור להדביק לשום מקום: כותרות <code>Authorization</code>, <bdi>Tokens</bdi>, <bdi>Cookies</bdi>, מחרוזות חיבור לבסיסי נתונים ופרטים אישיים של משתמשים. לפני שאתם מדביקים <bdi>Log</bdi> לשיחה (או מבקשים מ-Claude לקרוא אותו), נקו: <code>sed 's/Bearer [A-Za-z0-9._-]*/Bearer [REDACTED]/g' server.log</code> היא התחלה טובה ל-<bdi>Tokens</bdi>, והרגל טוב הוא לחסום קריאת קבצי סודות כמו <code>.env</code> בחוקי <bdi>Deny</bdi> (<a href="ch18.html">פרק 18</a>). זכרו שגם תוכן שה-<bdi>Session</bdi> קורא בעצמו נשלח לעיבוד המודל, בדיוק כמו טקסט שהדבקתם. ואם סוד אמיתי כבר דלף ל-<bdi>Log</bdi> או לשיחה, הבעיה אינה השיחה: החליפו (Rotate) את הסוד.</p></div>
+
+  <h2 id="cost">עלות ו-Context</h2>
+  <p>חקירות <bdi>Debugging</bdi> הן מהצרכניות הגדולות של <bdi>Tokens</bdi>: הרבה פלטי פקודות, הרבה קריאת קבצים, הרבה סבבים. שלושה חיסכונות שלא פוגעים באיכות: הזינו שגיאות מסוננות ולא <bdi>Logs</bdi> שלמים (עשר השורות הרלוונטיות שוות יותר מחמשת אלפים); השתמשו ב-<code>claude -p</code> לשאלות ניתוח חד-פעמיות על <bdi>Logs</bdi> במקום לנפח את ה-<bdi>Session</bdi> האינטראקטיבי; והאצילו סריקות ארוכות ל-<bdi>Subagents</bdi>. עקבו עם <code>/context</code>, ואל תהססו לסכם חלק רועש של החקירה עם <code>/rewind</code>. פירוט מלא על עלויות ב<a href="ch30.html">פרק 30</a>.</p>
+
+  <h2 id="best-practices">Best Practices</h2>
+  <ul class="check">
+    <li>שגיאה מילה במילה + פקודת שחזור + עקבי או הפכפך: שלושת אלה בכל <bdi>Prompt</bdi> פתיחה.</li>
+    <li>השערות מדורגות עם בדיקה מכריעה לכל אחת, לפני כל שינוי קוד.</li>
+    <li>בדיקת רגרסיה נכשלת לפני התיקון, ירוקה אחריו, ונשארת בקוד.</li>
+    <li>ראיות ולא הצהרות: פלט הבדיקה לפני ואחרי, בתוך השיחה.</li>
+    <li>באג הפכפך? קודם מסווגים (מצב משותף, סדר, תזמון) ורק אז מתקנים.</li>
+    <li>חקירה חדשה מתחילה ב-<bdi>Context</bdi> נקי, ומסתיימת בניקוי הרישום הזמני.</li>
+  </ul>
+
+  <h2 id="anti-patterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>ההשתקה:</strong> <code>try/except: pass</code>, הורדת רמת <bdi>Log</bdi>, או החזרת ערך ברירת מחדל שרירותי במקום לתקן את מקור הערך השגוי. התסמין נעלם, הבאג נשאר.</li>
+    <li><strong>ה-sleep הקסום:</strong> השהיה שרירותית ש"פותרת" <bdi>Race</bdi>. משנה הסתברות, לא סיבה, ותתפוצץ בעומס.</li>
+    <li><strong>מחיקת הבדיקה הנכשלת:</strong> או ריכוך ה-<bdi>Assert</bdi> עד שהיא עוברת. הבדיקה היא העדה; אל תעלימו אותה.</li>
+    <li><strong>שדרוג תלויות עיוור:</strong> "אולי גרסה חדשה תפתור", בלי ראיה שהבאג בתלות. מוסיף משתנים במקום לצמצם.</li>
+    <li><strong>ה"תנסה משהו" האינסופי:</strong> לתת למודל לשנות קוד שוב ושוב בלי השערות ובלי ראיות, עד שבמקרה עובר. גם אם זה "הצליח", אינכם יודעים מה תוקן, וה-<bdi>Diff</bdi> מלא שינויים מיותרים.</li>
+  </ul>
+
+  <h2 id="verify-checklist">רשימת בדיקה: לפני שסוגרים באג</h2>
+  <ul class="check">
+    <li>יש רפרודוקציה מינימלית שנכשלת לפני התיקון ועוברת אחריו, והיא נשמרה כבדיקת רגרסיה.</li>
+    <li>שורש הבעיה מוסבר במשפט אחד עם הפניה לקובץ ולשורה, לא "שיניתי ועכשיו עובד".</li>
+    <li>החבילה המלאה רצה, לא רק הבדיקה שנגעה בבאג, והפלט המלא נבדק ולא סוכם על ידי Claude.</li>
+    <li>ה-<bdi>Diff</bdi> נוגע רק בקוד היעד; קובצי הבדיקות הקיימים לא רוככו ולא נמחקו.</li>
+    <li>אם התיקון שינה התנהגות גלויה למשתמש, התיעוד ו-<bdi>CHANGELOG</bdi> עודכנו באותו <bdi>Commit</bdi>.</li>
+    <li>אם הבאג חזר על עצמו או נבע ממוסכמה לא כתובה, נוספה שורה ל-<bdi>CLAUDE.md</bdi> שתמנע אותו בפעם הבאה.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 10.1: הכותרות הנעלמות</div>
+    <div class="body">
+      <p>באג אמיתי שקיים בקוד המקורי של <bdi>TaskFlow</bdi> (אם תיקנתם אותו בעקבות פרק 3, קחו עותק טרי של <code>examples/taskflow</code> כדי לתרגל). דיווח המשתמש: "ערכתי כותרת של משימה, ועכשיו היא מוצגת ריקה ברשימה. יצירת משימה עם כותרת ריקה דווקא נחסמת". מטרתכם, בשיטת הפרק: (1) נסחו לפחות שתי השערות ובדיקה מכריעה לכל אחת; (2) מצאו רפרודוקציה מינימלית כפקודת <code>curl</code> אחת; (3) כתבו בדיקת רגרסיה נכשלת; (4) תקנו את השורש; (5) הוכיחו עם פלט לפני ואחרי. רמז לכיוון: השוו מה עובר ב-<code>POST /tasks</code> מול <code>PATCH /tasks/{id}</code>, ושימו לב איזה סוג "ריק" באמת נחסם.</p>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p><strong>השערות סבירות:</strong> (א) ה-<bdi>Frontend</bdi> מציג לא נכון כותרת תקינה; בדיקה: <code>GET /tasks</code> ישירות ב-<code>curl</code> ולראות מה באמת שמור. (ב) ה-<bdi>API</bdi> מקבל בעדכון כותרת "ריקה למראה"; בדיקה: <code>PATCH</code> ידני עם ערכים גבוליים. בדיקת (א) מראה שהערך השמור באמת "ריק", ולכן הבעיה בצד השרת.</p>
+      <p><strong>רפרודוקציה מינימלית:</strong> הכותרת שנחסמת היא <code>""</code> (מחרוזת ריקה), אבל מחרוזת רווחים עוברת. השדה <code>title</code> ב-<code>TaskUpdate</code> (בקובץ <code>backend/app/models.py</code>) מוגדר עם <code>min_length=1</code>, ורווח נספר כתו לכל דבר:</p>
+      <div class="terminal"><span class="p">$</span> curl -s -X PATCH localhost:8000/tasks/1 -H "Content-Type: application/json" -d '{"title": "   "}'
+<span class="out">{"id":1,"title":"   ","description":"","status":"todo",...}</span></div>
+      <p>סטטוס 200 וכותרת של שלושה רווחים: הבאג מוכח. (אותו פגם קיים גם ב-<code>TaskCreate</code>, ולכן גם <code>POST</code> עם רווחים עובר; דיווח המשתמש על "יצירה נחסמת" נכון רק לגבי <code>""</code>.)</p>
+      <p><strong>רגרסיה לפני תיקון:</strong></p>
+      <div class="codeblock">
+        <div class="codehead">backend/tests/test_tasks.py (added)</div>
+        <pre><code>def test_update_rejects_blank_title(client):
+    task = client.post("/tasks", json={"title": "Valid"}).json()
+    res = client.patch(f"/tasks/{task['id']}", json={"title": "   "})
+    assert res.status_code == 422
+
+
+def test_create_rejects_blank_title(client):
+    res = client.post("/tasks", json={"title": "   "})
+    assert res.status_code == 422</code></pre>
+      </div>
+      <p><strong>תיקון השורש:</strong> <bdi>Validator</bdi> של <bdi>Pydantic</bdi> שמנקה רווחים ודוחה תוצאה ריקה, על שני המודלים:</p>
+      <div class="codeblock">
+        <div class="codehead">backend/app/models.py (added)</div>
+        <pre><code>from pydantic import BaseModel, Field, field_validator
+
+
+class TaskCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+
+    @field_validator("title")
+    @classmethod
+    def title_not_blank(cls, value: str) -&gt; str:
+        value = value.strip()
+        if not value:
+            raise ValueError("title must not be blank")
+        return value</code></pre>
+      </div>
+      <p>ב-<code>TaskUpdate</code> אותו <bdi>Validator</bdi>, עם עצירה מוקדמת כש-<code>value</code> הוא <code>None</code> (שדה שלא נשלח). שימו לב שהתיקון גם מנרמל: כותרת עם רווחים בקצוות נשמרת נקייה. <strong>הוכחה:</strong> שתי הבדיקות אדומות לפני, ירוקות אחרי, וכל שאר החבילה ירוקה. <strong>ולמה זה שורש ולא סימפטום?</strong> כי טיפלנו בהגדרת ה"כותרת חוקית" במקום היחיד שאוכף אותה (שכבת ה-<bdi>Validation</bdi>), ולא, למשל, בסינון תצוגה ב-<bdi>Frontend</bdi> שהיה משאיר נתונים פגומים בבסיס הנתונים.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>ראינו ש-<bdi>Debugging</bdi> טוב עם <bdi>Claude Code</bdi> עומד על ארבע רגליים: חומר גלם מדויק ומסונן (שגיאות מילה במילה, <bdi>Logs</bdi> דרך <code>grep</code> ו-<code>claude -p</code>, צילומי מסך), רפרודוקציה מינימלית שהופכת לבדיקת רגרסיה, השערות מדורגות עם בדיקות מכריעות לפני כל שינוי קוד, והתעקשות על שורש הבעיה עם ראיות לפני ואחרי. הפעלנו את השיטה על חמישה סוגי תקלות שונים בתכלית, מ-422 מסתורי ועד <bdi>Race</bdi>, וראינו שהשלד זהה ורק כלי האימות מתחלפים. בפרק הבא נעמיק ברגל שהכול נשען עליה: <bdi>Testing</bdi> שיטתי עם <bdi>Claude Code</bdi>.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/common-workflows">Common workflows (fixing bugs, images, piping into claude -p)</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices (root cause, failing test first, /clear rule, subagents)</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands reference (/debug, /doctor, claude doctor)</a> |
+      <a href="https://code.claude.com/docs/en/checkpointing">Checkpointing (debug log location, /rewind summarize)</a> |
+      <a href="https://cli.github.com/manual/gh_run_view">GitHub CLI: gh run view (--log-failed)</a>
+      | נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch09.html"><span class="lbl">הפרק הקודם</span>ביצוע שינוי קוד מבוקר</a>
+    <a href="ch11.html"><span class="lbl">הפרק הבא</span>Testing</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

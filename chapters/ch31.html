@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 31: מבוא ל-Claude Agent SDK</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ז | פרק 31</p>
+  <h1>מבוא ל-Claude Agent SDK</h1>
+  <p class="lead">עד עכשיו עבדנו עם <bdi>Claude Code</bdi> כמוצר: טרמינל אינטראקטיבי שמדברים איתו. בפרק הזה נכיר את ה-<bdi>Claude Agent SDK</bdi>: אותו מנוע בדיוק, אותם <bdi>Tools</bdi>, אותה לולאה אג'נטית ואותו ניהול <bdi>Context</bdi>, אבל כספרייה שמתכנתים ב-<bdi>Python</bdi> או ב-<bdi>TypeScript</bdi>. נבין מתי לבחור בו לעומת ה-CLI, ה-API הישיר ו-<bdi>Managed Agents</bdi>, נתקין אותו, נריץ שאילתה ראשונה בשתי השפות, ונעבור על כל אבני הבניין: הרשאות, <bdi>Hooks</bdi>, <bdi>Subagents</bdi>, <bdi>Sessions</bdi>, פלט מובנה ומעקב עלויות. כל שם ופרמטר בפרק אומתו מול התיעוד הרשמי בתאריך המחקר.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-is-it">מה זה Agent SDK: ה-Harness כספרייה</h2>
+  <p>בפרק 1 ראינו שמה שהופך מודל שפה לסוכן קוד מעשי הוא ה-<bdi>Agentic Harness</bdi>: המעטפת שנותנת למודל כלים (קריאת קבצים, הרצת פקודות, עריכה), מריצה את הלולאה של תכנון, פעולה ובחינת תוצאה, ומנהלת את ה-<bdi>Context</bdi> וההרשאות. ב-<bdi>Claude Code</bdi> המעטפת הזאת ארוזה בתוך ממשק טרמינל. ה-<bdi>Claude Agent SDK</bdi> חושף את אותה מעטפת בדיוק כספרייה: אתם קוראים לפונקציה <code>query()</code> עם <bdi>Prompt</bdi> ואובייקט אפשרויות, וה-SDK מריץ עבורכם את כל הלולאה, כולל הפעלת ה-Tools בפועל, ומזרים אליכם הודעות עד לתוצאה הסופית.</p>
+  <p>טכנית, ה-SDK מפעיל תהליך משנה (<bdi>Subprocess</bdi>) של <bdi>Claude Code</bdi> ומתקשר איתו דרך <bdi>stdio</bdi>. שתי החבילות הרשמיות מגיעות עם קובץ הרצה מובנה של <bdi>Claude Code</bdi>, כך שברוב המקרים אין צורך בהתקנה נפרדת של ה-CLI. המשמעות המעשית: כל מה שלמדתם בפרקים הקודמים על <bdi>Permissions</bdi>, <bdi>CLAUDE.md</bdi>, <bdi>MCP</bdi>, <bdi>Skills</bdi> ו-<bdi>Hooks</bdi> תקף גם כאן, רק שהפעם אתם שולטים בהכול מקוד.</p>
+  <p>מה ה-SDK עושה בשבילכם, לפי התיעוד: התיאום של הלולאה, ההרצה בפועל של הכלים, ניהול ה-<bdi>Context</bdi> (כולל <bdi>Compaction</bdi> ו-<bdi>Prompt Caching</bdi> אוטומטי), וניסיונות חוזרים מול ה-API. מה שנשאר לכם: לנסח את המשימה, להגדיר גבולות, ולצרוך את זרם ההודעות. זה ההבדל המהותי מול עבודה ישירה עם ה-<bdi>Messages API</bdi>, שבה כל קריאת כלי חוזרת אליכם ואתם אחראים להריץ אותה ולהחזיר תוצאה.</p>
+  <div class="callout note"><span class="title">הערת שם</span><p>בעבר החבילות נקראו <bdi>Claude Code SDK</bdi>. השם הנוכחי הוא <bdi>Claude Agent SDK</bdi>, והחבילות הן <code>claude-agent-sdk</code> (Python) ו-<code>@anthropic-ai/claude-agent-sdk</code> (TypeScript). אם אתם רואים בקוד ישן <code>@anthropic-ai/claude-code</code> כחבילת SDK, זה השם הישן.</p></div>
+
+  <h2 id="problem">איזו בעיה זה פותר, ומתי להשתמש</h2>
+  <p>ה-CLI מצוין לעבודה אינטראקטיבית, אבל יש משימות שבהן אתם רוצים סוכן שרץ בתוך אפליקציה: <bdi>Bot</bdi> שמטפל בפניות, שירות שמנתח <bdi>Pull Requests</bdi>, מערכת פנימית שמתקנת באגים לפי כרטיסי <bdi>Issue</bdi>, או צינור עיבוד שרץ על עשרות <bdi>Repositories</bdi>. בכל המקרים האלה אתם צריכים: שליטה תוכניתית בהרשאות (כולל <bdi>Callback</bdi> שמחליט בזמן ריצה), פלט מובנה שאפשר להזין לקוד, ניהול <bdi>Sessions</bdi> מרובים, וטיפול בשגיאות ובעלויות. זה בדיוק מה שה-SDK נותן.</p>
+  <p><strong>מתי לא להשתמש ב-Agent SDK:</strong> אם אתם רק רוצים לשוחח עם המודל בלי כלים ובלי לולאה אג'נטית, ה-<bdi>Client SDK</bdi> של ה-API הישיר פשוט וזול יותר. אם אתם צריכים סקריפט חד-פעמי, לרוב מספיק <code>claude -p</code> (פרק 33). ואם אתם לא רוצים לתחזק תשתית בכלל, בדקו את <bdi>Managed Agents</bdi>.</p>
+
+  <h2 id="boundaries">גבולות המוצרים: SDK מול CLI מול API מול Managed Agents</h2>
+  <p>ההשוואה הבאה מבוססת על טבלת ההשוואה הרשמית בתיעוד ה-SDK, נכון לתאריך המחקר:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>אתם רוצים...</th><th>המוצר</th><th>למה</th><th>סטטוס</th></tr></thead>
+      <tbody>
+        <tr><td>לבנות Agent בלי לממש בעצמכם את לולאת הכלים</td><td class="ltr"><b>Agent SDK</b></td><td>ספרייה שמריצה את הלולאה בתוך התהליך שלכם, ב-Python או ב-TypeScript</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>פיתוח אינטראקטיבי או משימות חד-פעמיות מהטרמינל</td><td class="ltr"><b>Claude Code CLI</b></td><td>ממשק הטרמינל, בנוי לעבודה יומיומית; מצב <code>-p</code> לסקריפטים</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>לקרוא ישירות ל-API ולממש את לולאת הכלים בעצמכם</td><td class="ltr"><b>Client SDK (Anthropic API)</b></td><td>גישה ישירה למודל; שליטה מלאה, אבל אתם כותבים את ה-Harness</td><td><span class="badge stable">Stable</span></td></tr>
+        <tr><td>Agents ארוכי-טווח בלי לנהל Sandbox ותשתית Sessions</td><td class="ltr"><b>Managed Agents</b></td><td>REST API מנוהל; Anthropic מריצה את ה-Agent ואת ה-Sandbox. מוצר נפרד מה-SDK</td><td><span class="badge beta">Beta</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>נקודה שאומתה מול התיעוד: <bdi>Managed Agents</bdi> נמצא בשלב <bdi>Beta</bdi> וכל הקריאות אליו דורשות את כותרת ה-Beta <code>managed-agents-2026-04-01</code> (ה-SDK שלו מוסיף אותה אוטומטית). ה-Agent SDK עצמו זמין רק ל-<bdi>Python</bdi> ול-<bdi>TypeScript</bdi>; מכל שפה אחרת, הדרך הרשמית להפעיל את אותה לולאה היא הרצת ה-CLI כתהליך משנה עם <code>-p</code> ו-<code>--output-format json</code>.</p>
+  <div class="callout warn"><span class="title">אימות מסחרי</span><p>לפי התיעוד הרשמי, מפתחים חיצוניים אינם רשאים להציע ללקוחותיהם התחברות דרך חשבון <bdi>claude.ai</bdi> או שימוש במכסות המנוי במוצרים שבנו על ה-SDK, אלא באישור מראש. במוצר ללקוחות משתמשים באימות מבוסס <bdi>API Key</bdi> (או ספקי ענן: <bdi>Bedrock</bdi>, <bdi>Vertex</bdi>, <bdi>Foundry</bdi>).</p></div>
+
+  <h2 id="packages">החבילות והגרסאות הנוכחיות</h2>
+  <p>הגרסאות אומתו בתאריך המחקר מול <bdi>PyPI</bdi> ו-<bdi>npm</bdi>. שתי החבילות מתעדכנות בקצב גבוה (לעיתים כמה פעמים בשבוע), אז אצלכם המספר כנראה יהיה גבוה יותר; העיקרון נשאר זהה.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>שפה</th><th>חבילה</th><th>גרסה עדכנית (בתאריך המחקר)</th><th>דרישות</th></tr></thead>
+      <tbody>
+        <tr><td>Python</td><td class="ltr"><code>claude-agent-sdk</code></td><td class="ltr">0.2.139</td><td class="ltr">Python &gt;= 3.10</td></tr>
+        <tr><td>TypeScript</td><td class="ltr"><code>@anthropic-ai/claude-agent-sdk</code></td><td class="ltr">0.3.233</td><td class="ltr">Node.js &gt;= 18</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3 id="install">התקנה</h3>
+  <div class="codeblock">
+    <div class="codehead">Python (pip, בתוך virtualenv)</div>
+    <pre><code>python3 -m venv .venv
+source .venv/bin/activate
+pip install claude-agent-sdk</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">TypeScript (פרויקט חדש)</div>
+    <pre><code>npm init -y
+npm pkg set type=module
+npm install @anthropic-ai/claude-agent-sdk
+npm install --save-dev tsx</code></pre>
+  </div>
+  <p>הגדרת <code>"type": "module"</code> מאפשרת <bdi>top-level await</bdi> בסקריפט, ו-<code>tsx</code> מריץ קובצי <bdi>TypeScript</bdi> ישירות (<code>npx tsx agent.ts</code>). בפרויקט קיים שמבוסס <bdi>CommonJS</bdi>, קראו לקובץ <code>agent.mts</code>. מפתח ה-API מוגדר כמשתנה סביבה של התהליך שמריץ את הסוכן:</p>
+  <div class="terminal"><span class="p">$</span> export ANTHROPIC_API_KEY=your-api-key</div>
+  <div class="callout warn"><span class="title">אזהרה נפוצה</span><p>ה-SDK <strong>לא</strong> טוען קובצי <code>.env</code> אוטומטית. אם המפתח שמור בקובץ כזה, טענו אותו בעצמכם (למשל עם חבילת <bdi>dotenv</bdi>) לפני הקריאה ל-SDK. השגיאה "API key not found" כמעט תמיד נובעת מזה.</p></div>
+  <div class="callout note"><span class="title">מתי בכל זאת צריך CLI מותקן</span><p>שני מקרים מתועדים שבהם החבילה מגיעה בלי הקובץ הבינארי המובנה: התקנת <bdi>pip</bdi> שנופלת ל-<bdi>Source Distribution</bdi> (למשל ב-<bdi>ARM64 Windows</bdi>), והתקנת <bdi>npm</bdi> שמדלגת על תלויות אופציונליות (<code>npm ci --omit=optional</code>). בשני המקרים מתקינים <bdi>Claude Code</bdi> רגיל, וב-TypeScript אפשר לכוון אליו עם האפשרות <code>pathToClaudeCodeExecutable</code>.</p></div>
+  <h3 id="verify-install">אימות ההתקנה</h3>
+  <div class="verify">
+    <p>לפני שכותבים סוכן, ודאו שהסביבה תקינה. כל אחת מהפקודות צריכה להסתיים בלי שגיאה:</p>
+    <div class="terminal"><span class="p">$</span> python3 -c "import claude_agent_sdk; print(claude_agent_sdk.__version__)"
+<span class="out">0.2.139</span>
+<span class="p">$</span> npm ls @anthropic-ai/claude-agent-sdk
+<span class="out">agent-sdk-examples@1.0.0
+└── @anthropic-ai/claude-agent-sdk@0.3.233</span>
+<span class="p">$</span> echo $ANTHROPIC_API_KEY | cut -c1-7
+<span class="out">sk-ant-</span></div>
+    <p>אם הייבוא ב-Python נכשל, בדקו שאתם בתוך ה-<bdi>virtualenv</bdi> הנכון (<code>which python3</code>). אם משתנה הסביבה ריק, חזרו לשלב הגדרת המפתח.</p>
+  </div>
+
+  <h2 id="first-query">query() ראשון בשתי השפות</h2>
+  <p>הפונקציה <code>query()</code> היא נקודת הכניסה המרכזית. היא פותחת <bdi>Session</bdi> חדש, מריצה את הלולאה האג'נטית, ומחזירה <bdi>Async Iterator</bdi> שמזרים הודעות תוך כדי עבודה. מבנה פרויקט מינימלי לניסוי נראה כך:</p>
+  <div class="codeblock">
+    <div class="codehead">מבנה תיקיית ניסוי</div>
+    <pre><code>my-agent/
+├── .venv/  או  node_modules/     # תלות ההתקנה
+├── agent.py  או  agent.ts        # הסוכן עצמו
+└── utils.py                      # קובץ עם באגים מכוונים לתרגול</code></pre>
+  </div>
+  <p>שתי הדוגמאות הבאות זהות לדוגמת ה-<bdi>Quickstart</bdi> הרשמית והן הבסיס לקבצים <code>agent-sdk/python/01_quickstart.py</code> ו-<code>agent-sdk/typescript/01-quickstart.ts</code> שבחבילת המדריך. הן מבקשות מהסוכן לסקור קובץ <code>utils.py</code> (צרו אותו עם שתי פונקציות שקורסות על קלט ריק או <code>None</code>, כמו בתיעוד) ולתקן את מה שהוא מוצא:</p>
+  <div class="codeblock">
+    <div class="codehead">agent.py (Python)</div>
+    <pre><code>import asyncio
+from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, ResultMessage
+
+
+async def main():
+    async for message in query(
+        prompt="Review utils.py for bugs that would cause crashes. Fix any issues you find.",
+        options=ClaudeAgentOptions(
+            allowed_tools=["Read", "Edit", "Glob"],   # אישור אוטומטי לכלים האלה
+            permission_mode="acceptEdits",            # אישור אוטומטי לעריכות קבצים
+        ),
+    ):
+        if isinstance(message, AssistantMessage):
+            for block in message.content:
+                if hasattr(block, "text"):
+                    print(block.text)                 # הטקסט של Claude
+                elif hasattr(block, "name"):
+                    print(f"Tool: {block.name}")      # קריאה לכלי
+        elif isinstance(message, ResultMessage):
+            print(f"Done: {message.subtype}")         # התוצאה הסופית
+
+
+asyncio.run(main())</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">agent.ts (TypeScript)</div>
+    <pre><code>import { query } from "@anthropic-ai/claude-agent-sdk";
+
+for await (const message of query({
+  prompt: "Review utils.py for bugs that would cause crashes. Fix any issues you find.",
+  options: {
+    allowedTools: ["Read", "Edit", "Glob"],  // אישור אוטומטי לכלים האלה
+    permissionMode: "acceptEdits"            // אישור אוטומטי לעריכות קבצים
+  }
+})) {
+  if (message.type === "assistant" &amp;&amp; message.message?.content) {
+    for (const block of message.message.content) {
+      if ("text" in block) console.log(block.text);
+      else if ("name" in block) console.log(`Tool: ${block.name}`);
+    }
+  } else if (message.type === "result") {
+    console.log(`Done: ${message.subtype}`);
+  }
+}</code></pre>
+  </div>
+  <p>שימו לב להבדל הסגנוני העקבי: ב-<bdi>Python</bdi> שמות האפשרויות ב-<bdi>snake_case</bdi> (<code>allowed_tools</code>, <code>permission_mode</code>) וההודעות הן מחלקות <bdi>dataclass</bdi> שבודקים עם <code>isinstance</code>; ב-<bdi>TypeScript</bdi> השמות ב-<bdi>camelCase</bdi> (<code>allowedTools</code>, <code>permissionMode</code>) וההודעות הן <bdi>Union Types</bdi> שממיינים לפי השדה <code>type</code>. תוצאה צפויה בהרצה (עם מפתח API תקף): שורות טקסט של הסבר, שורות <code>Tool: Read</code> ו-<code>Tool: Edit</code>, ולבסוף <code>Done: success</code>.</p>
+  <h3 id="client-pattern">התבנית השנייה: שיחה מתמשכת</h3>
+  <p>כל קריאה ל-<code>query()</code> פותחת <bdi>Session</bdi> חדש. לשיחות מרובות תורות באותו הקשר יש לכל שפה תבנית מתועדת משלה:</p>
+  <ul>
+    <li><strong>Python:</strong> המחלקה <code>ClaudeSDKClient</code> מחזיקה Session פתוח. משתמשים בה כ-<bdi>Async Context Manager</bdi>: <code>async with ClaudeSDKClient(options=...) as client</code>, ואז <code>await client.query("...")</code> ו-<code>client.receive_response()</code> לכל תור. היא היחידה שתומכת גם ב-<bdi>Interrupts</bdi> (עצירה יזומה באמצע).</li>
+    <li><strong>TypeScript:</strong> אין מחלקת Client; במקום זה מעבירים <code>continue: true</code> בקריאת <code>query()</code> הבאה, וה-SDK ממשיך את ה-Session האחרון בתיקייה.</li>
+  </ul>
+  <p>כך נראית שיחה דו-שלבית ב-Python, על פי הדוגמה הרשמית בתיעוד ה-Sessions: השאילתה השנייה מקבלת אוטומטית את כל ההקשר של הראשונה, בלי לנהל מזהי Session ידנית:</p>
+  <div class="codeblock">
+    <div class="codehead">client_example.py (קטע)</div>
+    <pre><code>async with ClaudeSDKClient(options=options) as client:
+    # שאילתה ראשונה: ה-Client שומר את מזהה ה-Session אצלו
+    await client.query("Analyze the auth module")
+    async for message in client.receive_response():
+        print_response(message)
+
+    # שאילתה שנייה: ממשיכה את אותו Session אוטומטית
+    await client.query("Now refactor it to use JWT")
+    async for message in client.receive_response():
+        print_response(message)</code></pre>
+  </div>
+  <p>כלל אצבע לבחירה: משימה חד-פעמית עם תוצאה אחת, <code>query()</code>; אפליקציה שמנהלת דו-שיח (צ'אט, עוזר אינטראקטיבי) או צריכה לעצור את הסוכן באמצע, <code>ClaudeSDKClient</code>. בפרק 32 נשתמש דווקא ב-<code>query()</code> עם <code>resume</code> מפורש, כי שם אנחנו רוצים להחליף את סט ההרשאות בין שלב לשלב, וזה בדיוק המקרה שבו שליטה ידנית במזהה עדיפה על ניהול אוטומטי.</p>
+
+  <h2 id="loop">הלולאה האג'נטית במונחי SDK</h2>
+  <p>הלולאה שהכרנו בפרק 1 מקבלת כאן צורה של זרם הודעות. לפי תיעוד <bdi>Agent Loop</bdi> הרשמי, כל <bdi>Session</bdi> עובר את המחזור הבא:</p>
+  <ol>
+    <li><strong>קבלת ה-Prompt.</strong> ה-SDK מזרים <code>SystemMessage</code> מסוג <code>init</code> עם מטא-נתונים של ה-Session (מודל, כלים, מזהה Session).</li>
+    <li><strong>הערכה ותגובה.</strong> Claude מחזיר טקסט, בקשות לקריאת כלים, או שניהם: <code>AssistantMessage</code> עם בלוקים של <code>TextBlock</code> ו-<code>ToolUseBlock</code>.</li>
+    <li><strong>הרצת כלים.</strong> ה-SDK מריץ את הכלים בעצמו ומזין את התוצאות חזרה (<code>UserMessage</code> עם תוצאות הכלי). כאן נכנסים <bdi>Hooks</bdi> ובדיקות ההרשאות.</li>
+    <li><strong>חזרה על המחזור.</strong> כל סבב כזה הוא <bdi>Turn</bdi> אחד. הלולאה נמשכת עד שמתקבלת תשובה בלי קריאות כלים.</li>
+    <li><strong>תוצאה.</strong> ה-SDK מזרים <code>ResultMessage</code> אחרון עם הטקסט הסופי, מספר ה-Turns, נתוני השימוש והעלות המשוערת.</li>
+  </ol>
+  <p>שני בלמים מתועדים כדאי להכיר כבר עכשיו: <code>max_turns</code> / <code>maxTurns</code> מגביל את מספר סבבי הכלים, ו-<code>max_budget_usd</code> / <code>maxBudgetUsd</code> עוצר את השאילתה כשהאומדן הכספי מגיע לתקרה. כשמגבלה נחצית, ה-<code>ResultMessage</code> מגיע עם <code>subtype</code> של <code>error_max_turns</code> או <code>error_max_budget_usd</code>, ובקריאת <code>query()</code> חד-פעמית ה-SDK גם זורק חריגה אחרי ההודעה. התיעוד ממליץ במפורש להגדיר תקציב כברירת מחדל לסוכני <bdi>Production</bdi>.</p>
+
+  <h2 id="tools">אילו Tools מובנים זמינים</h2>
+  <p>כברירת מחדל הסוכן מקבל את אותם כלים מובנים שהכרתם ב-CLI, ובהם: <code>Read</code>, <code>Write</code>, <code>Edit</code>, <code>Bash</code>, <code>Glob</code>, <code>Grep</code>, <code>WebSearch</code>, <code>WebFetch</code>, <code>NotebookEdit</code>, <code>TodoWrite</code>, <code>Agent</code> (הפעלת Subagents), <code>Skill</code> ו-<code>AskUserQuestion</code>. הרשימה המלאה, כולל אילו כלים דורשים אישור, נמצאת ב-<bdi>Tools reference</bdi> הרשמי. שתי דרכים לשלוט ברשימה עצמה:</p>
+  <ul>
+    <li><code>tools</code>: רשימת הכלים שקיימים בכלל עבור המודל, או ה-<bdi>Preset</bdi> <code>{"type": "preset", "preset": "claude_code"}</code> לקבלת ערכת ברירת המחדל של Claude Code.</li>
+    <li><code>disallowed_tools</code> / <code>disallowedTools</code>: שם כלי מלא (כמו <code>"Bash"</code>) מסיר את הכלי מה-Context לגמרי; כלל עם תבנית (כמו <code>"Bash(rm *)"</code>) משאיר את הכלי אבל דוחה קריאות תואמות בכל מצב הרשאות, כולל <code>bypassPermissions</code>.</li>
+  </ul>
+  <p>בנוסף אפשר להוסיף כלים משלכם דרך <bdi>MCP</bdi>: הפונקציות <code>tool()</code> ו-<code>create_sdk_mcp_server()</code> (בשתי השפות, בסגנון המתאים לכל שפה) יוצרות שרת MCP שרץ <strong>בתוך התהליך שלכם</strong>, בלי תהליך חיצוני ובלי תקורת תקשורת. כך זה נראה ב-Python, על פי הדוגמה הרשמית:</p>
+  <div class="codeblock">
+    <div class="codehead">custom_tool.py (קטע, על פי תיעוד Custom tools)</div>
+    <pre><code>from claude_agent_sdk import tool, create_sdk_mcp_server, ClaudeAgentOptions
+
+@tool("greet", "Greet a user", {"name": str})
+async def greet(args):
+    return {"content": [{"type": "text", "text": f"Hello, {args['name']}!"}]}
+
+server = create_sdk_mcp_server(name="my-tools", version="1.0.0", tools=[greet])
+options = ClaudeAgentOptions(
+    mcp_servers={"my-tools": server},
+    allowed_tools=["mcp__my-tools__greet"],   # שם מלא: mcp__&lt;server&gt;__&lt;tool&gt;
+)</code></pre>
+  </div>
+  <p>שימו לב למוסכמת השמות: כלי MCP מקבל את השם <code>mcp__&lt;שם-השרת&gt;__&lt;שם-הכלי&gt;</code>, וזה השם שמופיע בכללי ההרשאות. הדקורטור <code>@tool</code> מקבל שם, תיאור וסכמת קלט (מיפוי טיפוסים פשוט או JSON Schema מלא). זה הנושא של תיעוד <bdi>Custom tools</bdi>; נעמיק בו כשנצטרך כלי כזה בפועל.</p>
+
+  <h2 id="options">האפשרויות המרכזיות של ClaudeAgentOptions / Options</h2>
+  <p>אובייקט האפשרויות הוא לוח הבקרה של הסוכן. אלה השדות שתשתמשו בהם בפועל, כפי שהם מתועדים היום (Python בסוגריים כשהשם שונה):</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>אפשרות</th><th>מה היא עושה</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>systemPrompt</code> (<code>system_prompt</code>)</td><td>מחרוזת ל-System Prompt מותאם, או <code>{type:"preset", preset:"claude_code", append:"..."}</code> כדי לקבל את ה-Prompt של Claude Code ולהוסיף עליו. ברירת המחדל ב-SDK היא Prompt מינימלי, לא זה של Claude Code. ב-Python יש גם צורת <code>{"type":"file","path":"..."}</code> לטעינת Prompt גדול מקובץ</td></tr>
+        <tr><td class="ltr"><code>allowedTools</code> (<code>allowed_tools</code>)</td><td>כלים שמאושרים אוטומטית בלי שאלה. חשוב: זו רשימת אישור, לא רשימת הגבלה; כלי שלא ברשימה עדיין זמין ונופל להמשך שרשרת ההרשאות</td></tr>
+        <tr><td class="ltr"><code>disallowedTools</code> (<code>disallowed_tools</code>)</td><td>כללי דחייה: שם מלא מסיר כלי מה-Context, תבנית חוסמת קריאות תואמות בכל מצב</td></tr>
+        <tr><td class="ltr"><code>permissionMode</code> (<code>permission_mode</code>)</td><td>מצב ההרשאות הגלובלי: <code>default</code>, <code>acceptEdits</code>, <code>plan</code>, <code>dontAsk</code>, <code>bypassPermissions</code>, <code>auto</code> (פירוט בהמשך)</td></tr>
+        <tr><td class="ltr"><code>canUseTool</code> (<code>can_use_tool</code>)</td><td>פונקציית Callback שמחליפה את חלון האישור האינטראקטיבי: מקבלת שם כלי וקלט, ומחזירה Allow או Deny</td></tr>
+        <tr><td class="ltr"><code>hooks</code></td><td>רישום Hooks תוכניתיים (כמו <code>PreToolUse</code> ו-<code>PostToolUse</code>) כפונקציות בקוד שלכם, באותם אירועים שהכרנו בפרק על Hooks</td></tr>
+        <tr><td class="ltr"><code>mcpServers</code> (<code>mcp_servers</code>)</td><td>הגדרת שרתי MCP: חיצוניים (stdio / HTTP) או שרת In-Process שנוצר עם <code>create_sdk_mcp_server()</code></td></tr>
+        <tr><td class="ltr"><code>agents</code></td><td>הגדרת Subagents תוכניתית (ראו סעיף Subagents)</td></tr>
+        <tr><td class="ltr"><code>maxTurns</code> (<code>max_turns</code>) / <code>maxBudgetUsd</code> (<code>max_budget_usd</code>)</td><td>בלמי בטיחות: תקרת Turns ותקרת עלות משוערת לשאילתה</td></tr>
+        <tr><td class="ltr"><code>continue</code> (<code>continue_conversation</code>), <code>resume</code>, <code>forkSession</code> (<code>fork_session</code>)</td><td>המשך ה-Session האחרון, חזרה ל-Session לפי מזהה, או פיצול Session לענף חדש</td></tr>
+        <tr><td class="ltr"><code>outputFormat</code> (<code>output_format</code>)</td><td>פלט מובנה: <code>{type:"json_schema", schema:{...}}</code>, מאומת מול הסכמה עם ניסיונות חוזרים</td></tr>
+        <tr><td class="ltr"><code>includePartialMessages</code> (<code>include_partial_messages</code>)</td><td>הזרמת אירועי Streaming חלקיים (<bdi>Token</bdi> אחרי <bdi>Token</bdi>) בנוסף להודעות המלאות</td></tr>
+        <tr><td class="ltr"><code>settingSources</code> (<code>setting_sources</code>)</td><td>אילו הגדרות ייטענו מהדיסק: <code>"user"</code>, <code>"project"</code>, <code>"local"</code>. ברירת המחדל טוענת הכול כמו ה-CLI; רשימה ריקה <code>[]</code> מנתקת את הסוכן מהגדרות מקומיות, שימושי לסביבות Production צפויות. כדי ש-<bdi>CLAUDE.md</bdi> ייטען, כללו <code>"project"</code></td></tr>
+        <tr><td class="ltr"><code>cwd</code>, <code>env</code>, <code>model</code></td><td>תיקיית העבודה של הסוכן, משתני סביבה לתהליך המשנה, ובחירת מודל (כינוי או שם מלא)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="permissions">הרשאות: המצבים וה-Callback</h3>
+  <p>כשסוכן רץ בלי אדם מול המסך, אין חלון "Allow?". במקום זה, לפי תיעוד ה-Permissions של ה-SDK, כל בקשת כלי עוברת שרשרת קבועה של שישה שלבים: <bdi>Hooks</bdi>, כללי <bdi>Deny</bdi>, כללי <bdi>Ask</bdi>, מצב ההרשאות, כללי <bdi>Allow</bdi>, ולבסוף ה-Callback <code>canUseTool</code>. שתי מסקנות מעשיות מהסדר הזה:</p>
+  <ul>
+    <li>כלי שאושר בשלב מוקדם (למשל דרך <code>allowed_tools</code> או <code>acceptEdits</code>) <strong>לעולם לא מגיע</strong> ל-Callback שלכם. בדיקות שחייבות לרוץ על כל קריאה שמים ב-<bdi>Hook</bdi> מסוג <code>PreToolUse</code>, שרץ תמיד ראשון.</li>
+    <li>כללי Deny עם תבנית גוברים על הכול, כולל <code>bypassPermissions</code>.</li>
+  </ul>
+  <p>מצבי ההרשאות המתועדים: <code>default</code> (כל מה שלא אושר נופל ל-Callback), <code>acceptEdits</code> (עריכות קבצים ופקודות מערכת קבצים בסיסיות מאושרות אוטומטית בתוך תיקיית העבודה), <code>plan</code> (חקירה ותכנון בלי לגעת בקבצים), <code>dontAsk</code> (כל מה שלא אושר מראש נדחה בלי לשאול; הבסיס המומלץ לסוכן Headless עם משטח כלים קבוע), <code>bypassPermissions</code> (אישור כמעט גורף; מסוכן, רק בסביבה מבודדת) ו-<code>auto</code> (מסווג מבוסס מודל מחליט במקום חלונות אישור). דוגמה מתועדת ל-Callback ב-Python:</p>
+  <div class="codeblock">
+    <div class="codehead">permission_callback.py (קטע)</div>
+    <pre><code>from claude_agent_sdk import PermissionResultAllow, PermissionResultDeny
+
+async def can_use_tool(tool_name, input_data, context):
+    if tool_name == "Bash" and "rm -rf" in input_data.get("command", ""):
+        return PermissionResultDeny(message="Destructive command blocked", interrupt=True)
+    return PermissionResultAllow()
+
+options = ClaudeAgentOptions(can_use_tool=can_use_tool)</code></pre>
+  </div>
+
+  <h3 id="hooks-sdk">Hooks בתוך ה-SDK</h3>
+  <p>את מנגנון ה-<bdi>Hooks</bdi> הכרנו בפרק ייעודי כסקריפטים חיצוניים. ב-SDK הם הופכים לפונקציות רגילות בקוד שלכם, שנרשמות דרך האפשרות <code>hooks</code> לפי אירוע (<code>PreToolUse</code>, <code>PostToolUse</code>, <code>SessionStart</code> ועוד) עם <code>HookMatcher</code> שמסנן לפי שם כלי. הדוגמה הרשמית המקוצרת, Hook שחוסם פקודת Shell מסוכנת:</p>
+  <div class="codeblock">
+    <div class="codehead">hook_example.py (קטע, על פי הדוגמה הרשמית)</div>
+    <pre><code>from claude_agent_sdk import ClaudeAgentOptions, HookMatcher, HookContext
+from typing import Any
+
+async def validate_bash_command(
+    input_data: dict[str, Any], tool_use_id: str | None, context: HookContext
+) -&gt; dict[str, Any]:
+    if input_data["tool_name"] == "Bash":
+        command = input_data["tool_input"].get("command", "")
+        if "rm -rf /" in command:
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": "Dangerous command blocked",
+                }
+            }
+    return {}
+
+options = ClaudeAgentOptions(
+    hooks={"PreToolUse": [HookMatcher(matcher="Bash", hooks=[validate_bash_command])]}
+)</code></pre>
+  </div>
+  <p>ההבדל המכריע בין Hook לבין <code>can_use_tool</code>: ה-Hook רץ <strong>ראשון בשרשרת, על כל קריאה, בכל מצב הרשאות</strong>, כולל <code>bypassPermissions</code>; ה-Callback רץ רק כשהבקשה נופלת עד סוף השרשרת. לכן חסימות אבטחה קשיחות שייכות ל-Hooks, והחלטות "לאשר או לא" אינטראקטיביות שייכות ל-Callback.</p>
+
+  <h3 id="subagents">Subagents: הקבלה ובידוד Context</h3>
+  <p>הפרמטר <code>agents</code> מאפשר להגדיר <bdi>Subagents</bdi> ישירות בקוד, בלי קובצי <bdi>Markdown</bdi> בתיקיית <code>.claude/agents/</code> (שתי הדרכים נתמכות; ההגדרה התוכניתית גוברת בשמות זהים). כל <bdi>Subagent</bdi> מקבל <code>description</code> (מתי להשתמש בו), <code>prompt</code> (ה-System Prompt שלו), ואופציונלית <code>tools</code> מצומצמים, <code>model</code> שונה, <code>maxTurns</code> ועוד. הסוכן הראשי מפעיל אותם דרך הכלי <code>Agent</code>, ולכן כדאי לכלול <code>"Agent"</code> ב-<code>allowed_tools</code>. שלושת היתרונות המתועדים: בידוד <bdi>Context</bdi> (רק ההודעה הסופית של ה-Subagent חוזרת לשיחה הראשית), מקבול (כמה Subagents רצים בו-זמנית), והתמחות (לכל אחד Prompt וכלים משלו).</p>
+  <figure>
+    <img src="../diagrams/multi-agent.svg" alt="תרשים תיאום Multi-Agent: Agent ראשי מתאם מפצל משימות לשלושה Subagents עם Context מבודד (סוקר קוד, מריץ בדיקות, מתעד), רק התוצאות הסופיות חוזרות אליו, והוא עובר דרך שער אישור אנושי לפני ביצוע ה-Merge.">
+    <figcaption>ארכיטקטורת <bdi>Multi-Agent</bdi> ב-SDK: ה-<bdi>Orchestrator</bdi> מאציל משימות ממוקדות ל-<bdi>Subagents</bdi> מבודדים, אוסף רק את התוצאות הסופיות, ועובר שער אישור אנושי לפני שהשינוי מבוצע בפועל.</figcaption>
+  </figure>
+  <div class="codeblock">
+    <div class="codehead">subagents_example.py (קטע, על פי הדוגמה הרשמית)</div>
+    <pre><code>from claude_agent_sdk import query, ClaudeAgentOptions, AgentDefinition
+
+options = ClaudeAgentOptions(
+    allowed_tools=["Read", "Grep", "Glob", "Agent"],
+    agents={
+        "code-reviewer": AgentDefinition(
+            description="Expert code review specialist.",
+            prompt="You are a code review specialist...",
+            tools=["Read", "Grep", "Glob"],   # קריאה בלבד
+            model="sonnet",
+        ),
+    },
+)</code></pre>
+  </div>
+  <div class="callout note"><span class="title">שימו לב לאותיות</span><p>ב-Python, שדות <code>AgentDefinition</code> נשארים ב-<bdi>camelCase</bdi> (<code>disallowedTools</code>, <code>maxTurns</code>, <code>permissionMode</code>) כי הם ממופים ישירות לפורמט המשותף עם TypeScript. זה שונה מ-<code>ClaudeAgentOptions</code> שהוא <bdi>snake_case</bdi>. העברת שם ב-snake_case ל-AgentDefinition זורקת <code>TypeError</code>.</p></div>
+
+  <h3 id="structured">פלט מובנה (Structured Output)</h3>
+  <p>כשסוכן הוא חלק ממערכת, טקסט חופשי הוא בעיה: צריך לנתח אותו. האפשרות <code>output_format</code> / <code>outputFormat</code> עם <code>{"type": "json_schema", "schema": {...}}</code> מבטיחה שבסוף הריצה תקבלו ב-<code>ResultMessage.structured_output</code> אובייקט JSON שאומת מול הסכמה שהגדרתם (ה-SDK תומך ב-<bdi>JSON Schema draft-07</bdi>; מסכמת <bdi>Zod</bdi> ממירים עם <code>target: "draft-7"</code>, ומ-<bdi>Pydantic</bdi> עם <code>model_json_schema()</code>). אם המודל לא מצליח לייצר פלט תקין אחרי מספר ניסיונות, מתקבל <code>subtype</code> של <code>error_max_structured_output_retries</code>. גם תוצאה עם <code>subtype: "success"</code> יכולה להגיע בלי <code>structured_output</code>, ולכן הקוד צריך לבדוק את שניהם. דוגמה מלאה בפרק 33.</p>
+
+  <h3 id="streaming">Streaming</h3>
+  <p>ברירת המחדל כבר "מזרימה" ברמת הודעות: אתם מקבלים כל <code>AssistantMessage</code> ותוצאת כלי ברגע שהם קורים. מי שצריך רזולוציה של <bdi>Tokens</bdi> בודדים (למשל להדפסה חיה ב-UI) מדליק <code>include_partial_messages=True</code> ומקבל בנוסף אירועי <code>StreamEvent</code> גולמיים של ה-API. לרוב משימות האוטומציה אין בזה צורך: Job ברקע או ב-CI פשוט צורך את ההודעות המלאות, וזה גם מה שהתיעוד ממליץ. כיוון הזרימה השני קיים גם הוא: הפרמטר <code>prompt</code> מקבל לא רק מחרוזת אלא גם <bdi>Async Iterable</bdi> של הודעות, מה שמאפשר להזין קלט בהדרגה תוך כדי ריצה (Streaming Input) בלי לפתוח Session חדש לכל הודעה.</p>
+
+  <h2 id="sessions">Sessions והתמדה</h2>
+  <p>כמו ב-CLI, כל ריצה נשמרת כ-<bdi>Session</bdi> בדיסק (קובצי <bdi>JSONL</bdi> תחת <code>~/.claude/projects/</code>). שלוש פעולות מתועדות:</p>
+  <ul>
+    <li><strong>Continue:</strong> <code>continue_conversation=True</code> (או <code>continue: true</code>) ממשיך את ה-Session האחרון בתיקייה, בלי לנהל מזהים.</li>
+    <li><strong>Resume:</strong> שומרים את <code>session_id</code> מתוך ה-<code>ResultMessage</code> ומעבירים אותו כ-<code>resume</code> בקריאה הבאה; הסוכן חוזר עם כל ההקשר הקודם. זו התבנית שנשתמש בה בפרק 32 כדי לחבר בין שלב המחקר לשלב הביצוע.</li>
+    <li><strong>Fork:</strong> <code>resume</code> יחד עם <code>fork_session=True</code> יוצר Session חדש שמתחיל מעותק של ההיסטוריה, בלי לגעת במקור. שימושי לבחינת שתי גישות במקביל.</li>
+  </ul>
+  <p>חשוב להבין: Session שומר את <strong>השיחה</strong>, לא את מערכת הקבצים. שחזור קבצים הוא תפקיד ה-<bdi>File Checkpointing</bdi> (אפשרות <code>enable_file_checkpointing</code>). להרצה בסביבות ארעיות (CI, קונטיינרים) שבהן הדיסק לא שורד, התיעוד מציע שתיים: העברת קובץ ה-Session בעצמכם, או מתאם <bdi>SessionStore</bdi> שמשקף את התמלילים לאחסון חיצוני משותף. ב-TypeScript יש גם <code>persistSession: false</code> לריצות חד-פעמיות שלא צריכות להישמר כלל.</p>
+
+  <h2 id="cost">מעקב עלויות</h2>
+  <p>כל <code>ResultMessage</code> מסכם את הריצה: <code>total_cost_usd</code> (אומדן מצטבר), <code>usage</code> (<bdi>Tokens</bdi> של הלולאה הראשית, כולל <code>cache_read_input_tokens</code> ו-<code>cache_creation_input_tokens</code>), ו-<code>model_usage</code> / <code>modelUsage</code> (פירוט לפי מודל, כולל פעילות Subagents). שלוש נקודות מתועדות שחוסכות הפתעות:</p>
+  <ul>
+    <li>המספרים הם <strong>אומדן צד-לקוח</strong> מטבלת מחירים שנארזה בזמן ה-Build, לא נתוני חיוב מחייבים. לחיוב אמיתי משתמשים ב-<bdi>Usage and Cost API</bdi> או ב-<bdi>Console</bdi>. אל תחייבו לקוחות לפי השדות האלה.</li>
+    <li>שדה ה-<code>usage</code> סופר רק את הלולאה הראשית; <bdi>Tokens</bdi> של Subagents נכללים ב-<code>total_cost_usd</code> וב-<code>model_usage</code> אבל לא ב-<code>usage</code>.</li>
+    <li>כל קריאת <code>query()</code> מדווחת רק על עצמה. סכום כולל על פני כמה קריאות (או כמה משתמשים) צוברים בעצמכם, כמו שעושה הסוכן בפרק 32.</li>
+    <li>גם תוצאה שנגמרת בשגיאה נושאת נתוני עלות: ה<bdi>Tokens</bdi> שנצרכו עד הכשל עדיין נספרים, אז קראו את הנתונים מכל <code>ResultMessage</code>, בלי תלות ב-<code>subtype</code>.</li>
+  </ul>
+  <p>ה-SDK מפעיל <bdi>Prompt Caching</bdi> אוטומטית. לעומסי עבודה עם הפסקות ארוכות בין ריצות אפשר להאריך את חיי ה-Cache לשעה עם משתנה הסביבה <code>ENABLE_PROMPT_CACHING_1H</code> (כתיבת Cache כזו יקרה יותר; ראו פרק 30 על עקרונות עלות).</p>
+
+  <h2 id="hosting">בסיס ל-Hosting</h2>
+  <p>כשמעבירים סוכן ל-Production, המודל המנטלי החשוב הוא: <strong>Session אחד = תהליך <code>claude</code> אחד</strong>, עם <bdi>Shell</bdi>, תיקיית עבודה וקובצי Session בדיסק המקומי. N ריצות מקבילות הן N תהליכי משנה. מזה נגזרות שלוש תבניות הפריסה שבתיעוד ה-Hosting:</p>
+  <ul>
+    <li><strong>Ephemeral:</strong> קונטיינר לכל משימה, שנהרס בסיומה. מתאים למשימות חד-פעמיות (תיקון Bug, עיבוד מסמך).</li>
+    <li><strong>Long-running:</strong> קונטיינרים קבועים שמחזיקים Sessions פתוחים (Bot תמידי, שירות צ'אט). ב-Python מחזיקים <code>ClaudeSDKClient</code>; ב-TypeScript משתמשים ב-<code>streamInput()</code> וב-<code>startup()</code> לחימום מוקדם.</li>
+    <li><strong>Hybrid:</strong> קונטיינרים ארעיים שנטענים מ-<bdi>SessionStore</bdi> חיצוני בעלייה ושומרים אליו בירידה. חובה SessionStore, אחרת התמליל אובד.</li>
+  </ul>
+  <p>לכל ריצה מבודדת מעבירים <code>cwd</code> נפרד, ובסביבות רגישות מוסיפים <bdi>Sandboxing</bdi> ברמת הקונטיינר. שלוש נקודות תפעוליות נוספות מהתיעוד: מדיניות ה-Retry המובנית של ה-CLI נשלטת דרך משתני סביבה כמו <code>API_TIMEOUT_MS</code> ו-<code>CLAUDE_CODE_MAX_RETRIES</code> שמועברים באפשרות <code>env</code>; ל-<bdi>Observability</bdi> משתמשים ב-Callback של <code>stderr</code> וברישום ה-<code>ResultMessage</code> של כל ריצה; ולסביבות מרובות דיירים (Multi-Tenant) התיעוד מדגיש בידוד ברמת קונטיינר לכל דייר, לא רק ברמת תיקייה. מי שלא רוצה לנהל את כל זה, זו בדיוק הנישה של <bdi>Managed Agents</bdi> (Beta). פירוט אבטחתי מלא יש בתיעוד <bdi>Secure Deployment</bdi> הרשמי.</p>
+
+  <h2 id="troubleshooting">שגיאות נפוצות ו-Troubleshooting</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>סימפטום</th><th>סיבה</th><th>פתרון</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr">API key not found</td><td>המפתח לא בסביבת התהליך; ה-SDK לא קורא קובצי .env</td><td>הגדירו <code>ANTHROPIC_API_KEY</code> באותו Shell, או טענו .env בקוד לפני הקריאה ל-SDK</td></tr>
+        <tr><td class="ltr">CLINotFoundError</td><td>אין קובץ בינארי מובנה (Source Distribution או דילוג על תלויות אופציונליות)</td><td>התקינו מחדש, או התקינו Claude Code רגיל וכוונו אליו</td></tr>
+        <tr><td>הסוכן "נתקע" בלי להתקדם</td><td>מצב <code>default</code> בלי <code>can_use_tool</code>: בקשת כלי לא מאושרת מחכה להחלטה שאין מי שיקבל</td><td>לסוכן ללא אדם: <code>dontAsk</code> עם <code>allowed_tools</code> מפורש, או ספקו Callback</td></tr>
+        <tr><td>הסוכן לא רואה את ה-CLAUDE.md של הפרויקט</td><td><code>setting_sources</code> מוגדר בלי <code>"project"</code></td><td>הוסיפו <code>"project"</code> לרשימה, או השמיטו את האפשרות לגמרי</td></tr>
+        <tr><td>חריגה אחרי שהתקבלה תוצאה</td><td>התנהגות מתועדת: <code>query()</code> חד-פעמי זורק חריגה אחרי <code>ResultMessage</code> מסוג שגיאה</td><td>עטפו ב-try/except ובדקו את ה-<code>subtype</code> של התוצאה שכבר נאספה</td></tr>
+        <tr><td>ב-TypeScript: משתני סביבה נעלמים לתהליך המשנה</td><td>האפשרות <code>env</code> מחליפה את הסביבה במקום למזג</td><td>העבירו <code>{ ...process.env, MY_VAR: "..." }</code> (ב-Python <code>env</code> דווקא מתמזג)</td></tr>
+        <tr><td>שדות של <code>ThinkingConfig</code> או TypedDict אחר לא נגישים כתכונות</td><td>ב-Python חלק מהטיפוסים הם TypedDict: מילון רגיל בזמן ריצה</td><td>גשו עם מפתחות: <code>config["budget_tokens"]</code>, לא <code>config.budget_tokens</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="best-practices">Best Practices ו-Anti-patterns</h2>
+  <ul>
+    <li><strong>עשו:</strong> תקציב ותקרת Turns לכל שאילתה; <code>cwd</code> מפורש; פלט מובנה כשמערכת אחרת צורכת את התוצאה; רישום <code>session_id</code> ועלות מכל ריצה.</li>
+    <li><strong>עשו:</strong> התחילו מ-System Prompt מותאם וקצר. ה-Preset של Claude Code (<code>{type:"preset", preset:"claude_code"}</code>) שימושי כשרוצים את מלוא ההתנהגות של המוצר, אבל לרוב הסוכנים הממוקדים הוא עודף.</li>
+    <li><strong>אל:</strong> <code>bypassPermissions</code> כפתרון עצלות לבעיות הרשאה (<span class="badge exp">Anti-pattern</span>); לולאת שאילתות בלי צבירת עלות; ניתוח הטקסט של <code>result</code> ב-Regex במקום להשתמש ב-<code>output_format</code>; הנחה שהסוכן "יזכור" בין קריאות <code>query()</code> בלי <code>resume</code> או <code>continue</code>.</li>
+    <li><strong>אל:</strong> לחייב לקוחות או לקבל החלטות פיננסיות לפי <code>total_cost_usd</code>; זה אומדן פיתוח, והתיעוד מזהיר על כך במפורש.</li>
+  </ul>
+
+  <h2 id="security">שיקולי Security</h2>
+  <ul class="check">
+    <li>סוכן SDK הוא קוד שרץ עם ההרשאות של התהליך שלכם. הריצו אותו בתיקיית עבודה ייעודית, לא בשורש הבית.</li>
+    <li>התחילו כל סוכן חדש מ-<code>permission_mode="default"</code> או <code>"dontAsk"</code> עם <code>allowed_tools</code> מינימלי, והרחיבו רק לפי צורך מוכח.</li>
+    <li>זכרו ש-<code>allowed_tools</code> אינו מגביל את <code>bypassPermissions</code>: במצב הזה כל כלי מאושר. חסימה אמיתית עושים עם <code>disallowed_tools</code> או Hooks.</li>
+    <li>שקלו <code>setting_sources=[]</code> בסביבות Production, כדי שהסוכן לא יושפע מהגדרות וקבצים מקומיים שמישהו אחר שתל במכונה.</li>
+    <li>מפתחות API רק ממשתני סביבה או מנהל סודות; לעולם לא בקוד.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 31.1: סוכן קריאה בלבד עם תקציב</div>
+    <div class="body"><p>כתבו סקריפט (בשפה שנוחה לכם) שמריץ <code>query()</code> על פרויקט <bdi>TaskFlow</bdi> עם ה-Prompt: <code>"Summarize the backend API endpoints and note any missing input validation"</code>. דרישות: (1) כלים מאושרים: <code>Read</code>, <code>Glob</code>, <code>Grep</code> בלבד; (2) מצב הרשאות שמונע כל פעולה אחרת בלי לשאול; (3) תקרת 10 Turns ותקציב של 0.25 דולר; (4) בסיום הדפיסו את מספר ה-Turns ואת העלות המשוערת מתוך ה-<code>ResultMessage</code>. שאלת בונוס: מה יקרה אם Claude ינסה להריץ <code>Bash</code>?</p></div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>הפתרון ב-Python (המבנה זהה ב-TypeScript עם השמות ב-camelCase):</p>
+      <div class="codeblock">
+        <div class="codehead">exercise31.py</div>
+        <pre><code>import asyncio
+from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
+
+
+async def main():
+    try:
+        async for message in query(
+            prompt="Summarize the backend API endpoints and note any missing input validation",
+            options=ClaudeAgentOptions(
+                cwd="~/projects/taskflow",
+                allowed_tools=["Read", "Glob", "Grep"],
+                permission_mode="dontAsk",     # דרישה 2: דחייה במקום שאלה
+                max_turns=10,                  # דרישה 3
+                max_budget_usd=0.25,           # דרישה 3
+            ),
+        ):
+            if isinstance(message, ResultMessage):
+                if message.subtype == "success":
+                    print(message.result)
+                cost = message.total_cost_usd or 0
+                print(f"turns={message.num_turns} cost=${cost:.4f}")
+    except Exception as error:
+        # query() חד-פעמי זורק חריגה אחרי הודעת תוצאה מסוג שגיאה
+        print(f"ended with an error: {error}")
+
+
+asyncio.run(main())</code></pre>
+      </div>
+      <p>הנקודות המהותיות: <code>permission_mode="dontAsk"</code> הופך כל בקשה לא מאושרת לדחייה שקטה במקום להיתקע על Prompt שאין מי שיענה עליו, וזו התשובה גם לשאלת הבונוס: קריאת <code>Bash</code> לא נמצאת ב-<code>allowed_tools</code>, ולכן היא תידחה, Claude יקבל את הודעת הדחייה וימשיך בלעדיה. אם הריצה חורגת מהתקציב או מהמגבלה, מתקבל <code>ResultMessage</code> עם <code>subtype</code> של <code>error_max_budget_usd</code> או <code>error_max_turns</code>, ואחריו ה-SDK זורק חריגה שנתפסת ב-<code>except</code>.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul class="check">
+    <li>ה-<bdi>Agent SDK</bdi> הוא ה-Harness של Claude Code כספרייה ל-Python ול-TypeScript: אותם Tools, אותה לולאה, שליטה מקוד.</li>
+    <li>גבולות המוצרים: CLI לעבודה אינטראקטיבית, Agent SDK לסוכנים בתוך אפליקציות, Client SDK למי שבונה לולאה בעצמו, ו-<bdi>Managed Agents</bdi> (Beta) למי שלא רוצה תשתית.</li>
+    <li>הגרסאות בתאריך המחקר: <code>claude-agent-sdk</code> 0.2.139 ו-<code>@anthropic-ai/claude-agent-sdk</code> 0.3.233.</li>
+    <li><code>query()</code> מזרים הודעות: <code>SystemMessage</code>, <code>AssistantMessage</code>, תוצאות כלים, ולבסוף <code>ResultMessage</code> עם עלות, שימוש ו-<code>session_id</code>.</li>
+    <li>שליטה בסוכן: <code>allowed_tools</code> ו-<code>disallowed_tools</code>, מצבי הרשאות, <code>can_use_tool</code>, Hooks, Subagents דרך <code>agents</code>, פלט מובנה דרך <code>output_format</code>.</li>
+    <li>בלמים לכל סוכן רציני: <code>max_turns</code>, <code>max_budget_usd</code>, ומעקב עלויות מתוך ה-<code>ResultMessage</code> (אומדן, לא חיוב).</li>
+    <li>Sessions נשמרים בדיסק וניתנים ל-Continue, Resume ו-Fork; ל-Production יש SessionStore ושלוש תבניות Hosting.</li>
+  </ul>
+  <p>בפרק הבא ניקח את כל אבני הבניין האלה ונבנה מהן סוכן אמיתי ושלם: סוכן משימות פיתוח עם שלבי מחקר, תכנון, אישור אנושי, ביצוע ובדיקות.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/agent-sdk/overview">Agent SDK overview</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/quickstart">Agent SDK quickstart</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/typescript">TypeScript SDK reference</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/python">Python SDK reference</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/agent-loop">How the agent loop works</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/permissions">Configure permissions</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/sessions">Work with sessions</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/structured-outputs">Structured outputs</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/custom-tools">Custom tools</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/subagents">Subagents in the SDK</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/hosting">Hosting the Agent SDK</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/cost-tracking">Track cost and usage</a> |
+      <a href="https://code.claude.com/docs/en/tools-reference">Tools reference</a> |
+      <a href="https://platform.claude.com/docs/en/managed-agents/overview">Managed Agents overview (Beta)</a> |
+      <a href="https://pypi.org/project/claude-agent-sdk/">PyPI: claude-agent-sdk</a> |
+      <a href="https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk">npm: @anthropic-ai/claude-agent-sdk</a>
+      | נבדק: 29.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch30.html"><span class="lbl">הפרק הקודם</span>Cost, Tokens ו-Performance</a>
+    <a href="ch32.html"><span class="lbl">הפרק הבא</span>בניית Agent מותאם</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

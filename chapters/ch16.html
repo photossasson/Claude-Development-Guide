@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 16: Memory ו-Project Knowledge</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ג | פרק 16</p>
+  <h1>Memory ו-Project Knowledge</h1>
+  <p class="lead">כל <bdi>Session</bdi> של <bdi>Claude Code</bdi> מתחיל עם <bdi>Context Window</bdi> ריק. מה שגורם ל-Claude "לזכור" את הפרויקט שלכם הוא מערך שלם של שכבות ידע: <bdi>CLAUDE.md</bdi> שאתם אוצרים ביד, <bdi>Auto Memory</bdi> ש-Claude כותב לעצמו, הקשר זמני של השיחה, <bdi>Skills</bdi>, <bdi>Rules</bdi> ותיעוד חיצוני. בפרק הזה נמפה את השכבות במדויק, נלמד להחליט איפה כל פיסת ידע צריכה לגור, נטפל בזיכרון מיושן וסותר, ונבצע <bdi>Knowledge Audit</bdi> מלא על פרויקט הדוגמה <bdi>TaskFlow</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what-problem">איזו בעיה שכבות הידע פותרות</h2>
+  <p>מודל שפה לא זוכר שיחות קודמות. כשאתם סוגרים <bdi>Session</bdi> ופותחים חדש, כל מה ש-Claude "למד" על הפרויקט, ההעדפות שלכם, הפקודות שרצות אצלכם, הסיבה שהבדיקה ההיא נופלת, נעלם. בלי מנגנון זיכרון הייתם חוזרים על אותם הסברים בכל בוקר: "אנחנו משתמשים ב-<bdi>pnpm</bdi>, לא ב-<bdi>npm</bdi>", "הבדיקות דורשות <bdi>Redis</bdi> מקומי", "אל תיגע בתיקיית <code>legacy/</code>".</p>
+  <p>התיעוד הרשמי מגדיר שני מנגנונים שמעבירים ידע בין <bdi>Sessions</bdi>: קובצי <bdi>CLAUDE.md</bdi>, הוראות שאתם כותבים, ו-<bdi>Auto Memory</bdi>, הערות ש-Claude כותב לעצמו על סמך התיקונים וההעדפות שלכם. סביבם קיימות עוד שכבות שמזינות את Claude בידע בזמנים שונים: <bdi>Rules</bdi>, <bdi>Skills</bdi>, תיעוד בתוך ה-<bdi>Repository</bdi>, וההקשר הרגעי של השיחה עצמה. הבעיה המעשית של רוב הצוותים היא לא "אין זיכרון" אלא "הידע נמצא בשכבה הלא נכונה": הוראות קבועות שחיות רק בשיחה ונעלמות, או ערימת פרטים חד-פעמיים שתוקעת את ה-<bdi>CLAUDE.md</bdi> ושורפת <bdi>Context</bdi> בכל <bdi>Session</bdi>.</p>
+  <div class="callout note"><span class="title">נקודה קריטית להבנה</span><p>גם <bdi>CLAUDE.md</bdi> וגם <bdi>Auto Memory</bdi> הם הקשר (Context), לא אכיפה. Claude קורא אותם ומשתדל לפעול לפיהם, אבל אין ערובה לציות מוחלט. כדי לחסום פעולה באופן מוחלט, בלי תלות בהחלטה של Claude, משתמשים ב-<bdi>PreToolUse Hook</bdi> (<a href="ch22.html">פרק 22</a>) או בחוקי <bdi>Permissions</bdi> (<a href="ch17.html">פרק 17</a>). זו הבחנה מתועדת ומרכזית לכל הפרק הזה.</p></div>
+
+  <h2 id="layers-map">מפת השכבות: שש דרכים שבהן Claude "יודע" דברים</h2>
+  <p>לפני שנצלול לכל שכבה, הנה המפה המלאה. שימו לב לעמודה "מתי נטען": היא ההבדל המהותי בין השכבות, כי כל מה שנטען בפתיחת ה-<bdi>Session</bdi> עולה לכם ב-<bdi>Tokens</bdi> בכל שיחה.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>שכבה</th><th>מי כותב</th><th>מתי נטען</th><th>היקף</th><th>פרק</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>CLAUDE.md</bdi></td><td>אתם (והצוות)</td><td>בפתיחת כל <bdi>Session</bdi>, במלואו</td><td>ארגון / משתמש / פרויקט</td><td><a href="ch15.html">פרק 15</a></td></tr>
+        <tr><td><bdi>Auto Memory</bdi></td><td>Claude</td><td>האינדקס בפתיחה; קובצי נושא לפי דרישה</td><td>פר <bdi>Repository</bdi>, מקומי למכונה</td><td>הפרק הזה</td></tr>
+        <tr><td><bdi>Session Context</bdi></td><td>שניכם, תוך כדי שיחה</td><td>קיים רק בתוך ה-<bdi>Session</bdi></td><td>שיחה אחת</td><td>הפרק הזה</td></tr>
+        <tr><td><bdi>Rules</bdi> (<code>.claude/rules/</code>)</td><td>אתם (והצוות)</td><td>בפתיחה, או רק כשנוגעים בקבצים תואמים</td><td>משתמש / פרויקט</td><td><a href="ch15.html">פרק 15</a></td></tr>
+        <tr><td><bdi>Skills</bdi></td><td>אתם / הצוות / <bdi>Plugins</bdi></td><td>לפי דרישה, כשמפעילים או כשרלוונטי</td><td>משתמש / פרויקט / <bdi>Plugin</bdi></td><td><a href="ch21.html">פרק 21</a></td></tr>
+        <tr><td>תיעוד חיצוני (<code>docs/</code>)</td><td>הצוות</td><td>רק כש-Claude קורא אותו בפועל</td><td>פרויקט</td><td>הפרק הזה</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="claude-md">CLAUDE.md: הידע שאתם אוצרים</h2>
+  <p>את <bdi>CLAUDE.md</bdi> הכרנו לעומק ב<a href="ch15.html">פרק 15</a>, ולכן כאן רק תזכורת ממוקדת של מה שחשוב להשוואה מול שאר השכבות:</p>
+  <ul>
+    <li><strong>אצירה ידנית:</strong> אתם כותבים אותו, ואתם אחראים לתוכנו. Claude לא משנה אותו אלא אם ביקשתם במפורש ("add this to CLAUDE.md").</li>
+    <li><strong>נטען במלואו בפתיחה:</strong> קובצי <bdi>CLAUDE.md</bdi> ו-<bdi>CLAUDE.local.md</bdi> בתיקיית העבודה ובתיקיות שמעליה נטענים במלואם בהפעלה, בלי מגבלת אורך, אם כי התיעוד ממליץ להישאר מתחת ל-200 שורות לקובץ כי קבצים ארוכים מקטינים ציות. קבצים בתת-תיקיות נטענים לפי דרישה, כש-Claude קורא קבצים באותן תיקיות.</li>
+    <li><strong>ארבע רמות:</strong> מדיניות ארגונית מנוהלת (Managed Policy), משתמש (<code>~/.claude/CLAUDE.md</code>), פרויקט (<code>./CLAUDE.md</code> או <code>./.claude/CLAUDE.md</code>), ומקומי אישי (<code>./CLAUDE.local.md</code> שמוסיפים ל-<code>.gitignore</code>).</li>
+    <li><strong>מיועד ל:</strong> עובדות והוראות ש-Claude צריך להחזיק בכל <bdi>Session</bdi>: פקודות <bdi>Build</bdi> ובדיקות, קונבנציות, מבנה הפרויקט, כללי "תמיד עשה X".</li>
+  </ul>
+
+  <h2 id="auto-memory">Auto Memory: הידע ש-Claude כותב לעצמו</h2>
+  <p><bdi>Auto Memory</bdi> הוא המנגנון שבו Claude צובר ידע בין <bdi>Sessions</bdi> בלי שתכתבו דבר. תוך כדי עבודה Claude שומר לעצמו הערות: פקודות <bdi>Build</bdi>, תובנות <bdi>Debugging</bdi>, הערות ארכיטקטורה, העדפות סגנון קוד והרגלי <bdi>Workflow</bdi>. התיעוד מדגיש ש-Claude לא שומר משהו בכל <bdi>Session</bdi>; הוא מחליט מה שווה לזכור לפי השאלה האם המידע יהיה שימושי בשיחה עתידית. המנגנון פעיל כברירת מחדל.</p>
+
+  <h3 id="memory-location">איפה זה נשמר</h3>
+  <p>לכל פרויקט יש תיקיית זיכרון משלו:</p>
+  <div class="codeblock">
+    <div class="codehead">~/.claude/projects/&lt;project&gt;/memory/</div>
+    <pre><code>~/.claude/projects/&lt;project&gt;/memory/
+├── MEMORY.md          # אינדקס תמציתי, נטען לכל Session
+├── debugging.md       # קובץ נושא: הערות Debugging מפורטות
+├── api-conventions.md # קובץ נושא: החלטות עיצוב API
+└── ...                # כל קובץ נושא אחר ש-Claude יוצר</code></pre>
+  </div>
+  <p>הנתיב <code>&lt;project&gt;</code> נגזר מה-<bdi>Git Repository</bdi>: כל ה-<bdi>Worktrees</bdi> ותת-התיקיות של אותו <bdi>Repository</bdi> חולקים תיקיית זיכרון אחת. מחוץ ל-<bdi>Repository</bdi>, שורש הפרויקט משמש במקום. חשוב: <bdi>Auto Memory</bdi> הוא מקומי למכונה. הקבצים לא משותפים בין מחשבים או סביבות ענן, ולכן הוא לעולם לא יכול לשמש כמקור ידע צוותי. אפשר לשנות את מיקום האחסון עם ההגדרה <code>autoMemoryDirectory</code> ב-<code>settings.json</code> (הערך חייב להיות נתיב מוחלט או להתחיל ב-<code>~/</code>).</p>
+
+  <h3 id="memory-loading">מה נטען ומתי: מגבלות ה-MEMORY.md</h3>
+  <p>המכניקה מדויקת ושווה לדעת אותה בעל פה:</p>
+  <ul>
+    <li><strong>בפתיחת כל שיחה</strong> נטענות 200 השורות הראשונות של <code>MEMORY.md</code>, או 25KB הראשונים, המוקדם מביניהם. תוכן מעבר לסף לא נטען בפתיחה.</li>
+    <li><strong>קובצי נושא</strong> כמו <code>debugging.md</code> לא נטענים בפתיחה. Claude קורא אותם לפי דרישה, עם כלי הקבצים הרגילים שלו, כשהוא צריך את המידע. <code>MEMORY.md</code> מתפקד כאינדקס שמכוון אותו לקובץ הנכון.</li>
+    <li><strong>שמירה על תמציתיות:</strong> אחרי ש-Claude כותב ל-<code>MEMORY.md</code>, <bdi>Claude Code</bdi> מודד את הקובץ מול המגבלות. אם הוא קרוב לסף, Claude מקבל תזכורת לקצר: שורה אחת לרשומה, פירוט לקובצי נושא, מיזוג ומחיקה של רשומות מיושנות. אם הקובץ עבר את הסף, הכתיבה מצליחה אבל Claude מקבל שגיאה שמורה לו לכתוב את האינדקס מחדש, כי כל מה שמעבר לסף יאבד בטעינה הבאה. <bdi>YAML Frontmatter</bdi> והערות <bdi>HTML</bdi> לא נספרות במדידה.</li>
+    <li><strong>המגבלה חלה רק על <code>MEMORY.md</code>.</strong> קובצי <bdi>CLAUDE.md</bdi> נטענים במלואם ללא קשר לאורכם.</li>
+    <li><strong><bdi>Subagents</bdi>:</strong> ה-<bdi>Auto Memory</bdi> של השיחה הראשית לא נטען ל-<bdi>Subagents</bdi> (למעט <bdi>Fork</bdi> שיורש את שיחת ההורה). <bdi>Subagent</bdi> יכול לנהל <bdi>Auto Memory</bdi> נפרד משלו דרך שדה <code>memory</code> בהגדרתו.</li>
+  </ul>
+
+  <h3 id="memory-writes">מה נכתב לשם ואיך זה נראה</h3>
+  <p>כשאתם רואים בממשק הודעות כמו <bdi>"Saved 2 memories"</bdi> או <bdi>"Recalled 2 memories"</bdi>, Claude מעדכן או קורא קבצים בתיקיית הזיכרון. כשאתם מבקשים מ-Claude לזכור משהו במפורש, למשל <code>remember that the API tests require a local Redis instance</code>, הוא שומר את זה ל-<bdi>Auto Memory</bdi>. אם אתם רוצים שההוראה תגיע דווקא ל-<bdi>CLAUDE.md</bdi>, בקשו זאת במפורש: <code>add this to CLAUDE.md</code>.</p>
+  <p>תוספת שימושית לניהול טריות המידע: כש-Claude כותב קובץ זיכרון שמתחיל ב-<bdi>YAML Frontmatter</bdi>, <bdi>Claude Code</bdi> מתעד את זמן הכתיבה בשדה <code>modified</code> כחותמת זמן בתקן <bdi>ISO 8601</bdi> (דורש גרסה 2.1.214 ומעלה). החותמת מראה, גם לכם וגם ל-Claude, עד כמה העובדה עדכנית. <bdi>Claude Code</bdi> לעולם לא מוסיף <bdi>Frontmatter</bdi> לקובץ שאין לו.</p>
+
+  <h3 id="memory-control">הפעלה, כיבוי ושליטה</h3>
+  <p>שלוש דרכים מתועדות לשלוט ב-<bdi>Auto Memory</bdi>:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>דרך</th><th>איך</th><th>היקף</th></tr></thead>
+      <tbody>
+        <tr><td>הפקודה <code>/memory</code></td><td class="ltr">/memory → auto memory toggle</td><td>שומר <code>autoMemoryEnabled</code> להגדרות המשתמש ב-<code>~/.claude/settings.json</code></td></tr>
+        <tr><td>הגדרת פרויקט</td><td class="ltr">"autoMemoryEnabled": false</td><td>כיבוי לפרויקט בודד, ב-<code>.claude/settings.json</code> של הפרויקט</td></tr>
+        <tr><td>משתנה סביבה</td><td class="ltr">CLAUDE_CODE_DISABLE_AUTO_MEMORY=1</td><td>כיבוי גלובלי; הערך <code>0</code> כופה הפעלה</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>הפקודה <code>/memory</code> היא מרכז השליטה: היא מציגה את כל קובצי הזיכרון (<bdi>CLAUDE.md</bdi>, <bdi>CLAUDE.local.md</bdi> ומיקומי זיכרון נוספים ברמת המשתמש והפרויקט, כולל קבצים שעוד לא קיימים), מאפשרת להפעיל ולכבות <bdi>Auto Memory</bdi>, ומציעה לפתוח את תיקיית ה-<bdi>Auto Memory</bdi> לעיון. בחירת קובץ פותחת אותו בעורך; בחירת קובץ שלא קיים יוצרת אותו. כדי לבדוק אילו קבצים באמת נטענו ל-<bdi>Session</bdi> הנוכחי, מריצים <code>/context</code> ובודקים את הרשימה תחת <bdi>Memory files</bdi>.</p>
+  <div class="callout tip"><span class="title">Best Practice</span><p>קובצי ה-<bdi>Auto Memory</bdi> הם <bdi>Markdown</bdi> רגיל. מותר ואף רצוי לערוך ולמחוק אותם ידנית. אין שם קסם: מה שכתוב בקבצים הוא בדיוק מה ש-Claude יקרא.</p></div>
+
+  <h2 id="session-context">Session Context: הידע שנעלם</h2>
+  <p>כל מה שנאמר בשיחה עצמה, הוראות שנתתם, קבצים ש-Claude קרא, פלט של פקודות, הוא הקשר זמני (Ephemeral). הוא קיים רק בתוך ה-<bdi>Session</bdi>: אחרי <code>/clear</code> או פתיחת <bdi>Session</bdi> חדש הוא איננו (השיחה הישנה נגישה דרך <code>/resume</code>, אבל היא לא מזינה שיחות אחרות). גם <bdi>Compaction</bdi> מסנן אותו: אחרי <code>/compact</code>, קובץ ה-<bdi>CLAUDE.md</bdi> שבשורש הפרויקט נקרא מחדש מהדיסק ומוזרק חזרה לשיחה, אבל הוראה שניתנה רק בשיחה עלולה ללכת לאיבוד בסיכום. המסקנה המתועדת: אם הוראה חשובה "נעלמה" אחרי <bdi>Compaction</bdi>, סימן שהיא חיה בשכבה הלא נכונה. הוסיפו אותה ל-<bdi>CLAUDE.md</bdi> כדי שתתמיד.</p>
+  <p>הכלל המעשי: <bdi>Session Context</bdi> הוא המקום הנכון לידע שתקף לשיחה אחת בלבד. "בשיחה הזאת נעבוד רק על ה-<bdi>Frontend</bdi>", "תתעלם כרגע מהבדיקות הנופלות של המודול הישן". ברגע שאתם מקלידים את אותה הוראה בפעם השנייה ב-<bdi>Session</bdi> אחר, היא כבר לא שייכת לשכבה הזאת.</p>
+
+  <h2 id="other-layers">Skills, Rules ותיעוד חיצוני</h2>
+  <h3 id="skills">Skills: נהלים לפי דרישה</h3>
+  <p><bdi>Skill</bdi> הוא נוהל ארוז: קובץ הוראות למשימה ספציפית שנטען רק כשמפעילים אותו או כש-Claude מזהה שהוא רלוונטי ל-<bdi>Prompt</bdi>. התיעוד של Memory מפנה אליהם במפורש: אם רשומה ב-<bdi>CLAUDE.md</bdi> היא נוהל רב-שלבי, או רלוונטית רק לחלק מה-<bdi>Codebase</bdi>, עדיף להעביר אותה ל-<bdi>Skill</bdi> או ל-<bdi>Rule</bdi> תחום-נתיב. היתרון: אפס עלות <bdi>Context</bdi> בכל שאר ה-<bdi>Sessions</bdi>. נוהל שחרור גרסה, תבנית מיגרציה של <bdi>Database</bdi>, תהליך יצירת רכיב חדש, כל אלה <bdi>Skills</bdi> קלאסיים. פירוט מלא ב<a href="ch21.html">פרק 21</a>.</p>
+  <h3 id="rules">Rules: הוראות מודולריות ותחומות-נתיב</h3>
+  <p>תיקיית <code>.claude/rules/</code> מפצלת את הוראות הפרויקט לקבצים ממוקדי-נושא (<code>testing.md</code>, <code>api-design.md</code>). קובץ <bdi>Rule</bdi> בלי שדה <code>paths</code> נטען בפתיחה, באותה עדיפות כמו <code>.claude/CLAUDE.md</code>; קובץ עם <bdi>Frontmatter</bdi> של <code>paths</code> נטען רק כש-Claude עובד עם קבצים תואמי-תבנית, מה שחוסך <bdi>Context</bdi> ומצמצם רעש. קיימת גם רמת משתמש: <code>~/.claude/rules/</code>, שנטענת לפני חוקי הפרויקט (כך שלחוקי הפרויקט עדיפות). הרחבה ותחביר מלא ב<a href="ch15.html">פרק 15</a>.</p>
+  <h3 id="external-docs">תיעוד חיצוני: docs/ בתוך ה-Repository</h3>
+  <p>תיעוד מפורט, מסמכי ארכיטקטורה, <bdi>ADRs</bdi> (רשומות החלטה ארכיטקטוניות), מדריכי <bdi>Onboarding</bdi>, שייך לתיקיית <code>docs/</code> רגילה ב-<bdi>Repository</bdi>, לא לשכבות הזיכרון. Claude יכול לקרוא אותו בכל רגע, בדיוק כמו כל קובץ אחר בפרויקט. שתי דרכים לחבר אותו:</p>
+    <ul>
+    <li><strong>הפניה לפי דרישה (המומלץ לרוב):</strong> שורה אחת ב-<bdi>CLAUDE.md</bdi> בסגנון "לפני שינוי סכמת ה-<bdi>Database</bdi>, קרא את <code>docs/adr/</code>". שימו לב לעטוף נתיב כזה ב-<bdi>Backticks</bdi> אם אתם לא רוצים ייבוא: כתיבת <code>@docs/file.md</code> מחוץ ל-<bdi>Backticks</bdi> בתוך <bdi>CLAUDE.md</bdi> מייבאת את הקובץ ומטעינה אותו בכל פתיחה.</li>
+    <li><strong>ייבוא מלא עם <code>@path</code>:</strong> מתאים רק לקבצים קצרים שבאמת דרושים בכל <bdi>Session</bdi>, כי קבצים מיובאים נטענים בפתיחה ונספרים ב-<bdi>Context</bdi> (עומק ייבוא מקסימלי: ארבעה דילוגים).</li>
+  </ul>
+  <p>מתי להפנות את Claude לתיעוד באופן יזום? כשאתם פותחים משימה שנשענת על החלטה מתועדת: <code>read docs/architecture.md before you plan this change</code>. זה זול, מדויק, ולא מלכלך את שכבות הזיכרון הקבועות.</p>
+
+  <h2 id="precise-diff">CLAUDE.md מול Auto Memory: ההבדלים המדויקים</h2>
+  <p>זו טבלת ההשוואה המתועדת, בתוספת עמודת ההשלכה המעשית:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th></th><th>CLAUDE.md</th><th>Auto Memory</th><th>השלכה מעשית</th></tr></thead>
+      <tbody>
+        <tr><td><strong>מי כותב</strong></td><td>אתם</td><td>Claude</td><td>על <bdi>CLAUDE.md</bdi> יש לכם בקרת איכות מלאה; את <bdi>Auto Memory</bdi> צריך לסקור</td></tr>
+        <tr><td><strong>מה בפנים</strong></td><td>הוראות וכללים</td><td>תובנות ודפוסים ש-Claude גילה</td><td>הוראה שאתם רוצים לאכוף שייכת ל-<bdi>CLAUDE.md</bdi>, לא לזיכרון האוטומטי</td></tr>
+        <tr><td><strong>היקף</strong></td><td>פרויקט, משתמש או ארגון</td><td>פר <bdi>Repository</bdi>, משותף בין <bdi>Worktrees</bdi></td><td><bdi>Auto Memory</bdi> לא עובר בין מכונות ולא מגיע לעמיתים</td></tr>
+        <tr><td><strong>טעינה</strong></td><td>כל <bdi>Session</bdi>, במלואו</td><td>כל <bdi>Session</bdi>, רק 200 שורות / 25KB ראשונים של <code>MEMORY.md</code></td><td><bdi>CLAUDE.md</bdi> ארוך עולה ביוקר בכל שיחה; <bdi>MEMORY.md</bdi> קטום בסף</td></tr>
+        <tr><td><strong>שיתוף בצוות</strong></td><td>דרך <bdi>Git</bdi> (קובץ הפרויקט)</td><td>אף פעם</td><td>ידע צוותי חייב לעבור ל-<bdi>CLAUDE.md</bdi> או ל-<bdi>Rules</bdi></td></tr>
+        <tr><td><strong>מיועד ל</strong></td><td>סטנדרטים, <bdi>Workflows</bdi>, ארכיטקטורה</td><td>פקודות <bdi>Build</bdi>, תובנות <bdi>Debugging</bdi>, העדפות שהתגלו</td><td>שתי השכבות משלימות, לא מתחרות</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="decision-table">טבלת החלטה: איפה כל פיסת ידע צריכה לגור</h2>
+  <p>עשרה מקרים מציאותיים. עברו עליהם לאט; הם מכסים את רוב ההתלבטויות היומיומיות:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>#</th><th>פיסת הידע</th><th>איפה היא גרה</th><th>למה</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>"מריצים בדיקות עם <code>npm run test</code>, לא עם <code>jest</code> ישירות"</td><td><bdi>CLAUDE.md</bdi> של הפרויקט</td><td>עובדה קצרה שכל הצוות צריך בכל <bdi>Session</bdi>, ומופצת דרך <bdi>Git</bdi></td></tr>
+        <tr><td>2</td><td>"אני אישית מעדיף <bdi>Commits</bdi> קטנים ובאנגלית, בכל הפרויקטים שלי"</td><td><code>~/.claude/CLAUDE.md</code></td><td>העדפה אישית חוצת-פרויקטים; לא שייכת לקובץ הצוותי</td></tr>
+        <tr><td>3</td><td>כתובת ה-<bdi>Sandbox</bdi> האישי שלי ונתוני בדיקה פרטיים לפרויקט הזה</td><td><code>CLAUDE.local.md</code> (ב-<code>.gitignore</code>)</td><td>אישי וגם ספציפי לפרויקט; אסור שיגיע ל-<bdi>Repository</bdi></td></tr>
+        <tr><td>4</td><td>"כל <bdi>Endpoint</bdi> חדש ב-<code>src/api/</code> חייב <bdi>Validation</bdi> ותיעוד <bdi>OpenAPI</bdi>"</td><td><code>.claude/rules/</code> עם <code>paths</code></td><td>רלוונטי רק לחלק מה-<bdi>Codebase</bdi>; נטען רק כשנוגעים בקבצים האלה</td></tr>
+        <tr><td>5</td><td>נוהל שחרור גרסה בן שנים עשר שלבים</td><td><bdi>Skill</bdi> (<a href="ch21.html">פרק 21</a>)</td><td>נוהל רב-שלבי שנחוץ לעיתים רחוקות; טעינה קבועה תבזבז <bdi>Context</bdi></td></tr>
+        <tr><td>6</td><td>"הבדיקה <code>test_sync</code> רגישה לזמנים ונופלת כשהמכונה עמוסה"</td><td><bdi>Auto Memory</bdi></td><td>תובנת עבודה שהתגלתה בדרך; בקשו <code>remember that...</code> ו-Claude ישמור</td></tr>
+        <tr><td>7</td><td>מסמך ארכיטקטורה מלא של 30 עמודים</td><td><code>docs/</code> ב-<bdi>Repository</bdi></td><td>ארוך מדי לכל שכבת זיכרון; מפנים אליו לפי דרישה משורה אחת ב-<bdi>CLAUDE.md</bdi></td></tr>
+        <tr><td>8</td><td>מדיניות אבטחה ארגונית שחלה על כל המפתחים בחברה</td><td><bdi>Managed Policy CLAUDE.md</bdi></td><td>נפרס על ידי IT לכל המכונות; לא ניתן לעקיפה בהגדרות אישיות</td></tr>
+        <tr><td>9</td><td>"אסור לקרוא את <code>.env</code> בשום מצב"</td><td>בכלל לא בזיכרון: <code>permissions.deny</code> (<a href="ch17.html">פרק 17</a>)</td><td>זו דרישת אכיפה, לא הנחיה; זיכרון הוא הקשר ולא חסם</td></tr>
+        <tr><td>10</td><td>"בשיחה הזאת התמקד רק בתיקון ה-<bdi>Bug</bdi>, בלי <bdi>Refactoring</bdi>"</td><td><bdi>Session Context</bdi> (ה-<bdi>Prompt</bdi> עצמו)</td><td>תקף לשיחה אחת בלבד; אין סיבה שיתמיד</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout tip"><span class="title">כלל אצבע מסכם</span><p>שאלו שלוש שאלות: <strong>מי צריך את זה?</strong> (אני / הצוות / הארגון), <strong>מתי צריך את זה?</strong> (בכל <bdi>Session</bdi> / רק במשימות מסוימות / רק בשיחה הזאת), <strong>האם זו הנחיה או אכיפה?</strong> שלוש התשובות יחד מצביעות כמעט תמיד על שכבה אחת.</p></div>
+
+  <h2 id="stale-memory">מניעת זיכרון מיושן וסותר</h2>
+  <p>שכבות זיכרון הן נכס שמתכלה. פקודת <bdi>Build</bdi> שהשתנתה, קונבנציה שנזנחה, או תובנת <bdi>Debugging</bdi> שכבר לא נכונה, כל אלה הופכים מהר מ"ידע" ל"רעש שמטעה את Claude בכל שיחה". התיעוד הרשמי מתייחס לזה ישירות בהקשר של עקביות: אם שני כללים סותרים זה את זה, Claude עלול לבחור אחד מהם באופן שרירותי, וההמלצה היא לסקור תקופתית את קובצי ה-<bdi>CLAUDE.md</bdi>, קבצים מקוננים בתת-תיקיות, ואת <code>.claude/rules/</code> כדי להסיר הוראות מיושנות או סותרות.</p>
+
+  <h3 id="conflicts">סתירות בין CLAUDE.md ל-MEMORY.md: מה מתועד ומה פרקטיקה</h3>
+  <p>נפריד בקפידה בין מה שהתיעוד קובע ובין הנחיות פרקטיות:</p>
+  <p><strong>מה שמתועד:</strong> שתי המערכות נטענות בפתיחת כל שיחה, ושתיהן הקשר ולא תצורה נאכפת. אין בתיעוד הרשמי כלל הכרעה שקובע ש-<bdi>CLAUDE.md</bdi> "גובר" על <bdi>MEMORY.md</bdi> או להפך. לגבי הוראות סותרות בין קובצי <bdi>CLAUDE.md</bdi> עצמם, התיעוד קובע במפורש ש-Claude עלול לבחור אחת מהן באופן שרירותי. סביר להניח שאותה התנהגות חלה גם על סתירה בין <bdi>CLAUDE.md</bdi> ל-<bdi>Auto Memory</bdi>, אבל זו הסקה שלנו, לא ציטוט.</p>
+  <p><strong>הנחיה פרקטית (לא כלל מתועד):</strong> התייחסו ל-<bdi>CLAUDE.md</bdi> כמקור האמת האצור, ול-<bdi>Auto Memory</bdi> כטיוטה של Claude. כשמתגלה סתירה, אל תסמכו על "מי ינצח": מחקו או תקנו את הרשומה השגויה בו במקום. אם הכלל הנכון עדיין לא כתוב ב-<bdi>CLAUDE.md</bdi>, זה הרגע להוסיף אותו לשם, ואז למחוק את הגרסה הסותרת מהזיכרון האוטומטי.</p>
+  <p><strong>איך מזהים סתירה בפועל:</strong></p>
+  <ul>
+    <li>הסימפטום הקלאסי: Claude מתנהג לא עקבי, פעם לפי הכלל ופעם נגדו, בין <bdi>Sessions</bdi> שונים.</li>
+    <li>הריצו <code>/memory</code>, פתחו את תיקיית ה-<bdi>Auto Memory</bdi>, וקראו את <code>MEMORY.md</code> ואת קובצי הנושא מול ה-<bdi>CLAUDE.md</bdi>. זו קריאה של דקות בודדות.</li>
+    <li>הריצו <code>/context</code> כדי לראות אילו קובצי זיכרון בכלל נטענו ל-<bdi>Session</bdi>; אי אפשר לאתר סתירה בקובץ שלא ידעתם שנטען.</li>
+    <li>למתקדמים: ה-<bdi>Hook</bdi> מסוג <code>InstructionsLoaded</code> מתעד בדיוק אילו קובצי הוראות נטענו, מתי ולמה (שימושי במיוחד ל-<bdi>Rules</bdi> תחומי-נתיב שנטענים באיחור).</li>
+  </ul>
+
+  <h3 id="review-cadence">שגרת סקירה וגיזום</h3>
+  <p>הנחיה פרקטית שעובדת היטב בצוותים (התיעוד ממליץ על סקירה תקופתית אך לא קובע תדירות):</p>
+  <ul class="check">
+    <li><strong>שבועי, 5 דקות, אישי:</strong> <code>/memory</code>, מעבר על <code>MEMORY.md</code>. מוחקים רשומות שכבר לא נכונות, ממזגים כפילויות. שדה ה-<code>modified</code> עוזר לזהות רשומות ותיקות שראוי לבדוק.</li>
+    <li><strong>בכל Pull Request שנוגע בתשתית:</strong> אם שיניתם פקודת <bdi>Build</bdi>, מבנה תיקיות או קונבנציה, עדכנו את <bdi>CLAUDE.md</bdi> באותו <bdi>Commit</bdi>. כלל "התיעוד זז עם הקוד" חל גם על זיכרון.</li>
+    <li><strong>חודשי, צוותי:</strong> קריאת <bdi>CLAUDE.md</bdi> ו-<code>.claude/rules/</code> מלמעלה למטה. כל שורה שאף אחד לא זוכר למה היא שם, נבדקת או נמחקת.</li>
+    <li><strong>עזרה אוטומטית:</strong> בדיקת ה-<code>/doctor</code> יודעת להציע קיצוצים ל-<bdi>CLAUDE.md</bdi> שנמצא ב-<bdi>Version Control</bdi>: היא מציעה לחתוך תוכן ש-Claude יכול לגזור בעצמו מה-<bdi>Codebase</bdi> (מבני תיקיות, רשימות תלויות, סקירות ארכיטקטורה) ולשמור דווקא מלכודות, נימוקים וקונבנציות שסוטות מברירות המחדל. היא מדווחת קודם ומבקשת אישור לפני כל שינוי.</li>
+  </ul>
+  <div class="callout warn"><span class="title">אזהרה: זיכרון מזוהם עדיף למחוק, לא "לאזן"</span><p>אל תוסיפו ל-<bdi>CLAUDE.md</bdi> הוראה חדשה שנועדה "לבטל" רשומת זיכרון ישנה ("ignore what memory says about X"). כך נוצרות שתי הוראות סותרות במקום אפס. מחקו את הרשומה השגויה במקור.</p></div>
+
+  <h2 id="team-knowledge">ניהול ידע צוותי מבוקר</h2>
+  <p>ברגע שיותר ממפתח אחד עובד עם <bdi>Claude Code</bdi> על אותו <bdi>Repository</bdi>, שכבות הידע הופכות לנכס צוותי שדורש ממשל, בדיוק כמו קוד:</p>
+  <ul>
+    <li><strong><bdi>CLAUDE.md</bdi> של הפרויקט עובר Code Review.</strong> הקובץ יושב ב-<bdi>Git</bdi>, ולכן כל שינוי בו צריך לעבור באותו מסלול כמו קוד: <bdi>Branch</bdi>, <bdi>Pull Request</bdi>, סקירה. שינוי ב-<bdi>CLAUDE.md</bdi> משנה את ההתנהגות של Claude אצל כל חברי הצוות, ולכן הוא ראוי לאותה רמת ביקורת. צוותים רבים מגדירים <bdi>Code Owner</bdi> לקובץ.</li>
+    <li><strong>גבול אישי / משותף חד וברור.</strong> משותף דרך <bdi>Git</bdi>: <code>./CLAUDE.md</code> (או <code>./.claude/CLAUDE.md</code>) ו-<code>.claude/rules/</code>. אישי בלבד: <code>~/.claude/CLAUDE.md</code> (כל הפרויקטים שלכם), <code>CLAUDE.local.md</code> (הפרויקט הזה, ב-<code>.gitignore</code>), ו-<bdi>Auto Memory</bdi> (תמיד מקומי למכונה). העדפות אישיות שמחלחלות לקובץ הצוותי הן <bdi>Anti-pattern</bdi> שמזהים בקלות ב-<bdi>Review</bdi>.</li>
+    <li><strong>ידע שהתגלה ב-Auto Memory ושווה לצוות, מקודם ידנית.</strong> מכיוון ש-<bdi>Auto Memory</bdi> לא משותף, קבעו הרגל: תובנה שימושית שמצאתם בזיכרון האוטומטי (למשל פתרון ל-<bdi>Bug</bdi> סביבתי חוזר) מועתקת ל-<bdi>CLAUDE.md</bdi> או ל-<code>docs/</code> דרך <bdi>Pull Request</bdi>. זה מסלול הקידום מ"ידע פרטי של מכונה אחת" ל"ידע צוותי מבוקר".</li>
+    <li><strong>רמת הארגון:</strong> הוראות מחייבות לכל החברה נפרסות כ-<bdi>Managed Policy CLAUDE.md</bdi> או דרך המפתח <code>claudeMd</code> ב-<bdi>Managed Settings</bdi>, שאי אפשר לעקוף מקומית. סקירה כללית ב<a href="ch17.html">פרק 17</a> והעמקה בפרק 29.</li>
+    <li><strong>ב-Monorepo:</strong> ההגדרה <code>claudeMdExcludes</code> (רשימת תבניות <bdi>Glob</bdi> בכל רמת הגדרות) מאפשרת לדלג על קובצי <bdi>CLAUDE.md</bdi> של צוותים אחרים שאינם רלוונטיים לעבודתכם.</li>
+  </ul>
+
+  <h2 id="taskflow-audit">דוגמה עבודה: Knowledge Audit על TaskFlow</h2>
+  <p>נבצע ביקורת ידע מלאה על <bdi>TaskFlow</bdi> (פרויקט הדוגמה מ<a href="ch03.html">פרק 3</a>: <bdi>Backend</bdi> ב-<bdi>FastAPI</bdi>, <bdi>Frontend</bdi> ב-<bdi>React</bdi>). נניח שאחרי חודש עבודה הצטברו אצלנו פיסות הידע הבאות, חלקן בראש, חלקן בשיחות ישנות, וחלקן ב-<bdi>CLAUDE.md</bdi> נפוח של 300 שורות. כך ממיינים:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>פיסת ידע שנאספה</th><th>יעד</th></tr></thead>
+      <tbody>
+        <tr><td>"מריצים <bdi>Backend</bdi> עם <code>uvicorn app.main:app --reload</code> מתוך <code>backend/</code>"</td><td><bdi>CLAUDE.md</bdi> של הפרויקט</td></tr>
+        <tr><td>"בדיקות: <code>pytest</code> ב-<code>backend/</code>, <code>npm run test</code> ב-<code>frontend/</code>; להריץ לפני כל Commit"</td><td><bdi>CLAUDE.md</bdi> של הפרויקט</td></tr>
+        <tr><td>"מודלים של <bdi>Pydantic</bdi> יושבים ב-<code>models.py</code>; כל שדה חדש חייב <bdi>Type Annotation</bdi>"</td><td><code>.claude/rules/backend.md</code> עם <code>paths: ["backend/**/*.py"]</code></td></tr>
+        <tr><td>"רכיבי <bdi>React</bdi> נכתבים כ-<bdi>Function Components</bdi> עם <bdi>TypeScript</bdi> בלבד"</td><td><code>.claude/rules/frontend.md</code> עם <code>paths: ["frontend/src/**/*.tsx"]</code></td></tr>
+        <tr><td>נוהל הוספת <bdi>Endpoint</bdi> חדש: <bdi>Router</bdi>, מודל, בדיקה, עדכון טיפוסי ה-<bdi>Frontend</bdi> (שמונה שלבים)</td><td><bdi>Skill</bdi> בשם <code>add-endpoint</code> (<a href="ch21.html">פרק 21</a>)</td></tr>
+        <tr><td>תרשים הארכיטקטורה והחלטת המעבר העתידי מ-<bdi>SQLite</bdi> ל-<bdi>PostgreSQL</bdi></td><td><code>docs/architecture.md</code>, עם שורת הפניה ב-<bdi>CLAUDE.md</bdi></td></tr>
+        <tr><td>"על המכונה שלי, פורט 8000 תפוס; אני מרים על 8001"</td><td><code>CLAUDE.local.md</code> (או להשאיר ל-<bdi>Auto Memory</bdi>)</td></tr>
+        <tr><td>"ה-<bdi>Frontend Build</bdi> נכשל אם <bdi>Node</bdi> ישן מגרסה 20; שדרגנו ב-CI בפברואר"</td><td><bdi>Auto Memory</bdi>: תובנה סביבתית ש-Claude שומר לעצמו</td></tr>
+        <tr><td>"אסור לגעת ב-<code>backend/.env</code> ובכל קובץ <code>*.sqlite</code>"</td><td><code>permissions.deny</code> ב-<code>.claude/settings.json</code> (<a href="ch17.html">פרק 17</a>), לא בזיכרון</td></tr>
+        <tr><td>רשימת כל 14 הקבצים בפרויקט עם תיאור של כל אחד (ירושה מה-<bdi>CLAUDE.md</bdi> הנפוח)</td><td>נמחק. Claude גוזר מבנה תיקיות בעצמו; זה בדיוק מה ש-<code>/doctor</code> מציע לחתוך</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>אחרי המיון, ה-<bdi>CLAUDE.md</bdi> של הפרויקט מתכווץ לגרעין קצר וחד:</p>
+  <div class="codeblock">
+    <div class="codehead">CLAUDE.md</div>
+    <pre><code># TaskFlow
+
+## Commands
+- Backend (from backend/): uvicorn app.main:app --reload
+- Backend tests (from backend/): pytest
+- Frontend (from frontend/): npm run dev
+- Frontend tests (from frontend/): npm run test
+- Run the relevant test suite before every commit.
+
+## Architecture
+- FastAPI + SQLite backend, React + TypeScript frontend.
+- Before changing the data model, read `docs/architecture.md`.
+
+## Conventions
+- Detailed per-area rules live in .claude/rules/ (backend.md, frontend.md).</code></pre>
+  </div>
+  <p>ומבנה הידע השלם של הפרויקט אחרי הביקורת נראה כך:</p>
+  <div class="codeblock">
+    <div class="codehead">taskflow/ (אחרי ה-Audit)</div>
+    <pre><code>taskflow/
+├── CLAUDE.md               # גרעין: פקודות, ארכיטקטורה בקצרה, הפניות
+├── CLAUDE.local.md         # אישי, ב-.gitignore (פורט 8001)
+├── .claude/
+│   ├── settings.json       # permissions.deny על .env ו-*.sqlite (פרק 17)
+│   ├── rules/
+│   │   ├── backend.md      # paths: ["backend/**/*.py"]
+│   │   └── frontend.md     # paths: ["frontend/src/**/*.tsx"]
+│   └── skills/
+│       └── add-endpoint/   # נוהל שמונת השלבים (פרק 21)
+└── docs/
+    └── architecture.md     # ADR: המעבר המתוכנן ל-PostgreSQL</code></pre>
+  </div>
+  <p><strong>אימות:</strong> פתחו <bdi>Session</bdi> חדש בפרויקט והריצו <code>/context</code>. תחת <bdi>Memory files</bdi> אמורים להופיע <code>CLAUDE.md</code>, <code>CLAUDE.local.md</code> וחוקי ה-<bdi>Rules</bdi> הלא-תחומים; ה-<bdi>Rule</bdi> של <code>backend.md</code> יצטרף רק אחרי ש-Claude ייגע בקובץ <bdi>Python</bdi> תחת <code>backend/</code>. הריצו גם <code>/memory</code> וודאו שמתג ה-<bdi>Auto Memory</bdi> במצב הרצוי לכם.</p>
+
+  <h2 id="best-practices">Best Practices ו-Anti-patterns</h2>
+  <div class="callout tip"><span class="title">Best Practices</span>
+    <ul>
+      <li>כתבו הוראות ספציפיות שאפשר לאמת: "השתמש בהזחה של 2 רווחים" ולא "פרמט את הקוד יפה".</li>
+      <li>שמרו על <bdi>CLAUDE.md</bdi> מתחת ל-200 שורות; העבירו פירוט ל-<bdi>Rules</bdi> תחומי-נתיב ולקובצי <code>docs/</code>.</li>
+      <li>הוסיפו ל-<bdi>CLAUDE.md</bdi> כשאתם מתקנים את Claude על אותו דבר בפעם השנייה. תיקון חוזר הוא האיתות המתועד לכתיבה.</li>
+      <li>קדמו ידע במעלה השרשרת: מ-<bdi>Session</bdi> ל-<bdi>Auto Memory</bdi>, מ-<bdi>Auto Memory</bdi> ל-<bdi>CLAUDE.md</bdi> צוותי, דרך <bdi>Pull Request</bdi>.</li>
+      <li>השתמשו בהערות <bdi>HTML</bdi> (<code>&lt;!-- --&gt;</code>) ב-<bdi>CLAUDE.md</bdi> להערות תחזוקה לבני אדם: הן מוסרות לפני ההזרקה ל-<bdi>Context</bdi> ולא עולות <bdi>Tokens</bdi>.</li>
+    </ul>
+  </div>
+  <div class="callout warn"><span class="title">Anti-patterns</span>
+    <ul>
+      <li>שימוש ב-<bdi>CLAUDE.md</bdi> כמנגנון אבטחה ("never read secrets"). זו הנחיה, לא אכיפה; לאכיפה יש <bdi>Permissions</bdi> ו-<bdi>Hooks</bdi>.</li>
+      <li>הדבקת מבנה התיקיות המלא ורשימות תלויות ל-<bdi>CLAUDE.md</bdi>. Claude גוזר את אלה מהקוד בעצמו, ו-<code>/doctor</code> אף מציע לחתוך אותם.</li>
+      <li>הוראות "מאזנות" במקום מחיקת הרשומה הסותרת.</li>
+      <li>הסתמכות על <bdi>Auto Memory</bdi> כידע צוותי. הוא מקומי למכונה, נקודה.</li>
+      <li>ייבוא <code>@docs/...</code> של מסמכים ארוכים "ליתר ביטחון": קבצים מיובאים נטענים בכל פתיחה ומשלמים <bdi>Context</bdi> מלא.</li>
+    </ul>
+  </div>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 16.1: ביקורת ידע על פרויקט אמיתי</div>
+    <div class="body">
+      <p>בחרו פרויקט שאתם עובדים עליו עם <bdi>Claude Code</bdi> לפחות שבוע, ובצעו:</p>
+      <ol>
+        <li>הריצו <code>/memory</code>, פתחו את תיקיית ה-<bdi>Auto Memory</bdi> וקראו את <code>MEMORY.md</code> ואת קובצי הנושא. סמנו: אילו רשומות עדיין נכונות? אילו מיושנות? האם משהו סותר את ה-<bdi>CLAUDE.md</bdi>?</li>
+        <li>מחקו או תקנו לפחות רשומה בעייתית אחת (עריכה ידנית של הקובץ).</li>
+        <li>מצאו ב-<bdi>CLAUDE.md</bdi> פריט אחד שלא שייך לשם לפי טבלת ההחלטה (נוהל רב-שלבי, פירוט תחום-נתיב, או העדפה אישית) והעבירו אותו לשכבה הנכונה.</li>
+        <li>בקשו מ-Claude בתוך <bdi>Session</bdi>: <code>remember that ...</code> עם תובנה אמיתית אחת מהפרויקט, וודאו שהופיעה הודעת <bdi>Saved memory</bdi>.</li>
+        <li>פתחו <bdi>Session</bdi> חדש והריצו <code>/context</code>: ודאו שכל קובצי הזיכרון שציפיתם להם אכן נטענו, ושהתובנה מהסעיף הקודם זמינה (שאלו את Claude עליה).</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>(1) הממצא הנפוץ ביותר בסקירה ראשונה הוא רשומות <bdi>Debugging</bdi> שהיו נכונות לשבוע מסוים ("the build fails because of X") ומזמן נפתרו; אלה מועמדות ראשונות למחיקה, ושדה <code>modified</code> בקובצי הזיכרון עוזר לתארך אותן. (2) עריכה ידנית לגיטימית לחלוטין: אלה קובצי <bdi>Markdown</bdi> רגילים. (3) המועמדים הקלאסיים להעברה: נוהל שחרור (ל-<bdi>Skill</bdi>), כללי סגנון של תת-מערכת אחת (ל-<code>.claude/rules/</code> עם <code>paths</code>), והעדפות אישיות (ל-<code>~/.claude/CLAUDE.md</code> או <code>CLAUDE.local.md</code>). (4) הבקשה המפורשת <code>remember</code> מנותבת ל-<bdi>Auto Memory</bdi>; אם רציתם שההוראה תגיע ל-<bdi>CLAUDE.md</bdi>, הניסוח הוא <code>add this to CLAUDE.md</code>. (5) ב-<code>/context</code> בודקים את הרשימה תחת <bdi>Memory files</bdi>; אם קובץ חסר שם, Claude פשוט לא רואה אותו, וזה הכלי הראשון לכל <bdi>Troubleshooting</bdi> של זיכרון. שאלה כמו <code>what do you remember about this project's flaky tests?</code> אמורה לגרום ל-Claude לאחזר את הרשומה (לעיתים עם הודעת <bdi>Recalled memories</bdi>).</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>מיפינו את שכבות הידע של <bdi>Claude Code</bdi> ואת ההבדלים המדויקים ביניהן: <bdi>CLAUDE.md</bdi> אצור ידנית ונטען במלואו בכל פתיחה; <bdi>Auto Memory</bdi> נכתב על ידי Claude, שמור פר <bdi>Repository</bdi> תחת <code>~/.claude/projects/&lt;project&gt;/memory/</code>, נטען חלקית (200 שורות או 25KB מ-<code>MEMORY.md</code>) עם קובצי נושא לפי דרישה, ונשלט דרך <code>/memory</code>, ההגדרה <code>autoMemoryEnabled</code> או משתנה הסביבה; <bdi>Session Context</bdi> זמני ונעלם; <bdi>Rules</bdi> ו-<bdi>Skills</bdi> טוענים הוראות בצורה ממוקדת וחסכונית; ותיעוד ב-<code>docs/</code> נקרא לפי דרישה. למדנו להכריע איפה כל פיסת ידע גרה, לתחזק זיכרון נקי מסתירות בעזרת <code>/memory</code>, <code>/context</code> ו-<code>/doctor</code>, ולנהל ידע צוותי דרך <bdi>Git</bdi> עם גבול חד בין אישי למשותף. בפרק הבא נעבור לשכבת התצורה הפורמלית: קובצי <bdi>Settings</bdi>, <bdi>Permissions</bdi> והגדרות מודל.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/memory">How Claude remembers your project (CLAUDE.md, Auto Memory, Rules)</a> |
+      <a href="https://code.claude.com/docs/en/commands">Commands reference (/memory, /context, /doctor, /init)</a> |
+      <a href="https://code.claude.com/docs/en/settings">Settings (autoMemoryEnabled, autoMemoryDirectory, claudeMdExcludes)</a> |
+      <a href="https://code.claude.com/docs/en/env-vars">Environment variables (CLAUDE_CODE_DISABLE_AUTO_MEMORY)</a>
+      | נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch15.html"><span class="lbl">הפרק הקודם</span>CLAUDE.md</a>
+    <a href="ch17.html"><span class="lbl">הפרק הבא</span>Settings ו-Configuration</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 1: מהו Claude Code | מדריך פיתוח ב-Claude Code</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק א | פרק 1</p>
+  <h1>מהו Claude Code</h1>
+  <p class="lead"><bdi>Claude Code</bdi> הוא כלי פיתוח מסוג <bdi>Agentic Coding Tool</bdi>: תוכנה שקוראת את ה-<bdi>Codebase</bdi> שלכם, עורכת קבצים, מריצה פקודות ומשתלבת בכלי הפיתוח הקיימים. בפרק הזה נבין מה בדיוק המשמעות של "Agentic", כיצד פועלת לולאת העבודה של הכלי, אילו כלים מובנים עומדים לרשותו, מה הוא יכול ומה הוא אינו יכול לעשות, ואיך הוא נבדל משאר מוצרי <bdi>Claude</bdi>: אפליקציות הצ'אט, ה-<bdi>API</bdi> וה-<bdi>Agent SDK</bdi>.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="about-guide">מה מצפה לכם במדריך הזה</h2>
+  <p>המדריך בנוי כספר לימוד מדורג: מתחילים מהתקנה ו-<bdi>Session</bdi> ראשון, ממשיכים לעבודה יומיומית עם <bdi>Codebase</bdi> אמיתי (קריאת קוד, <bdi>Debugging</bdi>, <bdi>Testing</bdi>, <bdi>Refactoring</bdi>, <bdi>Git</bdi>), עוברים לניהול <bdi>Context</bdi>, הרשאות ואבטחה, ומסיימים ביכולות מתקדמות: <bdi>Skills</bdi>, <bdi>Hooks</bdi>, <bdi>MCP</bdi>, <bdi>Subagents</bdi>, <bdi>Plugins</bdi>, אוטומציה ו-<bdi>Claude Agent SDK</bdi>. כל פרק מסתיים בתרגיל מעשי, בסיכום וברשימת מקורות רשמיים עם תאריך אימות. אין צורך בידע מוקדם על Claude Code, אבל אנחנו מניחים היכרות בסיסית עם <bdi>Terminal</bdi> ועם <bdi>Git</bdi>.</p>
+  <p>לאורך המדריך נלווה פרויקט דוגמה רציף בשם <bdi>TaskFlow</bdi>: אפליקציית ניהול משימות קטנה עם <bdi>Frontend</bdi> ב-<bdi>React</bdi> ו-<bdi>TypeScript</bdi>, <bdi>Backend</bdi> ב-<bdi>Python</bdi> ו-<bdi>FastAPI</bdi>, ו-<bdi>Database</bdi> מסוג <bdi>SQLite</bdi>. הפרויקט נמצא בתיקייה <code>examples/taskflow</code> של המדריך, ומפרק 3 ואילך נעבוד עליו בפועל: נקרא אותו, נתקן בו <bdi>Bugs</bdi>, נכתוב לו <bdi>Tests</bdi> ונרחיב אותו. המטרה אינה ללמד <bdi>React</bdi> או <bdi>FastAPI</bdi>, אלא להראות כיצד עובדים עם Claude Code על פרויקט אמיתי.</p>
+
+  <h2 id="agentic-tool">מהו Agentic Coding Tool</h2>
+  <p>התיעוד הרשמי מגדיר את Claude Code כך: כלי <bdi>Agentic Coding</bdi> שקורא את ה-<bdi>Codebase</bdi>, עורך קבצים, מריץ פקודות ומשתלב בכלי הפיתוח שלכם. המילה החשובה כאן היא <bdi>Agentic</bdi>, כלומר "פועל כסוכן". ההבדל בין מודל שפה רגיל לבין <bdi>Agent</bdi> הוא היכולת לפעול: מודל שפה לבדו יכול רק להחזיר טקסט. <bdi>Agent</bdi> מקבל מטרה, ואז מבצע בעצמו סדרת פעולות בסביבה אמיתית: קורא קבצים, מריץ פקודות, בוחן את התוצאה ומחליט מה הצעד הבא, שוב ושוב, עד שהמטרה הושגה.</p>
+  <p>איזו בעיה זה פותר? כאשר עובדים עם עוזר צ'אט רגיל, המפתח הוא זה שמבצע את כל ה"ריצות": מעתיק קוד לתוך השיחה, מעתיק את התשובה חזרה לקובץ, מריץ את ה-<bdi>Tests</bdi> בעצמו, מעתיק את הודעת השגיאה חזרה לצ'אט, וחוזר חלילה. כל מעבר כזה הוא נקודת חיכוך ומקור לטעויות: העוזר רואה רק את מה שהדבקתם, לא את הפרויקט כולו. Claude Code הופך את הכיוון: הכלי נמצא בתוך תיקיית הפרויקט, רואה את הקבצים ואת מצב ה-<bdi>Git</bdi>, ומבצע את הלולאה הזו בעצמו, תחת פיקוח שלכם.</p>
+
+  <h3 id="chat-vs-agent">ההבדל בין Chat Assistant לבין Coding Agent</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>היבט</th><th>Chat Assistant (למשל אפליקציית Claude)</th><th>Coding Agent (Claude Code)</th></tr></thead>
+      <tbody>
+        <tr><td>מה הוא רואה</td><td>רק מה שהדבקתם או צירפתם לשיחה</td><td>את כל תיקיית הפרויקט, מצב ה-<bdi>Branch</bdi>, שינויים לא שמורים והיסטוריית <bdi>Commits</bdi></td></tr>
+        <tr><td>מי מבצע פעולות</td><td>אתם: מעתיקים קוד, מריצים פקודות, מדווחים על תוצאות</td><td>הכלי: קורא, עורך, מריץ פקודות ובודק תוצאות בעצמו</td></tr>
+        <tr><td>עריכת קוד</td><td>מחזיר קטע קוד בטקסט, ואתם משלבים אותו ידנית</td><td>עורך קבצים במקומם, כולל שינוי מתואם בכמה קבצים בבת אחת</td></tr>
+        <tr><td>אימות</td><td>אין: העוזר אינו יכול להריץ את הקוד</td><td>מריץ <bdi>Tests</bdi>, <bdi>Build</bdi> ו-<bdi>Lint</bdi> ומתקן לפי התוצאה</td></tr>
+        <tr><td>יחידת העבודה</td><td>שאלה ותשובה</td><td>משימה שלמה: מהבנת הדרישה ועד <bdi>Diff</bdi> מאומת</td></tr>
+        <tr><td>בקרה</td><td>לא נדרשת: אין פעולות על המערכת</td><td>מערכת <bdi>Permissions</bdi>, <bdi>Checkpoints</bdi> ואישורי פעולה</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>שימו לב שההשוואה אינה "מי חכם יותר": שני המוצרים משתמשים באותם מודלים של <bdi>Claude</bdi>. ההבדל הוא בסביבה וביכולת הפעולה. התיעוד הרשמי מכנה את השכבה הזו <bdi>Agentic Harness</bdi>: המעטפת שמספקת למודל את הכלים, את ניהול ה-<bdi>Context</bdi> ואת סביבת הביצוע, וכך הופכת מודל שפה לסוכן קוד מעשי.</p>
+
+  <h2 id="agentic-loop">ה-Agentic Loop: כך המשימה מתבצעת בפועל</h2>
+  <p>כאשר אתם נותנים ל-Claude Code משימה, הוא עובד לפי התיעוד הרשמי בשלושה שלבים שחוזרים על עצמם: איסוף <bdi>Context</bdi> (כלומר הקשר: קריאת קבצים וחיפוש בקוד), ביצוע פעולה (עריכה או הרצת פקודה), ואימות התוצאה (הרצת <bdi>Tests</bdi>, בחינת פלט, קריאת שגיאות). השלבים אינם חדים: הם משתלבים זה בזה, והלולאה מתאימה את עצמה למשימה. שאלה על הקוד עשויה להסתיים אחרי איסוף ה-Context בלבד; תיקון <bdi>Bug</bdi> יעבור את כל שלושת השלבים כמה פעמים; <bdi>Refactoring</bdi> גדול ידרוש אימות נרחב במיוחד.</p>
+  <figure>
+    <img src="../diagrams/agentic-loop.svg" alt="תרשים ה-Agentic Loop: הנחיה מהמפתח מובילה לחשיבה ותכנון, משם להפעלת Tools בכפוף ל-Permissions, לבחינת התוצאה, ולתשובה עם שינויים. אם המשימה לא הושלמה, הלולאה חוזרת לשלב התכנון.">
+    <figcaption>ה-<bdi>Agentic Loop</bdi>: מהנחיית המפתח, דרך תכנון והפעלת <bdi>Tools</bdi>, אל בחינת התוצאה וחזרה לאיטרציה נוספת במידת הצורך.</figcaption>
+  </figure>
+  <p>נעבור על התחנות בתרשים אחת אחת:</p>
+  <ol>
+    <li><strong>הנחיה מהמפתח (Prompt).</strong> אתם מתארים בשפה חופשית מה אתם רוצים: "תקן את ה-<bdi>Bug</bdi> בהתחברות", "הוסף <bdi>Endpoint</bdi> חדש", "הסבר איך עובד מודול התורים". איכות ההנחיה משפיעה ישירות על איכות התוצאה, ולכן פרק 5 מוקדש כולו לנושא.</li>
+    <li><strong>חשיבה ותכנון (Reasoning + Plan).</strong> המודל מנתח את הבקשה ומחליט מה חסר לו: אילו קבצים לקרוא, מה לחפש, האם להריץ פקודת אבחון. במשימות מורכבות הוא מפרק את העבודה לצעדים. זהו החלק שבו "המודל חושב": כשהתיעוד אומר ש-Claude "בוחר" או "מחליט", הכוונה להסקת המסקנות של המודל.</li>
+    <li><strong>הפעלת Tools.</strong> כדי לפעול בעולם, המודל מפעיל כלים מובנים: <bdi>Read</bdi> לקריאת קובץ, <bdi>Grep</bdi> לחיפוש, <bdi>Edit</bdi> לעריכה, <bdi>Bash</bdi> להרצת פקודה, ועוד. כל הפעלה כפופה למערכת ה-<bdi>Permissions</bdi>: פעולות שמשנות את המערכת מבקשות אישור מכם כברירת מחדל. את הכלים נכיר מיד בסעיף הבא.</li>
+    <li><strong>בחינת התוצאה.</strong> כל כלי מחזיר מידע: תוכן הקובץ, פלט הפקודה, הודעת השגיאה, תוצאת ה-<bdi>Tests</bdi>. המידע הזה נכנס חזרה ללולאה ומזין את ההחלטה הבאה. אם ה-Tests נכשלו, המודל קורא את השגיאה ומתקן; אם הכול עבר, הוא עובר לסיכום.</li>
+    <li><strong>תשובה ושינויים.</strong> בסוף הלולאה אתם מקבלים תשובה מסודרת ואת ה-<bdi>Diffs</bdi> של השינויים שבוצעו. משם ההחלטה אצלכם: לקבל, לבקש תיקון, או לבטל.</li>
+  </ol>
+  <p>נקודה חשובה מהתיעוד הרשמי: גם אתם חלק מהלולאה. אפשר לעצור את Claude בכל רגע (מקש <bdi>Esc</bdi>), להוסיף מידע תוך כדי עבודה, או לכוון אותו לגישה אחרת. הכלי עובד באופן עצמאי אך נשאר קשוב לקלט שלכם. במשימת "תקן את ה-Tests הנכשלים", למשל, מהלך אופייני לפי התיעוד ייראה כך: הרצת חבילת ה-Tests לזיהוי הכשלים, קריאת פלט השגיאות, חיפוש קובצי המקור הרלוונטיים, קריאתם, עריכה לתיקון, והרצת ה-Tests שוב לאימות. שש פעולות שכל אחת מזינה את הבאה: זו הלולאה בפעולה.</p>
+  <p>שתי מילים על צד ה"חשיבה" של הלולאה: Claude Code עובד עם כמה מודלים של <bdi>Claude</bdi>, עם איזונים שונים בין מהירות, עלות ועומק הסקה. לפי התיעוד הרשמי, <bdi>Sonnet</bdi> מתאים לרוב משימות הקוד, ו-<bdi>Opus</bdi> מספק הסקה חזקה יותר להחלטות ארכיטקטוניות מורכבות. מחליפים מודל בפקודת <code>/model</code> בתוך ה-<bdi>Session</bdi>, או בדגל <code>--model</code> בהפעלה. פרק 8 מוקדש כולו לבחירת המודל הנכון למשימה.</p>
+  <p>ועוד עיקרון שכדאי להכיר מהיום הראשון: הלולאה מתועדת. Claude Code שומר את השיחה באופן מקומי, הודעה אחר הודעה, בקובצי <bdi>JSONL</bdi> תחת <code>~/.claude/projects/</code>. השמירה הזו היא שמאפשרת לחזור ל-<bdi>Session</bdi> קודם (<code>claude --continue</code> או <code>claude --resume</code>), לפצל שיחה לענף חדש, ולהשתמש ב-<bdi>Checkpoints</bdi> כדי להחזיר קבצים לאחור. כל <bdi>Session</bdi> חדש מתחיל עם <bdi>Context</bdi> נקי, בלי ההיסטוריה של קודמיו: את הידע הקבוע שומרים ב-<bdi>CLAUDE.md</bdi>, כפי שנראה בפרק 15.</p>
+
+  <h2 id="tools">הכלים המובנים: כיצד Claude קורא, עורך ומריץ</h2>
+  <p>הכלים (<bdi>Tools</bdi>) הם מה שהופך את Claude Code לסוכן. לכל כלי שם רשמי מדויק, שמשמש גם בהגדרת <bdi>Permissions</bdi>, <bdi>Hooks</bdi> ו-<bdi>Subagents</bdi> בפרקים מתקדמים. אלה הכלים המרכזיים, לפי טבלת ה-<bdi>Tools Reference</bdi> הרשמית:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Tool</th><th>מה הוא עושה</th><th>דורש אישור כברירת מחדל</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>Read</code></td><td>קורא תוכן של קבצים, כולל תמונות, קובצי <bdi>PDF</bdi> ו-<bdi>Jupyter Notebooks</bdi></td><td>לא, בתוך תיקיית העבודה</td></tr>
+        <tr><td class="ltr"><code>Edit</code></td><td>עריכה נקודתית בקובץ: החלפת מחרוזת מדויקת במחרוזת חדשה</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>Write</code></td><td>יוצר קובץ חדש או דורס קובץ קיים בתוכן מלא</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>Bash</code></td><td>מריץ פקודות <bdi>Shell</bdi>: <bdi>Build</bdi>, <bdi>Tests</bdi>, <bdi>Git</bdi>, סקריפטים</td><td>כן, אך קבוצת פקודות קריאה בלבד רצה ללא אישור</td></tr>
+        <tr><td class="ltr"><code>Grep</code></td><td>מחפש תבניות בתוכן קבצים, מבוסס על <bdi>ripgrep</bdi></td><td>לא, בתוך תיקיית העבודה</td></tr>
+        <tr><td class="ltr"><code>Glob</code></td><td>מאתר קבצים לפי תבנית שם, למשל <code>src/**/*.ts</code></td><td>לא, בתוך תיקיית העבודה</td></tr>
+        <tr><td class="ltr"><code>WebFetch</code></td><td>מביא תוכן מכתובת <bdi>URL</bdi>, למשל תיעוד רשמי</td><td>כן, בפעם הראשונה לכל <bdi>Domain</bdi> חדש, למעט קבוצת אתרי תיעוד מאושרת מראש</td></tr>
+        <tr><td class="ltr"><code>WebSearch</code></td><td>מבצע חיפוש באינטרנט ומחזיר כותרות וכתובות</td><td>כן</td></tr>
+        <tr><td class="ltr"><code>Agent</code></td><td>מפעיל <bdi>Subagent</bdi>: עוזר משנה עם <bdi>Context Window</bdi> נפרד למשימה ממוקדת</td><td>לא, אך כל כלי שה-Subagent מפעיל נבדק בנפרד</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout note"><span class="title">הערה על שמות הכלים</span><p>שם הכלי הרשמי להפעלת <bdi>Subagents</bdi> הוא <code>Agent</code>. אל תתבלבלו עם כלי ניהול המשימות <code>TaskCreate</code>, <code>TaskList</code>, <code>TaskGet</code> ו-<code>TaskUpdate</code>, שמנהלים את רשימת המשימות של ה-<bdi>Session</bdi> ואינם מפעילים <bdi>Subagents</bdi>. רשימת הכלים המלאה כוללת כלים נוספים, בהם <code>Skill</code>, <code>AskUserQuestion</code>, <code>NotebookEdit</code>, <code>PowerShell</code>, <code>LSP</code> ו-<code>Monitor</code>. נפגוש אותם בפרקים הרלוונטיים.</p></div>
+  <p>כמה עקרונות עבודה של הכלים שכדאי להכיר כבר עכשיו, כי הם מסבירים התנהגויות שתראו על המסך:</p>
+  <ul>
+    <li><strong>קריאה לפני עריכה.</strong> כלי ה-<bdi>Edit</bdi> מבצע החלפת מחרוזת מדויקת, ו-Claude נדרש לקרוא את הקובץ בשיחה הנוכחית לפני שהוא עורך אותו. כך העריכה מבוססת על התוכן האמיתי של הקובץ ולא על ניחוש.</li>
+    <li><strong>חמש משפחות יכולת.</strong> התיעוד מקבץ את הכלים לחמש קטגוריות: פעולות על קבצים, חיפוש, הרצה (<bdi>Execution</bdi>), רשת (<bdi>Web</bdi>) ו-<bdi>Code Intelligence</bdi> (ניווט סמלים ואיתור שגיאות טיפוסים, בעזרת <bdi>Plugin</bdi> ייעודי לשפה).</li>
+    <li><strong>הרשאות לפי כלי.</strong> כלים שקוראים בלבד בתוך תיקיית העבודה אינם מבקשים אישור; כלים שמשנים את המערכת או יוצרים תעבורת רשת מבקשים. את מערכת ההרשאות המלאה, כולל <bdi>Permission Modes</bdi> ורשימות <bdi>allow/deny</bdi>, נלמד בפרק 18.</li>
+    <li><strong>מה הכלי רואה.</strong> כשמריצים את <code>claude</code> בתיקייה, הוא מקבל גישה לקבצי הפרויקט, ל-<bdi>Terminal</bdi>, למצב ה-<bdi>Git</bdi>, לקובץ ההנחיות <bdi>CLAUDE.md</bdi> (פרק 15), ל-<bdi>Auto Memory</bdi> (פרק 16) ולהרחבות שהגדרתם. קבצים מחוץ לתיקיית העבודה דורשים אישור מפורש.</li>
+  </ul>
+
+  <h2 id="can-cannot">מה Claude Code יכול לעשות, ומה לא</h2>
+  <p>בצד היכולות, התיעוד הרשמי מונה בין השאר: בניית <bdi>Features</bdi> על פני כמה קבצים, תיקון <bdi>Bugs</bdi> מהודעת שגיאה ועד שורש הבעיה, כתיבת <bdi>Tests</bdi> ותיקון כשלים, טיפול ב-<bdi>Merge Conflicts</bdi>, עדכון <bdi>Dependencies</bdi>, עבודה ישירה עם <bdi>Git</bdi> (יצירת <bdi>Branches</bdi>, <bdi>Commits</bdi> ו-<bdi>Pull Requests</bdi>), אוטומציה ב-<bdi>CI</bdi>, וחיבור לשירותים חיצוניים דרך <bdi>MCP</bdi>. הוא מצטיין גם במשימות שאינן קוד טהור: כתיבת תיעוד, חקירת <bdi>Codebase</bdi> זר והרצת תהליכי <bdi>Build</bdi>.</p>
+  <p>ובצד המגבלות, שחשוב להכיר לא פחות:</p>
+  <ul>
+    <li><strong>המודל טועה.</strong> Claude יכול להחזיר קוד שנראה סביר אך אינו מטפל במקרי קצה, או "לתקן" תסמין במקום את שורש הבעיה. התיעוד הרשמי מנסח זאת כך: Claude עוצר כשהעבודה נראית גמורה. בלי בדיקה שהוא יכול להריץ, "נראית גמורה" היא האות היחיד, ואתם הופכים ללולאת האימות.</li>
+    <li><strong>ה-Context Window מוגבל.</strong> השיחה, הקבצים שנקראו ופלטי הפקודות ממלאים את חלון ההקשר, וביצועי המודל יורדים כשהוא מתמלא. ניהול Context הוא מיומנות מרכזית שנלמד בפרק 14.</li>
+    <li><strong>אין ביטול לפעולות חיצוניות.</strong> מנגנון ה-<bdi>Checkpoints</bdi> מצלם קבצים לפני עריכה ומאפשר <bdi>Rewind</bdi>, אבל הוא מכסה שינויי קבצים בלבד. פעולות שמשפיעות על מערכות מרוחקות, כמו <bdi>Database</bdi>, <bdi>API</bdi> חיצוני או <bdi>Deployment</bdi>, אינן ניתנות לשחזור. זו בדיוק הסיבה שהכלי מבקש אישור לפני פקודות עם תופעות לוואי חיצוניות. וגם: Checkpoints אינם תחליף ל-Git (פרק 19).</li>
+    <li><strong>הוא אינו קורא מחשבות.</strong> דרישות עמומות מולידות תוצאות עמומות. הידע על המוסכמות של הפרויקט שלכם צריך להגיע ממכם: בהנחיה, ב-<bdi>CLAUDE.md</bdi> או ב-<bdi>Skills</bdi>.</li>
+    <li><strong>הוא פועל בגבולות ההרשאות שנתתם.</strong> זו מגבלה מכוונת ורצויה: בלי אישור שלכם (או הגדרה מפורשת מראש), הוא לא יריץ פקודות שמשנות את המערכת.</li>
+  </ul>
+
+  <h3 id="responsibility">אחריות המפתח: מדוע לעולם לא מאשרים בעיוורון</h3>
+  <p>Claude Code מציג לכם כל שינוי כ-<bdi>Diff</bdi> וכל פקודה לפני הרצתה. הפיתוי, אחרי האישור העשירי, הוא ללחוץ "אשר" בלי לקרוא. אל תעשו את זה. הקוד שנכנס ל-<bdi>Repository</bdi> הוא באחריותכם המלאה: אתם אלה שחותמים על ה-<bdi>Commit</bdi>, עוברים <bdi>Code Review</bdi> ועונים על תקלה ב-<bdi>Production</bdi>. הכלל המעשי מהתיעוד: דרשו מ-Claude ראיות במקום הצהרות. פלט ה-Tests, הפקודה שרצה והתוצאה שלה, צילום מסך של התוצאה. בחינת ראיות מהירה יותר מאימות ידני מלא, ועדיין שומרת אתכם בשליטה.</p>
+  <div class="callout danger"><span class="title">סכנה</span><p>אישור אוטומטי של כל פעולה, ובפרט הרצה עם דגלים שמבטלים את מערכת ההרשאות, חושף אתכם למחיקת קבצים, לדליפת סודות ולשינויים במערכות חיצוניות בלי שום בלם. עבודה בטוחה עם הרשאות מוגדרת בפרקים 18 ו-20. עד אז: קראו כל <bdi>Diff</bdi> לפני אישור, והריצו את ה-<bdi>Tests</bdi> בעצמכם כשמשהו נראה חשוד.</p></div>
+
+  <h2 id="products">מפה מוצרית: Claude Code מול שאר מוצרי Claude</h2>
+  <p>משפחת המוצרים של <bdi>Anthropic</bdi> כוללת כמה מוצרים שכולם מבוססים על מודלי <bdi>Claude</bdi>, אבל שונים זה מזה בתכלית. בלבול ביניהם הוא אחת הטעויות הנפוצות של מתחילים, ולכן נסדר את המפה כבר עכשיו:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>מוצר</th><th>מה הוא</th><th>למה הוא מיועד</th><th>מה הוא אינו</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><bdi>Claude Code</bdi></td>
+          <td>כלי <bdi>Agentic Coding</bdi> שרץ מול תיקיית הפרויקט שלכם</td>
+          <td>פיתוח בפועל: קריאת <bdi>Codebase</bdi>, עריכת קוד, הרצת פקודות, <bdi>Git</bdi>, אוטומציה</td>
+          <td>אינו צ'אט כללי; דורש סביבת עבודה (Terminal, IDE, Desktop או Web)</td>
+        </tr>
+        <tr>
+          <td><bdi>Claude</bdi> (אפליקציות צ'אט: Web, Desktop, Mobile)</td>
+          <td>עוזר שיחה כללי עם <bdi>Projects</bdi>, <bdi>Artifacts</bdi> ו-<bdi>Connectors</bdi></td>
+          <td>שאלות, כתיבה, ניתוח מסמכים, סיעור מוחות</td>
+          <td>אינו סוכן הקוד: אינו עובד עם כלי הפיתוח על ה-<bdi>Repository</bdi> המקומי שלכם</td>
+        </tr>
+        <tr>
+          <td><bdi>Claude API</bdi></td>
+          <td>גישה ישירה למודלים דרך <bdi>Messages API</bdi> בפלטפורמת המפתחים <bdi>platform.claude.com</bdi></td>
+          <td>בניית יישומים ושירותים משלכם שמשתמשים במודל</td>
+          <td>אינו כולל <bdi>Agentic Harness</bdi>: אין כלים מובנים, אין לולאת סוכן מוכנה</td>
+        </tr>
+        <tr>
+          <td><bdi>Claude Agent SDK</bdi></td>
+          <td>אותם כלים, לולאת סוכן וניהול <bdi>Context</bdi> של Claude Code, כספרייה ל-<bdi>Python</bdi> ול-<bdi>TypeScript</bdi></td>
+          <td>בניית <bdi>Agents</bdi> משלכם עם שליטה מלאה בכלים ובהרשאות (פרק 31)</td>
+          <td>אינו מוצר קצה למשתמש; דורש כתיבת קוד</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>הכלל שילווה אותנו בכל המדריך: אין להציג יכולת של מוצר אחד כאילו היא זמינה במוצר אחר. כשפרק כלשהו מציג יכולת, נציין באיזה מוצר ובאיזה משטח היא קיימת.</p>
+
+  <h3 id="surfaces">היכן Claude Code רץ</h3>
+  <p>Claude Code עצמו זמין בכמה משטחי עבודה (<bdi>Surfaces</bdi>). כולם מתחברים לאותו מנוע, ולכן קובצי <bdi>CLAUDE.md</bdi>, ההגדרות ושרתי ה-<bdi>MCP</bdi> שלכם עובדים בכולם:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>משטח</th><th>מה מקבלים</th><th>הערות וסטטוס</th></tr></thead>
+      <tbody>
+        <tr><td><bdi>Terminal</bdi> (CLI)</td><td>הממשק המלא: עבודה בשורת הפקודה על כל הפרויקט</td><td><span class="badge stable">Stable</span> הבסיס שכל שאר המשטחים נשענים עליו</td></tr>
+        <tr><td><bdi>VS Code</bdi></td><td><bdi>Extension</bdi> עם <bdi>Inline Diffs</bdi>, אזכורי <bdi>@</bdi> וסקירת <bdi>Plan</bdi> בתוך העורך; קיימת גרסה גם ל-<bdi>Cursor</bdi></td><td><span class="badge stable">Stable</span> פרק 27</td></tr>
+        <tr><td><bdi>JetBrains</bdi></td><td><bdi>Plugin</bdi> ל-<bdi>IntelliJ IDEA</bdi>, <bdi>PyCharm</bdi>, <bdi>WebStorm</bdi> ועוד, עם תצוגת <bdi>Diff</bdi> אינטראקטיבית</td><td>דורש התקנה נפרדת של ה-CLI; פרק 27</td></tr>
+        <tr><td>אפליקציית <bdi>Desktop</bdi></td><td>לשונית <bdi>Code</bdi> באפליקציית <bdi>Claude</bdi>: כמה <bdi>Sessions</bdi> מקומיים במקביל, סקירת <bdi>Diffs</bdi> חזותית, משימות מתוזמנות</td><td>זמין ל-<bdi>macOS</bdi> ול-<bdi>Windows</bdi>; דורש מינוי בתשלום</td></tr>
+        <tr><td class="ltr"><code>claude.ai/code</code> (Web)</td><td>הרצת <bdi>Sessions</bdi> על תשתית ענן מנוהלת של <bdi>Anthropic</bdi>, בלי התקנה מקומית; זמין גם מאפליקציית <bdi>Claude</bdi> ל-<bdi>iOS</bdi> ול-<bdi>Android</bdi></td><td><span class="badge preview">Research Preview</span> למנויי <bdi>Pro</bdi>, <bdi>Max</bdi> ו-<bdi>Team</bdi>, ולמשתמשי <bdi>Enterprise</bdi> עם <bdi>Seats</bdi> מתאימים</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>מעבר לחמשת המשטחים האלה, Claude Code משתלב גם ב-<bdi>CI/CD</bdi> דרך <bdi>GitHub Actions</bdi>, בצ'אט צוותי דרך <bdi>Slack</bdi>, ובדפדפן דרך <bdi>Claude in Chrome</bdi>. אלה אינטגרציות, לא משטחי עבודה מלאים, ונרחיב עליהן בפרקים 27 ו-28. הבחירה היכן לעבוד תלויה בהעדפה: במדריך הזה נתחיל מה-Terminal, כי הוא המשטח המלא ביותר, וכל מה שנלמד בו תקף גם בשאר המשטחים.</p>
+
+  <h2 id="workflow">ה-Workflow המקצועי במבט על</h2>
+  <p>עכשיו, כשאנחנו מבינים את הלולאה ואת הכלים, אפשר להציג את התמונה שהמדריך כולו יבנה: תהליך עבודה מקצועי עם Claude Code. התהליך מבוסס על ההמלצה המרכזית בתיעוד הרשמי: להפריד בין מחקר ותכנון לבין ביצוע, ולתת ל-Claude דרך לאמת את עבודתו.</p>
+  <figure>
+    <img src="../diagrams/cc-workflow.svg" alt="תרשים ה-Workflow המקצועי: הגדרת המשימה, מחקר ה-Codebase, תכנון ב-Plan Mode, אישור המפתח, ביצוע מדורג, בדיקה ואימות, Review עצמי, Commit ו-PR, ולבסוף Code Review אנושי. חץ משוב מחזיר מהבדיקות לביצוע.">
+    <figcaption>ה-<bdi>Workflow</bdi> המקצועי: מהגדרת משימה עם קריטריונים, דרך מחקר, תכנון ואישור, אל ביצוע מדורג עם אימות, ועד <bdi>Code Review</bdi> אנושי. האחריות נשארת אצל המפתח בכל שלב.</figcaption>
+  </figure>
+  <p>שימו לב לשלוש התחנות המודגשות בתרשים: הגדרת המשימה, אישור המפתח ו-<bdi>Code Review</bdi> אנושי. שלושתן נמצאות אצלכם, לא אצל הכלי. Claude Code מבצע את המחקר, התכנון, הכתיבה והאימות האוטומטי, אבל ההחלטות והאחריות נשארות אנושיות. את התהליך הזה נפרק לשלבים מעשיים בפרקים הבאים: תכנון ב-<bdi>Plan Mode</bdi> בפרק 7, שינוי מבוקר צעד אחר צעד בפרק 9, ו-<bdi>Git</bdi> ו-<bdi>Pull Requests</bdi> בפרק 13.</p>
+
+  <h2 id="when-to-use">מתי להשתמש ב-Claude Code, ומתי לא</h2>
+  <p><strong>מתי כן:</strong></p>
+  <ul>
+    <li>משימות פיתוח על <bdi>Codebase</bdi> קיים: תיקון <bdi>Bugs</bdi>, הוספת <bdi>Features</bdi>, <bdi>Refactoring</bdi>, כתיבת <bdi>Tests</bdi> ותיעוד.</li>
+    <li>היכרות עם פרויקט זר: שאלות על ארכיטקטורה, מעקב אחרי זרימת נתונים, מיפוי תלויות.</li>
+    <li>עבודות חוזרות ומייגעות: תיקון שגיאות <bdi>Lint</bdi> בכל הפרויקט, עדכוני <bdi>Dependencies</bdi>, כתיבת <bdi>Release Notes</bdi>.</li>
+    <li>אוטומציה: הרצה לא אינטראקטיבית ב-<bdi>CI</bdi>, סקירת <bdi>Pull Requests</bdi>, משימות מתוזמנות.</li>
+  </ul>
+  <p><strong>מתי לא, או לא ישירות:</strong></p>
+  <ul>
+    <li>שאלה כללית שאינה קשורה לפרויקט מסוים: אפליקציית הצ'אט של <bdi>Claude</bdi> מהירה וזולה יותר לכך.</li>
+    <li>בניית מוצר שצריך לקרוא ל-<bdi>Claude</bdi> בתוכו: לשם כך קיימים <bdi>Claude API</bdi> ו-<bdi>Claude Agent SDK</bdi>.</li>
+    <li>עבודה ישירה מול <bdi>Production</bdi> בלי גבולות הרשאה מוגדרים: קודם לומדים <bdi>Permissions</bdi> ואבטחה (פרקים 18 ו-20), רק אחר כך מתקרבים למערכות רגישות.</li>
+    <li>משימה שאינכם מסוגלים לאמת: אם אין לכם דרך לבדוק שהתוצאה נכונה (Tests, בדיקה ידנית, סקירה של מומחה), אל תשלחו אותה ל-<bdi>Production</bdi>.</li>
+  </ul>
+
+  <h2 id="common-mistakes">שגיאות נפוצות של מתחילים</h2>
+  <ul>
+    <li><strong>להתייחס אליו כאל צ'אט.</strong> לשאול שאלה, להעתיק את התשובה ידנית לקובץ, ולפספס את כל הרעיון. תנו לכלי לבצע את השינוי בעצמו ולהריץ את הבדיקות.</li>
+    <li><strong>לאשר כל פעולה בלי לקרוא.</strong> כפי שראינו: ה-<bdi>Diff</bdi> מוצג כדי שתקראו אותו. אישור עיוור מבטל את שכבת הבטיחות החשובה ביותר.</li>
+    <li><strong>לבלבל בין המוצרים.</strong> לחפש יכולות של Claude Code באפליקציית הצ'אט, או לצפות שה-<bdi>API</bdi> יגיע עם לולאת סוכן מובנית. חזרו לטבלת המוצרים שבפרק זה בכל פעם שיש ספק.</li>
+    <li><strong>משימת ענק אחת במקום צעדים.</strong> "תבנה לי את כל המערכת" מוביל לתוצאה בינונית שקשה לסקור. עובדים בצעדים קטנים שאפשר לאמת, כפי שנלמד בפרק 9.</li>
+    <li><strong>להזניח את האימות.</strong> אם לא ביקשתם להריץ <bdi>Tests</bdi> ולא הגדרתם מה נחשב הצלחה, אתם סומכים על "נראה תקין". הגדירו קריטריון בדיקה כבר בהנחיה.</li>
+    <li><strong>לצפות שהוא יידע את המוסכמות שלכם.</strong> בלי <bdi>CLAUDE.md</bdi> ובלי הנחיה מפורשת, הכלי מנחש לפי הקוד הקיים. בפרק 15 נלמד לתעד מוסכמות פעם אחת ולחסוך תיקונים חוזרים.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 1.1: איזה מוצר מתאים לאיזו משימה</div>
+    <div class="body">
+      <p>לפניכם חמישה תרחישים. לכל אחד מהם קבעו מהו המוצר או המשטח המתאים ביותר: <bdi>Claude Code</bdi> (ואם כן, באיזה משטח), אפליקציית הצ'אט של <bdi>Claude</bdi>, <bdi>Claude API</bdi> או <bdi>Claude Agent SDK</bdi>. נמקו בקצרה.</p>
+      <ol>
+        <li>אתם רוצים להבין מה ההבדל בין <bdi>REST</bdi> ל-<bdi>GraphQL</bdi> לקראת ראיון עבודה.</li>
+        <li>יש <bdi>Bug</bdi> בפרויקט <bdi>TaskFlow</bdi> המקומי שלכם, ואתם רוצים שהוא יאותר, יתוקן, ושה-<bdi>Tests</bdi> ירוצו לאימות.</li>
+        <li>החברה שלכם בונה מוצר שמסכם אוטומטית פניות של לקוחות, ואתם צריכים לקרוא למודל מתוך קוד ה-<bdi>Backend</bdi> של המוצר.</li>
+        <li>אתם בנסיעה עם הטלפון בלבד, ורוצים להריץ משימה ארוכה על <bdi>Repository</bdi> שנמצא ב-<bdi>GitHub</bdi> ולבדוק את התוצאה מאוחר יותר.</li>
+        <li>אתם רוצים לבנות סוכן פנימי משלכם, שרץ בשרת של הצוות, קורא קבצים ומריץ פקודות בלולאת סוכן, עם שליטה מלאה שלכם בכלים ובהרשאות.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <ol>
+        <li><strong>אפליקציית הצ'אט של <bdi>Claude</bdi>.</strong> זו שאלת ידע כללית בלי <bdi>Codebase</bdi>: אין צורך בכלים, בקבצים או בהרצת פקודות. צ'אט הוא הדרך המהירה והפשוטה.</li>
+        <li><strong><bdi>Claude Code</bdi>, במשטח ה-<bdi>Terminal</bdi> או ה-<bdi>IDE</bdi>.</strong> המשימה דורשת את הלולאה המלאה: קריאת הקוד המקומי, איתור הבעיה, עריכה והרצת <bdi>Tests</bdi> לאימות. זה בדיוק התרחיש שהכלי נבנה עבורו.</li>
+        <li><strong><bdi>Claude API</bdi>.</strong> כאן המודל הוא רכיב בתוך מוצר: קוראים ל-<bdi>Messages API</bdi> מתוך קוד השרת. אין צורך בלולאת סוכן על מערכת קבצים, ולכן ה-<bdi>API</bdi> הישיר מתאים יותר מ-<bdi>Agent SDK</bdi>.</li>
+        <li><strong><bdi>Claude Code</bdi> על ה-<bdi>Web</bdi></strong> (<code>claude.ai/code</code>, בסטטוס <bdi>Research Preview</bdi>). ה-<bdi>Session</bdi> רץ על תשתית ענן של <bdi>Anthropic</bdi> מול ה-<bdi>Repository</bdi> ב-<bdi>GitHub</bdi>, נשאר פעיל גם כשסוגרים את הדפדפן, וניתן למעקב מאפליקציית המובייל.</li>
+        <li><strong><bdi>Claude Agent SDK</bdi>.</strong> אתם רוצים לבנות סוכן משלכם עם אותה לולאה ואותם כלים של Claude Code, אבל בקוד שלכם ובשליטה שלכם. זה בדיוק הייעוד של ה-<bdi>SDK</bdi>, בספריות <bdi>Python</bdi> ו-<bdi>TypeScript</bdi> (פרק 31).</li>
+      </ol>
+      <p>אם עניתם "Claude Code" גם על 3 או 5: שימו לב לגבול המוצרי. Claude Code הוא כלי למפתח היושב מולו (או מפעיל אותו באוטומציה), ואילו בניית מוצר או סוכן משלכם נעשית עם ה-<bdi>API</bdi> או ה-<bdi>SDK</bdi>.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <ul class="check">
+    <li><bdi>Claude Code</bdi> הוא <bdi>Agentic Coding Tool</bdi>: הוא קורא את ה-<bdi>Codebase</bdi>, עורך קבצים, מריץ פקודות ומאמת תוצאות, בתוך לולאת עבודה שאתם מפקחים עליה.</li>
+    <li>ה-<bdi>Agentic Loop</bdi> פועל בשלושה שלבים משולבים: איסוף <bdi>Context</bdi>, ביצוע פעולה ואימות התוצאה, עם אפשרות שלכם להתערב בכל רגע.</li>
+    <li>הפעולה מתבצעת דרך <bdi>Tools</bdi> מובנים: <code>Read</code>, <code>Edit</code>, <code>Write</code>, <code>Bash</code>, <code>Grep</code>, <code>Glob</code>, <code>WebFetch</code>, <code>WebSearch</code> ו-<code>Agent</code>, וכל פעולה משנה כפופה ל-<bdi>Permissions</bdi>.</li>
+    <li>הכלי חזק אך מוגבל: הוא טועה לפעמים, תלוי ב-<bdi>Context Window</bdi>, ואינו יכול לבטל פעולות על מערכות חיצוניות. לכן לעולם אין לאשר שינויים בעיוורון, והאחריות על הקוד נשארת אצלכם.</li>
+    <li>מפת המוצרים: Claude Code לפיתוח על <bdi>Repository</bdi>; אפליקציות הצ'אט לשיחה כללית; <bdi>Claude API</bdi> לבניית יישומים; <bdi>Claude Agent SDK</bdi> לבניית סוכנים משלכם.</li>
+    <li>Claude Code רץ ב-<bdi>Terminal</bdi>, ב-<bdi>VS Code</bdi>, ב-<bdi>JetBrains</bdi>, באפליקציית ה-<bdi>Desktop</bdi> וב-<bdi>Web</bdi> (<bdi>Research Preview</bdi>), וכולם מחוברים לאותו מנוע.</li>
+    <li>בפרק הבא נתקין את הכלי ונכין את סביבת העבודה, ומפרק 3 נתחיל לעבוד בפועל על פרויקט הדוגמה <bdi>TaskFlow</bdi>.</li>
+  </ul>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/overview">Claude Code Overview</a> |
+      <a href="https://code.claude.com/docs/en/how-claude-code-works">How Claude Code Works</a> |
+      <a href="https://code.claude.com/docs/en/tools-reference">Tools Reference</a> |
+      <a href="https://code.claude.com/docs/en/features-overview">Extend Claude Code (Features Overview)</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best Practices</a> |
+      <a href="https://code.claude.com/docs/en/claude-code-on-the-web">Claude Code on the Web</a> |
+      <a href="https://code.claude.com/docs/en/agent-sdk/overview">Agent SDK Overview</a>
+      <br>נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="../index.html"><span class="lbl">הפרק הקודם</span>תוכן עניינים</a>
+    <a href="ch02.html"><span class="lbl">הפרק הבא</span>פרק 2: הכנת סביבת העבודה</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פרק 6: קריאת Repository והבנת Architecture</title>
+<link rel="stylesheet" href="../assets/css/guide.css">
+<script src="../assets/js/nav.js" defer></script>
+</head>
+<body>
+<header class="site">
+  <div class="inner">
+    <a class="brand" href="../index.html">מדריך פיתוח ב-Claude Code</a>
+    <nav>
+      <a href="../index.html">תוכן עניינים</a>
+      <a href="../references/sources.html">מקורות</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <p class="kicker">חלק ב | פרק 6</p>
+  <h1>קריאת Repository והבנת Architecture</h1>
+  <p class="lead">לפני שנוגעים בשורת קוד אחת, צריך להבין את המערכת. בפרק הזה נלמד להשתמש ב-<bdi>Claude Code</bdi> ככלי מחקר טהור: מיפוי מבנה תיקיות ונקודות כניסה, זיהוי שכבות וזרימת נתונים, מעקב אחרי מסלולי קריאה של פונקציות, איתור תלויות, בדיקות, קונפיגורציה וגבולות אבטחה, והפקת תרשימי <bdi>Architecture</bdi> ב-<bdi>Mermaid</bdi>. נעשה זאת בלי לשנות אף קובץ, על פרויקט הדוגמה <bdi>TaskFlow</bdi>, ונסיים בהנחיות לעבודה עם <bdi>Codebases</bdi> גדולים.</p>
+
+  <nav class="toc" data-auto></nav>
+
+  <h2 id="what">מהי חקירת Codebase ואיזו בעיה היא פותרת</h2>
+  <p>חקירת <bdi>Codebase</bdi> היא שימוש ב-<bdi>Claude Code</bdi> כדי להבין פרויקט קיים: מה הוא עושה, איך הוא בנוי, איפה עוברים הנתונים, ומה יישבר אם ניגע במקום הלא נכון. זו אחת המיומנויות עם התשואה הגבוהה ביותר, כי היא פותרת שתי בעיות יקרות:</p>
+  <ul>
+    <li><strong>Onboarding איטי.</strong> מפתח חדש בפרויקט מבלה ימים או שבועות בקריאת קוד זר. התיעוד הרשמי ממליץ במפורש לשאול את Claude את אותן שאלות שהייתם שואלים מהנדס בכיר: "איך עובד ה-<bdi>Logging</bdi>?", "איך מוסיפים <bdi>Endpoint</bdi> חדש?". זה מקצר את זמן הכניסה ומוריד עומס מהצוות.</li>
+    <li><strong>שינויים עיוורים.</strong> מי שמתקן <bdi>Bug</bdi> בלי להבין את זרימת הנתונים מתקן לעיתים קרובות סימפטום ולא סיבה, או שובר משהו במקום אחר. הבנת ה-<bdi>Architecture</bdi> קודמת לכל שינוי אחראי, וזה בדיוק הבסיס שעליו נבנה הפרק הבא על <bdi>Plan Mode</bdi>.</li>
+  </ul>
+  <p>היתרון של Claude כאן מבני: הוא לא מנחש מתוך זיכרון, אלא קורא את הקבצים בפועל, מריץ חיפושים, עוקב אחרי <bdi>Imports</bdi>, ומרכיב תמונה מבוססת ראיות. אתם מקבלים סיור מודרך בקוד שלכם, בקצב שלכם.</p>
+
+  <h2 id="when">מתי להשתמש ומתי לא</h2>
+  <p><strong>מתי כן:</strong></p>
+  <ul>
+    <li>הצטרפתם לפרויקט חדש או ירשתם <bdi>Legacy Code</bdi> ואתם צריכים מפה מהירה.</li>
+    <li>לפני כל שינוי שנוגע ביותר מקובץ אחד או שניים: קודם מבינים, אחר כך מתכננים, ורק אז מקודדים.</li>
+    <li>לפני <bdi>Code Review</bdi> או <bdi>Design Review</bdi> של אזור לא מוכר.</li>
+    <li>כשצריך לתעד <bdi>Architecture</bdi> קיימת: מסמכים ותרשימים שאיש לא כתב בזמן אמת.</li>
+  </ul>
+  <p><strong>מתי לא:</strong></p>
+  <ul>
+    <li>כשאתם כבר מכירים את הקוד והמשימה זעירה וברורה. חקירה מקדימה של פרויקט מוכר לצורך תיקון שורה אחת היא בזבוז <bdi>Tokens</bdi> וזמן.</li>
+    <li>כשהשאלה אינה על הקוד אלא על החלטה עסקית או היסטוריה ארגונית שאינה מתועדת ב-<bdi>Repository</bdi>. Claude יכול לקרוא רק את מה שקיים בקבצים וב-<bdi>Git History</bdi>.</li>
+    <li>כתחליף להרצת המערכת. הבנה סטטית של קוד היא משלימה, לא חלופה, לראיית ההתנהגות בזמן ריצה.</li>
+  </ul>
+  <div class="callout note"><span class="title">דרישות מוקדמות</span><p>הפרק מניח שעברתם את <a href="ch03.html">פרק 3</a> (הפעלת <bdi>Session</bdi>, אישור <bdi>Trust</bdi>, שימוש ב-<code>@</code>) ואת <a href="ch05.html">פרק 5</a> (ניסוח <bdi>Prompts</bdi>). לתרגול נשתמש בעותק של <bdi>TaskFlow</bdi> מהתיקייה <code>examples/taskflow</code>, כפי שהכנו בפרק 3.</p></div>
+
+  <h2 id="how">איך זה עובד מושגית: שלב איסוף ההקשר בלולאה</h2>
+  <p>בפרק 3 ראינו שה-<bdi>Agentic Loop</bdi> של Claude פועל בשלושה שלבים: איסוף הקשר, ביצוע פעולה ואימות תוצאה. התיעוד הרשמי מציין ששאלה על ה-<bdi>Codebase</bdi> עשויה להזדקק לשלב הראשון בלבד. כלומר, חקירה היא לולאה שלמה שמורכבת רק מקריאות: Claude מחליט אילו קבצים לפתוח, קורא, מסיק, מחליט מה לקרוא הבא, וחוזר חלילה עד שיש לו תשובה מבוססת.</p>
+  <p>אלה הכלים המובנים העיקריים שתראו בפעולה במהלך חקירה (השמות המדויקים מופיעים במציג ה-<bdi>Transcript</bdi>, שנפתח עם <code>Ctrl+O</code>):</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>כלי</th><th>מה הוא עושה</th><th>דורש אישור במצב ברירת המחדל?</th></tr></thead>
+      <tbody>
+        <tr><td class="ltr"><code>Read</code></td><td>קורא תוכן של קובץ</td><td>לא, בתוך תיקיית העבודה</td></tr>
+        <tr><td class="ltr"><code>Glob</code></td><td>מאתר קבצים לפי תבנית שם, למשל <code>**/*.py</code></td><td>לא, בתוך תיקיית העבודה</td></tr>
+        <tr><td class="ltr"><code>Grep</code></td><td>מחפש טקסט או <bdi>Regex</bdi> בתוך קבצים</td><td>לא, בתוך תיקיית העבודה</td></tr>
+        <tr><td class="ltr"><code>Bash</code></td><td>מריץ פקודות <bdi>Shell</bdi>, למשל <code>git log</code></td><td>כן, מלבד סט מובנה של פקודות קריאה בלבד כמו <code>ls</code> ו-<code>git status</code></td></tr>
+        <tr><td class="ltr"><code>Agent</code></td><td>מפעיל <bdi>Subagent</bdi> עם <bdi>Context Window</bdi> נפרד לחקירה ממוקדת</td><td>לא (פעולות ה-<bdi>Subagent</bdi> עצמן כפופות לאותם כללים)</td></tr>
+        <tr><td class="ltr"><code>LSP</code></td><td>ניווט מדויק לסמלים: הגדרות, הפניות, שגיאות טיפוסים (דורש <bdi>Code Intelligence Plugin</bdi>)</td><td>לא</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>הנקודה החשובה לפרק הזה: לפי טבלת מצבי ההרשאות בתיעוד, במצב ברירת המחדל (<bdi>Manual</bdi>, ערך הקונפיגורציה <code>default</code>) רק פעולות קריאה רצות בלי לשאול. לכן חקירה טהורה זורמת בלי הפרעות: Claude קורא ומחפש בחופשיות, ורק אם ירצה להריץ פקודה שאינה בסט הקריאה או לערוך קובץ, תופיע בקשת הרשאה. כלי הקריאה כן מבקשים אישור עבור נתיבים מחוץ לתיקיית העבודה, וזה מנגנון הגנה רצוי.</p>
+
+  <h2 id="readonly">חקירה בלי לשנות קוד: שלוש שכבות ביטחון</h2>
+  <p>כשהמטרה היא מחקר בלבד, יש לכם שלוש דרכים להבטיח שלא ישתנה שום קובץ, מהקלה לכבדה:</p>
+  <ol>
+    <li><strong>ניסוח מפורש ב-Prompt.</strong> מוסיפים לבקשה משפט כמו <code>this is research only, do not change any code</code>. זו הנחיה למודל, והיא עובדת מצוין ברוב המקרים, אבל היא אינה מנגנון אכיפה.</li>
+    <li><strong>מצב ברירת המחדל כרשת ביטחון.</strong> גם אם Claude ינסה לערוך, במצב ברירת המחדל כל עריכה עוצרת לבקשת אישור. אתם פשוט דוחים. שום דבר לא נכתב לדיסק בלי הסכמתכם.</li>
+    <li><strong>Plan Mode כאכיפה.</strong> לחצו <code>Shift+Tab</code> עד שמופיע החיווי <code>plan mode on</code> בשורת הסטטוס. במצב הזה Claude חוקר ומציע, אך עריכות קוד המקור חסומות עד שתאשרו תוכנית. זו החלופה הקריאה-בלבד המסודרת, ונרחיב עליה מאוד בפרק הבא.</li>
+  </ol>
+  <div class="callout tip"><span class="title">Best Practice</span><p>לחקירה של <bdi>Session</bdi> שלם, פתחו ישר במצב תכנון: <code>claude --permission-mode plan</code>. כך כל השיחה מוגדרת מראש כמחקר, ואין תלות בזיכרון של אף אחד, לא שלכם ולא של המודל.</p></div>
+
+  <h2 id="walkthrough">דוגמה מציאותית: מיפוי TaskFlow בשישה שלבים</h2>
+  <p>נעבור עכשיו מסלול חקירה שלם ומסודר על <bdi>TaskFlow</bdi>. פתחו <bdi>Session</bdi> בתיקיית הפרויקט (רצוי במצב <bdi>plan</bdi> או פשוט בלי לאשר עריכות). לכל שלב מוצגים ה-<bdi>Prompt</bdi> המדויק, מה Claude עושה מאחורי הקלעים, ומה צפוי לחזור. הניסוחים המדויקים של התשובות ישתנו מהרצה להרצה; מה שחשוב הוא סוג המידע שחוזר.</p>
+
+  <h3 id="step1">שלב 1: סקירה כללית (הדוגמה הבסיסית)</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>give me an overview of this codebase: purpose, tech stack, and top-level structure</code></pre>
+  </div>
+  <p><strong>מה Claude עושה:</strong> קורא (<code>Read</code>) את <code>README.md</code> ואת <code>CLAUDE.md</code>, מריץ <code>Glob</code> על מבנה התיקיות, ומציץ ב-<code>backend/requirements.txt</code> וב-<code>frontend/package.json</code> כדי לאמת את ה-<bdi>Stack</bdi>. זה ה-<bdi>Prompt</bdi> הפותח שהתיעוד הרשמי ממליץ עליו, והוא מכוון בכוונה רחב: קודם תמונה כללית, אחר כך צלילה.</p>
+  <p><strong>תוצאה צפויה:</strong> אפליקציית ניהול משימות; <bdi>Backend</bdi> ב-<bdi>Python 3.12</bdi> עם <bdi>FastAPI</bdi> ו-<bdi>SQLite</bdi> בלי <bdi>ORM</bdi>; <bdi>Frontend</bdi> ב-<bdi>React 18</bdi> עם <bdi>TypeScript</bdi> ו-<bdi>Vite</bdi>; בדיקות <bdi>pytest</bdi> ו-<bdi>Typecheck</bdi>; <bdi>CI</bdi> ב-<bdi>GitHub Actions</bdi>.</p>
+
+  <h3 id="step2">שלב 2: נקודות כניסה</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>where are the entry points of this system? for each one, show the file,
+how it is started, and what it wires together</code></pre>
+  </div>
+  <p><strong>מה Claude עושה:</strong> קורא את <code>backend/app/main.py</code> ואת <code>frontend/src/App.tsx</code>, ובודק את סקריפטי ההרצה ב-<code>package.json</code> וב-<code>README.md</code>.</p>
+  <p><strong>תוצאה צפויה:</strong> שתי נקודות כניסה. בצד השרת <code>app/main.py</code>: יוצר אובייקט <code>FastAPI</code>, מחבר את ה-<bdi>Router</bdi> של המשימות, ומאתחל את בסיס הנתונים דרך פונקציית <code>lifespan</code> בעליית השרת (<code>uvicorn app.main:app --reload</code>). בצד הלקוח <code>src/App.tsx</code>: קומפוננטת השורש שרצה עם <code>npm run dev</code>. תשובה טובה תציין גם את <code>/health</code> כ-<bdi>Endpoint</bdi> לבדיקת חיים.</p>
+
+  <h3 id="step3">שלב 3: שכבות וחלוקת אחריות</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>map the layers of the backend and the frontend. for each layer: which files
+belong to it, what it is responsible for, and which layer it talks to.
+point out where the boundaries between layers are enforced</code></pre>
+  </div>
+  <p><strong>מה Claude עושה:</strong> קורא את ארבעת קובצי ה-<bdi>Backend</bdi> ואת שלושת קובצי ה-<bdi>Frontend</bdi>, ועוקב אחרי ה-<bdi>Imports</bdi> ביניהם.</p>
+  <p><strong>תוצאה צפויה:</strong> מיפוי בסגנון הזה. ב-<bdi>Backend</bdi> שלוש שכבות: שכבת <bdi>API</bdi> (<code>routers/tasks.py</code>, חמשת נתיבי ה-<bdi>CRUD</bdi>), שכבת מודלים ו-<bdi>Validation</bdi> (<code>models.py</code>, מודלי <bdi>Pydantic</bdi> עם אילוצי אורך וסטטוס), ושכבת אחסון (<code>database.py</code>, חיבור <bdi>SQLite</bdi> ו-<bdi>Schema</bdi>). ב-<bdi>Frontend</bdi> שלוש מקבילות: תצוגה (<code>App.tsx</code>), לקוח <bdi>API</bdi> (<code>api.ts</code>) וחוזה טיפוסים (<code>types.ts</code>). תובנה ארכיטקטונית שתשובה טובה תציף: ערכי הסטטוס <code>todo</code>, <code>in_progress</code> ו-<code>done</code> מוגדרים פעמיים, פעם באילוץ <code>CHECK</code> ב-<bdi>SQLite</bdi> ובטיפוס <code>TaskStatus</code> של <bdi>Pydantic</bdi>, ופעם ב-<code>types.ts</code> של ה-<bdi>Frontend</bdi>. אלו שני מקורות אמת מתואמים ידנית, וזה בדיוק סוג הגבול שחשוב להכיר לפני שמוסיפים סטטוס חדש.</p>
+
+  <h3 id="step4">שלב 4: זרימת נתונים ומסלול קריאות מלא</h3>
+  <p>עכשיו נבקש מעקב מקצה לקצה אחרי פעולה אחת, בסגנון "trace the login process" מהתיעוד:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>trace what happens when a user adds a new task in the UI, step by step,
+from the click to the row in the database and back to the screen.
+name every function and file on the path</code></pre>
+  </div>
+  <p><strong>מה Claude עושה:</strong> קורא את <code>App.tsx</code>, עובר ל-<code>api.ts</code> בעקבות ה-<bdi>Import</bdi>, ואז חוצה ל-<bdi>Backend</bdi>: <code>routers/tasks.py</code>, <code>models.py</code> ו-<code>database.py</code>.</p>
+  <p><strong>תוצאה צפויה:</strong> שרשרת בסגנון: <code>onAdd</code> ב-<code>App.tsx</code> קוראת ל-<code>createTask</code> ב-<code>api.ts</code>, שמבצעת <code>fetch</code> עם <code>POST</code> אל <code>/api/tasks</code>; בשרת, <code>create_task</code> ב-<code>routers/tasks.py</code> מקבלת <code>TaskCreate</code> שעבר <bdi>Validation</bdi> של <bdi>Pydantic</bdi>, מבצעת <code>INSERT</code> עם פרמטרים דרך <code>get_conn</code>, שולפת את השורה שנוצרה ומחזירה <code>Task</code> עם קוד 201; בחזרה בלקוח, <code>refresh</code> מושכת את הרשימה המעודכנת. ותשובה חדה באמת תתפוס פער אמיתי שקיים בגרסת הדוגמה: ה-<bdi>Frontend</bdi> פונה ל-<code>/api/tasks</code> (הקבוע <code>BASE_URL</code> ב-<code>api.ts</code>), אבל ה-<bdi>Backend</bdi> מגיש את הנתיבים תחת <code>/tasks</code> בלי תחילית, ובפרויקט אין קובץ <code>vite.config.ts</code> שמגדיר <bdi>Proxy</bdi>. כלומר, האינטגרציה מניחה <bdi>Proxy</bdi> שאינו מוגדר ב-<bdi>Repository</bdi>. ממצא כזה, שמתגלה רק ממעקב זרימה אמיתי, הוא הסיבה שעושים את התרגיל הזה לפני שמפתחים.</p>
+
+  <h3 id="step5">שלב 5: תלויות, בדיקות וקונפיגורציה</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>inventory this repo: external dependencies and what each is used for,
+the test suites and what they cover, all configuration including
+environment variables, and what CI runs on every push</code></pre>
+  </div>
+  <p><strong>מה Claude עושה:</strong> קורא את <code>requirements.txt</code>, <code>package.json</code>, <code>tsconfig.json</code>, את <code>backend/tests/test_tasks.py</code> ואת <code>.github/workflows/ci.yml</code>, ומריץ <code>Grep</code> על <code>os.environ</code> כדי לאתר משתני סביבה.</p>
+  <p><strong>תוצאה צפויה:</strong> תלויות שרת: <bdi>fastapi</bdi>, <bdi>uvicorn</bdi>, <bdi>pydantic</bdi>, ולבדיקות <bdi>pytest</bdi> ו-<bdi>httpx</bdi>; תלויות לקוח: <bdi>react</bdi> ו-<bdi>react-dom</bdi>, עם <bdi>typescript</bdi> ו-<bdi>vite</bdi> לפיתוח. בדיקות: שש בדיקות <bdi>API</bdi> ב-<code>test_tasks.py</code> שמכסות יצירה, שליפה, עדכון סטטוס, דחיית סטטוס לא חוקי, 404 ומחיקה; ל-<bdi>Frontend</bdi> אין בדיקות, רק <code>npm run typecheck</code>. קונפיגורציה: משתנה הסביבה <code>TASKFLOW_DB</code> שמכוון את נתיב בסיס הנתונים (הבדיקות משתמשות בו כדי לעבוד על קובץ זמני). <bdi>CI</bdi>: שני <bdi>Jobs</bdi> מקבילים, <code>pytest -q</code> ו-<code>npm run typecheck</code>, על כל <bdi>Push</bdi> ל-<code>main</code> ועל כל <bdi>Pull Request</bdi>.</p>
+
+  <h3 id="step6">שלב 6: גבולות אבטחה</h3>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>where are the security and trust boundaries in this system?
+cover input validation, SQL usage, authentication, and anything
+that crosses from untrusted input to the database.
+research only, do not change any code</code></pre>
+  </div>
+  <p><strong>מה Claude עושה:</strong> חוזר אל <code>models.py</code> ו-<code>routers/tasks.py</code> וסורק את השאילתות.</p>
+  <p><strong>תוצאה צפויה:</strong> ניתוח כן של גבול האמון היחיד: קלט המשתמש נכנס דרך ה-<bdi>API</bdi> ועובר <bdi>Validation</bdi> של <bdi>Pydantic</bdi> (אורכי שדות, סטטוס מתוך רשימה סגורה) לפני שהוא מגיע ל-<bdi>SQL</bdi>. כל השאילתות משתמשות בפרמטרים (<code>?</code>) ולא בשרשור מחרוזות של ערכים. נקודה מעניינת שראוי שתעלה: ב-<code>update_task</code> שמות העמודות כן משורשרים למחרוזת ה-<code>UPDATE</code> (הביטוי <code>f"{k} = ?"</code>), אבל המקור שלהם הוא שדות המודל <code>TaskUpdate</code> שעברו <bdi>Validation</bdi>, ולא קלט חופשי, ולכן זו תבנית בטוחה כרגע אך שברירית לשינויים עתידיים. ממצאים מערכתיים נוספים: אין <bdi>Authentication</bdi> ואין <bdi>Authorization</bdi> בכלל, ואין הגדרת <bdi>CORS</bdi>. לפרויקט לימוד זה תקין; לפני <bdi>Production</bdi> זו רשימת המשימות הראשונה.</p>
+
+  <h3 id="followup">שאלות המשך: מוסכמות, מילון מונחים ואזכורים מדויקים</h3>
+  <p>ששת השלבים הם השלד; את הבשר משלימות שאלות המשך. התיעוד הרשמי ממליץ על שתיים במיוחד: לשאול על מוסכמות הקוד ותבניות העבודה של הפרויקט, ולבקש מילון מונחים של מושגים ייחודיים לו. שתיהן חוסכות טעויות סגנון והבנה בהמשך:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompts לשאלות המשך</div>
+    <pre><code>what coding conventions and patterns does this project follow?
+what would I need to know before adding a new endpoint?
+give me a glossary of project-specific terms and concepts</code></pre>
+  </div>
+  <p>ב-<bdi>TaskFlow</bdi> התשובה הראשונה צפויה להצביע על המוסכמות שכתובות ב-<code>CLAUDE.md</code> וניכרות בקוד: <bdi>Type Hints</bdi> בכל מקום, בלי <bdi>ORM</bdi>, שאילתות עם פרמטרים בלבד, <bdi>TypeScript</bdi> במצב <bdi>strict</bdi> בלי <code>any</code>. וכשאתם רוצים לשאול על קובץ או תיקייה ספציפיים, השתמשו ב-<code>@</code> כפי שלמדנו בפרק 3: <code>@backend/app</code> מצרף רשימת תיקייה, ו-<code>@backend/app/models.py</code> מצרף את תוכן הקובץ המלא, כך שהשאלה מעוגנת בדיוק במקום הנכון.</p>
+
+  <h2 id="diagrams">הפקת תרשימי Architecture עם Mermaid</h2>
+  <p>אחרי שהתמונה ברורה, כדאי לקבע אותה בתרשים. <bdi>Mermaid</bdi> היא שפת תרשימים טקסטואלית ש-Claude מפיק בקלות כטקסט בתשובה, בלי לגעת באף קובץ. את הקוד שמתקבל מדביקים בכל מקום שמרנדר <bdi>Mermaid</bdi>: קובצי <bdi>Markdown</bdi> ב-<bdi>GitHub</bdi> וב-<bdi>GitLab</bdi>, רוב ה-<bdi>Wikis</bdi>, או העורך המקוון <bdi>Mermaid Live Editor</bdi>.</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>based on what you learned, output a Mermaid flowchart of the architecture:
+frontend components, backend layers, and the database, with the calls
+between them labeled. output only the mermaid code block</code></pre>
+  </div>
+  <p>פלט אפשרי (מקוצר) שמתאים למה שמיפינו:</p>
+  <div class="codeblock">
+    <div class="codehead">Mermaid: תרשים רכיבים</div>
+    <pre><code>flowchart LR
+  subgraph FE[Frontend: React + TypeScript]
+    APP[App.tsx] --&gt; API[api.ts]
+    API --&gt; T[types.ts]
+  end
+  subgraph BE[Backend: FastAPI]
+    R[routers/tasks.py] --&gt; M[models.py]
+    R --&gt; D[database.py]
+  end
+  API --&gt;|HTTP JSON /tasks| R
+  D --&gt; DB[(SQLite: taskflow.db)]</code></pre>
+  </div>
+  <p>ולזרימה של פעולה בודדת מבקשים <bdi>Sequence Diagram</bdi>:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>now output a Mermaid sequence diagram of creating a task:
+user, App.tsx, api.ts, FastAPI router, Pydantic validation, SQLite</code></pre>
+  </div>
+  <div class="codeblock">
+    <div class="codehead">Mermaid: תרשים רצף ליצירת משימה</div>
+    <pre><code>sequenceDiagram
+  participant U as User
+  participant A as App.tsx
+  participant C as api.ts
+  participant R as tasks.py (POST /tasks)
+  participant P as Pydantic (TaskCreate)
+  participant S as SQLite
+  U-&gt;&gt;A: submit form
+  A-&gt;&gt;C: createTask({title})
+  C-&gt;&gt;R: POST /tasks (JSON)
+  R-&gt;&gt;P: validate payload
+  P--&gt;&gt;R: TaskCreate
+  R-&gt;&gt;S: INSERT INTO tasks (parameterized)
+  S--&gt;&gt;R: new row
+  R--&gt;&gt;C: 201 + Task JSON
+  C--&gt;&gt;A: Task
+  A-&gt;&gt;C: listTasks() refresh</code></pre>
+  </div>
+  <p>בדקו תמיד את התרשים מול מה שלמדתם בשלבים הקודמים: תרשים הוא טענה על המערכת, ו-Claude יכול לטעות בו כמו בכל טענה. אם תרצו לשמור את התוצר כקובץ <code>ARCHITECTURE.md</code> ב-<bdi>Repository</bdi>, שימו לב שזו כבר פעולת כתיבה: במצב ברירת המחדל תופיע בקשת אישור, וב-<bdi>Plan Mode</bdi> תצטרכו לצאת מהמצב קודם. זה הגבול המדויק שבין מחקר לשינוי.</p>
+
+  <h2 id="advanced">דוגמה מתקדמת: ארכיאולוגיה של Git ו-Subagents</h2>
+  <p>שתי טכניקות שמרימות את החקירה לרמה הבאה:</p>
+  <p><strong>1. חקירת היסטוריה.</strong> כשקוד נראה מוזר, התשובה נמצאת לפעמים ב-<bdi>Git History</bdi> ולא בקוד עצמו. התיעוד הרשמי מדגים בדיוק את זה: במקום לשאול "למה ל-<bdi>API</bdi> הזה יש מבנה מוזר?", מכוונים את Claude למקור שיכול לענות:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>look through the git history of backend/app/models.py and summarize
+how the validation rules evolved and why</code></pre>
+  </div>
+  <p>Claude יריץ פקודות כמו <code>git log</code> ו-<code>git show</code> (פקודות קריאה מ-<bdi>Git</bdi>; חלקן בסט הקריאה החופשי וחלקן יבקשו אישור חד פעמי) ויסכם את ההתפתחות. בעותק טרי של <bdi>TaskFlow</bdi> יש <bdi>Commit</bdi> אחד בלבד, אז את הטכניקה הזאת תפעילו בפרויקטים אמיתיים.</p>
+  <p><strong>2. חקירה דרך Subagent.</strong> חקירה רחבה ממלאת את ה-<bdi>Context</bdi> בקריאות קבצים. התיעוד ממליץ להאציל את החקירה כך שרק הממצאים יחזרו לשיחה הראשית:</p>
+  <div class="codeblock">
+    <div class="codehead">Prompt</div>
+    <pre><code>use a subagent to investigate how task status values flow through the
+system, and report back only the findings and file references</code></pre>
+  </div>
+  <p>ה-<bdi>Subagent</bdi> קורא את הקבצים ב-<bdi>Context Window</bdi> משלו ומחזיר סיכום. בפרויקט בגודל של <bdi>TaskFlow</bdi> זה מיותר; ב-<bdi>Codebase</bdi> אמיתי זה ההבדל בין שיחה נקייה לשיחה חנוקה. נרחיב על כך ב<a href="ch25.html">פרק 25 על Subagents</a>.</p>
+
+  <h2 id="large">עבודה עם Codebases גדולים ו-Monorepos</h2>
+  <p>לתיעוד הרשמי יש עמוד ייעודי לנושא (ראו במקורות), והעיקרון המרכזי שלו: ככל שה-<bdi>Repository</bdi> גדל, ברירות המחדל שמכוונות לפרויקטים קטנים מתחילות למלא את ה-<bdi>Context</bdi> בהוראות ובקריאות שאינן קשורות למשימה. הפתרון הוא למקד את Claude בחלק הרלוונטי:</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>טכניקה</th><th>מה היא נותנת</th></tr></thead>
+      <tbody>
+        <tr><td>הפעלה מתת-תיקייה במקום מהשורש</td><td>נטענים רק ה-<code>CLAUDE.md</code> של אותה תיקייה ושל תיקיות האב, והגישה מוגבלת לאותו תת-עץ. מתאים כשעובדים על <bdi>Package</bdi> אחד</td></tr>
+        <tr><td class="ltr"><code>CLAUDE.md</code> per-directory</td><td>קובץ שורש עם כללים כלל-מערכתיים, וקובץ לכל תת-מערכת עם המוסכמות שלה; קובצי תת-תיקיות נטענים לפי דרישה כש-Claude קורא שם קבצים</td></tr>
+        <tr><td class="ltr"><code>claudeMdExcludes</code></td><td>הגדרה שמונעת טעינת קובצי <code>CLAUDE.md</code> של אזורים שאינכם עובדים בהם לעולם</td></tr>
+        <tr><td>חוקי <code>deny</code> על <code>Read</code></td><td>חסימת קריאה של קוד מיוצר ותלויות מוטמעות (<bdi>Vendored</bdi>) שרק מבזבזים <bdi>Context</bdi>, למשל <code>Read(./**/dist/**)</code></td></tr>
+        <tr><td class="ltr">Code Intelligence Plugin</td><td>ניווט "עבור להגדרה" ו"מצא הפניות" דרך <bdi>Language Server</bdi> במקום סריקת קבצים גורפת</td></tr>
+        <tr><td class="ltr"><code>--add-dir</code></td><td>הרחבת גישה נקודתית ל-<bdi>Package</bdi> אח או ל-<bdi>Repository</bdi> נוסף כשמשימה חוצה גבולות</td></tr>
+        <tr><td>Subagents לחקירה</td><td>הקריאות מתבצעות ב-<bdi>Context</bdi> נפרד ורק סיכום חוזר לשיחה הראשית</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>כלל אצבע לחקירת פרויקט גדול: התחילו ממוקד. במקום "explain this codebase" על <bdi>Monorepo</bdi> של מיליוני שורות, שאלו על תת-מערכת אחת, או פתחו את ה-<bdi>Session</bdi> מתוך התיקייה שלה. חקירה לא ממוקדת ב-<bdi>Repository</bdi> ענק היא ה-<bdi>Anti-pattern</bdi> שהתיעוד מכנה "the infinite exploration". את ההגדרות עצמן (<code>settings.json</code>, חוקי הרשאות) נלמד לעומק ב<a href="ch17.html">פרק 17</a> וב<a href="ch18.html">פרק 18</a>.</p>
+
+  <h2 id="verify">אימות: איך יודעים שההבנה נכונה</h2>
+  <p>חקירה מסתיימת רק כשההבנה נבדקה. תשובות של מודל שפה יכולות להיות שוטפות ומשכנעות וגם שגויות, ולכן שלב האימות אינו רשות. שלוש בדיקות מהירות:</p>
+  <div class="verify">
+    <ul class="check">
+      <li><strong>בדיקת מדגם מול הקוד:</strong> בחרו שתיים או שלוש טענות מרכזיות מהסיכום (למשל "כל השאילתות עם פרמטרים") ופתחו בעצמכם את הקובץ הרלוונטי לוודא. אם מדגם קטן נקי, רמת האמון בשאר עולה; אם לא, חוזרים לחקירה.</li>
+      <li><strong>בדיקת ה-Transcript:</strong> פתחו <code>Ctrl+O</code> וודאו שהקבצים המרכזיים באמת נקראו. טענה על קובץ שלא נפתח היא ניחוש, גם אם היא נשמעת בטוחה.</li>
+      <li><strong>שאלת ניבוי:</strong> שאלו את Claude שאלה שהתשובה עליה נובעת מההבנה אך אינה כתובה במפורש בקוד, למשל: <code>if I add a new status value "blocked", what exactly breaks and where?</code>. תשובה נכונה ל-<bdi>TaskFlow</bdi> חייבת למנות את אילוץ ה-<code>CHECK</code> ב-<code>database.py</code>, את <code>TaskStatus</code> ב-<code>models.py</code>, את <code>types.ts</code> ואת מפת <code>NEXT_STATUS</code> ב-<code>App.tsx</code>. תשובה שמפספסת אחד מהארבעה חושפת חור בהבנה, של Claude או שלכם, בדיוק בזמן.</li>
+    </ul>
+  </div>
+
+  <h2 id="mistakes">שגיאות נפוצות</h2>
+  <ul>
+    <li><strong>לשאול הכול בשאלה אחת.</strong> "explain everything about this repo" מחזיר סיכום שטחי. עבדו בשלבים כמו במסלול למעלה: סקירה, כניסות, שכבות, זרימה, תלויות, אבטחה.</li>
+    <li><strong>לקבל תשובות בלי לדרוש ראיות.</strong> בקשו תמיד שמות קבצים ופונקציות בתשובה (<code>name every function and file on the path</code>). טענה בלי הפניה לקוד היא טענה שלא נבדקה.</li>
+    <li><strong>לדלג על אימות.</strong> פתחו את הקבצים המרכזיים שהוזכרו, או לחצו <code>Ctrl+O</code> כדי לראות מה באמת נקרא. אם Claude לא פתח את <code>database.py</code>, הוא מנחש לגבי ה-<bdi>Schema</bdi>.</li>
+    <li><strong>לחקור ולשנות באותה נשימה.</strong> כשחקירה גולשת לתיקונים "קטנים" תוך כדי, מאבדים גם את ניקיון המחקר וגם את השליטה בשינוי. הפרידו: קודם מחקר, אחר כך תוכנית, ואז ביצוע.</li>
+    <li><strong>לשכוח את ה-Context.</strong> אחרי חקירה ארוכה, השיחה מלאה בתוכן קבצים. אל תמשיכו ממנה ישר למשימת פיתוח שאינה קשורה; פתחו דף חדש עם <code>/clear</code>.</li>
+  </ul>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <ul>
+    <li><strong>Claude עונה באופן כללי בלי לקרוא קבצים.</strong> ודאו שאתם בתיקיית הפרויקט הנכונה (מוצגת מעל שורת הקלט), ונסחו מחדש עם עוגן קונקרטי: <code>@backend/app/main.py</code> או שם פונקציה.</li>
+    <li><strong>התשובה סותרת את הקוד.</strong> זה קורה, במיוחד אחרי שיחה ארוכה שבה ה-<bdi>Context</bdi> התמלא. בקשו אימות ממוקד: <code>re-read models.py and verify your claim about title validation</code>. אם הסתירות חוזרות, <code>/clear</code> והתחלה נקייה.</li>
+    <li><strong>החקירה איטית או נתקעת על Repository ענק.</strong> צמצמו את השדה: הפעילו את ה-<bdi>Session</bdi> מתת-תיקייה, הגדירו חוקי <code>deny</code> לקוד מיוצר, או האצילו ל-<bdi>Subagent</bdi>. ראו את סעיף ה-<bdi>Codebases</bdi> הגדולים למעלה.</li>
+    <li><strong>Claude מבקש אישור להריץ פקודה באמצע מחקר.</strong> זה תקין: פקודות שאינן בסט הקריאה המובנה (למשל <code>pip list</code>) דורשות אישור. קראו את הפקודה, ואם היא באמת קריאה בלבד, אשרו. אם אינכם בטוחים, דחו ובקשו מ-Claude להסביר מה הפקודה עושה.</li>
+    <li><strong>בקשתם "רק מחקר" ובכל זאת הוצע Diff.</strong> ההנחיה בטקסט אינה אכיפה. דחו את העריכה בבקשת ההרשאה, ועברו ל-<bdi>Plan Mode</bdi> עם <code>Shift+Tab</code> להמשך החקירה.</li>
+  </ul>
+
+  <h2 id="security">Security: חקירת Repository שאינו מהימן</h2>
+  <div class="callout warn"><span class="title">אזהרה: קוד זר יכול לתקוף את החוקר שלו</span><p>חקירה מרגישה בטוחה כי "רק קוראים", אבל <bdi>Repository</bdi> שהורדתם מהאינטרנט יכול להכיל טקסט עוין בדיוק במקומות ש-Claude קורא: <code>README.md</code>, <code>CLAUDE.md</code>, הערות בקוד, ואף הגדרות ב-<code>.claude/settings.json</code>. זו מתקפת <bdi>Prompt Injection</bdi>: הוראות מוסתרות שמנסות לגרום ל-Claude לבצע פעולות בשמכם. לכן קיים חלון ה-<bdi>Trust</bdi> בכניסה הראשונה לתיקייה, ולכן מנגנון ההרשאות מציג לאישור כל פקודה שאינה קריאה. בפרויקט לא מוכר: הישארו במצב ברירת המחדל או ב-<bdi>Plan Mode</bdi>, קראו כל בקשת הרשאה בעיון לפני אישור, אל תאשרו פקודות רשת כמו <code>curl</code> שאינכם מבינים, ושקלו להריץ את החקירה בסביבה מבודדת (<bdi>VM</bdi> או <bdi>Dev Container</bdi>). התיעוד הרשמי ממליץ במפורש שלא להזרים תוכן לא מהימן ישירות ל-Claude ולדווח על התנהגות חשודה עם <code>/feedback</code>. הרחבה מלאה על מודל האיומים וההגנות: <a href="ch20.html">פרק 20: Security</a>.</p></div>
+
+  <h2 id="cost">שיקולי Cost ו-Context</h2>
+  <div class="callout note"><span class="title">חקירה ממלאת את ה-Context</span><p>כל קובץ ש-Claude קורא נכנס ל-<bdi>Context Window</bdi> ונשאר שם. חקירה יסודית של פרויקט בינוני יכולה לצרוך עשרות אלפי <bdi>Tokens</bdi>, והתיעוד מציין שביצועי המודל יורדים ככל שה-<bdi>Context</bdi> מתמלא. כלים מעשיים: <code>/context</code> מציג מה תופס מקום; <code>/clear</code> מאפס בין חקירה למשימה הבאה; <bdi>Subagents</bdi> מעבירים את עלות הקריאות ל-<bdi>Context</bdi> נפרד; ובקשה לסכם ממצאים לקובץ או להודעה אחת מרוכזת שומרת את התובנות גם אם השיחה תקוצץ. ניהול <bdi>Context</bdi> מלא: <a href="ch14.html">פרק 14</a>.</p></div>
+
+  <h2 id="best">Best Practices</h2>
+  <ul class="check">
+    <li>התחילו רחב וצרו הדרגתית: סקירה, ואז צלילה לאזור אחד בכל פעם.</li>
+    <li>פתחו חקירת עומק ב-<code>claude --permission-mode plan</code> או הוסיפו "do not change any code" לכל <bdi>Prompt</bdi> מחקרי.</li>
+    <li>דרשו הפניות: שמות קבצים, פונקציות ושורות בכל תשובה.</li>
+    <li>סכמו כל שלב חקירה במשפט או שניים לעצמכם; בסוף בקשו מ-Claude סיכום ממצאים אחד מרוכז.</li>
+    <li>הפיקו תרשים <bdi>Mermaid</bdi> אחד לפחות לכל מערכת שאתם לומדים, ובדקו אותו מול הקוד.</li>
+    <li>שאלו גם "מה חסר": בדיקות שאין, <bdi>Validation</bdi> שאין, תיעוד שאין. היעדרות היא ממצא ארכיטקטוני.</li>
+    <li>ב-<bdi>Repository</bdi> גדול, מקדו את השדה לפני שמתחילים: תת-תיקייה, חוקי <code>deny</code>, או <bdi>Subagent</bdi>.</li>
+  </ul>
+
+  <h2 id="antipatterns">Anti-patterns</h2>
+  <ul>
+    <li><strong>החקירה האינסופית:</strong> "תחקור את המערכת" בלי גבולות. Claude יקרא מאות קבצים וימלא את ה-<bdi>Context</bdi>. תמיד תחמו: אזור, שאלה, תוצר מבוקש.</li>
+    <li><strong>מפה בלי טריטוריה:</strong> לקבל תיאור <bdi>Architecture</bdi> יפה ולא לפתוח אף קובץ לאימות. תשובה שגויה אחת שלא נתפסה מזהמת את כל ההחלטות שאחריה.</li>
+    <li><strong>חקירה כתירוץ לדחיינות:</strong> לחקור שבוע פרויקט של אלף שורות. עומק החקירה צריך להיות פרופורציונלי לסיכון של השינוי המתוכנן.</li>
+    <li><strong>הדבקת קבצים ידנית:</strong> להעתיק תוכן קבצים לתוך ה-<bdi>Prompt</bdi> במקום לתת ל-Claude לקרוא בעצמו או להשתמש ב-<code>@</code>. זה מבזבז <bdi>Tokens</bdi> ומאבד את היתרון של חקירה אקטיבית.</li>
+    <li><strong>לחקור עם הרשאות פתוחות:</strong> להריץ חקירה של קוד זר במצב שמאשר עריכות או פקודות אוטומטית. חקירה צריכה את המצב השמרני ביותר שנוח לכם לעבוד בו.</li>
+  </ul>
+
+  <h2 id="exercise">תרגיל</h2>
+  <div class="exercise">
+    <div class="head">תרגיל 6.1: מסמך Architecture מלא ל-TaskFlow</div>
+    <div class="body">
+      <p>הפעילו <bdi>Session</bdi> חדש בעותק ה-<bdi>TaskFlow</bdi> שלכם במצב <bdi>plan</bdi> (<code>claude --permission-mode plan</code>), ובצעו:</p>
+      <ol>
+        <li>הריצו את ששת שלבי החקירה מהפרק, שלב אחר שלב, וודאו שכל תשובה כוללת הפניות לקבצים.</li>
+        <li>בקשו מ-Claude לזהות את שלושת הסיכונים הארכיטקטוניים המרכזיים של הפרויקט, מנומקים.</li>
+        <li>בקשו תרשים <bdi>Mermaid</bdi> של הרכיבים ותרשים רצף של מחיקת משימה (<code>DELETE /tasks/{id}</code>).</li>
+        <li>בקשו סיכום ממצאים אחד בפורמט מסמך: סקירה, שכבות, זרימות, תלויות, פערים.</li>
+        <li>ודאו בעזרת <code>git status</code> (מחוץ ל-Claude או עם <code>!git status</code>) ששום קובץ לא השתנה.</li>
+      </ol>
+    </div>
+  </div>
+  <details class="solution">
+    <summary>פתרון מוסבר</summary>
+    <div class="body">
+      <p>(1) המסלול אמור לשחזר את הממצאים מהפרק: שתי נקודות כניסה, שלוש שכבות בכל צד, זרימת <bdi>CRUD</bdi> דרך <bdi>Pydantic</bdi> ל-<bdi>SQLite</bdi>, ושישה מבחני <bdi>API</bdi>. (2) שלושה סיכונים סבירים שכדאי לצפות להם: ערכי הסטטוס מוגדרים בשני מקורות אמת שיכולים להתפצל; פער ה-<bdi>Proxy</bdi> בין <code>/api</code> בלקוח לבין <code>/tasks</code> בשרת בהיעדר <code>vite.config.ts</code>; והיעדר מוחלט של <bdi>Authentication</bdi> ו-<bdi>CORS</bdi>. אם Claude הציף סיכונים אחרים מנומקים היטב (למשל שרשור שמות שדות ב-<code>update_task</code> או היעדר בדיקות ל-<bdi>Frontend</bdi>), גם זו תוצאה טובה. (3) תרשים הרצף למחיקה צריך להראות <code>deleteTask</code> ב-<code>api.ts</code>, נתיב <code>DELETE</code> שמחזיר 204, וטיפול ב-404 כשהמשימה אינה קיימת. (4) מסמך טוב הוא כזה שמפתח חדש יכול לקרוא בחמש דקות ולהתחיל לעבוד. (5) <code>git status</code> נקי הוא ההוכחה שהחקירה הייתה באמת קריאה בלבד; אם משהו השתנה, בדקו ב-<code>/diff</code> מה ואיך, ושחזרו עם <bdi>Git</bdi>.</p>
+    </div>
+  </details>
+
+  <h2 id="summary">סיכום</h2>
+  <p>למדתם להפעיל את <bdi>Claude Code</bdi> כחוקר: מיפוי שיטתי בשישה שלבים (סקירה, נקודות כניסה, שכבות, זרימת נתונים ומסלולי קריאה, תלויות ובדיקות וקונפיגורציה, גבולות אבטחה), הפקת תרשימי <bdi>Mermaid</bdi> מהממצאים, והבחנה חדה בין מחקר לשינוי בעזרת ניסוח מפורש, מצב ברירת המחדל ו-<bdi>Plan Mode</bdi>. ראיתם שחקירה אמיתית מציפה ממצאים שלא רואים מבחוץ, כמו פער ה-<bdi>Proxy</bdi> של <bdi>TaskFlow</bdi>, ולמדתם למקד את החקירה ב-<bdi>Codebases</bdi> גדולים ולנהל את מחיר ה-<bdi>Context</bdi> שלה. בפרק הבא ניקח את הממצאים האלה צעד קדימה: תכנון שינוי מלא ב-<bdi>Plan Mode</bdi> לפני שכותבים שורת קוד.</p>
+
+  <div class="callout source"><span class="title">מקורות</span>
+    <p>
+      <a href="https://code.claude.com/docs/en/common-workflows">Common workflows (Understand new codebases)</a> |
+      <a href="https://code.claude.com/docs/en/how-claude-code-works">How Claude Code works</a> |
+      <a href="https://code.claude.com/docs/en/best-practices">Best practices</a> |
+      <a href="https://code.claude.com/docs/en/large-codebases">Monorepos and large repos</a> |
+      <a href="https://code.claude.com/docs/en/tools-reference">Tools reference</a> |
+      <a href="https://code.claude.com/docs/en/permission-modes">Permission modes</a> |
+      <a href="https://code.claude.com/docs/en/security">Security</a>
+      | נבדק: 28.07.2026
+    </p>
+  </div>
+
+  <div class="chapnav">
+    <a href="ch05.html"><span class="lbl">הפרק הקודם</span>כיצד לדבר עם Claude Code</a>
+    <a href="ch07.html"><span class="lbl">הפרק הבא</span>Plan לפני Implementation</a>
+  </div>
+</main>
+
+<footer class="site">מדריך פיתוח ב-Claude Code | גרסה 1.0 | תאריך מחקר: 28.07.2026</footer>
+</body>
+</html>

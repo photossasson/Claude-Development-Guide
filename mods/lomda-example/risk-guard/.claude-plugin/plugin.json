@@ -1,0 +1,21 @@
+{
+  "name": "risk-guard",
+  "version": "0.1.0",
+  "description": "Holds risky Bash commands for a confirmation and counts what it held.",
+  "author": {
+    "name": "Claude Code Guide (example)"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "mode": {
+      "type": "string",
+      "title": "Mode",
+      "description": "ask: confirm each risky command. deny: always refuse.",
+      "default": "ask",
+      "options": [
+        "ask",
+        "deny"
+      ]
+    }
+  }
+}
